@@ -1,0 +1,620 @@
+'use client'
+
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { Package, Truck, History, Store, User, MapPin, Navigation, Flag, Wallet, Receipt, Smartphone, CircleAlert } from 'lucide-react'
+import { useToast } from '@/components/ui/ToastProvider'
+import { useLanguage } from '@/components/LanguageContext'
+import { useDriverPush } from '../DriverPushContext'
+import { useDriverStatus } from '../DriverStatusContext'
+import { useSanityLiveStream } from '@/lib/useSanityLiveStream'
+import { getWhatsAppUrl } from '@/lib/whatsapp'
+import { parseCoordsFromGoogleMapsUrl, googleMapsNavigationUrl, wazeNavigationUrl } from '@/lib/maps-utils'
+import { getCityDisplayName } from '@/lib/registration-translations'
+import { DriverPWAInstall } from './DriverPWAInstall'
+import { SlideToComplete } from './SlideToComplete'
+import { SlideToConfirm } from './SlideToConfirm'
+import { ReportFormModal } from '@/components/Reports/ReportFormModal'
+
+const OFFLINE_PUSH_SENT_KEY = 'driverOfflinePushSent'
+
+type DriverOrder = {
+  orderId: string
+  orderNumber: string
+  customerName: string
+  customerPhone: string
+  businessName: string
+  businessAddress: string
+  businessAddressAr?: string
+  businessMapsLink?: string
+  city: string
+  deliveryAreaName: string
+  deliveryAreaNameAr?: string
+  deliveryAddress: string
+  deliveryLat?: number
+  deliveryLng?: number
+  deliveryFee: number
+  totalAmount: number
+  amountToPayTenant: number
+  currency: string
+  status: string
+  completedAt?: string
+  itemsUpdatedAt?: string
+  driverReconfirmedAt?: string
+}
+
+const NEW_ORDER_SOUND = '/sounds/1.wav'
+const MAX_ACTIVE_DELIVERIES = 2
+
+/** Show short order number for driver: ORD-...1060 (last 4 digits). */
+function formatDriverOrderNumber(orderNumber: string): string {
+  if (!orderNumber || orderNumber.length <= 4) return orderNumber
+  const last4 = orderNumber.slice(-4)
+  const prefix = orderNumber.startsWith('ORD-') ? 'ORD-...' : '...'
+  return prefix + last4
+}
+
+export default function DriverOrdersPage() {
+  const { t, lang } = useLanguage()
+  const { showToast } = useToast()
+  const searchParams = useSearchParams()
+  const { hasPush } = useDriverPush()
+  const { isOnline } = useDriverStatus()
+  const [pending, setPending] = useState<DriverOrder[]>([])
+  const [myDeliveries, setMyDeliveries] = useState<DriverOrder[]>([])
+  const [myCompletedToday, setMyCompletedToday] = useState<DriverOrder[]>([])
+  const [loading, setLoading] = useState(true)
+  const [actionId, setActionId] = useState<string | null>(null)
+  const [reportOrderId, setReportOrderId] = useState<string | null>(null)
+  const prevPendingCountRef = useRef(0)
+  const declinedOrderIdsRef = useRef<Set<string>>(new Set())
+  const acceptedAtRef = useRef<Map<string, number>>(new Map())
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/driver/orders', { cache: 'no-store' })
+      if (res.status === 403) {
+        window.location.href = '/suspended?type=driver'
+        return
+      }
+      const data = await res.json()
+      if (res.ok && data) {
+        let nextPending = (Array.isArray(data.pending) ? data.pending : []).filter(
+          (o: DriverOrder) => !declinedOrderIdsRef.current.has(o.orderId)
+        )
+        const nextMy = Array.isArray(data.myDeliveries) ? data.myDeliveries : []
+        const nextCompleted = Array.isArray(data.myCompletedToday) ? data.myCompletedToday : []
+        const now = Date.now()
+        const acceptedKeepWindow = 5000
+        const justAccepted = nextMy.filter((o: DriverOrder) => {
+          const t = acceptedAtRef.current.get(o.orderId)
+          return t != null && now - t < acceptedKeepWindow
+        })
+        const serverIds = new Set(nextMy.map((o: DriverOrder) => o.orderId))
+        const mergedMy = [...nextMy]
+        for (const o of justAccepted) {
+          if (!serverIds.has(o.orderId)) {
+            mergedMy.push(o)
+            serverIds.add(o.orderId)
+          }
+        }
+        const prevCount = prevPendingCountRef.current
+        prevPendingCountRef.current = nextPending.length
+        setPending(nextPending)
+        setMyDeliveries(mergedMy)
+        setMyCompletedToday(nextCompleted)
+        if (nextPending.length > prevCount && prevCount >= 0) {
+          try {
+            const audio = new Audio(NEW_ORDER_SOUND)
+            audio.volume = 1
+            audio.play().catch(() => {})
+          } catch (_) {}
+        }
+      }
+    } catch {
+      // keep previous state
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchOrders()
+  }, [fetchOrders])
+
+  // Always refetch when user opens the app or returns to this tab so new orders appear even if SSE missed or FCM was backgrounded.
+  useEffect(() => {
+    const onFocus = () => fetchOrders()
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') fetchOrders()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [fetchOrders])
+
+  useSanityLiveStream('/api/driver/orders/live', fetchOrders, { debounceMs: 700 })
+
+  // Once per session: if driver has push and is offline, send a friendly reminder push (Arabic).
+  useEffect(() => {
+    if (typeof window === 'undefined' || !hasPush || isOnline) return
+    if (sessionStorage.getItem(OFFLINE_PUSH_SENT_KEY)) return
+    sessionStorage.setItem(OFFLINE_PUSH_SENT_KEY, '1')
+    fetch('/api/driver/push-send-offline-reminder', { method: 'POST' }).catch(() => {})
+  }, [hasPush, isOnline])
+
+  const canAcceptMore = myDeliveries.length < MAX_ACTIVE_DELIVERIES
+
+  const accept = async (orderId: string) => {
+    if (!canAcceptMore) {
+      showToast(
+        t('You can have at most 2 active deliveries. Complete or cancel one to accept more.', 'يمكنك تنفيذ توصيلتين نشطتين فقط. أكمِل أو ألغِ واحدة لقبول المزيد.'),
+        t('You can have at most 2 active deliveries. Complete or cancel one to accept more.', 'يمكنك تنفيذ توصيلتين نشطتين فقط. أكمِل أو ألغِ واحدة لقبول المزيد.'),
+        'info'
+      )
+      return
+    }
+    const order = pending.find((x) => x.orderId === orderId)
+    if (!order) return
+    setActionId(orderId)
+    setPending((prev) => prev.filter((x) => x.orderId !== orderId))
+    setMyDeliveries((prev) => [{ ...order, status: 'driver_on_the_way' }, ...prev])
+    acceptedAtRef.current.set(orderId, Date.now())
+    try {
+      const res = await fetch(`/api/driver/orders/${orderId}/accept`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Failed to accept')
+      }
+      showToast(t('Order accepted.', 'تم قبول الطلب.'), t('Order accepted.', 'تم قبول الطلب.'), 'success')
+      // Live stream will refetch when Sanity order doc updates; no extra fetch here
+    } catch (e) {
+      acceptedAtRef.current.delete(orderId)
+      setPending((prev) => [order, ...prev])
+      setMyDeliveries((prev) => prev.filter((x) => x.orderId !== orderId))
+      showToast(t('Failed to accept order.', 'فشل قبول الطلب.'), t('Failed to accept order.', 'فشل قبول الطلب.'), 'error')
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  const decline = async (orderId: string) => {
+    const order = pending.find((x) => x.orderId === orderId)
+    setActionId(orderId)
+    declinedOrderIdsRef.current.add(orderId)
+    setPending((prev) => prev.filter((x) => x.orderId !== orderId))
+    try {
+      await fetch(`/api/driver/orders/${orderId}/decline`, { method: 'POST' })
+      // Live stream will refetch when Sanity order doc updates
+    } catch {
+      declinedOrderIdsRef.current.delete(orderId)
+      if (order) setPending((prev) => [order, ...prev])
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  const cancel = async (orderId: string) => {
+    setActionId(orderId)
+    try {
+      const res = await fetch(`/api/driver/orders/${orderId}/cancel`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Failed to cancel')
+      }
+      showToast(t('Delivery cancelled. Order is available for other drivers.', 'تم إلغاء التوصيل. الطلب متاح لسائقيْن آخرين.'), t('Delivery cancelled. Order is available for other drivers.', 'تم إلغاء التوصيل. الطلب متاح لسائقيْن آخرين.'), 'success')
+      // Live stream will refetch when order doc updates (unassigned)
+    } catch (e) {
+      showToast(t('Failed to cancel delivery.', 'فشل إلغاء التوصيل.'), t('Failed to cancel delivery.', 'فشل إلغاء التوصيل.'), 'error')
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  const reconfirm = async (orderId: string) => {
+    setActionId(orderId)
+    try {
+      const res = await fetch(`/api/driver/orders/${orderId}/reconfirm`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed')
+      showToast(t('Order confirmed. New amount acknowledged.', 'تم التأكيد. تم الإقرار بالمبلغ الجديد.'), t('Order confirmed. New amount acknowledged.', 'تم التأكيد. تم الإقرار بالمبلغ الجديد.'), 'success')
+      // Live stream will refetch when order doc updates
+    } catch {
+      showToast(t('Failed to confirm.', 'فشل التأكيد.'), t('Failed to confirm.', 'فشل التأكيد.'), 'error')
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  const complete = async (orderId: string) => {
+    const order = myDeliveries.find((x) => x.orderId === orderId)
+    if (!order) return
+    setActionId(orderId)
+    const completedOrder: DriverOrder = { ...order, status: 'completed', completedAt: new Date().toISOString() }
+    setMyDeliveries((prev) => prev.filter((x) => x.orderId !== orderId))
+    setMyCompletedToday((prev) => [completedOrder, ...prev])
+    try {
+      const res = await fetch(`/api/driver/orders/${orderId}/complete`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Failed to complete')
+      }
+      showToast(t('Delivery marked complete.', 'تم تسجيل الطلب مكتملًا.'), t('Delivery marked complete.', 'تم تسجيل الطلب مكتملًا.'), 'success')
+      // Live stream will refetch when Sanity order doc updates
+    } catch (e) {
+      setMyDeliveries((prev) => [order, ...prev])
+      setMyCompletedToday((prev) => prev.filter((x) => x.orderId !== orderId))
+      showToast(t('Failed to mark complete.', 'فشل تسجيل الإكمال.'), t('Failed to mark complete.', 'فشل تسجيل الإكمال.'), 'error')
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  const formatCurrency = (c: string) => (c === 'USD' ? '$' : c === 'EUR' ? '€' : '₪')
+
+  const needsReconfirm = (o: DriverOrder) =>
+    !!o.itemsUpdatedAt && (!o.driverReconfirmedAt || o.driverReconfirmedAt < o.itemsUpdatedAt)
+
+  const OrderCardContent = ({ o, isGreen, showComplete, showAcceptDecline, acceptDisabled }: {
+    o: DriverOrder
+    isGreen: boolean
+    showComplete: boolean
+    showAcceptDecline: boolean
+    /** When true, driver is at max active deliveries and cannot accept more. */
+    acceptDisabled?: boolean
+  }) => {
+    const showReconfirmBanner = showComplete && needsReconfirm(o)
+    const isEnRouteToCustomer = o.status === 'out-for-delivery'
+    const navPrimary = 'inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-base font-semibold transition-all min-h-[48px] touch-manipulation'
+    const navSecondary = 'inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all'
+    return (
+    <>
+      {showReconfirmBanner && (
+        <div className="rounded-xl border-2 border-amber-500/60 bg-amber-950/50 p-3 mb-3">
+          <p className="text-amber-200 font-semibold text-sm mb-2">
+            {t('Order was updated by the business. New amount to pay:', 'تم تحديث الطلب من قبل المتجر. المبلغ الجديد المطلوب دفعه:')}
+          </p>
+          <p className="text-amber-100 font-bold text-base mb-2">
+            {o.amountToPayTenant.toFixed(2)} {o.currency} {t('to', 'إلى')} {o.businessName}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => reconfirm(o.orderId)}
+              disabled={actionId === o.orderId}
+              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 text-sm disabled:opacity-70"
+            >
+              {actionId === o.orderId ? t('Confirming…', 'جاري التأكيد…') : t('Confirm', 'تأكيد')}
+            </button>
+            <button
+              type="button"
+              onClick={() => cancel(o.orderId)}
+              disabled={actionId === o.orderId}
+              className="rounded-lg border border-slate-500 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold px-4 py-2 text-sm disabled:opacity-70"
+            >
+              {t('Decline', 'رفض')}
+            </button>
+          </div>
+        </div>
+      )}
+      {showComplete && (o.customerName || o.customerPhone) && (
+        <div className="rounded-xl bg-emerald-500/20 border border-emerald-500/40 p-4 mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <User className="h-5 w-5 text-emerald-300 shrink-0" />
+            <span className="font-semibold text-emerald-200 text-base">{o.customerName || '—'}</span>
+          </div>
+          {o.customerPhone ? (
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <a
+                href={`tel:${o.customerPhone.replace(/\s/g, '')}`}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/15 hover:bg-white/25 px-4 py-2.5 text-emerald-100 font-semibold transition-colors min-h-[44px]"
+              >
+                {o.customerPhone}
+              </a>
+              {getWhatsAppUrl(o.customerPhone) && (
+                <a
+                  href={getWhatsAppUrl(o.customerPhone)!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366]/30 hover:bg-[#25D366]/50 px-4 py-2.5 text-emerald-100 font-semibold transition-colors min-h-[44px]"
+                  title={t('Message on WhatsApp', 'مراسلة على واتساب')}
+                >
+                  WhatsApp
+                </a>
+              )}
+            </div>
+          ) : null}
+        </div>
+      )}
+      {/* Payment summary: 1 big box with 3 sections (pay to business | delivery fee | total from client) */}
+      <div className="rounded-xl border-2 border-slate-600/60 bg-slate-800/40 p-4 mb-4 space-y-3">
+        <div className="rounded-lg bg-amber-500/20 border border-amber-500/50 p-4 flex items-center gap-3">
+          <Wallet className="h-6 w-6 text-amber-400 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-amber-200/90 text-sm font-medium">{t('You need to pay', 'المبلغ المطلوب دفعه')}</p>
+            <p className="font-bold text-amber-100 text-lg">
+              {o.amountToPayTenant.toFixed(2)} {formatCurrency(o.currency)} {t('to', 'إلى')} {o.businessName}
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-12 gap-3">
+          <div className="col-span-6 rounded-lg bg-sky-500/15 border border-sky-500/40 p-3 flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <Truck className="h-4 w-4 text-sky-400 shrink-0" />
+              <span className="text-sky-200/90 text-xs font-medium">{t('Delivery fee', 'سعر التوصيل')}</span>
+            </div>
+            <span className="font-bold text-sky-100 text-base">{o.deliveryFee.toFixed(2)} {formatCurrency(o.currency)}</span>
+          </div>
+          <div className="col-span-6 rounded-lg bg-emerald-500/15 border border-emerald-500/40 p-3 flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-emerald-400 shrink-0" />
+              <span className="text-emerald-200/90 text-xs font-medium">
+                {t('Total from', 'المجموع من')} {(o.customerName || '').trim().split(/\s+/)[0] || t('client', 'العميل')}
+              </span>
+            </div>
+            <span className="font-bold text-emerald-100 text-2xl">{o.totalAmount.toFixed(2)} {formatCurrency(o.currency)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Business (Pickup) Location */}
+      <div className="rounded-xl bg-slate-800/60 border border-slate-600/60 p-4 mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Store className="h-5 w-5 text-amber-400 shrink-0" />
+          <span className="font-semibold text-slate-200 text-base">{t('Pickup from', 'استلام من')}</span>
+        </div>
+        <p className="text-slate-100 text-base leading-relaxed pr-7">
+          {lang === 'ar' && (o.businessAddressAr || '').trim() ? o.businessAddressAr : (o.businessAddress || o.businessName || '—')}
+        </p>
+        {(o.businessMapsLink || o.businessAddress || o.businessAddressAr || o.businessName) && (() => {
+          const addressEn = [o.businessAddress, o.businessName].filter(Boolean).join(', ') || t('Store', 'المتجر')
+          const address = lang === 'ar' && (o.businessAddressAr || '').trim() ? [o.businessAddressAr, o.businessName].filter(Boolean).join(', ') || addressEn : addressEn
+          const coords = parseCoordsFromGoogleMapsUrl(o.businessMapsLink)
+          const googleNavUrl = googleMapsNavigationUrl(coords ?? address)
+          const wazeNavUrl = wazeNavigationUrl(coords ?? address)
+          const isBusinessPrimary = !isEnRouteToCustomer && showComplete
+          const base = isBusinessPrimary ? navPrimary : navSecondary
+          const googleClass = isBusinessPrimary ? `${base} bg-amber-500/90 hover:bg-amber-500 text-slate-900` : `${base} bg-slate-700/80 hover:bg-slate-600 text-amber-400 hover:text-amber-300`
+          const wazeClass = isBusinessPrimary ? `${base} bg-sky-500/90 hover:bg-sky-500 text-white` : `${base} bg-slate-700/80 hover:bg-slate-600 text-sky-400 hover:text-sky-300`
+          return (
+            <div className={`flex flex-wrap gap-2 mt-3 ${isBusinessPrimary ? 'gap-3' : ''}`}>
+              <a href={googleNavUrl} target="_blank" rel="noopener noreferrer" className={googleClass} title={t('Navigate to pickup (Google Maps)', 'التنقل إلى نقطة الاستلام (Google Maps)')}>
+                <Navigation className="h-5 w-5 shrink-0" />
+                Google Maps
+              </a>
+              <a href={wazeNavUrl} target="_blank" rel="noopener noreferrer" className={wazeClass} title={t('Navigate to pickup (Waze)', 'التنقل إلى نقطة الاستلام (Waze)')}>
+                <Navigation className="h-5 w-5 shrink-0" />
+                Waze
+              </a>
+            </div>
+          )
+        })()}
+      </div>
+
+      {/* Customer (Delivery) Location */}
+      <div className="rounded-xl bg-slate-800/60 border border-slate-600/60 p-4 mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <MapPin className="h-5 w-5 text-emerald-400 shrink-0" />
+          <span className="font-semibold text-slate-200 text-base">{t('Delivery', 'التوصيل')}</span>
+        </div>
+        <p className="text-slate-100 text-base leading-relaxed pr-7">
+          {showAcceptDecline
+            ? `${o.city ? `${getCityDisplayName(o.city, lang)} - ` : ''}${(lang === 'ar' && o.deliveryAreaNameAr) ? o.deliveryAreaNameAr : (o.deliveryAreaName || o.deliveryAddress || '—')}`
+            : `${o.city ? `${getCityDisplayName(o.city, lang)} - ` : ''}${o.deliveryAddress || '—'}`}
+        </p>
+        {!showAcceptDecline && o.deliveryLat != null && o.deliveryLng != null && Number.isFinite(o.deliveryLat) && Number.isFinite(o.deliveryLng) && (
+          <div className={`flex flex-wrap gap-2 mt-3 ${isEnRouteToCustomer ? 'gap-3' : ''}`}>
+            <a
+              href={googleMapsNavigationUrl({ lat: o.deliveryLat, lng: o.deliveryLng })}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={isEnRouteToCustomer ? `${navPrimary} bg-emerald-500/90 hover:bg-emerald-500 text-white` : `${navSecondary} bg-slate-700/80 hover:bg-slate-600 text-emerald-400`}
+              title={t('Navigate to customer (Google Maps)', 'التنقل إلى العميل (Google Maps)')}
+            >
+              <Navigation className="h-5 w-5 shrink-0" />
+              {t('Maps', 'خرائط')} → {t('Customer', 'العميل')}
+            </a>
+            <a
+              href={wazeNavigationUrl({ lat: o.deliveryLat, lng: o.deliveryLng })}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={isEnRouteToCustomer ? `${navPrimary} bg-sky-500/90 hover:bg-sky-500 text-white` : `${navSecondary} bg-slate-700/80 hover:bg-slate-600 text-sky-400`}
+              title={t('Navigate to customer (Waze)', 'التنقل إلى العميل (Waze)')}
+            >
+              <Navigation className="h-5 w-5 shrink-0" />
+              Waze → {t('Customer', 'العميل')}
+            </a>
+          </div>
+        )}
+      </div>
+      {showAcceptDecline && (
+        <div className="flex flex-col gap-3 mt-3">
+          {acceptDisabled && (
+            <p className="rounded-lg bg-amber-950/50 border border-amber-500/40 px-3 py-2 text-amber-200 text-sm">
+              {t('You can have at most 2 active deliveries. Complete or cancel one to accept more.', 'يمكنك تنفيذ توصيلتين نشطتين فقط. أكمِل أو ألغِ واحدة لقبول المزيد.')}
+            </p>
+          )}
+          <SlideToConfirm orderId={o.orderId} variant="accept" onConfirm={accept} disabled={!!actionId || !!acceptDisabled} />
+          <SlideToConfirm orderId={o.orderId} variant="decline" onConfirm={decline} disabled={!!actionId} />
+        </div>
+      )}
+      {showComplete && (
+        <div className="mt-3">
+          {!showReconfirmBanner && (
+            <>
+              <SlideToComplete
+                orderId={o.orderId}
+                onComplete={complete}
+                disabled={!!actionId}
+              />
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReportOrderId(o.orderId)}
+                  className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-300"
+                >
+                  <Flag className="h-3.5 w-3.5" />
+                  {t('Report customer', 'الإبلاغ عن العميل')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => cancel(o.orderId)}
+                  disabled={actionId === o.orderId}
+                  className="text-xs text-slate-500 hover:text-slate-400 underline underline-offset-2"
+                >
+                  {actionId === o.orderId ? t('Cancelling…', 'جاري الإلغاء…') : t('Cancel delivery', 'إلغاء التوصيل')}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </>
+  )
+  }
+
+  const justRegistered = searchParams.get('registered') === '1'
+  const [dismissedRegistered, setDismissedRegistered] = useState(false)
+  const showJustRegistered = justRegistered && !dismissedRegistered
+
+  return (
+    <div className="space-y-6 sm:space-y-8">
+      {showJustRegistered && (
+        <div className="rounded-xl border-2 border-amber-600/50 bg-amber-950/30 p-5" role="region" aria-label={t('Next steps after registration', 'الخطوات التالية بعد التسجيل')}>
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-amber-500/30 border border-amber-500/50" aria-hidden>
+              <Smartphone className="h-7 w-7 text-amber-300" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-amber-100 text-lg mb-1">
+                {t('You’re all set! Do this next:', 'تم التسجيل! افعل التالي:')}
+              </p>
+              <p className="text-amber-200/95 text-sm mb-4">
+                {t('Enable notifications below to get new orders. Then install the app from this page so you get the correct driver app.', 'فعّل الإشعارات أدناه لاستقبال الطلبات. ثم ثبّت التطبيق من هذه الصفحة لتحصل على تطبيق السائق الصحيح.')}
+              </p>
+              <div className="rounded-lg bg-amber-900/40 border border-amber-600/40 p-3 mb-3">
+                <p className="font-semibold text-amber-200 text-sm mb-2 flex items-center gap-2">
+                  <CircleAlert className="h-4 w-4 shrink-0" />
+                  {t('Important: Install from this page', 'مهم: ثبّت من هذه الصفحة')}
+                </p>
+                <p className="text-xs text-amber-200/90 mb-3">
+                  {t('If you install from another page you may get the wrong app. Stay here on "Delivery orders" and use the install steps below.', 'إذا ثبّت من صفحة أخرى قد تحصل على تطبيق خاطئ. ابقَ هنا في "طلبات التوصيل" واستخدم خطوات التثبيت أدناه.')}
+                </p>
+                <ul className="text-sm text-amber-200/90 space-y-2">
+                  <li className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-600/50 text-amber-100 text-xs font-bold">1</span>
+                    {t('Android: tap Install when it appears below, or menu (⋮) → Add to Home screen.', 'Android: اضغط تثبيت عند ظهوره أدناه، أو القائمة (⋮) ← إضافة إلى الشاشة الرئيسية.')}
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-600/50 text-amber-100 text-xs font-bold">2</span>
+                    {t('iPhone: Share → Add to Home Screen, then open from home screen.', 'iPhone: مشاركة ← إضافة إلى الشاشة الرئيسية، ثم افتح من الشاشة الرئيسية.')}
+                  </li>
+                </ul>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDismissedRegistered(true)}
+                className="text-xs text-amber-400 hover:text-amber-300 underline"
+              >
+                {t('Dismiss', 'إخفاء')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <DriverPWAInstall />
+
+      <h1 className="font-black text-xl text-white sm:text-2xl">{t('Delivery orders', 'طلبات التوصيل')}</h1>
+
+      {loading && pending.length === 0 && myDeliveries.length === 0 && myCompletedToday.length === 0 ? (
+        <p className="text-slate-400 text-base">{t('Loading…', 'جاري التحميل...')}</p>
+      ) : (
+        <>
+          <section>
+            <h2 className="mb-3 flex items-center gap-2 font-bold text-base text-slate-200 sm:text-lg">
+              <Package className="h-5 w-5 shrink-0" />
+              {t('Available orders', 'طلبات متاحة')}
+            </h2>
+            {pending.length === 0 ? (
+              <p className="text-slate-500 text-base">{t('No orders right now. Stay online to receive new orders.', 'لا توجد طلبات الآن. ابقَ متصلًا لاستقبال طلبات جديدة.')}</p>
+            ) : (
+              <ul className="space-y-4">
+                {pending.map((o) => (
+                  <li key={o.orderId} className="rounded-xl border border-slate-700 bg-slate-900 p-4 sm:p-5">
+                    <span className="font-mono text-lg font-bold text-white">#{formatDriverOrderNumber(o.orderNumber)}</span>
+                    <OrderCardContent o={o} isGreen={false} showComplete={false} showAcceptDecline={true} acceptDisabled={!canAcceptMore} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-3 flex items-center gap-2 font-bold text-base text-slate-200 sm:text-lg">
+              <Truck className="h-5 w-5 shrink-0" />
+              {t('My deliveries', 'توصيلاتي')}
+            </h2>
+            {myDeliveries.length === 0 ? (
+              <p className="text-slate-500 text-base">{t('No active deliveries.', 'لا توجد توصيلات نشطة.')}</p>
+            ) : (
+              <ul className="space-y-4">
+                {myDeliveries.map((o) => (
+                  <li key={o.orderId} className="rounded-xl border-2 border-green-700 bg-green-950/40 p-4 sm:p-5">
+                    <span className="font-mono text-lg font-bold text-white">#{formatDriverOrderNumber(o.orderNumber)}</span>
+                    <OrderCardContent o={o} isGreen={true} showComplete={true} showAcceptDecline={false} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-3 flex items-center gap-2 font-bold text-base text-slate-200 sm:text-lg">
+              <History className="h-5 w-5 shrink-0" />
+              {t('Completed today', 'تم اليوم')}
+            </h2>
+            {myCompletedToday.length === 0 ? (
+              <p className="text-slate-500 text-base">{t('No completed orders today.', 'لا توجد طلبات مكتملة اليوم.')}</p>
+            ) : (
+              <ul className="space-y-3">
+                {myCompletedToday.map((o) => (
+                  <li key={o.orderId} className="rounded-xl border border-slate-700 bg-slate-900/60 p-3 sm:p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-white">#{formatDriverOrderNumber(o.orderNumber)}</span>
+                      <span className="text-sm text-slate-400">{o.businessName}</span>
+                    </div>
+                    <p className="text-slate-400 text-sm mt-1">
+                      {t('Total', 'المجموع')} {o.totalAmount.toFixed(2)} {o.currency} · {t('Delivery', 'التوصيل')}: {o.city ? `${getCityDisplayName(o.city, lang)} - ` : ''}{(lang === 'ar' && o.deliveryAreaNameAr) ? o.deliveryAreaNameAr : (o.deliveryAddress || '—')}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setReportOrderId(o.orderId)}
+                      className="mt-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-400"
+                    >
+                      <Flag className="h-3 w-3" />
+                      {t('Report customer', 'الإبلاغ عن العميل')}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
+
+      {reportOrderId && (
+        <ReportFormModal
+          open={true}
+          onClose={() => setReportOrderId(null)}
+          reporterType="driver"
+          reportedType="customer"
+          orderId={reportOrderId}
+          onSuccess={() => setReportOrderId(null)}
+        />
+      )}
+    </div>
+  )
+}

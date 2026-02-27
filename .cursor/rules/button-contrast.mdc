@@ -1,0 +1,20 @@
+---
+description: Ensure buttons have sufficient contrast — never use light text on light/amber button background
+globs: **/*.tsx
+alwaysApply: false
+---
+
+# Button contrast (always fix)
+
+**Rule: Never use light text on a light or amber button background.**
+
+- **Amber / yellow / light primary buttons:** Always add dark text, e.g. `bg-amber-500 text-slate-950 hover:bg-amber-400` (keep `text-slate-950` on hover too: `hover:text-slate-950` if you override hover styles).
+- **White or very light background buttons:** Use dark text, e.g. `bg-white text-slate-900` or `text-slate-950`.
+- **Dark backgrounds (slate-900, slate-950, manage/dashboard):** Use light text on dark buttons, e.g. `bg-slate-800 text-white` or `border-slate-600 text-slate-200`.
+- **Outline buttons** in dark sections: set explicit bg + text, e.g. `bg-slate-800 text-slate-200 border-slate-600 hover:bg-slate-700`.
+- When adding or editing any Button, always set both background and text color so the combination has clear contrast (WCAG AA where possible).
+
+Examples:
+- Amber CTA: `className="bg-amber-500 text-slate-950 hover:bg-amber-400"`
+- Outline on light card: `className="... bg-white text-slate-900 hover:bg-amber-50"`
+- Dark section: `className="bg-slate-800 text-white ..."`

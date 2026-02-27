@@ -1,0 +1,83 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
+import { client } from '@/sanity/lib/client'
+
+/** GET /api/driver/analytics — completed delivery orders for the current driver (for analytics: profit, top areas, top businesses). */
+export async function GET(req: NextRequest) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const driver = await client.fetch<{ _id: string } | null>(
+    `*[_type == "driver" && clerkUserId == $userId][0]{ _id }`,
+    { userId }
+  )
+  if (!driver) return NextResponse.json({ orders: [] })
+
+  const driverId = driver._id
+
+  const raw = await client.fetch<
+    Array<{
+      _id: string
+      orderNumber: string
+      deliveryFee?: number
+      currency?: string
+      completedAt?: string
+      deliveryAreaRef?: string
+      siteRef?: string
+    }>
+  >(
+    `*[_type == "order" && orderType == "delivery" && status == "completed" && assignedDriver._ref == $driverId] | order(completedAt desc) {
+      _id,
+      orderNumber,
+      deliveryFee,
+      currency,
+      completedAt,
+      "deliveryAreaRef": deliveryArea._ref,
+      "siteRef": site._ref
+    }`,
+    { driverId }
+  )
+
+  const areaIds = [...new Set((raw ?? []).map((o) => o.deliveryAreaRef).filter(Boolean))] as string[]
+  const siteIds = [...new Set((raw ?? []).map((o) => o.siteRef).filter(Boolean))] as string[]
+
+  const [areas, sites] = await Promise.all([
+    areaIds.length
+      ? client.fetch<Array<{ _id: string; name_en?: string }>>(
+          `*[_type == "area" && _id in $areaIds]{ _id, name_en }`,
+          { areaIds }
+        )
+      : Promise.resolve([]),
+    siteIds.length
+      ? client.fetch<
+          Array<{
+            _id: string
+            name?: string
+            restaurantName?: string
+          }>
+        >(
+          `*[_type == "tenant" && _id in $siteIds] {
+            _id,
+            name,
+            "restaurantName": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_en
+          }`,
+          { siteIds }
+        )
+      : Promise.resolve([]),
+  ])
+
+  const areaMap = new Map(areas.map((a) => [a._id, a.name_en || a._id]))
+  const siteMap = new Map(sites.map((s) => [s._id, s.restaurantName || s.name || 'Business']))
+
+  const orders = (raw ?? []).map((o) => ({
+    _id: o._id,
+    orderNumber: o.orderNumber,
+    deliveryFee: o.deliveryFee ?? 0,
+    currency: o.currency ?? 'ILS',
+    completedAt: o.completedAt ?? o._id,
+    areaName: o.deliveryAreaRef ? areaMap.get(o.deliveryAreaRef) ?? '—' : '—',
+    businessName: o.siteRef ? siteMap.get(o.siteRef) ?? '—' : '—',
+  }))
+
+  return NextResponse.json({ orders }, { headers: { 'Cache-Control': 'no-store' } })
+}

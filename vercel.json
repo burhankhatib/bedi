@@ -1,0 +1,12 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "devCommand": "next dev",
+  "installCommand": "npm install",
+  "crons": [
+    {
+      "path": "/api/cron/driver-auto-offline",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Clear Cache</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .box {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    button {
+      background: #000;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #333;
+    }
+    .success {
+      color: green;
+      margin-top: 20px;
+      padding: 10px;
+      background: #e8f5e9;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Clear Browser Cache</h1>
+    <p>Click the button below to clear all caches and reload the page:</p>
+    
+    <button onclick="clearAll()">Clear Cache & Reload</button>
+    
+    <div id="result"></div>
+    
+    <hr style="margin: 30px 0;">
+    
+    <h2>Manual Steps:</h2>
+    <ol>
+      <li><strong>Hard Refresh:</strong> Press <code>Cmd + Shift + R</code> (Mac) or <code>Ctrl + Shift + R</code> (Windows)</li>
+      <li><strong>Or:</strong> Open DevTools (F12) → Application tab → Clear Storage → Clear site data</li>
+      <li><strong>Or:</strong> Use Incognito/Private window</li>
+    </ol>
+    <p style="margin-top: 16px; padding: 10px; background: #fff8e1; border-radius: 6px; font-size: 14px;">
+      <strong>Dashboard PWA:</strong> After clearing, you may need to <a href="/sign-in?redirect_url=/dashboard">sign in again</a> to open the dashboard.
+    </p>
+  </div>
+
+  <script>
+    async function clearAll() {
+      const result = document.getElementById('result');
+      result.innerHTML = '<p>Clearing caches...</p>';
+      
+      try {
+        // Clear all caches
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+        
+        // Unregister service workers
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(reg => reg.unregister()));
+        
+        // Clear localStorage and sessionStorage
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        result.innerHTML = '<div class="success">✅ Cache cleared! Reloading page...</div>';
+        
+        // Reload after 1 second
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1000);
+      } catch (error) {
+        result.innerHTML = '<div style="color: red;">Error: ' + error.message + '</div>';
+      }
+    }
+    
+    // Auto-run on load
+    window.addEventListener('load', () => {
+      console.log('Cache clearing page loaded. Click button to clear cache.');
+    });
+  </script>
+</body>
+</html>

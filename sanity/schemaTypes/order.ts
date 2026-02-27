@@ -1,0 +1,378 @@
+import { defineField, defineType } from 'sanity'
+
+export const orderType = defineType({
+  name: 'order',
+  title: 'Order',
+  type: 'document',
+  fields: [
+    defineField({
+      name: 'site',
+      title: 'Site',
+      type: 'reference',
+      to: [{ type: 'tenant' }],
+      description: 'Which business/site this order belongs to',
+    }),
+    defineField({
+      name: 'orderNumber',
+      title: 'Order Number',
+      type: 'string',
+      readOnly: true,
+      description: 'Auto-generated unique order number',
+    }),
+    defineField({
+      name: 'orderType',
+      title: 'Order Type',
+      type: 'string',
+      options: {
+        list: [
+          { title: 'Receive in Person', value: 'receive-in-person' },
+          { title: 'Dine-in', value: 'dine-in' },
+          { title: 'Delivery', value: 'delivery' },
+        ],
+      },
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'status',
+      title: 'Order Status',
+      type: 'string',
+      options: {
+        list: [
+          { title: '🆕 New', value: 'new' },
+          { title: '👨‍🍳 Preparing', value: 'preparing' },
+          { title: '⏳ Waiting for Delivery', value: 'waiting_for_delivery' },
+          { title: '🚗 Driver is on the way to the restaurant', value: 'driver_on_the_way' },
+          { title: '📦 Driver on the way to you', value: 'out-for-delivery' },
+          { title: '✅ Delivered & COMPLETED', value: 'completed' },
+          { title: '🍽️ Served (Dine-in)', value: 'served' },
+          { title: '❌ Cancelled', value: 'cancelled' },
+          { title: '💰 Refunded', value: 'refunded' },
+        ],
+      },
+      initialValue: 'new',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'customer',
+      title: 'Customer',
+      type: 'reference',
+      to: [{ type: 'customer' }],
+      description: 'Registered customer (Clerk user). Set when order is placed.',
+      readOnly: true,
+    }),
+    defineField({
+      name: 'customerName',
+      title: 'Customer Name',
+      type: 'string',
+      validation: (Rule) => Rule.required(),
+    }),
+    // Dine-in only: table number (receive-in-person has no table)
+    defineField({
+      name: 'tableNumber',
+      title: 'Table Number',
+      type: 'string',
+      description: 'For dine-in orders only',
+      hidden: ({ parent }) => parent?.orderType !== 'dine-in',
+    }),
+    // Customer phone / WhatsApp (required for dine-in and receive-in-person for contact; also used for delivery)
+    defineField({
+      name: 'customerPhone',
+      title: 'Customer Phone / WhatsApp',
+      type: 'string',
+      description: 'Required for dine-in and receive-in-person (tenant may contact customer). Also used for delivery.',
+    }),
+    defineField({
+      name: 'deliveryArea',
+      title: 'Delivery Area',
+      type: 'reference',
+      to: [{ type: 'area' }],
+      description: 'Selected delivery area',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
+      name: 'deliveryAddress',
+      title: 'Delivery Address Details',
+      type: 'text',
+      rows: 3,
+      description: 'Specific location details for delivery',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
+      name: 'deliveryLat',
+      title: 'Delivery latitude',
+      type: 'number',
+      description: 'Customer shared location (for driver navigation). Optional.',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
+      name: 'deliveryLng',
+      title: 'Delivery longitude',
+      type: 'number',
+      description: 'Customer shared location (for driver navigation). Optional.',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
+      name: 'deliveryFee',
+      title: 'Delivery Fee',
+      type: 'number',
+      description: 'Delivery fee charged for this order',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
+      name: 'assignedDriver',
+      title: 'Assigned Driver',
+      type: 'reference',
+      to: [{ type: 'driver' }],
+      description: 'Driver assigned to deliver this order',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
+      name: 'deliveryRequestedAt',
+      title: 'Delivery requested at',
+      type: 'datetime',
+      description: 'When set, order is shown to online drivers in the same area. Cleared when a driver accepts.',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
+      name: 'declinedByDriverIds',
+      title: 'Declined by drivers',
+      type: 'array',
+      of: [{ type: 'reference', to: [{ type: 'driver' }] }],
+      description: 'Drivers who declined this order; they will not see it again in the pool unless the restaurant assigns it to them.',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+      readOnly: true,
+    }),
+    // Order items
+    defineField({
+      name: 'items',
+      title: 'Order Items',
+      type: 'array',
+      of: [
+        {
+          type: 'object',
+          name: 'orderItem',
+          fields: [
+            defineField({
+              name: 'product',
+              title: 'Product',
+              type: 'reference',
+              to: [{ type: 'product' }],
+            }),
+            defineField({
+              name: 'productName',
+              title: 'Product Name',
+              type: 'string',
+              description: 'Stored name at time of order',
+            }),
+            defineField({
+              name: 'quantity',
+              title: 'Quantity',
+              type: 'number',
+              validation: (Rule) => Rule.required().min(1),
+            }),
+            defineField({
+              name: 'price',
+              title: 'Unit Price',
+              type: 'number',
+              description: 'Price per unit at time of order',
+            }),
+            defineField({
+              name: 'total',
+              title: 'Total',
+              type: 'number',
+              description: 'Total price for this item',
+            }),
+            defineField({
+              name: 'notes',
+              title: 'Special Requests',
+              type: 'text',
+              rows: 2,
+            }),
+            defineField({
+              name: 'addOns',
+              title: 'Add-ons',
+              type: 'string',
+              description: 'Selected add-ons for this item',
+            }),
+          ],
+          preview: {
+            select: {
+              name: 'productName',
+              quantity: 'quantity',
+              total: 'total',
+            },
+            prepare({ name, quantity, total }) {
+              return {
+                title: `${quantity}x ${name}`,
+                subtitle: `${total?.toFixed(2) || 0} ₪`,
+              }
+            },
+          },
+        },
+      ],
+      validation: (Rule) => Rule.required().min(1),
+    }),
+    defineField({
+      name: 'subtotal',
+      title: 'Subtotal',
+      type: 'number',
+      description: 'Total before delivery fee',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'totalAmount',
+      title: 'Total Amount',
+      type: 'number',
+      description: 'Total including delivery fee',
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'currency',
+      title: 'Currency',
+      type: 'string',
+      initialValue: 'ILS',
+    }),
+    defineField({
+      name: 'createdAt',
+      title: 'Order Date & Time',
+      type: 'datetime',
+      initialValue: () => new Date().toISOString(),
+      validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'completedAt',
+      title: 'Completed At',
+      type: 'datetime',
+      description: 'When the order was completed',
+    }),
+    defineField({
+      name: 'notes',
+      title: 'Internal Notes',
+      type: 'text',
+      rows: 3,
+      description: 'Internal notes for restaurant staff',
+    }),
+    defineField({
+      name: 'itemsUpdatedAt',
+      title: 'Items updated at',
+      type: 'datetime',
+      description: 'Set when business updates order items (add/remove). Driver must reconfirm.',
+      hidden: ({ parent }) => parent?.orderType !== 'delivery',
+    }),
+    defineField({
+      name: 'driverReconfirmedAt',
+      title: 'Driver reconfirmed at',
+      type: 'datetime',
+      description: 'When driver reconfirmed after items were updated.',
+      hidden: ({ parent }) => parent?.orderType !== 'delivery',
+    }),
+    defineField({
+      name: 'trackingToken',
+      title: 'Tracking token',
+      type: 'string',
+      description: 'Secret token for customer order tracking URL. Generated on order create.',
+      readOnly: true,
+    }),
+    defineField({
+      name: 'customerPushSubscription',
+      title: 'Customer push subscription',
+      type: 'object',
+      description: 'Web Push subscription for order status notifications (set when customer enables on tracking page).',
+      readOnly: true,
+      hidden: ({ document }) => !document?.customerPushSubscription,
+      fields: [
+        { name: 'endpoint', type: 'string', title: 'Endpoint' },
+        { name: 'p256dh', type: 'string', title: 'p256dh' },
+        { name: 'auth', type: 'string', title: 'auth' },
+      ],
+    }),
+    defineField({
+      name: 'customerFcmToken',
+      title: 'Customer FCM token',
+      type: 'string',
+      description: 'Firebase Cloud Messaging token for order status push (when customer enables on tracking page).',
+      readOnly: true,
+      hidden: true,
+    }),
+    // Dine-in: customer requested waiter or check (triggers ring on restaurant dashboard)
+    defineField({
+      name: 'customerRequestType',
+      title: 'Customer request type',
+      type: 'string',
+      options: { list: [{ title: 'Call waiter', value: 'call_waiter' }, { title: 'Request check', value: 'request_check' }] },
+      description: 'Set when dine-in customer taps "Call waiter" or "Ask for check" on tracking page.',
+      hidden: ({ parent }) => parent?.orderType !== 'dine-in',
+    }),
+    defineField({
+      name: 'customerRequestPaymentMethod',
+      title: 'Requested payment method',
+      type: 'string',
+      options: { list: [{ title: 'Cash', value: 'cash' }, { title: 'Card', value: 'card' }] },
+      description: 'When customer requested check, preferred payment method.',
+      hidden: ({ parent }) => parent?.orderType !== 'dine-in',
+    }),
+    defineField({
+      name: 'customerRequestedAt',
+      title: 'Customer requested at',
+      type: 'datetime',
+      description: 'When the customer requested waiter or check (triggers notification at restaurant).',
+      hidden: ({ parent }) => parent?.orderType !== 'dine-in',
+    }),
+    defineField({
+      name: 'customerRequestAcknowledgedAt',
+      title: 'Customer request acknowledged at',
+      type: 'datetime',
+      description: 'When staff acknowledged the table request (stops notification).',
+      hidden: ({ parent }) => parent?.orderType !== 'dine-in',
+    }),
+    // Optional tip (customer can add on tracking page)
+    defineField({
+      name: 'tipPercent',
+      title: 'Tip percentage',
+      type: 'number',
+      description: 'Tip percentage chosen by customer (e.g. 10).',
+    }),
+    defineField({
+      name: 'tipAmount',
+      title: 'Tip amount',
+      type: 'number',
+      description: 'Tip amount in order currency.',
+    }),
+  ],
+  preview: {
+    select: {
+      orderNumber: 'orderNumber',
+      customerName: 'customerName',
+      orderType: 'orderType',
+      status: 'status',
+      totalAmount: 'totalAmount',
+      currency: 'currency',
+      createdAt: 'createdAt',
+      siteLogo: 'site.businessLogo',
+    },
+    prepare(selection) {
+      const { orderNumber, customerName, orderType, status, totalAmount, currency, createdAt, siteLogo } = selection ?? {}
+      const date = typeof createdAt === 'string' ? new Date(createdAt).toLocaleDateString() : ''
+      const typeIcon = orderType === 'delivery' ? '🚗' : '🍽️'
+      const amount = typeof totalAmount === 'number' ? `${totalAmount.toFixed(2)} ${currency || ''}` : '—'
+      const result = {
+        title: `${typeIcon} #${orderNumber || 'New'} · ${customerName || '—'}`,
+        subtitle: `${status || '—'} · ${amount} · ${date}`,
+      }
+      if (siteLogo) (result as { title: string; subtitle: string; media?: unknown }).media = siteLogo
+      return result
+    },
+  },
+  orderings: [
+    {
+      title: 'Newest First',
+      name: 'createdAtDesc',
+      by: [{ field: 'createdAt', direction: 'desc' }],
+    },
+    {
+      title: 'Oldest First',
+      name: 'createdAtAsc',
+      by: [{ field: 'createdAt', direction: 'asc' }],
+    },
+  ],
+})

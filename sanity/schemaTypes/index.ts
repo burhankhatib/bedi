@@ -1,0 +1,28 @@
+import { type SchemaTypeDefinition } from 'sanity'
+import { tenantType } from './tenant'
+import { categoryType } from './category'
+import { productType } from './product'
+import { restaurantInfoType } from './restaurantInfo'
+import { aboutUsType } from './aboutUs'
+import { areaType } from './area'
+import { driverType } from './driver'
+import { tenantDriverType } from './tenantDriver'
+import { platformUserType } from './platformUser'
+import { orderType } from './order'
+import { customerType } from './customer'
+import { heroBannerType } from './heroBanner'
+import { bannerSettingsType } from './bannerSettings'
+import { businessCategoryType } from './businessCategory'
+import { businessSubcategoryType } from './businessSubcategory'
+import { reportType } from './report'
+import { tenantTransferRequestType } from './tenantTransferRequest'
+import { suspendedContactType } from './suspendedContact'
+import { customerPushSubscriptionType } from './customerPushSubscription'
+import { tenantTableType } from './tenantTable'
+import { tenantStaffType } from './tenantStaff'
+import { userPushSubscriptionType } from './userPushSubscription'
+import { tableServiceRequestType } from './tableServiceRequest'
+
+export const schema: { types: SchemaTypeDefinition[] } = {
+  types: [tenantType, categoryType, productType, restaurantInfoType, aboutUsType, areaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType],
+}
