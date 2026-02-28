@@ -11,11 +11,17 @@ import { ArrowLeft } from 'lucide-react'
 import type { Order } from '@/app/(main)/orders/OrdersClient'
 import { TenantOrdersLive, type TableRequest } from './TenantOrdersLive'
 import { OrdersPWASetup } from './OrdersPWASetup'
+import { OrdersPushRefreshButton } from './OrdersPushRefreshButton'
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
 import { OrdersPushGateWrapper } from './OrdersPushGateWrapper'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  return { manifest: `/t/${slug}/orders/manifest.webmanifest` }
+}
 
 export default async function TenantOrdersPage({
   params,
@@ -93,6 +99,7 @@ export default async function TenantOrdersPage({
             reloadAr="تحديث الآن"
           />
           <OrdersPWASetup slug={slug} />
+          <OrdersPushRefreshButton />
           <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2 sm:mb-6 sm:gap-4">
           <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:text-white">
             <Link href="/dashboard">

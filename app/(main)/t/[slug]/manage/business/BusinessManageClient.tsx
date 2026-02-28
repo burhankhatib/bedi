@@ -9,7 +9,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { BUSINESS_TYPES } from '@/lib/constants'
 import { getCountryNameAr, getCityNameAr } from '@/lib/registration-translations'
 import { toEnglishDigits } from '@/lib/phone'
-import { Upload, ImageIcon, Volume2, Play, AlertTriangle, Trash2, Store, UtensilsCrossed, Clock, MapPin, Save } from 'lucide-react'
+import { Upload, ImageIcon, Volume2, Play, AlertTriangle, Trash2, Store, UtensilsCrossed, Clock, MapPin, Save, LocateFixed } from 'lucide-react'
 import { TenantQRCode } from '@/components/TenantQRCode'
 import { useTenantBusiness } from '../TenantBusinessContext'
 
@@ -56,6 +56,87 @@ type BusinessData = {
 }
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024 // 4 MB
+
+/** Small inline component: share device GPS as business location. */
+function BusinessLocationShare({ slug, onSuccess }: { slug: string; onSuccess?: (lat: number, lng: number) => void }) {
+  const { t } = useLanguage()
+  const { showToast } = useToast()
+  const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle')
+  const [saved, setSaved] = useState<{ lat: number; lng: number } | null>(null)
+
+  const shareLocation = async () => {
+    if (!navigator.geolocation) {
+      showToast('Location is not supported in this browser.', 'الموقع غير مدعوم في هذا المتصفح.', 'error')
+      return
+    }
+    setState('loading')
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude
+        const lng = pos.coords.longitude
+        try {
+          const res = await fetch(`/api/tenants/${encodeURIComponent(slug)}/location`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat, lng }),
+          })
+          if (!res.ok) throw new Error('Failed to save location')
+          setSaved({ lat, lng })
+          setState('done')
+          if (onSuccess) onSuccess(lat, lng)
+          showToast('تم حفظ موقع العمل بنجاح!', undefined, 'success')
+        } catch {
+          setState('idle')
+          showToast('فشل حفظ الموقع. حاول مرة أخرى.', undefined, 'error')
+        }
+      },
+      (err) => {
+        setState('idle')
+        if (err.code === 1) {
+          showToast(
+            'Location access denied. Enable it in your browser or device settings.',
+            'تم رفض الوصول للموقع. فعّله من إعدادات المتصفح أو الجهاز.',
+            'error'
+          )
+        } else {
+          showToast('Could not get location. Try again.', 'تعذّر الحصول على الموقع. حاول مرة أخرى.', 'error')
+        }
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-blue-900/30 bg-blue-950/20 p-4">
+      <p className="mb-3 text-xs text-slate-400">
+        {t(
+          'Share your current device location as the exact business address. This provides the most accurate navigation for drivers.',
+          'شارك موقع جهازك الحالي كعنوان دقيق للعمل. هذا يوفر التنقل الأكثر دقة للسائقين.'
+        )}
+      </p>
+      {saved && (
+        <p className="mb-2 text-xs text-emerald-400">
+          {t('Saved', 'تم الحفظ')}: {saved.lat.toFixed(6)}, {saved.lng.toFixed(6)}
+        </p>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={state === 'loading'}
+        className="w-full sm:w-auto border-blue-500/50 bg-blue-600 text-white hover:bg-blue-500 hover:text-white"
+        onClick={shareLocation}
+      >
+        <LocateFixed className={`mr-1.5 h-4 w-4 shrink-0 rtl:ml-1.5 rtl:mr-0 ${state === 'loading' ? 'animate-pulse' : ''}`} />
+        {state === 'loading'
+          ? t('Getting location…', 'جاري تحديد الموقع…')
+          : state === 'done'
+            ? t('Update Location', 'تحديث الموقع')
+            : t('Share Current Location', 'مشاركة الموقع الحالي')}
+      </Button>
+    </div>
+  )
+}
 
 type FormState = {
   name: string
@@ -500,108 +581,136 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     }
   }, [form.deactivated])
 
-  if (loading) return <p className="text-slate-500 py-4">{t('Loading…', 'جارٍ التحميل…')}</p>
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.08 }
+    }
+  }
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } }
+  }
+
+  if (loading) return <p className="text-slate-500 py-4 px-4">{t('Loading…', 'جارٍ التحميل…')}</p>
 
   return (
-    <div className="relative pb-24 md:pb-8">
-    <div className="space-y-6">
-      <h1 className="text-xl font-bold md:text-2xl">{t('Manage Business', 'إدارة العمل')}</h1>
-      <p className="mt-1 text-slate-400 text-sm md:text-base">
-        {t(
-          'Edit your store name, country & city (for delivery), and store details shown on your menu page.',
-          'عدّل اسم المتجر والبلد والمدينة (للتوصيل)، وتفاصيل المتجر المعروضة على صفحة القائمة.'
-        )}
-      </p>
+    <div className="relative pb-32 md:pb-12">
+    <motion.div 
+      className="space-y-6 md:space-y-8 max-w-3xl mx-auto"
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.div variants={itemVariants} className="px-2 md:px-0">
+        <h1 className="text-2xl font-black md:text-3xl tracking-tight text-white">{t('Manage Business', 'إدارة العمل')}</h1>
+        <p className="mt-2 text-slate-400 text-sm md:text-base leading-relaxed">
+          {t(
+            'Edit your store name, country & city (for delivery), and store details shown on your menu page.',
+            'عدّل اسم المتجر والبلد والمدينة (للتوصيل)، وتفاصيل المتجر المعروضة على صفحة القائمة.'
+          )}
+        </p>
+      </motion.div>
 
       {/* Menu QR Code — only on Business Profile */}
       {menuUrl && (
-        <div className="max-w-[320px]">
+        <motion.div variants={itemVariants} className="px-2 md:px-0 max-w-[320px]">
           <TenantQRCode menuUrl={menuUrl} slug={slug} />
-        </div>
+        </motion.div>
       )}
 
       {/* Schedule & availability: manual open/close + weekly hours */}
-      <div className="max-w-2xl rounded-xl border border-slate-800/60 bg-slate-950/60 p-4 sm:p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <Clock className="h-5 w-5 text-amber-400 shrink-0" />
-          <h2 className="font-semibold text-white text-base md:text-lg">{t('Schedule & availability', 'الجدول والتوفر')}</h2>
-        </div>
-        <p className="mb-4 text-xs text-slate-400">
-          {t('Manual open/close overrides your weekly hours. Set hours below so customers see when you’re open.', 'الفتح/الإغلاق اليدوي يتجاوز ساعاتك الأسبوعية. حدد الساعات أدناه ليرى العملاء متى أنت مفتوح.')}
-        </p>
-        <p className="mb-3 text-xs font-medium text-slate-400">{t('Business status', 'حالة المتجر')}</p>
-        <div className="flex w-full justify-center">
-          <motion.button
-            type="button"
-            onClick={() => setForm((f) => ({ ...f, deactivated: !f.deactivated, ...(f.deactivated ? {} : { deactivateUntil: '' }) }))}
-            className={
-              'touch-manipulation rounded-xl font-bold text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 flex min-h-[48px] items-center justify-center overflow-hidden ' +
-              (!form.deactivated
-                ? 'bg-green-600 text-white hover:bg-green-500 active:bg-green-700'
-                : 'border-2 border-slate-600 bg-slate-800/80 text-slate-300 hover:border-slate-500 hover:bg-slate-800 active:bg-slate-700')
-            }
-            initial={false}
-            animate={{ width: availabilityExpanded ? '100%' : '7rem' }}
-            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-          >
-            <span className="px-4 py-3">
-              <AnimatePresence mode="wait">
-                {availabilityExpanded ? (
-                  <motion.span key="expanded" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="block truncate">
-                    {!form.deactivated ? t('Business is open', 'المتجر مفتوح') : t('Business is closed. Set date/time below to re-open.', 'المتجر مغلق. حدد التاريخ والوقت أدناه لإعادة الفتح.')}
-                  </motion.span>
-                ) : (
-                  <motion.span key="compact" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-                    {!form.deactivated ? t('Open', 'مفتوح') : t('Closed', 'مغلق')}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </span>
-          </motion.button>
-        </div>
-        {form.deactivated && (
-          <div className="mt-4">
-            <label className="mb-1.5 block text-xs font-medium text-slate-400">{t('Re-open at (date & time)', 'إعادة الفتح في (التاريخ والوقت)')}</label>
-            <Input
-              type="datetime-local"
-              value={form.deactivateUntil ? (() => {
-                const d = new Date(form.deactivateUntil)
-                const pad = (n: number) => String(n).padStart(2, '0')
-                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-              })() : ''}
-              onChange={(e) => setForm((f) => ({ ...f, deactivateUntil: e.target.value ? new Date(e.target.value).toISOString() : '' }))}
-              className="w-full max-w-xs bg-slate-800 border-slate-600 text-white"
-            />
-            <p className="mt-1 text-[10px] text-slate-500">{t('Optional. Leave empty to stay closed until you turn it back on.', 'اختياري. اتركه فارغاً للبقاء مغلقاً حتى تعيد التفعيل.')}</p>
+      <motion.div variants={itemVariants} className="w-full rounded-3xl border border-slate-800/60 bg-slate-900/60 p-5 sm:p-6 md:p-8 shadow-sm">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-400">
+            <Clock className="h-6 w-6 shrink-0" />
           </div>
-        )}
+          <div>
+            <h2 className="font-bold text-white text-lg md:text-xl tracking-tight">{t('Schedule & availability', 'الجدول والتوفر')}</h2>
+            <p className="text-xs text-slate-400 mt-1">
+              {t('Manual open/close overrides your weekly hours.', 'الفتح/الإغلاق اليدوي يتجاوز ساعاتك الأسبوعية.')}
+            </p>
+          </div>
+        </div>
+        
+        <div className="mb-6">
+          <p className="mb-3 text-sm font-semibold text-slate-300">{t('Business status', 'حالة المتجر')}</p>
+          <div className="flex w-full justify-center">
+            <motion.button
+              type="button"
+              onClick={() => setForm((f) => ({ ...f, deactivated: !f.deactivated, ...(f.deactivated ? {} : { deactivateUntil: '' }) }))}
+              className={
+                'touch-manipulation rounded-2xl font-black text-base transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-500/50 flex min-h-[64px] items-center justify-center overflow-hidden shadow-lg ' +
+                (!form.deactivated
+                  ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 active:bg-emerald-600 shadow-emerald-500/20 border border-emerald-400/50'
+                  : 'bg-slate-800 text-slate-200 hover:bg-slate-700 active:bg-slate-900 border-2 border-slate-600')
+              }
+              initial={false}
+              animate={{ width: availabilityExpanded ? '100%' : '8rem' }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            >
+              <span className="px-5 py-3">
+                <AnimatePresence mode="wait">
+                  {availabilityExpanded ? (
+                    <motion.span key="expanded" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="flex items-center justify-center gap-2 truncate">
+                      {!form.deactivated && <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-950 opacity-40"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-slate-950"></span></span>}
+                      {!form.deactivated ? t('Business is Open', 'المتجر مفتوح الآن') : t('Business is Closed', 'المتجر مغلق الآن')}
+                    </motion.span>
+                  ) : (
+                    <motion.span key="compact" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="flex items-center justify-center gap-2">
+                      {!form.deactivated && <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-950 opacity-40"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-slate-950"></span></span>}
+                      {!form.deactivated ? t('Open', 'مفتوح') : t('Closed', 'مغلق')}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </span>
+            </motion.button>
+          </div>
+          {form.deactivated && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-5 rounded-2xl bg-slate-800/50 border border-slate-700/50 p-4">
+              <label className="mb-2 block text-sm font-semibold text-slate-300">{t('Re-open at (date & time)', 'إعادة الفتح في (التاريخ والوقت)')}</label>
+              <Input
+                type="datetime-local"
+                value={form.deactivateUntil ? (() => {
+                  const d = new Date(form.deactivateUntil)
+                  const pad = (n: number) => String(n).padStart(2, '0')
+                  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+                })() : ''}
+                onChange={(e) => setForm((f) => ({ ...f, deactivateUntil: e.target.value ? new Date(e.target.value).toISOString() : '' }))}
+                className="w-full sm:max-w-xs h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
+              />
+              <p className="mt-2 text-xs text-slate-400">{t('Optional. Leave empty to stay closed until you turn it back on.', 'اختياري. اتركه فارغاً للبقاء مغلقاً حتى تعيد التفعيل.')}</p>
+            </motion.div>
+          )}
+        </div>
         {/* Opening hours — same card as schedule */}
-        <div className="mt-6 pt-5 border-t border-slate-700/60">
-          <h3 className="mb-3 font-semibold text-white text-sm">{t('Weekly opening hours', 'ساعات العمل الأسبوعية')}</h3>
-          <p className="mb-3 text-xs text-slate-500">
+        <div className="mt-8 pt-6 border-t border-slate-800">
+          <h3 className="mb-2 font-bold text-white text-base md:text-lg">{t('Weekly opening hours', 'ساعات العمل الأسبوعية')}</h3>
+          <p className="mb-5 text-sm text-slate-400">
             {t('Set your business hours per day (Sunday–Saturday). Shown on your menu. Leave empty for closed.', 'حدد ساعات العمل لكل يوم (الأحد–السبت). تظهر على قائمتك. اترك فارغاً للإغلاق.')}
           </p>
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-700/50 bg-slate-800/30 p-3">
-              <span className="text-xs font-medium text-slate-400">{t('Change all days at once', 'تغيير كل الأيام مرة واحدة')}:</span>
-              <div className="flex flex-wrap items-center gap-2">
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-700/50 bg-slate-800/40 p-4">
+              <span className="text-sm font-semibold text-slate-300 w-full mb-1">{t('Change all days at once', 'تغيير كل الأيام مرة واحدة')}:</span>
+              <div className="flex flex-wrap items-center gap-3 w-full">
                 <Input
                   type="time"
-                  className="w-28 bg-slate-800 border-slate-600 text-white"
+                  className="w-32 h-12 rounded-xl bg-slate-900 border-slate-600 text-white"
                   value={setAllOpen}
                   onChange={(e) => setSetAllOpen(e.target.value)}
                 />
                 <Input
                   type="time"
-                  className="w-28 bg-slate-800 border-slate-600 text-white"
+                  className="w-32 h-12 rounded-xl bg-slate-900 border-slate-600 text-white"
                   value={setAllClose}
                   onChange={(e) => setSetAllClose(e.target.value)}
                 />
                 <Button
                   type="button"
-                  size="sm"
-                  variant="outline"
-                  className="border-slate-600 bg-slate-800 text-slate-200"
+                  variant="secondary"
+                  className="h-12 rounded-xl px-5 font-semibold bg-slate-700 text-white hover:bg-slate-600"
                   onClick={() => setForm((f) => ({ ...f, openingHours: Array(7).fill(null).map(() => ({ open: setAllOpen, close: setAllClose })) }))}
                 >
                   {t('Apply to all days', 'تطبيق على كل الأيام')}
@@ -611,21 +720,20 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
             <div className="flex gap-2">
               <Button
                 type="button"
-                size="sm"
                 variant="outline"
-                className="border-slate-600 bg-slate-800 text-slate-200"
+                className="h-11 rounded-xl border-slate-600 bg-slate-900 text-slate-300 hover:text-white"
                 onClick={() => setForm((f) => ({ ...f, openingHours: Array(7).fill(null).map(() => ({ open: '', close: '' })) }))}
               >
                 {t('Clear all hours', 'مسح كل الساعات')}
               </Button>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[320px] text-sm">
+            <div className="overflow-x-auto pb-2 -mx-2 px-2 hidden-scrollbar">
+              <table className="w-full min-w-[340px] text-sm border-separate border-spacing-y-2">
                 <thead>
-                  <tr className="border-b border-slate-700 text-left text-xs text-slate-400">
-                    <th className="pb-2 pr-2">{t('Day', 'اليوم')}</th>
-                    <th className="pb-2 pr-2">{t('Open', 'فتح')}</th>
-                    <th className="pb-2">{t('Close', 'إغلاق')}</th>
+                  <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <th className="pb-2 px-2">{t('Day', 'اليوم')}</th>
+                    <th className="pb-2 px-2">{t('Open', 'فتح')}</th>
+                    <th className="pb-2 px-2">{t('Close', 'إغلاق')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -638,12 +746,12 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                     t('Friday', 'الجمعة'),
                     t('Saturday', 'السبت'),
                   ].map((dayLabel, i) => (
-                    <tr key={i} className="border-b border-slate-700/50">
-                      <td className="py-2 pr-2 font-medium text-white">{dayLabel}</td>
-                      <td className="py-2 pr-2">
+                    <tr key={i} className="bg-slate-800/30 rounded-xl overflow-hidden transition-colors hover:bg-slate-800/50">
+                      <td className="py-3 px-3 font-semibold text-slate-200 rounded-l-xl rtl:rounded-l-none rtl:rounded-r-xl">{dayLabel}</td>
+                      <td className="py-2 px-2">
                         <Input
                           type="time"
-                          className="h-9 w-28 bg-slate-800 border-slate-600 text-white"
+                          className="h-11 w-32 rounded-xl bg-slate-900 border-slate-700 focus:border-amber-500 text-white"
                           value={form.openingHours[i]?.open ?? ''}
                           onChange={(e) =>
                             setForm((f) => ({
@@ -653,10 +761,10 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                           }
                         />
                       </td>
-                      <td className="py-2">
+                      <td className="py-2 px-2 rounded-r-xl rtl:rounded-r-none rtl:rounded-l-xl">
                         <Input
                           type="time"
-                          className="h-9 w-28 bg-slate-800 border-slate-600 text-white"
+                          className="h-11 w-32 rounded-xl bg-slate-900 border-slate-700 focus:border-amber-500 text-white"
                           value={form.openingHours[i]?.close ?? ''}
                           onChange={(e) =>
                             setForm((f) => ({
@@ -672,52 +780,55 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
               </table>
             </div>
             <div>
-              <p className="mb-2 text-xs font-medium text-slate-400">{t('Custom dates (e.g. holidays)', 'تواريخ مخصصة (مثلاً العطل)')}</p>
-              {form.customDateHours.map((custom, idx) => (
-                <div key={idx} className="mb-2 flex flex-wrap items-center gap-2">
-                  <Input
-                    type="date"
-                    className="w-36 bg-slate-800 border-slate-600 text-white"
-                    value={custom.date}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        customDateHours: f.customDateHours.map((c, j) => (j === idx ? { ...c, date: e.target.value } : c)),
-                      }))
-                    }
-                  />
-                  <Input
-                    type="time"
-                    className="w-28 bg-slate-800 border-slate-600 text-white"
-                    value={custom.open}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        customDateHours: f.customDateHours.map((c, j) => (j === idx ? { ...c, open: e.target.value } : c)),
-                      }))
-                    }
-                  />
-                  <Input
-                    type="time"
-                    className="w-28 bg-slate-800 border-slate-600 text-white"
-                    value={custom.close}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        customDateHours: f.customDateHours.map((c, j) => (j === idx ? { ...c, close: e.target.value } : c)),
-                      }))
-                    }
-                  />
-                  <Button type="button" variant="ghost" size="sm" className="text-red-400" onClick={() => setForm((f) => ({ ...f, customDateHours: f.customDateHours.filter((_, j) => j !== idx) }))}>
-                    {t('Remove', 'إزالة')}
-                  </Button>
-                </div>
-              ))}
+              <p className="mb-3 text-sm font-semibold text-slate-300">{t('Custom dates (e.g. holidays)', 'تواريخ مخصصة (مثلاً العطل)')}</p>
+              <div className="space-y-3">
+                <AnimatePresence>
+                  {form.customDateHours.map((custom, idx) => (
+                    <motion.div key={idx} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="flex flex-wrap items-center gap-3 bg-slate-800/40 p-3 rounded-2xl border border-slate-700/50">
+                      <Input
+                        type="date"
+                        className="w-full sm:w-40 h-12 rounded-xl bg-slate-900 border-slate-600 text-white"
+                        value={custom.date}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            customDateHours: f.customDateHours.map((c, j) => (j === idx ? { ...c, date: e.target.value } : c)),
+                          }))
+                        }
+                      />
+                      <Input
+                        type="time"
+                        className="w-32 h-12 rounded-xl bg-slate-900 border-slate-600 text-white"
+                        value={custom.open}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            customDateHours: f.customDateHours.map((c, j) => (j === idx ? { ...c, open: e.target.value } : c)),
+                          }))
+                        }
+                      />
+                      <Input
+                        type="time"
+                        className="w-32 h-12 rounded-xl bg-slate-900 border-slate-600 text-white"
+                        value={custom.close}
+                        onChange={(e) =>
+                          setForm((f) => ({
+                            ...f,
+                            customDateHours: f.customDateHours.map((c, j) => (j === idx ? { ...c, close: e.target.value } : c)),
+                          }))
+                        }
+                      />
+                      <Button type="button" variant="ghost" className="h-12 w-12 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 p-0" onClick={() => setForm((f) => ({ ...f, customDateHours: f.customDateHours.filter((_, j) => j !== idx) }))}>
+                        <Trash2 className="size-5" />
+                      </Button>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
               <Button
                 type="button"
-                size="sm"
                 variant="outline"
-                className="border-slate-600 bg-slate-800 text-slate-200"
+                className="mt-4 h-12 rounded-xl border-dashed border-slate-600 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-white font-semibold"
                 onClick={() => setForm((f) => ({ ...f, customDateHours: [...f.customDateHours, { date: '', open: '', close: '' }] }))}
               >
                 + {t('Add custom date', 'إضافة تاريخ مخصص')}
@@ -725,117 +836,125 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      <form onSubmit={handleSubmit} className="mt-8 max-w-2xl space-y-8 rounded-xl border border-slate-800/60 bg-slate-900/40 p-5 sm:p-6 md:p-8">
+      <motion.form variants={itemVariants} onSubmit={handleSubmit} className="mt-8 max-w-3xl space-y-8 rounded-3xl border border-slate-800/60 bg-slate-900/40 p-5 sm:p-6 md:p-8 shadow-sm">
         {/* Default language + Order types - near top of form */}
         <div className="dashboard-section">
-          <h2 className="mb-4 font-semibold text-white text-base md:text-lg">{t('Dashboard language & order types', 'لغة لوحة التحكم وأنواع الطلب')}</h2>
-          <div className="space-y-5">
-            <div>
-              <label className="dashboard-label block text-slate-400">{t('Default language (your dashboard)', 'اللغة الافتراضية (لوحة التحكم)')}</label>
+          <h2 className="mb-4 font-bold text-white text-lg md:text-xl tracking-tight">{t('Dashboard language & order types', 'لغة لوحة التحكم وأنواع الطلب')}</h2>
+          <div className="space-y-6">
+            <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
+              <label className="block text-sm font-semibold text-slate-300 mb-2">{t('Default language (your dashboard)', 'اللغة الافتراضية (لوحة التحكم)')}</label>
               <select
                 value={form.defaultLanguage || 'ar'}
                 onChange={(e) => setForm((f) => ({ ...f, defaultLanguage: e.target.value }))}
-                className="dashboard-select mt-1 w-full max-w-xs border border-slate-600 bg-slate-800 text-white"
+                className="w-full sm:max-w-xs h-14 rounded-xl border border-slate-600 bg-slate-900 text-white px-4 text-base focus:ring-2 focus:ring-amber-500/50 outline-none"
               >
                 <option value="ar">{t('Arabic', 'العربية')}</option>
                 <option value="en">{t('English', 'English')}</option>
               </select>
-              <p className="mt-1 text-xs text-slate-500">{t('Language for manage pages. Customer menu language is chosen by the customer.', 'لغة صفحات الإدارة. لغة قائمة العملاء يختارها العميل.')}</p>
+              <p className="mt-2 text-xs text-slate-400">{t('Language for manage pages. Customer menu language is chosen by the customer.', 'لغة صفحات الإدارة. لغة قائمة العملاء يختارها العميل.')}</p>
             </div>
-            <div>
-              <p className="dashboard-label mb-1 text-slate-400">{t('Catalog?', 'كتالوج فقط؟')}</p>
-              <p className="mb-3 text-sm text-slate-500 max-w-xl">
+            <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
+              <p className="block text-sm font-semibold text-slate-300 mb-2">{t('Catalog?', 'كتالوج فقط؟')}</p>
+              <p className="mb-4 text-sm text-slate-400 max-w-xl leading-relaxed">
                 {t(
                   'Choose "Yes" if you only want to show your menu online — no ordering, no cart, no delivery. Customers can browse items and prices only. Ideal for displaying your offer, sharing your menu link, or when you take orders by phone or elsewhere. Choose "No" when you want customers to place orders through this site (dine-in, pickup, or delivery).',
                   'اختر "نعم" إذا أردت عرض قائمتك فقط على الإنترنت — بدون طلبات أو سلة أو توصيل. يمكن للعملاء تصفح المنتجات والأسعار فقط. مناسب لعرض العروض أو مشاركة رابط القائمة أو عندما تستقبل الطلبات هاتفياً أو عبر قنوات أخرى. اختر "لا" عندما تريد أن يقدّم العملاء الطلبات عبر الموقع (تناول في المكان أو استلام شخصي أو توصيل).'
                 )}
               </p>
-              <div className="mb-3 flex flex-wrap gap-4">
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/30 px-4 py-2.5 has-[:checked]:border-amber-500/60 has-[:checked]:bg-amber-500/10">
+              <div className="mb-4 flex flex-wrap gap-4">
+                <label className="flex flex-1 sm:flex-none cursor-pointer items-center gap-3 rounded-xl border border-slate-700/80 bg-slate-900 px-5 py-4 has-[:checked]:border-amber-500/60 has-[:checked]:bg-amber-500/10 transition-colors">
                   <input
                     type="radio"
                     name="catalogMode"
                     checked={form.catalogMode === true}
                     onChange={() => setForm((f) => ({ ...f, catalogMode: true, supportsDineIn: false, supportsReceiveInPerson: false, supportsDelivery: false }))}
-                    className="border-slate-600 bg-slate-800 accent-amber-500"
+                    className="size-5 border-slate-600 bg-slate-800 accent-amber-500"
                   />
-                  <span className="text-sm font-medium text-white">{t('Yes — menu is view-only (no orders)', 'نعم — القائمة للعرض فقط (بدون طلبات)')}</span>
+                  <span className="text-sm font-bold text-white">{t('Yes — menu is view-only', 'نعم — القائمة للعرض فقط')}</span>
                 </label>
-                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/30 px-4 py-2.5 has-[:checked]:border-amber-500/60 has-[:checked]:bg-amber-500/10">
+                <label className="flex flex-1 sm:flex-none cursor-pointer items-center gap-3 rounded-xl border border-slate-700/80 bg-slate-900 px-5 py-4 has-[:checked]:border-amber-500/60 has-[:checked]:bg-amber-500/10 transition-colors">
                   <input
                     type="radio"
                     name="catalogMode"
                     checked={form.catalogMode === false}
                     onChange={() => setForm((f) => ({ ...f, catalogMode: false, supportsDineIn: f.supportsDineIn || true, supportsReceiveInPerson: f.supportsReceiveInPerson || true, supportsDelivery: f.supportsDelivery || true }))}
-                    className="border-slate-600 bg-slate-800 accent-amber-500"
+                    className="size-5 border-slate-600 bg-slate-800 accent-amber-500"
                   />
-                  <span className="text-sm font-medium text-white">{t('No — accept orders', 'لا — قبول الطلبات')}</span>
+                  <span className="text-sm font-bold text-white">{t('No — accept orders', 'لا — قبول الطلبات')}</span>
                 </label>
               </div>
               {form.catalogMode ? (
-                <p className="text-xs text-slate-500 rounded-lg border border-slate-700/40 bg-slate-800/30 px-3 py-2">
-                  {t('Catalog mode is on: your menu link shows items and prices only — no Add to Cart or checkout. Dine-in, Receive in Person, and Delivery are disabled. To also hide any delivery option, remove all delivery areas in the Delivery areas page.', 'وضع الكتالوج مفعّل: رابط قائمتك يعرض المنتجات والأسعار فقط — بدون إضافة إلى السلة أو دفع. تناول في المكان واستلام شخصي والتوصيل معطّلان. لإخفاء خيار التوصيل أيضاً، احذف كل مناطق التوصيل من صفحة "مناطق التوصيل".')}
-                </p>
+                <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-4">
+                  <p className="text-sm text-sky-200">
+                    {t('Catalog mode is on: your menu link shows items and prices only — no Add to Cart or checkout. Dine-in, Receive in Person, and Delivery are disabled.', 'وضع الكتالوج مفعّل: رابط قائمتك يعرض المنتجات والأسعار فقط — بدون إضافة إلى السلة أو دفع. تناول في المكان واستلام شخصي والتوصيل معطّلان.')}
+                  </p>
+                </div>
               ) : (
-                <>
-                  <p className="dashboard-label mb-2 mt-4 text-slate-400">{t('Accept these order types', 'قبول أنواع الطلب التالية')}</p>
+                <div className="mt-6 pt-4 border-t border-slate-700/60">
+                  <p className="block text-sm font-semibold text-slate-300 mb-3">{t('Accept these order types', 'قبول أنواع الطلب التالية')}</p>
                   <div className="space-y-3">
-                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-700/50 bg-slate-800/30 px-3 py-2">
+                    <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3.5 transition-colors hover:bg-slate-800">
                       <input
                         type="checkbox"
                         checked={form.supportsDineIn}
                         onChange={(e) => setForm((f) => ({ ...f, supportsDineIn: e.target.checked }))}
-                        className="rounded border-slate-600 bg-slate-800 accent-amber-500"
+                        className="size-5 rounded border-slate-600 bg-slate-800 accent-amber-500"
                       />
-                      <UtensilsCrossed className="size-4 text-slate-400" />
-                      <span className="text-sm text-white">{t('Dine-in (order at table)', 'تناول في المكان (طلب على الطاولة)')}</span>
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-fuchsia-500/20 text-fuchsia-400">
+                        <UtensilsCrossed className="size-4" />
+                      </div>
+                      <span className="text-sm font-semibold text-white">{t('Dine-in (order at table)', 'تناول في المكان (طلب على الطاولة)')}</span>
                     </label>
-                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-700/50 bg-slate-800/30 px-3 py-2">
+                    <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3.5 transition-colors hover:bg-slate-800">
                       <input
                         type="checkbox"
                         checked={form.supportsReceiveInPerson}
                         onChange={(e) => setForm((f) => ({ ...f, supportsReceiveInPerson: e.target.checked }))}
-                        className="rounded border-slate-600 bg-slate-800 accent-amber-500"
+                        className="size-5 rounded border-slate-600 bg-slate-800 accent-amber-500"
                       />
-                      <Store className="size-4 text-slate-400" />
-                      <span className="text-sm text-white">{t('Receive in Person (pickup)', 'استلام شخصي (من المتجر)')}</span>
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
+                        <Store className="size-4" />
+                      </div>
+                      <span className="text-sm font-semibold text-white">{t('Receive in Person (pickup)', 'استلام شخصي (من المتجر)')}</span>
                     </label>
-                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-700/50 bg-slate-800/30 px-3 py-2">
+                    <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3.5 transition-colors hover:bg-slate-800">
                       <input
                         type="checkbox"
                         checked={form.supportsDelivery}
                         onChange={(e) => setForm((f) => ({ ...f, supportsDelivery: e.target.checked }))}
-                        className="rounded border-slate-600 bg-slate-800 accent-amber-500"
+                        className="size-5 rounded border-slate-600 bg-slate-800 accent-amber-500"
                       />
-                      <MapPin className="size-4 text-slate-400" />
-                      <span className="text-sm text-white">{t('Delivery', 'التوصيل')}</span>
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400">
+                        <MapPin className="size-4" />
+                      </div>
+                      <span className="text-sm font-semibold text-white">{t('Delivery', 'التوصيل')}</span>
                     </label>
-                    <p className="text-xs text-slate-500">
+                    <p className="mt-2 text-xs text-slate-400">
                       {t('Customers see Delivery only when this is checked and you have at least one delivery area.', 'يرى العملاء خيار التوصيل فقط عند تفعيله هنا مع وجود منطقة توصيل واحدة على الأقل.')}
                     </p>
                   </div>
-                </>
+                </div>
               )}
             </div>
           </div>
         </div>
 
-        <div className="dashboard-section">
-          <h2 className="mb-4 font-semibold text-white text-base md:text-lg">{t('Store identity', 'هوية المتجر')}</h2>
-          <div className="space-y-5">
-            <div>
-              <label className="dashboard-label block text-slate-400">{t('Business logo', 'شعار العمل')} *</label>
-              <div className="mt-1 flex flex-wrap items-center gap-4">
-                <div className="flex size-24 items-center justify-center overflow-hidden rounded-xl border border-slate-600 bg-slate-800/50">
+        <div className="dashboard-section pt-6 border-t border-slate-800">
+          <h2 className="mb-4 font-bold text-white text-lg md:text-xl tracking-tight">{t('Store identity', 'هوية المتجر')}</h2>
+          <div className="space-y-6">
+            <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
+              <label className="block text-sm font-semibold text-slate-300 mb-3">{t('Business logo', 'شعار العمل')} *</label>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+                <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-600 border-dashed bg-slate-900">
                   {logoPreviewUrl ? (
-                    <img src={logoPreviewUrl} alt="Logo" className="size-full object-contain" />
+                    <img src={logoPreviewUrl} alt="Logo" className="size-full object-contain p-2" />
                   ) : (
                     <ImageIcon className="size-10 text-slate-500" />
                   )}
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   <input
                     ref={logoInputRef}
                     type="file"
@@ -846,37 +965,38 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
-                    className="min-h-11 px-4 border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+                    className="h-12 rounded-xl px-6 font-semibold border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
                     onClick={() => logoInputRef.current?.click()}
                     disabled={logoUploading}
                   >
-                    <Upload className="mr-2 size-4" />
+                    <Upload className="mr-2 size-5" />
                     {logoUploading ? t('Uploading…', 'جارٍ الرفع…') : logoPreviewUrl ? t('Change logo', 'تغيير الشعار') : t('Upload logo', 'رفع شعار')}
                   </Button>
-                  <p className="text-xs text-slate-500">{t('Required. JPEG, PNG, WebP or GIF. Shown on your menu and PWA.', 'مطلوب. JPEG أو PNG أو WebP أو GIF. يظهر في القائمة والتطبيق.')}</p>
-                  <p className="mt-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-200/90">
+                  <p className="text-xs text-slate-400">{t('Required. JPEG, PNG, WebP or GIF. Shown on your menu and PWA.', 'مطلوب. JPEG أو PNG أو WebP أو GIF. يظهر في القائمة والتطبيق.')}</p>
+                  <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-200/90">
                     <strong>{t('App icon', 'أيقونة التطبيق')}:</strong> {t('To show your logo when someone adds your menu to their home screen, they must use your menu link. If the icon still shows the old image, remove the app from the home screen and add it again from that link.', 'لعرض شعارك عند إضافة القائمة للشاشة الرئيسية، يجب استخدام رابط القائمة. إن ظهرت الصورة القديمة، احذف التطبيق من الشاشة الرئيسية وأضفه مرة أخرى من الرابط.')}
                   </p>
                 </div>
               </div>
             </div>
-            <div>
-              <label className="dashboard-label block text-slate-400">{t('Store name', 'اسم المتجر')} *</label>
+            
+            <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
+              <label className="block text-sm font-semibold text-slate-300 mb-2">{t('Store name', 'اسم المتجر')} *</label>
               <Input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="dashboard-input w-full bg-slate-800 border-slate-600 text-white"
+                className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
                 required
               />
-              <p className="mt-1.5 text-xs text-slate-500">{t('Shown in the header of your menu (e.g. B Cafe).', 'يظهر في رأس القائمة (مثال: مقهى ب).')}</p>
+              <p className="mt-2 text-xs text-slate-400">{t('Shown in the header of your menu (e.g. B Cafe).', 'يظهر في رأس القائمة (مثال: مقهى ب).')}</p>
             </div>
-            <div>
-              <label className="dashboard-label block text-slate-400">{t('Business category', 'التصنيف الرئيسي')} *</label>
+
+            <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
+              <label className="block text-sm font-semibold text-slate-300 mb-2">{t('Business category', 'التصنيف الرئيسي')} *</label>
               <select
                 value={form.businessType}
                 onChange={(e) => setBusinessType(e.target.value)}
-                className="dashboard-select mt-1 w-full max-w-md border border-slate-600 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                className="w-full sm:max-w-md h-14 rounded-xl border border-slate-600 bg-slate-900 text-white px-4 text-base focus:ring-2 focus:ring-amber-500/50 outline-none"
                 required
               >
                 <option value="">{t('Select category', 'اختر التصنيف')}</option>
@@ -886,37 +1006,39 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                   </option>
                 ))}
               </select>
-              <p className="mt-1.5 text-xs text-slate-500">{t('Restaurant, Cafe, Bakery, etc. Used for discovery and filters.', 'مطعم، مقهى، مخبز، إلخ. يُستخدم للاستكشاف والفلاتر.')}</p>
+              <p className="mt-2 text-xs text-slate-400">{t('Restaurant, Cafe, Bakery, etc. Used for discovery and filters.', 'مطعم، مقهى، مخبز، إلخ. يُستخدم للاستكشاف والفلاتر.')}</p>
+              
+              {form.businessType && (
+                <div className="mt-5 pt-5 border-t border-slate-700/60">
+                  <label className="block text-sm font-semibold text-slate-300 mb-3">{t('Sub-categories (specialties)', 'التصنيفات الفرعية (التخصصات)')}</label>
+                  {subcategoriesLoading ? (
+                    <p className="text-sm text-slate-500">{t('Loading…', 'جاري التحميل…')}</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {subcategories.map((sub) => {
+                        const checked = (form.businessSubcategoryIds || []).includes(sub._id)
+                        return (
+                          <label key={sub._id} className={`flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${checked ? 'border-amber-500/60 bg-amber-500/20 text-amber-300' : 'border-slate-600 bg-slate-900 text-slate-300 hover:border-slate-500 hover:bg-slate-800'}`}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleSubcategory(sub._id)} className="rounded accent-amber-500 size-4" />
+                            {lang === 'ar' ? (sub.title_ar || sub.title_en) : (sub.title_en || sub.title_ar)}
+                          </label>
+                        )
+                      })}
+                      {subcategories.length === 0 && <p className="text-sm text-slate-500">{t('No sub-categories yet. Add them in Sanity Studio.', 'لا توجد تصنيفات فرعية بعد.')}</p>}
+                    </div>
+                  )}
+                  <p className="mt-3 text-xs text-slate-400">{t('Select all that apply. e.g. Burgers, Sandwiches, Pizza.', 'اختر كل ما ينطبق. مثال: برجر، شطائر، بيتزا.')}</p>
+                </div>
+              )}
             </div>
-            {form.businessType && (
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
               <div>
-                <label className="dashboard-label block text-slate-400">{t('Sub-categories (specialties)', 'التصنيفات الفرعية (التخصصات)')}</label>
-                {subcategoriesLoading ? (
-                  <p className="mt-1 text-xs text-slate-500">{t('Loading…', 'جاري التحميل…')}</p>
-                ) : (
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {subcategories.map((sub) => {
-                      const checked = (form.businessSubcategoryIds || []).includes(sub._id)
-                      return (
-                        <label key={sub._id} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${checked ? 'border-amber-500/60 bg-amber-500/20 text-amber-100' : 'border-slate-600 bg-slate-800/50 text-slate-300 hover:border-slate-500'}`}>
-                          <input type="checkbox" checked={checked} onChange={() => toggleSubcategory(sub._id)} className="rounded accent-amber-500" />
-                          {lang === 'ar' ? (sub.title_ar || sub.title_en) : (sub.title_en || sub.title_ar)}
-                        </label>
-                      )
-                    })}
-                    {subcategories.length === 0 && <p className="text-xs text-slate-500">{t('No sub-categories yet. Add them in Sanity Studio.', 'لا توجد تصنيفات فرعية بعد.')}</p>}
-                  </div>
-                )}
-                <p className="mt-1.5 text-xs text-slate-500">{t('Select all that apply. e.g. Burgers, Sandwiches, Pizza.', 'اختر كل ما ينطبق. مثال: برجر، شطائر، بيتزا.')}</p>
-              </div>
-            )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="dashboard-label block text-slate-400">{t('Country', 'البلد')} *</label>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">{t('Country', 'البلد')} *</label>
                 <select
                   value={form.country}
                   onChange={(e) => setCountry(e.target.value)}
-                  className="dashboard-select w-full border border-slate-600 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                  className="w-full h-14 rounded-xl border border-slate-600 bg-slate-900 text-white px-4 text-base focus:ring-2 focus:ring-amber-500/50 outline-none"
                   required
                 >
                   <option value="">{t('Select country', 'اختر البلد')}</option>
@@ -926,15 +1048,15 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                     </option>
                   ))}
                 </select>
-                <p className="mt-1.5 text-xs text-slate-500">{t('Required for drivers by area. Auto-detected from your location.', 'مطلوب للسائقين حسب المنطقة. يُكتشف تلقائياً من موقعك.')}</p>
+                <p className="mt-2 text-xs text-slate-400">{t('Required for drivers by area. Auto-detected from your location.', 'مطلوب للسائقين حسب المنطقة. يُكتشف تلقائياً من موقعك.')}</p>
               </div>
               <div>
-                <label className="dashboard-label block text-slate-400">{t('City', 'المدينة')} *</label>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">{t('City', 'المدينة')} *</label>
                 <select
                   value={form.city}
                   onChange={(e) => setCity(e.target.value)}
                   disabled={!form.country || citiesLoading}
-                  className="dashboard-select w-full border border-slate-600 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 disabled:opacity-50"
+                  className="w-full h-14 rounded-xl border border-slate-600 bg-slate-900 text-white px-4 text-base focus:ring-2 focus:ring-amber-500/50 outline-none disabled:opacity-50"
                   required
                 >
                   <option value="">{t('Select city', 'اختر المدينة')}</option>
@@ -944,192 +1066,219 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                     </option>
                   ))}
                 </select>
-                {citiesLoading && <p className="mt-1.5 text-xs text-slate-500">{t('Loading cities…', 'جارٍ تحميل المدن…')}</p>}
+                {citiesLoading && <p className="mt-2 text-xs text-slate-400">{t('Loading cities…', 'جارٍ تحميل المدن…')}</p>}
               </div>
             </div>
-            <div>
-              <label className="dashboard-label block text-slate-400">{t('Your mobile / WhatsApp (owner)', 'جوالك / واتساب (المالك)')}</label>
+
+            <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
+              <label className="block text-sm font-semibold text-slate-300 mb-2">{t('Your mobile / WhatsApp (owner)', 'جوالك / واتساب (المالك)')}</label>
               <Input
                 type="tel"
                 value={form.ownerPhone}
                 onChange={(e) => setForm((f) => ({ ...f, ownerPhone: e.target.value }))}
                 placeholder="+972 50 123 4567"
-                className="dashboard-input w-full max-w-md border border-slate-600 bg-slate-800 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                className="w-full sm:max-w-md h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
               />
-              <p className="mt-1.5 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-400">
                 {t('Used to place orders from the system. No SMS verification needed when set here.', 'يُستخدم لوضع الطلبات من النظام. لا حاجة للتحقق برسالة SMS عند تعيينه هنا.')}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="dashboard-section">
-          <h2 className="mb-4 font-semibold text-white text-base md:text-lg">{t('Store details (menu page)', 'تفاصيل المتجر (صفحة القائمة)')}</h2>
-          <p className="mb-4 text-xs text-slate-500">{t('Names and taglines shown on your public menu. Address and map for "Visit us" section.', 'الأسماء والشعارات المعروضة على القائمة العامة. العنوان والخريطة لقسم "زيارتنا".')}</p>
-          <div className="space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="dashboard-section pt-6 border-t border-slate-800">
+          <h2 className="mb-2 font-bold text-white text-lg md:text-xl tracking-tight">{t('Store details (menu page)', 'تفاصيل المتجر (صفحة القائمة)')}</h2>
+          <p className="mb-5 text-sm text-slate-400">{t('Names and taglines shown on your public menu. Address and map for "Visit us" section.', 'الأسماء والشعارات المعروضة على القائمة العامة. العنوان والخريطة لقسم "زيارتنا".')}</p>
+          <div className="space-y-6">
+            <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <label className="dashboard-label block text-slate-400">{t('Name (English)', 'الاسم (إنجليزي)')}</label>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">{t('Name (English)', 'الاسم (إنجليزي)')}</label>
                 <Input
                   value={form.name_en}
                   onChange={(e) => setForm((f) => ({ ...f, name_en: e.target.value }))}
-                  className="dashboard-input w-full bg-slate-800 border-slate-600 text-white"
+                  className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
                 />
               </div>
               <div>
-                <label className="dashboard-label block text-slate-400">{t('Name (Arabic)', 'الاسم (عربي)')}</label>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">{t('Name (Arabic)', 'الاسم (عربي)')}</label>
                 <Input
                   value={form.name_ar}
                   onChange={(e) => setForm((f) => ({ ...f, name_ar: e.target.value }))}
-                  className="dashboard-input w-full bg-slate-800 border-slate-600 text-white"
+                  className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
+            <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <label className="dashboard-label block text-slate-400">{t('Tagline (EN)', 'شعار (EN)')}</label>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">{t('Tagline (EN)', 'شعار (EN)')}</label>
                 <Input
                   value={form.tagline_en}
                   onChange={(e) => setForm((f) => ({ ...f, tagline_en: e.target.value }))}
-                  className="bg-slate-800 border-slate-600 text-white"
+                  className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-400">Tagline (AR)</label>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">Tagline (AR)</label>
                 <Input
                   value={form.tagline_ar}
                   onChange={(e) => setForm((f) => ({ ...f, tagline_ar: e.target.value }))}
-                  className="bg-slate-800 border-slate-600 text-white"
+                  className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
                 />
               </div>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-400">Address (EN)</label>
-              <Input
-                value={form.address_en}
-                onChange={(e) => setForm((f) => ({ ...f, address_en: e.target.value }))}
-                className="bg-slate-800 border-slate-600 text-white"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-400">Address (AR)</label>
-              <Input
-                value={form.address_ar}
-                onChange={(e) => setForm((f) => ({ ...f, address_ar: e.target.value }))}
-                className="bg-slate-800 border-slate-600 text-white"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-400">
-                {t('Google Maps link', 'رابط Google Maps')} *
-              </label>
-              <div className="flex flex-wrap items-center gap-2 mt-1">
+            
+            <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5 grid grid-cols-1 gap-5">
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">Address (EN)</label>
                 <Input
-                  type="url"
-                  value={form.mapsLink}
-                  onChange={(e) => setForm((f) => ({ ...f, mapsLink: e.target.value }))}
-                  placeholder="https://maps.google.com/..."
-                  className="flex-1 min-w-[200px] bg-slate-800 border-slate-600 text-white"
-                  required
+                  value={form.address_en}
+                  onChange={(e) => setForm((f) => ({ ...f, address_en: e.target.value }))}
+                  className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
-                  onClick={() => window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer')}
-                >
-                  <MapPin className="mr-1.5 size-4 shrink-0" />
-                  {t('Open Google Maps', 'فتح Google Maps')}
-                </Button>
               </div>
-              <p className="mt-1 text-[10px] text-slate-500">
-                {t('Required. In Google Maps, find your business → Share → Copy link. Paste it here. Used for "Visit us" and driver navigation.', 'مطلوب. في Google Maps ابحث عن عملك ← مشاركة ← انسخ الرابط. الصقه هنا. يُستخدم في "زيارتنا" وتنقل السائق.')}
-              </p>
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">Address (AR)</label>
+                <Input
+                  value={form.address_ar}
+                  onChange={(e) => setForm((f) => ({ ...f, address_ar: e.target.value }))}
+                  className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
+                />
+              </div>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-400">Embed map URL</label>
-              <Input
-                value={form.mapEmbedUrl}
-                onChange={(e) => setForm((f) => ({ ...f, mapEmbedUrl: e.target.value }))}
-                placeholder="https://www.google.com/maps/embed?pb=..."
-                className="bg-slate-800 border-slate-600 text-white"
+            
+            {/* Location & Navigation Section */}
+            <div className="rounded-3xl border border-sky-500/30 bg-sky-950/20 p-5 sm:p-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-sky-400">
+                  <MapPin className="h-5 w-5" />
+                </div>
+                <h3 className="font-bold text-white text-lg">{t('Location & Navigation', 'الموقع والتنقل')}</h3>
+              </div>
+
+              {/* GPS location share */}
+              <BusinessLocationShare 
+                slug={slug} 
+                onSuccess={(lat, lng) => setForm(f => ({ ...f, mapsLink: `https://www.google.com/maps?q=${lat},${lng}` }))}
               />
-              <p className="mt-1 text-[10px] text-slate-500">Google Maps → Share → Embed a map → copy the iframe src URL.</p>
+
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-slate-700/60"></div>
+                <span className="flex-shrink-0 mx-4 text-slate-500 text-xs font-bold tracking-wider uppercase">{t('OR MANUAL LINK', 'أو رابط يدوي')}</span>
+                <div className="flex-grow border-t border-slate-700/60"></div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  {t('Google Maps link', 'رابط Google Maps')} *
+                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Input
+                    type="url"
+                    value={form.mapsLink}
+                    onChange={(e) => setForm((f) => ({ ...f, mapsLink: e.target.value }))}
+                    placeholder="https://maps.google.com/..."
+                    className="flex-1 min-w-[200px] h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 h-14 rounded-xl px-5 font-semibold border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+                    onClick={() => window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer')}
+                  >
+                    <MapPin className="mr-2 size-5" />
+                    {t('Open Maps', 'فتح الخرائط')}
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+                  {t('Required. In Google Maps, find your business → Share → Copy link. Paste it here. Used for "Visit us" and driver navigation.', 'مطلوب. في Google Maps ابحث عن عملك ← مشاركة ← انسخ الرابط. الصقه هنا. يُستخدم في "زيارتنا" وتنقل السائق.')}
+                </p>
+              </div>
+              
+              <div className="pt-2 border-t border-slate-800/60 mt-4">
+                <label className="block text-sm font-semibold text-slate-300 mb-2 mt-4">Embed map URL</label>
+                <Input
+                  value={form.mapEmbedUrl}
+                  onChange={(e) => setForm((f) => ({ ...f, mapEmbedUrl: e.target.value }))}
+                  placeholder="https://www.google.com/maps/embed?pb=..."
+                  className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
+                />
+                <p className="mt-2 text-xs text-slate-400">Google Maps → Share → Embed a map → copy the iframe src URL.</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div>
-          <h2 className="mb-3 font-semibold text-white">Social links</h2>
-          <p className="mb-3 text-xs text-slate-500">
+        <div className="dashboard-section pt-6 border-t border-slate-800">
+          <h2 className="mb-2 font-bold text-white text-lg md:text-xl tracking-tight">Social links</h2>
+          <p className="mb-5 text-sm text-slate-400">
             {t('Full URL or username only (e.g. burhanstudio or https://instagram.com/burhanstudio). Links open your profile on the menu.', 'رابط كامل أو اسم المستخدم فقط (مثال: burhanstudio أو https://instagram.com/burhanstudio). الروابط تفتح صفحتك على القائمة.')}
           </p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
             {(['facebook', 'instagram', 'tiktok', 'snapchat', 'website'] as const).map((key) => (
               <div key={key}>
-                <label className="mb-1 block text-xs font-medium text-slate-400">{key}</label>
+                <label className="block text-sm font-semibold text-slate-300 mb-2 capitalize">{key}</label>
                 <Input
                   type="text"
                   value={form[key]}
                   onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
                   placeholder={key === 'website' ? 'example.com or https://...' : t('URL or username', 'رابط أو اسم مستخدم')}
-                  className="bg-slate-800 border-slate-600 text-white"
+                  className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
                 />
               </div>
             ))}
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-400">WhatsApp number</label>
+              <label className="block text-sm font-semibold text-slate-300 mb-2">WhatsApp number</label>
               <Input
                 value={form.whatsapp}
                 onChange={(e) => setForm((f) => ({ ...f, whatsapp: toEnglishDigits(e.target.value) }))}
                 placeholder="972501234567"
-                className="bg-slate-800 border-slate-600 text-white"
+                className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
               />
             </div>
           </div>
         </div>
 
-        <div>
-          <h2 className="mb-3 font-semibold text-white">
-            <Volume2 className="mr-1.5 inline size-3.5" />
+        <div className="dashboard-section pt-6 border-t border-slate-800">
+          <h2 className="mb-2 font-bold text-white text-lg md:text-xl tracking-tight flex items-center gap-2">
+            <Volume2 className="size-5 text-indigo-400" />
             {t('Notifications', 'الإشعارات')}
           </h2>
-          <p className="mb-2 text-xs text-slate-500">
+          <p className="mb-5 text-sm text-slate-400">
             {t(
               'Plays when a new order arrives on your Orders page. Click Play to preview.',
               'يُشغّل عند وصول طلب جديد في صفحة الطلبات. اضغط تشغيل للمعاينة.'
             )}
           </p>
-          <div className="space-y-2">
+          <div className="space-y-3 rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
             {NOTIFICATION_SOUNDS.map((opt) => (
               <div
                 key={opt.value}
-                className={`flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${
+                className={`flex flex-wrap items-center gap-4 rounded-xl border p-4 transition-colors ${
                   form.notificationSound === opt.value
-                    ? 'border-amber-500/50 bg-amber-500/10'
-                    : 'border-slate-700 bg-slate-800/50'
+                    ? 'border-indigo-500/50 bg-indigo-500/10'
+                    : 'border-slate-700 bg-slate-900 hover:border-slate-600 hover:bg-slate-800/80'
                 }`}
               >
-                <label className="flex flex-1 cursor-pointer items-center gap-2">
+                <label className="flex flex-1 cursor-pointer items-center gap-3">
                   <input
                     type="radio"
                     name="notificationSound"
                     value={opt.value}
                     checked={form.notificationSound === opt.value}
                     onChange={() => setForm((f) => ({ ...f, notificationSound: opt.value }))}
-                    className="size-4 accent-amber-500"
+                    className="size-5 accent-indigo-500"
                   />
-                  <span className="text-sm font-medium text-white">{t(opt.label, opt.labelAr)}</span>
+                  <span className="text-base font-semibold text-white">{t(opt.label, opt.labelAr)}</span>
                 </label>
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
-                  className="border-slate-600 bg-slate-800 text-white hover:bg-slate-700 hover:text-white"
+                  className="h-11 rounded-xl px-4 font-semibold border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
                   onClick={() => playNotificationSound(opt.value)}
                 >
-                  <Play className="mr-1.5 size-3.5" />
+                  <Play className="mr-2 size-4" />
                   {t('Play', 'تشغيل')}
                 </Button>
               </div>
@@ -1137,55 +1286,59 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           </div>
         </div>
 
-        <Button type="submit" size="sm" className="bg-amber-500 text-slate-950 hover:bg-amber-400" disabled={saving}>
+        <Button type="submit" size="lg" className="w-full h-14 rounded-2xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 active:bg-amber-600 shadow-md shadow-amber-500/20" disabled={saving}>
           {saving ? t('Saving…', 'جاري الحفظ…') : t('Save changes', 'حفظ التغييرات')}
         </Button>
-      </form>
+      </motion.form>
 
       {/* Delete business permanently - at the very bottom */}
-      <div className="mt-10 max-w-2xl rounded-xl border border-red-900/50 bg-red-950/20 p-6">
-        <h2 className="mb-2 flex items-center gap-2 font-semibold text-red-300">
-          <AlertTriangle className="size-5" />
+      <motion.div variants={itemVariants} className="mt-8 max-w-3xl rounded-3xl border border-red-900/50 bg-red-950/20 p-6 md:p-8">
+        <h2 className="mb-3 flex items-center gap-3 font-bold text-red-300 text-lg md:text-xl">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/20 text-red-400">
+            <AlertTriangle className="size-5" />
+          </div>
           {t('Delete business permanently', 'حذف العمل نهائياً')}
         </h2>
-        <p className="mb-4 text-sm text-slate-400">
+        <p className="mb-6 text-sm text-slate-400 leading-relaxed max-w-2xl">
           {t('This will permanently delete your business and all its data (menu, areas, orders, etc.) from the system. This action cannot be undone.', 'سيتم حذف عملك وجميع بياناته (القائمة، المناطق، الطلبات، إلخ) نهائياً من النظام. لا يمكن التراجع عن هذا الإجراء.')}
         </p>
         <Button
           type="button"
           variant="outline"
-          size="sm"
-          className="border-red-800 text-red-300 hover:bg-red-900/30 hover:text-red-200"
+          className="h-14 rounded-xl px-6 font-semibold border-red-800/60 text-red-300 hover:bg-red-900/30 hover:text-red-200"
           onClick={() => setDeleteConfirmOpen(true)}
         >
-          <Trash2 className="mr-2 size-4" />
+          <Trash2 className="mr-2 size-5" />
           {t('Delete business permanently', 'حذف العمل نهائياً')}
         </Button>
-      </div>
+      </motion.div>
 
       {/* Delete confirmation modal */}
       {deleteConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-red-900/50 bg-slate-900 p-6 shadow-xl">
-            <h3 className="mb-2 text-lg font-bold text-red-300">{t('Confirm permanent delete', 'تأكيد الحذف النهائي')}</h3>
-            <p className="mb-4 text-sm text-slate-400">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="w-full max-w-md rounded-3xl border border-red-900/50 bg-slate-900 p-6 md:p-8 shadow-2xl"
+          >
+            <h3 className="mb-3 text-xl font-bold text-red-300">{t('Confirm permanent delete', 'تأكيد الحذف النهائي')}</h3>
+            <p className="mb-5 text-sm text-slate-400 leading-relaxed">
               {t('To confirm, type your business name exactly as shown:', 'للتأكيد، اكتب اسم عملك كما يظهر بالضبط:')}
             </p>
-            <p className="mb-2 font-mono text-sm font-semibold text-amber-400">&quot;{form.name}&quot;</p>
+            <p className="mb-3 font-mono text-base font-bold text-amber-400 bg-slate-950 p-3 rounded-xl border border-slate-800 inline-block">&quot;{form.name}&quot;</p>
             <Input
               type="text"
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
               placeholder={form.name}
-              className="mb-4 bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
+              className="mb-6 h-14 rounded-xl bg-slate-950 border-slate-700 text-white placeholder:text-slate-500 focus:border-red-500 focus:ring-red-500/50"
               autoFocus
             />
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+                className="h-14 flex-1 rounded-xl font-bold border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
                 onClick={() => { setDeleteConfirmOpen(false); setDeleteConfirmText('') }}
                 disabled={deleting}
               >
@@ -1193,8 +1346,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
               </Button>
               <Button
                 type="button"
-                size="sm"
-                className="bg-red-600 text-white hover:bg-red-500"
+                className="h-14 flex-1 rounded-xl font-bold bg-red-600 text-white hover:bg-red-500 shadow-lg shadow-red-600/20 disabled:opacity-50"
                 disabled={deleting || deleteConfirmText.trim() !== form.name.trim()}
                 onClick={async () => {
                   if (deleteConfirmText.trim() !== form.name.trim()) return
@@ -1218,31 +1370,35 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                 {deleting ? t('Deleting…', 'جاري الحذف…') : t('Delete permanently', 'حذف نهائياً')}
               </Button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
-    </div>
+    </motion.div>
 
     {/* Floating Save — appears when there are unsaved changes */}
     <AnimatePresence>
       {isDirty && (
         <motion.div
-          initial={{ opacity: 0, y: 24 }}
+          initial={{ opacity: 0, y: 100 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 16 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          className="fixed left-4 right-4 md:left-auto md:right-6 bottom-6 z-40 md:max-w-sm"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}
+          exit={{ opacity: 0, y: 100 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          className="fixed bottom-0 left-0 right-0 z-40 p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:p-6 md:pb-6 pointer-events-none"
         >
-          <div className="mx-auto md:ml-auto md:mr-0 w-full max-w-md md:max-w-none shadow-xl shadow-black/30 rounded-2xl bg-slate-800 border border-amber-500/40 p-3 md:p-3">
-            <p className="text-xs text-slate-400 mb-2 px-1">
-              {t('You have unsaved changes', 'لديك تغييرات غير محفوظة')}
-            </p>
+          <div className="mx-auto max-w-lg shadow-2xl shadow-amber-500/20 rounded-3xl bg-slate-900 border border-amber-500/30 p-4 pointer-events-auto flex flex-col sm:flex-row items-center gap-4">
+            <div className="flex-1 w-full text-center sm:text-left rtl:sm:text-right">
+              <p className="text-sm font-bold text-white">
+                {t('Unsaved changes', 'تغييرات غير محفوظة')}
+              </p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {t('You have pending modifications.', 'لديك تعديلات بانتظار الحفظ.')}
+              </p>
+            </div>
             <Button
               type="button"
               onClick={() => doSave()}
               disabled={saving}
-              className="w-full h-12 rounded-xl font-bold text-base bg-amber-500 text-slate-950 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-70 flex items-center justify-center gap-2"
+              className="w-full sm:w-auto h-14 px-8 rounded-2xl font-black text-base bg-amber-500 text-slate-950 hover:bg-amber-400 active:bg-amber-600 disabled:opacity-70 flex items-center justify-center gap-2 shadow-lg"
             >
               <Save className="size-5" />
               {saving ? t('Saving…', 'جاري الحفظ…') : t('Save changes', 'حفظ التغييرات')}

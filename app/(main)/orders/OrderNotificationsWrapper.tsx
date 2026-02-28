@@ -7,6 +7,16 @@ interface NewOrder {
   _id: string
   orderNumber: string
   createdAt: string
+  orderType?: 'delivery' | 'dine-in' | 'receive-in-person'
+  customerName?: string
+  customerPhone?: string
+  tableNumber?: string
+  deliveryAddress?: string
+  deliveryArea?: { _id: string; name_en: string; name_ar: string }
+  deliveryLat?: number
+  deliveryLng?: number
+  totalAmount?: number
+  currency?: string
 }
 
 export interface TableRequest {

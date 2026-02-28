@@ -49,6 +49,8 @@ type DriverPushContextValue = {
   /** True when on iOS and not launched from Home Screen (PWA). Push only works after Add to Home Screen. */
   needsIOSHomeScreen: boolean
   subscribe: () => Promise<boolean>
+  /** Force a fresh FCM token fetch and re-register with the server. */
+  refreshToken: () => Promise<boolean>
   /** Location permission granted (required for driver; used later for map). */
   hasLocation: boolean
   locationChecked: boolean
@@ -69,6 +71,7 @@ export function useDriverPush(): DriverPushContextValue {
       isDenied: false,
       needsIOSHomeScreen: false,
       subscribe: async () => false,
+      refreshToken: async () => false,
       hasLocation: false,
       locationChecked: false,
       locationLoading: false,
@@ -348,6 +351,18 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     }
   }, [showToast, router])
 
+  const refreshToken = useCallback(async (): Promise<boolean> => {
+    clearStoredPushOk(PUSH_CONTEXT_KEYS.driver())
+    setHasPush(false)
+    const ok = await subscribe()
+    if (ok) {
+      showToast('تم تحديث الإشعارات بنجاح.', undefined, 'success')
+    } else {
+      showToast('تعذّر تحديث الإشعارات. حاول مرة أخرى.', undefined, 'error')
+    }
+    return ok
+  }, [subscribe, showToast])
+
   const requestLocation = useCallback(async (): Promise<boolean> => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       showToast('Location is not supported.', 'الموقع غير مدعوم.', 'error')
@@ -355,16 +370,27 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     }
     setLocationLoading(true)
     try {
-      await new Promise<void>((resolve, reject) => {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
-          () => resolve(),
+          (pos) => resolve(pos),
           (err) => reject(err),
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         )
       })
       setHasLocation(true)
+
+      // Persist coordinates to Sanity via API (fire-and-forget, don't block UX)
+      fetch('/api/driver/location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        }),
+      }).catch(() => {})
+
       showToast(
-        t('Location allowed. You can receive orders.', 'تم السماح بالموقع. يمكنك استقبال الطلبات.'),
+        t('Location updated. You can receive orders.', 'تم تحديث موقعك. يمكنك استقبال الطلبات.'),
         undefined,
         'success'
       )
@@ -398,6 +424,7 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     isDenied: permission === 'denied',
     needsIOSHomeScreen: typeof window !== 'undefined' && isIOS() && !isStandalone(),
     subscribe,
+    refreshToken,
     hasLocation,
     locationChecked,
     locationLoading,

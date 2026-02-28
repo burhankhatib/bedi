@@ -39,21 +39,51 @@ export function TableChoiceModal({
   const handleCallWaiter = async () => {
     setRequestingWaiter(true)
     try {
-      const res = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/table-request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tableNumber }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok && data.success) {
-        showToast(
-          t('Waiter has been notified. Someone will be with you shortly.', 'تم إخطار النادل. سيأتي شخص قريباً.'),
-          undefined,
-          'success'
+      // Try to attach to an active order first — same pattern as "ask to pay"
+      const orderRes = await fetch(
+        `/api/tenants/${encodeURIComponent(tenantSlug)}/orders/by-table?table=${encodeURIComponent(tableNumber)}`
+      )
+      const orderData = await orderRes.json().catch(() => ({}))
+      const trackingToken = orderData?.trackingToken
+
+      let ok = false
+      if (trackingToken) {
+        // Attach call_waiter directly to the active order so it appears in the orders page
+        const requestRes = await fetch(
+          `/api/tenants/${encodeURIComponent(tenantSlug)}/track/${encodeURIComponent(trackingToken)}/request`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'call_waiter' }),
+          }
         )
+        const requestData = await requestRes.json().catch(() => ({}))
+        ok = requestRes.ok && requestData.success
+        if (!ok) {
+          showToast(requestData?.error || t('Request failed. Try again.', 'فشل الطلب. حاول مرة أخرى.'), undefined, 'error')
+          return
+        }
       } else {
-        showToast(data?.error || t('Request failed. Try again.', 'فشل الطلب. حاول مرة أخرى.'), undefined, 'error')
+        // No active order — fall back to standalone table request
+        const res = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/table-request`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tableNumber }),
+        })
+        const data = await res.json().catch(() => ({}))
+        ok = res.ok && data.success
+        if (!ok) {
+          showToast(data?.error || t('Request failed. Try again.', 'فشل الطلب. حاول مرة أخرى.'), undefined, 'error')
+          return
+        }
       }
+
+      showToast(
+        t('Waiter has been notified. Someone will be with you shortly.', 'تم إخطار النادل. سيأتي شخص قريباً.'),
+        undefined,
+        'success'
+      )
+      onOpenChange(false)
     } catch {
       showToast(t('Request failed. Try again.', 'فشل الطلب. حاول مرة أخرى.'), undefined, 'error')
     } finally {

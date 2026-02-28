@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Package, Truck, History, Store, User, MapPin, Navigation, Flag, Wallet, Receipt, Smartphone, CircleAlert } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
@@ -13,6 +14,7 @@ import { parseCoordsFromGoogleMapsUrl, googleMapsNavigationUrl, wazeNavigationUr
 import { getCityDisplayName } from '@/lib/registration-translations'
 import { DriverPWAInstall } from './DriverPWAInstall'
 import { SlideToComplete } from './SlideToComplete'
+import { SlideToPickUp } from './SlideToPickUp'
 import { SlideToConfirm } from './SlideToConfirm'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
 
@@ -27,6 +29,8 @@ type DriverOrder = {
   businessAddress: string
   businessAddressAr?: string
   businessMapsLink?: string
+  businessLocationLat?: number
+  businessLocationLng?: number
   city: string
   deliveryAreaName: string
   deliveryAreaNameAr?: string
@@ -52,6 +56,25 @@ function formatDriverOrderNumber(orderNumber: string): string {
   const last4 = orderNumber.slice(-4)
   const prefix = orderNumber.startsWith('ORD-') ? 'ORD-...' : '...'
   return prefix + last4
+}
+
+/** Fire-and-forget location update for specific driver events */
+const pushDriverLocation = () => {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      fetch('/api/driver/location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        }),
+      }).catch(() => {})
+    },
+    () => {},
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  )
 }
 
 export default function DriverOrdersPage() {
@@ -128,13 +151,29 @@ export default function DriverOrdersPage() {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') fetchOrders()
     }
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'PUSH_NOTIFICATION_CLICK') fetchOrders()
+    }
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisibilityChange)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', onMessage)
+    }
     return () => {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibilityChange)
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', onMessage)
+      }
     }
   }, [fetchOrders])
+
+  // Refetch orders immediately when the driver goes online
+  useEffect(() => {
+    if (isOnline) {
+      fetchOrders()
+    }
+  }, [isOnline, fetchOrders])
 
   useSanityLiveStream('/api/driver/orders/live', fetchOrders, { debounceMs: 700 })
 
@@ -170,6 +209,7 @@ export default function DriverOrdersPage() {
         throw new Error(err?.error || 'Failed to accept')
       }
       showToast(t('Order accepted.', 'تم قبول الطلب.'), t('Order accepted.', 'تم قبول الطلب.'), 'success')
+      pushDriverLocation()
       // Live stream will refetch when Sanity order doc updates; no extra fetch here
     } catch (e) {
       acceptedAtRef.current.delete(orderId)
@@ -228,6 +268,28 @@ export default function DriverOrdersPage() {
     }
   }
 
+  const pickUp = async (orderId: string) => {
+    const order = myDeliveries.find((x) => x.orderId === orderId)
+    if (!order) return
+    setActionId(orderId)
+    setMyDeliveries((prev) => prev.map((x) => x.orderId === orderId ? { ...x, status: 'out-for-delivery' } : x))
+    try {
+      const res = await fetch(`/api/driver/orders/${orderId}/pick-up`, { method: 'POST' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Failed to pick up')
+      }
+      showToast(t('Order picked up.', 'تم استلام الطلب من المتجر.'), t('Order picked up.', 'تم استلام الطلب من المتجر.'), 'success')
+      pushDriverLocation()
+      // Live stream will refetch when Sanity order doc updates
+    } catch (e) {
+      setMyDeliveries((prev) => prev.map((x) => x.orderId === orderId ? order : x))
+      showToast(t('Failed to mark as picked up.', 'فشل تسجيل الاستلام.'), t('Failed to mark as picked up.', 'فشل تسجيل الاستلام.'), 'error')
+    } finally {
+      setActionId(null)
+    }
+  }
+
   const complete = async (orderId: string) => {
     const order = myDeliveries.find((x) => x.orderId === orderId)
     if (!order) return
@@ -242,6 +304,7 @@ export default function DriverOrdersPage() {
         throw new Error(err?.error || 'Failed to complete')
       }
       showToast(t('Delivery marked complete.', 'تم تسجيل الطلب مكتملًا.'), t('Delivery marked complete.', 'تم تسجيل الطلب مكتملًا.'), 'success')
+      pushDriverLocation()
       // Live stream will refetch when Sanity order doc updates
     } catch (e) {
       setMyDeliveries((prev) => [order, ...prev])
@@ -262,21 +325,20 @@ export default function DriverOrdersPage() {
     isGreen: boolean
     showComplete: boolean
     showAcceptDecline: boolean
-    /** When true, driver is at max active deliveries and cannot accept more. */
     acceptDisabled?: boolean
   }) => {
     const showReconfirmBanner = showComplete && needsReconfirm(o)
     const isEnRouteToCustomer = o.status === 'out-for-delivery'
-    const navPrimary = 'inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-base font-semibold transition-all min-h-[48px] touch-manipulation'
-    const navSecondary = 'inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all'
+    const navPrimary = 'inline-flex w-full sm:w-auto flex-1 items-center justify-center gap-2 rounded-2xl px-5 py-4 text-base font-bold transition-all min-h-[56px] touch-manipulation shadow-sm'
+    const navSecondary = 'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all'
     return (
     <>
       {showReconfirmBanner && (
-        <div className="rounded-xl border-2 border-amber-500/60 bg-amber-950/50 p-3 mb-3">
+        <div className="rounded-3xl border border-amber-500/40 bg-amber-950/30 p-4 mb-4">
           <p className="text-amber-200 font-semibold text-sm mb-2">
             {t('Order was updated by the business. New amount to pay:', 'تم تحديث الطلب من قبل المتجر. المبلغ الجديد المطلوب دفعه:')}
           </p>
-          <p className="text-amber-100 font-bold text-base mb-2">
+          <p className="text-amber-100 font-bold text-lg mb-3">
             {o.amountToPayTenant.toFixed(2)} {o.currency} {t('to', 'إلى')} {o.businessName}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -284,7 +346,7 @@ export default function DriverOrdersPage() {
               type="button"
               onClick={() => reconfirm(o.orderId)}
               disabled={actionId === o.orderId}
-              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 text-sm disabled:opacity-70"
+              className="rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-5 py-3 text-sm disabled:opacity-70 shadow-sm"
             >
               {actionId === o.orderId ? t('Confirming…', 'جاري التأكيد…') : t('Confirm', 'تأكيد')}
             </button>
@@ -292,7 +354,7 @@ export default function DriverOrdersPage() {
               type="button"
               onClick={() => cancel(o.orderId)}
               disabled={actionId === o.orderId}
-              className="rounded-lg border border-slate-500 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold px-4 py-2 text-sm disabled:opacity-70"
+              className="rounded-2xl border border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-5 py-3 text-sm disabled:opacity-70"
             >
               {t('Decline', 'رفض')}
             </button>
@@ -300,16 +362,18 @@ export default function DriverOrdersPage() {
         </div>
       )}
       {showComplete && (o.customerName || o.customerPhone) && (
-        <div className="rounded-xl bg-emerald-500/20 border border-emerald-500/40 p-4 mb-4">
-          <div className="flex items-center gap-2 mb-2">
-            <User className="h-5 w-5 text-emerald-300 shrink-0" />
-            <span className="font-semibold text-emerald-200 text-base">{o.customerName || '—'}</span>
+        <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 p-4 mb-4">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-700/50 text-slate-300">
+              <User className="h-5 w-5" />
+            </div>
+            <span className="font-bold text-slate-100 text-lg">{o.customerName || '—'}</span>
           </div>
           {o.customerPhone ? (
-            <div className="flex flex-wrap items-center gap-2 mt-2">
+            <div className="flex flex-wrap items-center gap-2">
               <a
                 href={`tel:${o.customerPhone.replace(/\s/g, '')}`}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/15 hover:bg-white/25 px-4 py-2.5 text-emerald-100 font-semibold transition-colors min-h-[44px]"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold px-4 py-3 min-h-[48px] transition-colors"
               >
                 {o.customerPhone}
               </a>
@@ -318,7 +382,7 @@ export default function DriverOrdersPage() {
                   href={getWhatsAppUrl(o.customerPhone)!}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366]/30 hover:bg-[#25D366]/50 px-4 py-2.5 text-emerald-100 font-semibold transition-colors min-h-[44px]"
+                  className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] font-bold px-4 py-3 min-h-[48px] transition-colors"
                   title={t('Message on WhatsApp', 'مراسلة على واتساب')}
                 >
                   WhatsApp
@@ -329,57 +393,66 @@ export default function DriverOrdersPage() {
         </div>
       )}
       {/* Payment summary: 1 big box with 3 sections (pay to business | delivery fee | total from client) */}
-      <div className="rounded-xl border-2 border-slate-600/60 bg-slate-800/40 p-4 mb-4 space-y-3">
-        <div className="rounded-lg bg-amber-500/20 border border-amber-500/50 p-4 flex items-center gap-3">
-          <Wallet className="h-6 w-6 text-amber-400 shrink-0" />
+      <div className="rounded-3xl border border-slate-700/60 bg-slate-800/30 p-4 mb-4 space-y-4">
+        <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 p-4 flex items-center gap-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-400">
+            <Wallet className="h-5 w-5" />
+          </div>
           <div className="min-w-0 flex-1">
-            <p className="text-amber-200/90 text-sm font-medium">{t('You need to pay', 'المبلغ المطلوب دفعه')}</p>
-            <p className="font-bold text-amber-100 text-lg">
-              {o.amountToPayTenant.toFixed(2)} {formatCurrency(o.currency)} {t('to', 'إلى')} {o.businessName}
+            <p className="text-amber-200/80 text-sm font-medium">{t('You need to pay', 'المبلغ المطلوب دفعه')}</p>
+            <p className="font-black text-amber-400 text-lg">
+              {o.amountToPayTenant.toFixed(2)} {formatCurrency(o.currency)} <span className="text-amber-200/60 text-base font-medium mx-1">{t('to', 'إلى')}</span> {o.businessName}
             </p>
           </div>
         </div>
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-6 rounded-lg bg-sky-500/15 border border-sky-500/40 p-3 flex flex-col gap-1">
-            <div className="flex items-center gap-2">
+          <div className="col-span-6 rounded-2xl bg-sky-500/10 border border-sky-500/20 p-3.5 flex flex-col gap-1">
+            <div className="flex items-center gap-2 mb-1">
               <Truck className="h-4 w-4 text-sky-400 shrink-0" />
-              <span className="text-sky-200/90 text-xs font-medium">{t('Delivery fee', 'سعر التوصيل')}</span>
+              <span className="text-sky-200/80 text-xs font-semibold">{t('Delivery fee', 'سعر التوصيل')}</span>
             </div>
-            <span className="font-bold text-sky-100 text-base">{o.deliveryFee.toFixed(2)} {formatCurrency(o.currency)}</span>
+            <span className="font-black text-sky-400 text-lg">{o.deliveryFee.toFixed(2)} {formatCurrency(o.currency)}</span>
           </div>
-          <div className="col-span-6 rounded-lg bg-emerald-500/15 border border-emerald-500/40 p-3 flex flex-col gap-1">
-            <div className="flex items-center gap-2">
+          <div className="col-span-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-3.5 flex flex-col gap-1">
+            <div className="flex items-center gap-2 mb-1">
               <Receipt className="h-4 w-4 text-emerald-400 shrink-0" />
-              <span className="text-emerald-200/90 text-xs font-medium">
+              <span className="text-emerald-200/80 text-xs font-semibold truncate">
                 {t('Total from', 'المجموع من')} {(o.customerName || '').trim().split(/\s+/)[0] || t('client', 'العميل')}
               </span>
             </div>
-            <span className="font-bold text-emerald-100 text-2xl">{o.totalAmount.toFixed(2)} {formatCurrency(o.currency)}</span>
+            <span className="font-black text-emerald-400 text-xl">{o.totalAmount.toFixed(2)} {formatCurrency(o.currency)}</span>
           </div>
         </div>
       </div>
 
       {/* Business (Pickup) Location */}
-      <div className="rounded-xl bg-slate-800/60 border border-slate-600/60 p-4 mb-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Store className="h-5 w-5 text-amber-400 shrink-0" />
-          <span className="font-semibold text-slate-200 text-base">{t('Pickup from', 'استلام من')}</span>
+      <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 p-4 mb-4">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-400">
+            <Store className="h-5 w-5" />
+          </div>
+          <span className="font-bold text-slate-200 text-lg">{t('Pickup from', 'استلام من')}</span>
         </div>
-        <p className="text-slate-100 text-base leading-relaxed pr-7">
+        <p className="text-slate-300 text-[15px] leading-relaxed pr-2 ml-12 rtl:mr-12 rtl:ml-2">
           {lang === 'ar' && (o.businessAddressAr || '').trim() ? o.businessAddressAr : (o.businessAddress || o.businessName || '—')}
         </p>
-        {(o.businessMapsLink || o.businessAddress || o.businessAddressAr || o.businessName) && (() => {
+        {(o.businessMapsLink || o.businessLocationLat != null || o.businessAddress || o.businessAddressAr || o.businessName) && (() => {
           const addressEn = [o.businessAddress, o.businessName].filter(Boolean).join(', ') || t('Store', 'المتجر')
           const address = lang === 'ar' && (o.businessAddressAr || '').trim() ? [o.businessAddressAr, o.businessName].filter(Boolean).join(', ') || addressEn : addressEn
-          const coords = parseCoordsFromGoogleMapsUrl(o.businessMapsLink)
+          let coords: { lat: number; lng: number } | null = null
+          if (o.businessLocationLat != null && o.businessLocationLng != null) {
+            coords = { lat: o.businessLocationLat, lng: o.businessLocationLng }
+          } else {
+            coords = parseCoordsFromGoogleMapsUrl(o.businessMapsLink)
+          }
           const googleNavUrl = googleMapsNavigationUrl(coords ?? address)
           const wazeNavUrl = wazeNavigationUrl(coords ?? address)
           const isBusinessPrimary = !isEnRouteToCustomer && showComplete
           const base = isBusinessPrimary ? navPrimary : navSecondary
-          const googleClass = isBusinessPrimary ? `${base} bg-amber-500/90 hover:bg-amber-500 text-slate-900` : `${base} bg-slate-700/80 hover:bg-slate-600 text-amber-400 hover:text-amber-300`
-          const wazeClass = isBusinessPrimary ? `${base} bg-sky-500/90 hover:bg-sky-500 text-white` : `${base} bg-slate-700/80 hover:bg-slate-600 text-sky-400 hover:text-sky-300`
+          const googleClass = isBusinessPrimary ? `${base} bg-[#FFC107] hover:bg-[#FFCA28] text-slate-900` : `${base} bg-slate-700/50 hover:bg-slate-600 text-amber-400`
+          const wazeClass = isBusinessPrimary ? `${base} bg-[#0096FF] hover:bg-[#29B6F6] text-white` : `${base} bg-slate-700/50 hover:bg-slate-600 text-sky-400`
           return (
-            <div className={`flex flex-wrap gap-2 mt-3 ${isBusinessPrimary ? 'gap-3' : ''}`}>
+            <div className={`flex flex-wrap gap-3 mt-4 ${isBusinessPrimary ? 'flex-col sm:flex-row' : ''}`}>
               <a href={googleNavUrl} target="_blank" rel="noopener noreferrer" className={googleClass} title={t('Navigate to pickup (Google Maps)', 'التنقل إلى نقطة الاستلام (Google Maps)')}>
                 <Navigation className="h-5 w-5 shrink-0" />
                 Google Maps
@@ -394,23 +467,25 @@ export default function DriverOrdersPage() {
       </div>
 
       {/* Customer (Delivery) Location */}
-      <div className="rounded-xl bg-slate-800/60 border border-slate-600/60 p-4 mb-4">
-        <div className="flex items-center gap-2 mb-2">
-          <MapPin className="h-5 w-5 text-emerald-400 shrink-0" />
-          <span className="font-semibold text-slate-200 text-base">{t('Delivery', 'التوصيل')}</span>
+      <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 p-4 mb-4">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+            <MapPin className="h-5 w-5" />
+          </div>
+          <span className="font-bold text-slate-200 text-lg">{t('Delivery', 'التوصيل')}</span>
         </div>
-        <p className="text-slate-100 text-base leading-relaxed pr-7">
+        <p className="text-slate-300 text-[15px] leading-relaxed pr-2 ml-12 rtl:mr-12 rtl:ml-2">
           {showAcceptDecline
             ? `${o.city ? `${getCityDisplayName(o.city, lang)} - ` : ''}${(lang === 'ar' && o.deliveryAreaNameAr) ? o.deliveryAreaNameAr : (o.deliveryAreaName || o.deliveryAddress || '—')}`
             : `${o.city ? `${getCityDisplayName(o.city, lang)} - ` : ''}${o.deliveryAddress || '—'}`}
         </p>
         {!showAcceptDecline && o.deliveryLat != null && o.deliveryLng != null && Number.isFinite(o.deliveryLat) && Number.isFinite(o.deliveryLng) && (
-          <div className={`flex flex-wrap gap-2 mt-3 ${isEnRouteToCustomer ? 'gap-3' : ''}`}>
+          <div className={`flex flex-wrap gap-3 mt-4 ${isEnRouteToCustomer ? 'flex-col sm:flex-row' : ''}`}>
             <a
               href={googleMapsNavigationUrl({ lat: o.deliveryLat, lng: o.deliveryLng })}
               target="_blank"
               rel="noopener noreferrer"
-              className={isEnRouteToCustomer ? `${navPrimary} bg-emerald-500/90 hover:bg-emerald-500 text-white` : `${navSecondary} bg-slate-700/80 hover:bg-slate-600 text-emerald-400`}
+              className={isEnRouteToCustomer ? `${navPrimary} bg-[#10B981] hover:bg-[#34D399] text-white` : `${navSecondary} bg-slate-700/50 hover:bg-slate-600 text-emerald-400`}
               title={t('Navigate to customer (Google Maps)', 'التنقل إلى العميل (Google Maps)')}
             >
               <Navigation className="h-5 w-5 shrink-0" />
@@ -420,7 +495,7 @@ export default function DriverOrdersPage() {
               href={wazeNavigationUrl({ lat: o.deliveryLat, lng: o.deliveryLng })}
               target="_blank"
               rel="noopener noreferrer"
-              className={isEnRouteToCustomer ? `${navPrimary} bg-sky-500/90 hover:bg-sky-500 text-white` : `${navSecondary} bg-slate-700/80 hover:bg-slate-600 text-sky-400`}
+              className={isEnRouteToCustomer ? `${navPrimary} bg-[#0096FF] hover:bg-[#29B6F6] text-white` : `${navSecondary} bg-slate-700/50 hover:bg-slate-600 text-sky-400`}
               title={t('Navigate to customer (Waze)', 'التنقل إلى العميل (Waze)')}
             >
               <Navigation className="h-5 w-5 shrink-0" />
@@ -430,9 +505,9 @@ export default function DriverOrdersPage() {
         )}
       </div>
       {showAcceptDecline && (
-        <div className="flex flex-col gap-3 mt-3">
+        <div className="flex flex-col gap-3 mt-4">
           {acceptDisabled && (
-            <p className="rounded-lg bg-amber-950/50 border border-amber-500/40 px-3 py-2 text-amber-200 text-sm">
+            <p className="rounded-2xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-amber-200/90 text-sm font-medium">
               {t('You can have at most 2 active deliveries. Complete or cancel one to accept more.', 'يمكنك تنفيذ توصيلتين نشطتين فقط. أكمِل أو ألغِ واحدة لقبول المزيد.')}
             </p>
           )}
@@ -441,28 +516,36 @@ export default function DriverOrdersPage() {
         </div>
       )}
       {showComplete && (
-        <div className="mt-3">
+        <div className="mt-4">
           {!showReconfirmBanner && (
             <>
-              <SlideToComplete
-                orderId={o.orderId}
-                onComplete={complete}
-                disabled={!!actionId}
-              />
-              <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+              {(o.status === 'driver_on_the_way' || o.status === 'waiting_for_delivery') ? (
+                <SlideToPickUp
+                  orderId={o.orderId}
+                  onPickUp={pickUp}
+                  disabled={!!actionId}
+                />
+              ) : (
+                <SlideToComplete
+                  orderId={o.orderId}
+                  onComplete={complete}
+                  disabled={!!actionId}
+                />
+              )}
+              <div className="mt-4 flex flex-wrap items-center justify-between px-2 gap-4">
                 <button
                   type="button"
                   onClick={() => setReportOrderId(o.orderId)}
-                  className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-300"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-300 transition-colors"
                 >
-                  <Flag className="h-3.5 w-3.5" />
+                  <Flag className="h-4 w-4" />
                   {t('Report customer', 'الإبلاغ عن العميل')}
                 </button>
                 <button
                   type="button"
                   onClick={() => cancel(o.orderId)}
                   disabled={actionId === o.orderId}
-                  className="text-xs text-slate-500 hover:text-slate-400 underline underline-offset-2"
+                  className="text-xs font-semibold text-rose-500/80 hover:text-rose-400 transition-colors underline underline-offset-4"
                 >
                   {actionId === o.orderId ? t('Cancelling…', 'جاري الإلغاء…') : t('Cancel delivery', 'إلغاء التوصيل')}
                 </button>
@@ -534,71 +617,112 @@ export default function DriverOrdersPage() {
       ) : (
         <>
           <section>
-            <h2 className="mb-3 flex items-center gap-2 font-bold text-base text-slate-200 sm:text-lg">
-              <Package className="h-5 w-5 shrink-0" />
+            <h2 className="mb-4 flex items-center gap-2 font-black text-lg text-slate-200 sm:text-xl tracking-tight">
+              <Package className="h-6 w-6 shrink-0 text-slate-400" />
               {t('Available orders', 'طلبات متاحة')}
             </h2>
             {pending.length === 0 ? (
-              <p className="text-slate-500 text-base">{t('No orders right now. Stay online to receive new orders.', 'لا توجد طلبات الآن. ابقَ متصلًا لاستقبال طلبات جديدة.')}</p>
+              <p className="text-slate-500 text-base bg-slate-900/40 rounded-3xl p-6 text-center border border-slate-800/60 border-dashed">
+                {t('No orders right now. Stay online to receive new orders.', 'لا توجد طلبات الآن. ابقَ متصلًا لاستقبال طلبات جديدة.')}
+              </p>
             ) : (
               <ul className="space-y-4">
-                {pending.map((o) => (
-                  <li key={o.orderId} className="rounded-xl border border-slate-700 bg-slate-900 p-4 sm:p-5">
-                    <span className="font-mono text-lg font-bold text-white">#{formatDriverOrderNumber(o.orderNumber)}</span>
-                    <OrderCardContent o={o} isGreen={false} showComplete={false} showAcceptDecline={true} acceptDisabled={!canAcceptMore} />
-                  </li>
-                ))}
+                <AnimatePresence initial={false}>
+                  {pending.map((o) => (
+                    <motion.li
+                      key={o.orderId}
+                      initial={{ opacity: 0, y: 15 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
+                      className="rounded-3xl border border-slate-700/60 bg-slate-900/90 p-4 sm:p-5 shadow-sm"
+                    >
+                      <div className="mb-4">
+                        <span className="font-mono text-xl font-black text-white tracking-widest bg-slate-800/80 px-4 py-1.5 rounded-xl">#{formatDriverOrderNumber(o.orderNumber)}</span>
+                      </div>
+                      <OrderCardContent o={o} isGreen={false} showComplete={false} showAcceptDecline={true} acceptDisabled={!canAcceptMore} />
+                    </motion.li>
+                  ))}
+                </AnimatePresence>
               </ul>
             )}
           </section>
 
           <section>
-            <h2 className="mb-3 flex items-center gap-2 font-bold text-base text-slate-200 sm:text-lg">
-              <Truck className="h-5 w-5 shrink-0" />
+            <h2 className="mb-4 flex items-center gap-2 font-black text-lg text-slate-200 sm:text-xl tracking-tight">
+              <Truck className="h-6 w-6 shrink-0 text-emerald-400" />
               {t('My deliveries', 'توصيلاتي')}
             </h2>
             {myDeliveries.length === 0 ? (
-              <p className="text-slate-500 text-base">{t('No active deliveries.', 'لا توجد توصيلات نشطة.')}</p>
+              <p className="text-slate-500 text-base bg-slate-900/40 rounded-3xl p-6 text-center border border-slate-800/60 border-dashed">
+                {t('No active deliveries.', 'لا توجد توصيلات نشطة.')}
+              </p>
             ) : (
               <ul className="space-y-4">
-                {myDeliveries.map((o) => (
-                  <li key={o.orderId} className="rounded-xl border-2 border-green-700 bg-green-950/40 p-4 sm:p-5">
-                    <span className="font-mono text-lg font-bold text-white">#{formatDriverOrderNumber(o.orderNumber)}</span>
-                    <OrderCardContent o={o} isGreen={true} showComplete={true} showAcceptDecline={false} />
-                  </li>
-                ))}
+                <AnimatePresence initial={false}>
+                  {myDeliveries.map((o) => (
+                    <motion.li
+                      key={o.orderId}
+                      initial={{ opacity: 0, y: 15 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
+                      className="rounded-3xl border-2 border-emerald-700/80 bg-emerald-950/20 p-4 sm:p-5 shadow-sm"
+                    >
+                      <div className="mb-4">
+                        <span className="font-mono text-xl font-black text-emerald-400 tracking-widest bg-emerald-900/40 px-4 py-1.5 rounded-xl">#{formatDriverOrderNumber(o.orderNumber)}</span>
+                      </div>
+                      <OrderCardContent o={o} isGreen={true} showComplete={true} showAcceptDecline={false} />
+                    </motion.li>
+                  ))}
+                </AnimatePresence>
               </ul>
             )}
           </section>
 
           <section>
-            <h2 className="mb-3 flex items-center gap-2 font-bold text-base text-slate-200 sm:text-lg">
-              <History className="h-5 w-5 shrink-0" />
+            <h2 className="mb-4 flex items-center gap-2 font-black text-lg text-slate-200 sm:text-xl tracking-tight">
+              <History className="h-6 w-6 shrink-0 text-slate-500" />
               {t('Completed today', 'تم اليوم')}
             </h2>
             {myCompletedToday.length === 0 ? (
-              <p className="text-slate-500 text-base">{t('No completed orders today.', 'لا توجد طلبات مكتملة اليوم.')}</p>
+              <p className="text-slate-500 text-base bg-slate-900/40 rounded-3xl p-6 text-center border border-slate-800/60 border-dashed">
+                {t('No completed orders today.', 'لا توجد طلبات مكتملة اليوم.')}
+              </p>
             ) : (
-              <ul className="space-y-3">
-                {myCompletedToday.map((o) => (
-                  <li key={o.orderId} className="rounded-xl border border-slate-700 bg-slate-900/60 p-3 sm:p-4">
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-white">#{formatDriverOrderNumber(o.orderNumber)}</span>
-                      <span className="text-sm text-slate-400">{o.businessName}</span>
-                    </div>
-                    <p className="text-slate-400 text-sm mt-1">
-                      {t('Total', 'المجموع')} {o.totalAmount.toFixed(2)} {o.currency} · {t('Delivery', 'التوصيل')}: {o.city ? `${getCityDisplayName(o.city, lang)} - ` : ''}{(lang === 'ar' && o.deliveryAreaNameAr) ? o.deliveryAreaNameAr : (o.deliveryAddress || '—')}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setReportOrderId(o.orderId)}
-                      className="mt-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-400"
+              <ul className="space-y-4">
+                <AnimatePresence initial={false}>
+                  {myCompletedToday.map((o) => (
+                    <motion.li
+                      key={o.orderId}
+                      initial={{ opacity: 0, y: 15 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
+                      className="rounded-3xl border border-slate-800/80 bg-slate-900/40 p-4 sm:p-5 shadow-sm"
                     >
-                      <Flag className="h-3 w-3" />
-                      {t('Report customer', 'الإبلاغ عن العميل')}
-                    </button>
-                  </li>
-                ))}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-mono text-lg font-bold text-slate-300">#{formatDriverOrderNumber(o.orderNumber)}</span>
+                        <span className="text-sm font-semibold text-slate-400">{o.businessName}</span>
+                      </div>
+                      <p className="text-slate-300 text-[15px] font-medium mt-1">
+                        {t('Total', 'المجموع')} <span className="text-white font-bold">{o.totalAmount.toFixed(2)} {o.currency}</span>
+                      </p>
+                      <p className="text-slate-400 text-sm mt-1">
+                        {t('Delivery', 'التوصيل')}: {o.city ? `${getCityDisplayName(o.city, lang)} - ` : ''}{(lang === 'ar' && o.deliveryAreaNameAr) ? o.deliveryAreaNameAr : (o.deliveryAddress || '—')}
+                      </p>
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setReportOrderId(o.orderId)}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-300 transition-colors bg-slate-800/50 px-3 py-1.5 rounded-lg"
+                        >
+                          <Flag className="h-3.5 w-3.5" />
+                          {t('Report customer', 'الإبلاغ عن العميل')}
+                        </button>
+                      </div>
+                    </motion.li>
+                  ))}
+                </AnimatePresence>
               </ul>
             )}
           </section>

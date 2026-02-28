@@ -26,7 +26,18 @@ const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc
   totalAmount,
   currency,
   createdAt,
+  preparedAt,
+  driverAcceptedAt,
+  driverPickedUpAt,
   completedAt
+}`
+
+const TABLE_REQUESTS_GROQ = `*[_type == "tableServiceRequest" && site._ref == $siteId && defined(acknowledgedAt)] | order(createdAt desc) {
+  _id,
+  tableNumber,
+  type,
+  createdAt,
+  acknowledgedAt
 }`
 
 /** GET tenant order history. Optional ?q= for search (order number, customer name, phone). */
@@ -43,25 +54,42 @@ export async function GET(
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
 
   try {
-    const orders = (await noCacheClient.fetch(ORDERS_GROQ, { siteId })) ?? []
-    let filtered = orders as Array<{
+    const [ordersResult, tableRequestsResult] = await Promise.all([
+      noCacheClient.fetch(ORDERS_GROQ, { siteId }),
+      noCacheClient.fetch(TABLE_REQUESTS_GROQ, { siteId })
+    ])
+    
+    let filteredOrders = (ordersResult ?? []) as Array<{
       _id: string
       orderNumber?: string
       customerName?: string
       customerPhone?: string
       [key: string]: unknown
     }>
+    
+    let filteredTableRequests = (tableRequestsResult ?? []) as Array<{
+      _id: string
+      tableNumber?: string
+      [key: string]: unknown
+    }>
+
     if (q) {
-      filtered = filtered.filter((o) => {
+      filteredOrders = filteredOrders.filter((o) => {
         const num = String(o.orderNumber ?? '').toLowerCase()
         const name = String(o.customerName ?? '').toLowerCase()
         const phone = String(o.customerPhone ?? '').replace(/\s/g, '')
         const qNorm = q.replace(/\s/g, '')
         return num.includes(q) || name.includes(q) || phone.includes(qNorm)
       })
+      
+      filteredTableRequests = filteredTableRequests.filter((r) => {
+        const num = String(r.tableNumber ?? '').toLowerCase()
+        return num.includes(q)
+      })
     }
+    
     return NextResponse.json(
-      { orders: filtered },
+      { orders: filteredOrders, tableRequests: filteredTableRequests },
       { headers: { 'Cache-Control': 'no-store' } }
     )
   } catch (error) {

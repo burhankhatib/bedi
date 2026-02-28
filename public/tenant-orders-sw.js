@@ -2,7 +2,9 @@
 // Auth rule: never cache document/navigation requests so the server always validates auth.
 'use strict'
 
-self.addEventListener('install', () => {})
+self.addEventListener('install', (event) => {
+  event.waitUntil(self.skipWaiting())
+})
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim())
@@ -22,7 +24,7 @@ self.addEventListener('fetch', (event) => {
 })
 
 self.addEventListener('push', function (event) {
-  let data = { title: 'New order', body: 'You have a new order.', url: '/' }
+  let data = { title: 'طلب جديد', body: 'لديك طلب جديد.', url: '/', icon: '/adminslogo.webp', dir: 'rtl' }
   if (event.data) {
     try {
       const raw = event.data.json()
@@ -32,21 +34,25 @@ self.addEventListener('push', function (event) {
         title: notif.title ?? dataPayload.title ?? raw.title ?? data.title,
         body: notif.body ?? dataPayload.body ?? raw.body ?? data.body,
         url: dataPayload.url ?? raw.url ?? data.url,
+        icon: notif.icon ?? dataPayload.icon ?? raw.icon ?? data.icon,
+        dir: dataPayload.dir === 'ltr' ? 'ltr' : 'rtl',
       }
     } catch (_) {}
   }
   const options = {
-    body: data.body || 'Open the app to view the order.',
-    icon: '/adminslogo.webp',
-    badge: '/adminslogo.webp',
+    body: data.body || 'افتح التطبيق لعرض الطلب.',
+    icon: data.icon || '/adminslogo.webp',
+    badge: data.icon || '/adminslogo.webp',
     data: { url: data.url || '/' },
-    tag: 'bedi-tenant-new-order',
+    tag: 'bedi-tenant-order-update',
     renotify: true,
     requireInteraction: true,
     vibrate: [200, 100, 200, 100, 200],
     silent: false,
+    dir: data.dir,
+    lang: data.dir === 'ltr' ? 'en' : 'ar',
   }
-  event.waitUntil(self.registration.showNotification(data.title || 'New order', options))
+  event.waitUntil(self.registration.showNotification(data.title || 'طلب جديد', options))
 })
 
 self.addEventListener('notificationclick', function (event) {
@@ -57,7 +63,8 @@ self.addEventListener('notificationclick', function (event) {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
       for (const client of clientList) {
         if (client.url.indexOf(self.location.origin) !== -1 && 'focus' in client) {
-          if ('navigate' in client) client.navigate(fullUrl)
+          client.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
+          if ('navigate' in client && client.url !== fullUrl) client.navigate(fullUrl)
           return client.focus()
         }
       }

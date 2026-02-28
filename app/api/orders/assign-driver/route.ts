@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
+import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
+import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
 
 export async function PATCH(req: NextRequest) {
   if (req.method !== 'PATCH') {
@@ -28,8 +30,21 @@ export async function PATCH(req: NextRequest) {
           _ref: driverId,
         },
         status: 'out-for-delivery',
+        driverAcceptedAt: new Date().toISOString(),
       })
       .commit()
+
+    sendCustomerOrderStatusPush({
+      orderId,
+      newStatus: 'out-for-delivery',
+      baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+    }).catch((e) => console.warn('[customer-order-push]', e))
+
+    sendTenantOrderUpdatePush({
+      orderId,
+      status: 'out-for-delivery',
+      baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+    }).catch((e) => console.warn('[tenant-order-push]', e))
 
     return new NextResponse(JSON.stringify({ message: 'Driver assigned successfully' }), { status: 200 })
   } catch (error) {

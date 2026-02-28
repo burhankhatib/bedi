@@ -82,7 +82,7 @@ export type FcmSendResult = {
  */
 export async function sendFCMToTokenDetailed(
   token: string,
-  payload: { title: string; body?: string; url?: string; dir?: 'rtl' | 'ltr' }
+  payload: { title: string; body?: string; url?: string; dir?: 'rtl' | 'ltr'; icon?: string }
 ): Promise<FcmSendResult> {
   const msg = getAdminMessaging()
   if (!msg) return { ok: false, permanent: false, reason: 'fcm_not_configured' }
@@ -91,6 +91,7 @@ export async function sendFCMToTokenDetailed(
   const body = (payload.body ?? '').replace(/"/g, "'")
   const data: Record<string, string> = { title, body, url }
   if (payload.dir) data.dir = payload.dir
+  if (payload.icon) data.icon = payload.icon
   try {
     const message = {
       token,
@@ -146,7 +147,7 @@ export async function sendFCMToTokenDetailed(
 
 export async function sendFCMToToken(
   token: string,
-  payload: { title: string; body?: string; url?: string; dir?: 'rtl' | 'ltr' }
+  payload: { title: string; body?: string; url?: string; dir?: 'rtl' | 'ltr'; icon?: string }
 ): Promise<boolean> {
   const result = await sendFCMToTokenDetailed(token, payload)
   return result.ok

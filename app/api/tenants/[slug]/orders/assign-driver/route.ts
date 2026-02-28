@@ -5,6 +5,7 @@ import { checkTenantAuth } from '@/lib/tenant-auth'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
+import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
 
 async function checkOrderOwnership(slug: string, orderId: string) {
   const auth = await checkTenantAuth(slug)
@@ -49,6 +50,7 @@ export async function PATCH(
     .set({
       assignedDriver: { _type: 'reference', _ref: driverId },
       status: 'waiting_for_delivery',
+      driverAcceptedAt: new Date().toISOString(),
     })
     .unset(['deliveryRequestedAt', 'declinedByDriverIds'])
     .commit()
@@ -66,9 +68,10 @@ export async function PATCH(
         { driverId }
       )
       const payload = {
-        title: "You're assigned to an order",
-        body: `Order #${orderNumber} — open the app to view details.`,
+        title: 'تم تعيينك لتوصيل طلب',
+        body: `طلب رقم #${orderNumber} — افتح التطبيق لعرض التفاصيل.`,
         url: '/driver/orders',
+        dir: 'rtl' as const,
       }
       if (driver?.fcmToken && isFCMConfigured()) {
         await sendFCMToToken(driver.fcmToken, payload)
@@ -91,6 +94,12 @@ export async function PATCH(
     newStatus: 'waiting_for_delivery',
     baseUrl: process.env.NEXT_PUBLIC_APP_URL,
   }).catch((e) => console.warn('[customer-order-push]', e))
+
+  sendTenantOrderUpdatePush({
+    orderId,
+    status: 'waiting_for_delivery',
+    baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+  }).catch((e) => console.warn('[tenant-order-push]', e))
 
   return NextResponse.json({ message: 'Driver assigned successfully' }, { status: 200 })
 }

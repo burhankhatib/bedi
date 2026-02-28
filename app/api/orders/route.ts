@@ -254,18 +254,32 @@ export async function POST(request: NextRequest) {
       status: result.status,
     })
 
-    // Same stable pattern as Driver new-delivery-request push (see docs/PUSH_NOTIFICATIONS.md). Notify this business (tenant) when orders page is closed. Per-tenant: each business has its own slug and fcmToken.
     const pushReady = isFCMConfigured() || isPushConfigured()
     if (siteRef?._ref && tenantSlug && typeof tenantSlug === 'string' && pushReady) {
       try {
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+        const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
         const path = `/t/${tenantSlug}/orders`
-        const url = baseUrl ? `${baseUrl.replace(/\/$/, '')}${path}` : path
+        const url = `${base}${path}`
+        const icon = `${base}/t/${tenantSlug}/icon/192`
         const num = result.orderNumber ?? result._id?.slice(-6)
+
+        // Fetch business name for personalised Arabic notification
+        let businessName = tenantSlug
+        try {
+          const tenantDoc = await client.fetch<{ name?: string } | null>(
+            `*[_type == "tenant" && _id == $id][0]{ name }`,
+            { id: siteRef._ref }
+          )
+          if (tenantDoc?.name) businessName = tenantDoc.name
+        } catch (_) {}
+
         const payload = {
-          title: 'New order received',
-          body: `Order #${num} — open to view and accept.`,
+          title: `${businessName}: طلب جديد — #${num}`,
+          body: 'تم استلام طلب جديد. افتح التطبيق للمراجعة والقبول.',
           url,
+          icon,
+          dir: 'rtl' as const,
         }
         const sent = await sendTenantAndStaffPush(siteRef._ref, payload)
         if (!sent && process.env.NODE_ENV === 'development') {

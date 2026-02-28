@@ -5,12 +5,17 @@ import { checkTenantAuth } from '@/lib/tenant-auth'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { auth } from '@clerk/nextjs/server'
 import { requirePermission, ORDERS_PERMISSION } from '@/lib/staff-permissions'
+import { upsertUserPushSubscription } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
-/** CRITICAL: Push subscription for new-order notifications. Owner: saved on tenant. Staff: saved on tenantStaff. */
+/**
+ * Push subscription for tenant new-order notifications.
+ * Saves to the central userPushSubscription table (same as Customer FCM) so every
+ * device / staff member can receive push reliably, regardless of token rotation.
+ * Also writes fcmTokens to the legacy tenant / tenantStaff document for backward compat.
+ */
 
-/** GET - Whether this user (owner or staff) has push enabled for this tenant. */
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -19,6 +24,20 @@ export async function GET(
   const authResult = await checkTenantAuth(slug)
   if (!authResult.ok) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Check the central subscription table first (new system)
+  const centralSubs = await writeClient.fetch<Array<{ _id: string }> | null>(
+    `*[_type == "userPushSubscription" && clerkUserId == $userId && roleContext == "tenant" && isActive != false][0..0]{ _id }`,
+    { userId }
+  )
+  const hasCentralPush = !!(centralSubs && centralSubs.length > 0)
+  if (hasCentralPush) {
+    return NextResponse.json({ hasPush: true, needsRefresh: false })
+  }
+
+  // Fall back to legacy fields (if they have legacy, they have push but need to migrate to central)
   if (authResult.isOwner) {
     const tenant = await client.fetch<{ fcmToken?: string; fcmTokens?: string[]; pushSubscription?: { endpoint?: string } } | null>(
       `*[_type == "tenant" && _id == $tenantId][0]{ fcmToken, fcmTokens, "pushSubscription": pushSubscription }`,
@@ -26,11 +45,10 @@ export async function GET(
     )
     const hasFcm = !!((tenant?.fcmTokens?.length ?? 0) > 0 || tenant?.fcmToken)
     const hasPush = !!(hasFcm || tenant?.pushSubscription?.endpoint)
-    return NextResponse.json({ hasPush })
+    return NextResponse.json({ hasPush, needsRefresh: hasPush })
   }
 
-  const { userId, sessionClaims } = await auth()
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { sessionClaims } = await auth()
   const email = await getEmailForUser(userId, sessionClaims as Record<string, unknown> | null)
   const emailLower = (email || '').trim().toLowerCase()
   const staff = await client.fetch<{ fcmTokens?: string[]; pushSubscription?: { endpoint?: string } } | null>(
@@ -39,10 +57,9 @@ export async function GET(
   )
   const hasFcm = !!((staff?.fcmTokens?.length ?? 0) > 0)
   const hasPush = !!(hasFcm || staff?.pushSubscription?.endpoint)
-  return NextResponse.json({ hasPush })
+  return NextResponse.json({ hasPush, needsRefresh: hasPush })
 }
 
-/** POST - Save push subscription. Owner: saved on tenant. Staff: saved on their tenantStaff doc. Requires orders permission. */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -54,6 +71,9 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
+
+  const { userId, sessionClaims } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json().catch(() => ({}))
   const fcmToken = body?.fcmToken && typeof body.fcmToken === 'string' ? body.fcmToken.trim() : null
@@ -70,56 +90,59 @@ export async function POST(
     )
   }
 
+  // ── 1. Save to central userPushSubscription table (primary, same as Customer) ──
+  await upsertUserPushSubscription({
+    clerkUserId: userId,
+    roleContext: 'tenant',
+    fcmToken: fcmToken || null,
+    webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : null,
+  }).catch((e) => console.warn('[push-subscription] central upsert failed', e))
+
+  // ── 2. Also write to legacy tenant / tenantStaff document (backward compat) ──
   if (authResult.isOwner) {
     const tenant = await writeClient.fetch<{ _id: string; fcmToken?: string; fcmTokens?: string[] } | null>(
       `*[_type == "tenant" && _id == $tenantId][0]{ _id, fcmToken, fcmTokens }`,
       { tenantId: authResult.tenantId }
     )
-    if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
-
-    const patch = writeClient.patch(tenant._id)
-    if (fcmToken) {
-      const existing = (tenant.fcmTokens ?? []).concat(tenant.fcmToken ? [tenant.fcmToken] : [])
-      const nextTokens = [...new Set([...existing, fcmToken])].filter(Boolean)
-      patch.set({ fcmTokens: nextTokens })
-      if (tenant.fcmToken) patch.unset(['fcmToken'])
+    if (tenant) {
+      const patch = writeClient.patch(tenant._id)
+      if (fcmToken) {
+        const existing = (tenant.fcmTokens ?? []).concat(tenant.fcmToken ? [tenant.fcmToken] : [])
+        const nextTokens = [...new Set([...existing, fcmToken])].filter(Boolean)
+        patch.set({ fcmTokens: nextTokens })
+        if (tenant.fcmToken) patch.unset(['fcmToken'])
+      }
+      if (hasWebPush) {
+        patch.set({ pushSubscription: { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } })
+      }
+      await patch.commit().catch((e) => console.warn('[push-subscription] legacy tenant patch failed', e))
     }
-    if (hasWebPush) {
-      patch.set({
-        pushSubscription: {
-          endpoint: endpoint!,
-          p256dh: p256dh!,
-          auth: authKey!,
-        },
-      })
-    }
-    await patch.commit()
     return NextResponse.json({ success: true })
   }
 
-  const { userId, sessionClaims } = await auth()
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Staff path
   const email = await getEmailForUser(userId, sessionClaims as Record<string, unknown> | null)
   const emailLower = (email || '').trim().toLowerCase()
   if (!emailLower) return NextResponse.json({ error: 'Email required for staff push' }, { status: 400 })
 
-  const staff = await writeClient.fetch<{ _id: string; fcmTokens?: string[]; pushSubscription?: { endpoint?: string } } | null>(
-    `*[_type == "tenantStaff" && site._ref == $tenantId && lower(email) == $emailLower][0]{ _id, fcmTokens, pushSubscription }`,
+  const staff = await writeClient.fetch<{ _id: string; fcmTokens?: string[] } | null>(
+    `*[_type == "tenantStaff" && site._ref == $tenantId && lower(email) == $emailLower][0]{ _id, fcmTokens }`,
     { tenantId: authResult.tenantId, emailLower }
   )
   if (!staff) return NextResponse.json({ error: 'Staff record not found' }, { status: 404 })
 
   const patch = writeClient.patch(staff._id)
+  // Save clerkUserId on tenantStaff so sendTenantAndStaffPush can look up central subscriptions
+  patch.set({ clerkUserId: userId })
   if (fcmToken) {
     const existing = staff.fcmTokens ?? []
     const nextTokens = [...new Set([...existing, fcmToken])].filter(Boolean)
     patch.set({ fcmTokens: nextTokens })
   }
   if (hasWebPush) {
-    patch.set({
-      pushSubscription: { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! },
-    })
+    patch.set({ pushSubscription: { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } })
   }
-  await patch.commit()
+  await patch.commit().catch((e) => console.warn('[push-subscription] legacy staff patch failed', e))
+
   return NextResponse.json({ success: true })
 }

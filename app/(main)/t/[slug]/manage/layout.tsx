@@ -63,12 +63,13 @@ export default async function ManageLayout({
   const permissions = auth.ok ? auth.permissions : []
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-950 text-white">
+    <div className="min-h-screen flex flex-col bg-slate-950 text-white">
       <AppNav variant="dashboard" />
 
       <TenantManagePushWrapper slug={slug}>
         <TenantBusinessProvider slug={slug}>
-        <main className="mx-auto max-w-[100vw] px-4 py-5 sm:container sm:px-6 sm:py-8 md:py-10">
+        <div className="flex-1 mx-auto w-full max-w-[1400px] flex flex-col">
+          {/* Utility Components out of the flex-row flow */}
           <PWAUpdatePrompt
             scriptUrl={`/t/${slug}/manage/sw.js`}
             scope={`/t/${slug}/manage`}
@@ -79,14 +80,23 @@ export default async function ManageLayout({
           />
           <TenantDashboardPWA slug={slug} scope={`/t/${slug}/manage`} />
           <ManageLanguageSync slug={slug} />
-          <ManageNavClient slug={slug} permissions={permissions} />
-          <SubscriptionBanner slug={slug} initialData={subscriptionBannerInitial} />
           <TenantPushSetup slug={slug} scope={`/t/${slug}/manage`} />
 
-          <div className="min-w-0 pb-8">
-            {children}
+          <div className="flex-1 flex flex-col md:flex-row w-full">
+            {/* Sidebar / Mobile Nav */}
+            <aside className="md:w-64 lg:w-72 md:shrink-0 md:border-r md:border-slate-800/60 md:py-8 md:px-2 md:sticky md:top-[73px] md:h-[calc(100vh-73px)] md:overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <ManageNavClient slug={slug} permissions={permissions} />
+            </aside>
+
+            {/* Main Content */}
+            <main className="flex-1 min-w-0 px-4 py-5 sm:px-6 sm:py-8 md:py-8 md:px-8 lg:px-12">
+              <SubscriptionBanner slug={slug} initialData={subscriptionBannerInitial} />
+              <div className="pb-12">
+                {children}
+              </div>
+            </main>
           </div>
-        </main>
+        </div>
         </TenantBusinessProvider>
       </TenantManagePushWrapper>
     </div>

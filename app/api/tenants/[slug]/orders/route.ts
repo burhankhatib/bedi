@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 
+export const dynamic = 'force-dynamic'
+
 const siteFilter = '(site._ref == $siteId || !defined(site))'
 const noCacheClient = client.withConfig({ useCdn: false })
 const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc) {
@@ -37,7 +39,17 @@ const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc
 const NEW_ORDERS_GROQ = `*[_type == "order" && ${siteFilter} && status == "new"] | order(createdAt desc) {
   _id,
   orderNumber,
-  createdAt
+  createdAt,
+  orderType,
+  customerName,
+  customerPhone,
+  tableNumber,
+  deliveryAddress,
+  deliveryArea->{_id, name_en, name_ar},
+  deliveryLat,
+  deliveryLng,
+  totalAmount,
+  currency
 }`
 const NEW_TABLE_REQUESTS_GROQ = `*[_type == "order" && ${siteFilter} && orderType == "dine-in" && status != "completed" && defined(customerRequestedAt) && !defined(customerRequestAcknowledgedAt)] | order(customerRequestedAt desc) {
   _id,

@@ -134,6 +134,14 @@ export const orderType = defineType({
       hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
     }),
     defineField({
+      name: 'lastDeliveryRequestPingAt',
+      title: 'Last delivery request ping at',
+      type: 'datetime',
+      readOnly: true,
+      hidden: true,
+      description: 'Updated by the retry-delivery-requests cron job each time it re-sends push to online drivers (every 3 min).',
+    }),
+    defineField({
       name: 'declinedByDriverIds',
       title: 'Declined by drivers',
       type: 'array',
@@ -238,6 +246,24 @@ export const orderType = defineType({
       type: 'datetime',
       initialValue: () => new Date().toISOString(),
       validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'preparedAt',
+      title: 'Prepared At',
+      type: 'datetime',
+      description: 'When the order was marked as preparing or waiting for delivery',
+    }),
+    defineField({
+      name: 'driverAcceptedAt',
+      title: 'Driver Accepted At',
+      type: 'datetime',
+      description: 'When the driver accepted or was assigned the order',
+    }),
+    defineField({
+      name: 'driverPickedUpAt',
+      title: 'Driver Picked Up At',
+      type: 'datetime',
+      description: 'When the driver picked up the order (out for delivery)',
     }),
     defineField({
       name: 'completedAt',

@@ -49,6 +49,7 @@ export async function POST(
     .set({
       assignedDriver: { _type: 'reference', _ref: driver._id },
       status: 'driver_on_the_way',
+      driverAcceptedAt: new Date().toISOString(),
       deliveryRequestedAt: undefined,
     })
     .unset(['deliveryRequestedAt'])

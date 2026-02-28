@@ -7,8 +7,6 @@ import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
-const TENANT_PUSH_STATUSES = ['driver_on_the_way', 'out-for-delivery', 'completed'] as const
-
 const siteFilter = '(site._ref == $siteId || !defined(site))'
 
 async function checkOrderOwnership(slug: string, orderId: string) {
@@ -63,6 +61,12 @@ export async function PATCH(
 
   const updateData: Record<string, unknown> = { status }
   if (completedAt != null) updateData.completedAt = completedAt
+  if (status === 'preparing' || status === 'waiting_for_delivery') {
+    updateData.preparedAt = new Date().toISOString()
+  }
+  if (status === 'out-for-delivery') {
+    updateData.driverPickedUpAt = new Date().toISOString()
+  }
   if (check.backfillSite) {
     updateData.site = { _type: 'reference', _ref: check.auth.tenantId }
   }
@@ -75,13 +79,11 @@ export async function PATCH(
     baseUrl: process.env.NEXT_PUBLIC_APP_URL,
   }).catch((e) => console.warn('[customer-order-push]', e))
 
-  if (TENANT_PUSH_STATUSES.includes(status as (typeof TENANT_PUSH_STATUSES)[number])) {
-    sendTenantOrderUpdatePush({
-      orderId,
-      status: status as (typeof TENANT_PUSH_STATUSES)[number],
-      baseUrl: process.env.NEXT_PUBLIC_APP_URL,
-    }).catch((e) => console.warn('[tenant-order-push]', e))
-  }
+  sendTenantOrderUpdatePush({
+    orderId,
+    status: status as import('@/lib/tenant-order-push').TenantOrderPushStatus,
+    baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+  }).catch((e) => console.warn('[tenant-order-push]', e))
 
   return NextResponse.json({ success: true, orderId, status })
 }

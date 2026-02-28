@@ -1,15 +1,13 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Bell, BellOff } from 'lucide-react'
+import { Bell, BellOff, RefreshCw } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { getFCMToken } from '@/lib/firebase'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
 
 const VAPID_PUBLIC = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY : undefined
-const AUTO_PROMPT_DELAY_MS = 1500
-const REMINDER_INTERVAL_MS = 20000
 
 function isStandalone(): boolean {
   if (typeof window === 'undefined') return false
@@ -175,6 +173,19 @@ export function CustomerTrackPushSetup({ slug, token }: Props) {
     await doSubscribe()
   }
 
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const refreshToken = useCallback(async () => {
+    setIsRefreshing(true)
+    const contextKey = PUSH_CONTEXT_KEYS.customer(slug, token)
+    clearStoredPushOk(contextKey)
+    setHasPush(false)
+    const ok = await doSubscribe()
+    if (ok) {
+      // toast equivalent via status text – doSubscribe sets hasPush=true on success
+    }
+    setIsRefreshing(false)
+  }, [doSubscribe, slug, token])
+
   const deniedInstructions = useCallback(() => {
     if (isIOS) {
       return t(
@@ -194,39 +205,6 @@ export function CustomerTrackPushSetup({ slug, token }: Props) {
     )
   }, [isAndroid, isIOS, t])
 
-  // Keep reminding and retrying notification permission until enabled.
-  // Browsers may require user gesture after initial prompt, so the button remains visible at all times.
-  const trulyEnabledForEffect = hasPush && permission === 'granted'
-  useEffect(() => {
-    if (!checked || trulyEnabledForEffect || !slug || !token) return
-    if (typeof window === 'undefined' || !('Notification' in window)) return
-    const canPush = (typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()) || !!VAPID_PUBLIC
-    if (!canPush) return
-    if (isIOS && !isStandalone()) return
-
-    const tryEnable = () => {
-      const perm = Notification.permission
-      if (perm === 'denied') return
-      if (perm === 'granted') {
-        doSubscribe().catch(() => {})
-        return
-      }
-      Notification.requestPermission()
-        .then((p) => {
-          setPermission(p)
-          if (p === 'granted') doSubscribe().catch(() => {})
-        })
-        .catch(() => {})
-    }
-
-    const timeoutId = setTimeout(tryEnable, AUTO_PROMPT_DELAY_MS)
-    const intervalId = setInterval(tryEnable, REMINDER_INTERVAL_MS)
-    return () => {
-      clearTimeout(timeoutId)
-      clearInterval(intervalId)
-    }
-  }, [checked, trulyEnabledForEffect, slug, token, doSubscribe, permission, isIOS])
-
   // If browser permission is granted but API state is not yet reflected, keep checking until backend confirms.
   useEffect(() => {
     if (!checked || hasPush || permission !== 'granted') return
@@ -242,72 +220,79 @@ export function CustomerTrackPushSetup({ slug, token }: Props) {
 
   if (!checked) return null
 
+  if (trulyEnabled) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <span className="flex items-center gap-2 text-sm font-medium text-emerald-800">
+          <Bell className="h-4 w-4 shrink-0" />
+          {t('Notifications enabled', 'الإشعارات مفعّلة')}
+        </span>
+        <button
+          type="button"
+          onClick={refreshToken}
+          disabled={isRefreshing}
+          className="flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? t('Refreshing…', 'جاري التحديث…') : t('Refresh', 'تحديث')}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-5">
       <p className="text-sm font-medium text-slate-700 flex items-center gap-2">
-        {trulyEnabled ? (
-          <>
-            <Bell className="h-4 w-4 text-emerald-600" />
-            {t('Status notifications enabled', 'تم تفعيل إشعارات حالة الطلب')}
-          </>
-        ) : (
-          <>
-            <BellOff className="h-4 w-4 text-slate-500" />
-            {t('Get a notification every time your order status changes', 'استلم إشعاراً عند كل تغيير في حالة الطلب')}
-          </>
-        )}
+        <BellOff className="h-4 w-4 text-slate-500" />
+        {t('Get a notification every time your order status changes', 'استلم إشعاراً عند كل تغيير في حالة الطلب')}
       </p>
-      {!trulyEnabled && (
-        <>
-          <p className="mt-2 text-xs text-slate-500">
-            {t('We will keep reminding you until notifications are enabled.', 'سنستمر بتذكيرك حتى يتم تفعيل الإشعارات.')}
-          </p>
-          {needsIOSHomeScreen && (
-            <p className="mt-2 text-xs text-amber-700">
-              {t(
-                'On iPhone/iPad, push works after adding Bedi to Home Screen. Open from the app icon, then tap Enable.',
-                'على iPhone/iPad تعمل الإشعارات بعد إضافة Bedi إلى الشاشة الرئيسية. افتحه من أيقونة التطبيق ثم اضغط تفعيل.'
-              )}
-            </p>
+      <p className="mt-2 text-xs text-slate-500">
+        {t('We will keep reminding you until notifications are enabled.', 'سنستمر بتذكيرك حتى يتم تفعيل الإشعارات.')}
+      </p>
+      {needsIOSHomeScreen && (
+        <p className="mt-2 text-xs text-amber-700">
+          {t(
+            'On iPhone/iPad, push works after adding Bedi to Home Screen. Open from the app icon, then tap Enable.',
+            'على iPhone/iPad تعمل الإشعارات بعد إضافة Bedi إلى الشاشة الرئيسية. افتحه من أيقونة التطبيق ثم اضغط تفعيل.'
           )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault()
-              if (needsIOSHomeScreen) {
-                if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-                  window.alert(
-                    t(
-                      'Add this page to Home Screen first, open it from the app icon, then tap Enable again.',
-                      'أضف هذه الصفحة إلى الشاشة الرئيسية أولاً، وافتحها من أيقونة التطبيق، ثم اضغط تفعيل مرة أخرى.'
-                    )
-                  )
-                }
-                return
-              }
-              if (permission === 'denied') {
-                if (typeof window !== 'undefined') {
-                  if (typeof window.alert === 'function') window.alert(deniedInstructions())
-                }
-                return
-              }
-              subscribe()
-            }}
-            disabled={loading}
-            className="mt-3 flex min-h-[48px] w-full touch-manipulation cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-60 active:scale-[0.98]"
-          >
-            {loading
-              ? t('Enabling…', 'جاري التفعيل…')
-              : needsIOSHomeScreen
-                ? t('Open from Home Screen first', 'افتح من الشاشة الرئيسية أولاً')
-                : t('Enable status notifications', 'تفعيل إشعارات الحالة')}
-          </button>
-          {permission === 'denied' && (
-            <p className="mt-2 text-xs text-amber-700">
-              {deniedInstructions()}
-            </p>
-          )}
-        </>
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault()
+          if (needsIOSHomeScreen) {
+            if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+              window.alert(
+                t(
+                  'Add this page to Home Screen first, open it from the app icon, then tap Enable again.',
+                  'أضف هذه الصفحة إلى الشاشة الرئيسية أولاً، وافتحها من أيقونة التطبيق، ثم اضغط تفعيل مرة أخرى.'
+                )
+              )
+            }
+            return
+          }
+          if (permission === 'denied') {
+            if (typeof window !== 'undefined') {
+              if (typeof window.alert === 'function') window.alert(deniedInstructions())
+            }
+            return
+          }
+          subscribe()
+        }}
+        disabled={loading}
+        className="mt-3 flex min-h-[48px] w-full touch-manipulation cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-60 active:scale-[0.98]"
+      >
+        {loading
+          ? t('Enabling…', 'جاري التفعيل…')
+          : needsIOSHomeScreen
+            ? t('Open from Home Screen first', 'افتح من الشاشة الرئيسية أولاً')
+            : t('Enable status notifications', 'تفعيل إشعارات الحالة')}
+      </button>
+      {permission === 'denied' && (
+        <p className="mt-2 text-xs text-amber-700">
+          {deniedInstructions()}
+        </p>
       )}
     </div>
   )

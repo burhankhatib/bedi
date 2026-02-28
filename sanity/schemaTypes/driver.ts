@@ -24,7 +24,7 @@ export const driverType = defineType({
       type: 'string',
       description: 'City name. Used for “drivers in your area” quick-add.',
     }),
-    defineField({
+    defineField(    {
       name: 'clerkUserId',
       title: 'Clerk user ID',
       type: 'string',
@@ -204,6 +204,14 @@ export const driverType = defineType({
       readOnly: true,
       hidden: true,
       description: 'When the driver last shared their location.',
+    }),
+    defineField({
+      name: 'lastOfflineReminderAt',
+      title: 'Last offline reminder sent at',
+      type: 'datetime',
+      readOnly: true,
+      hidden: true,
+      description: 'Tracks when the last "go online" FCM reminder was sent. Used to throttle reminders to once per 4 hours.',
     }),
     defineField({
       name: 'blockedBySuperAdmin',

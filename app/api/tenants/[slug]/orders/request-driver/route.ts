@@ -166,6 +166,64 @@ export async function POST(
         }
       }
     }
+
+    // Send offline driver reminders (once per 4 hours, between 9AM–10PM KSA = UTC+3)
+    const nowMs = Date.now()
+    const ksaHour = new Date(nowMs + 3 * 60 * 60 * 1000).getUTCHours()
+    if (ksaHour >= 9 && ksaHour < 22 && order?.siteRef) {
+      const site = await writeClient.fetch<{ country?: string; city?: string } | null>(
+        `*[_type == "tenant" && _id == $id][0]{ country, city }`,
+        { id: order.siteRef }
+      )
+      if (site?.country && site?.city) {
+        const siteCountryNorm = norm(site.country)
+        const siteCityNorm = norm(site.city)
+        const fourHoursAgo = new Date(nowMs - 4 * 60 * 60 * 1000).toISOString()
+
+        type OfflineDriverRow = {
+          _id: string
+          fcmToken?: string
+          pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
+          country?: string
+          city?: string
+          lastOfflineReminderAt?: string
+        }
+        const offlineDrivers = await writeClient.fetch<OfflineDriverRow[]>(
+          `*[_type == "driver" && isOnline != true && (defined(fcmToken) || defined(pushSubscription.endpoint)) && !defined(blockedBySuperAdmin) || blockedBySuperAdmin == false]{
+            _id, fcmToken, "pushSubscription": pushSubscription, country, city, lastOfflineReminderAt
+          }`
+        )
+        const eligibleOffline = (offlineDrivers ?? []).filter(
+          (d) =>
+            (norm(d.country) === siteCountryNorm && norm(d.city) === siteCityNorm) &&
+            (!d.lastOfflineReminderAt || d.lastOfflineReminderAt < fourHoursAgo)
+        )
+        const reminderPayload = {
+          title: '\u200Fتنبيه: طلبات توصيل متاحة',
+          body: '\u200Fيوجد طلبات توصيل متاحة في منطقتك! افتح التطبيق واستقبل الطلبات لزيادة أرباحك.',
+          url: '/driver/orders',
+          dir: 'rtl' as const,
+        }
+        const reminderNow = new Date(nowMs).toISOString()
+        for (const d of eligibleOffline) {
+          let sent = false
+          if (d.fcmToken && isFCMConfigured()) {
+            sent = await sendFCMToToken(d.fcmToken, reminderPayload)
+          }
+          if (!sent) {
+            const sub = d.pushSubscription
+            if (sub?.endpoint && sub?.p256dh && sub?.auth && isPushConfigured()) {
+              await sendPushNotification(
+                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                reminderPayload
+              )
+            }
+          }
+          // Update throttle timestamp regardless of delivery success
+          writeClient.patch(d._id).set({ lastOfflineReminderAt: reminderNow }).commit().catch(() => {})
+        }
+      }
+    }
   }
 
   return NextResponse.json({ success: true })

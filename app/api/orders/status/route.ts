@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
+import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
 
 export async function PATCH(request: Request) {
   try {
@@ -38,6 +39,12 @@ export async function PATCH(request: Request) {
     if (completedAt) {
       updateData.completedAt = completedAt
     }
+    if (status === 'preparing' || status === 'waiting_for_delivery') {
+      updateData.preparedAt = new Date().toISOString()
+    }
+    if (status === 'out-for-delivery') {
+      updateData.driverPickedUpAt = new Date().toISOString()
+    }
 
     console.log('Updating order with data:', updateData)
 
@@ -59,12 +66,17 @@ export async function PATCH(request: Request) {
       .set(updateData)
       .commit()
 
-    // Keep this legacy status endpoint aligned with customer order push flow.
     sendCustomerOrderStatusPush({
       orderId,
       newStatus: status,
       baseUrl: process.env.NEXT_PUBLIC_APP_URL,
     }).catch((e) => console.warn('[customer-order-push]', e))
+
+    sendTenantOrderUpdatePush({
+      orderId,
+      status: status as import('@/lib/tenant-order-push').TenantOrderPushStatus,
+      baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+    }).catch((e) => console.warn('[tenant-order-push]', e))
 
     console.log('Order updated successfully:', {
       orderId: result._id,

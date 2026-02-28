@@ -9,6 +9,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { LayoutDashboard, Shield, Layout, Menu, Home, Truck, Download } from 'lucide-react'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { PREFER_DRIVER_KEY, PREFER_TENANT_KEY } from '@/components/StandaloneDriverRedirect'
+import { CustomerSidebarActions } from './CustomerSidebarActions'
 
 interface AppNavClientProps {
   variant: 'landing' | 'dashboard'
@@ -74,6 +75,12 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
             {trailingElement}
             {variant === 'landing' && (
               <>
+                <Button asChild variant="ghost" size="sm" className="text-slate-400 hover:text-white hidden md:inline-flex" title="Download app">
+                  <Link href="/download-app">
+                    <Download className="mr-1.5 size-4" />
+                    {t('App', 'التطبيق')}
+                  </Link>
+                </Button>
                 <span className="flex gap-2 md:hidden">
                   <Button asChild size="sm" className="border border-slate-600 bg-slate-800 text-white hover:bg-slate-700">
                     <Link href="/sign-in">{signIn}</Link>
@@ -240,6 +247,7 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
                 <span className="text-sm text-slate-400">{dashboardNavLabels.profileSignOut}</span>
               </div>
             </div>
+            <CustomerSidebarActions />
           </nav>
         </SheetContent>
       </Sheet>

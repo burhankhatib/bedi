@@ -11,6 +11,7 @@
     "deploy": "clear && npm run build && vercel --prod"
   },
   "dependencies": {
+    "@clerk/localizations": "^3.37.2",
     "@clerk/nextjs": "^6.37.3",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",

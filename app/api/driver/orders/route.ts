@@ -17,6 +17,8 @@ type DriverOrderView = {
   businessAddressAr?: string
   /** Google Maps (or similar) link from tenant business profile; opens Maps/Waze when driver taps. */
   businessMapsLink?: string
+  businessLocationLat?: number
+  businessLocationLng?: number
   city: string
   /** Area name from restaurant (e.g. Shufat). Shown before driver accepts. */
   deliveryAreaName: string
@@ -122,6 +124,8 @@ export async function GET() {
             _id: string
             name: string
             city: string
+            locationLat?: number
+            locationLng?: number
             restaurantName: string
             restaurantAddress: string
             restaurantAddressAr: string | null
@@ -132,6 +136,8 @@ export async function GET() {
             _id,
             name,
             city,
+            locationLat,
+            locationLng,
             "restaurantName": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_en,
             "restaurantAddress": *[_type == "restaurantInfo" && site._ref == ^._id][0].address_en,
             "restaurantAddressAr": *[_type == "restaurantInfo" && site._ref == ^._id][0].address_ar,
@@ -148,6 +154,8 @@ export async function GET() {
         businessAddress: s.restaurantAddress || '',
         businessAddressAr: s.restaurantAddressAr && typeof s.restaurantAddressAr === 'string' ? s.restaurantAddressAr : undefined,
         businessMapsLink: s.restaurantMapsLink && typeof s.restaurantMapsLink === 'string' ? s.restaurantMapsLink : undefined,
+        businessLocationLat: s.locationLat,
+        businessLocationLng: s.locationLng,
         city: s.city || '',
       },
     ])
@@ -168,6 +176,8 @@ export async function GET() {
       businessAddress: site?.businessAddress ?? '',
       businessAddressAr: site?.businessAddressAr,
       businessMapsLink: site?.businessMapsLink,
+      businessLocationLat: site?.businessLocationLat,
+      businessLocationLng: site?.businessLocationLng,
       city: site?.city ?? '',
       deliveryAreaName: areaName,
       deliveryAreaNameAr: areaNameAr || undefined,

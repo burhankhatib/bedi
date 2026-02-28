@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
+import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -42,6 +43,12 @@ export async function POST(
     newStatus: 'preparing',
     baseUrl: process.env.NEXT_PUBLIC_APP_URL,
   }).catch((e) => console.warn('[customer-order-push]', e))
+
+  sendTenantOrderUpdatePush({
+    orderId,
+    status: 'preparing',
+    baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+  }).catch((e) => console.warn('[tenant-order-push]', e))
 
   return NextResponse.json({ success: true })
 }

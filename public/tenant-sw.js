@@ -2,7 +2,7 @@
 // Auth rule: never cache document/navigation requests so the server always validates auth.
 'use strict'
 
-self.addEventListener('install', () => {})
+self.addEventListener('install', (event) => { event.waitUntil(self.skipWaiting()) })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim())
@@ -22,24 +22,25 @@ self.addEventListener('fetch', (event) => {
 })
 
 self.addEventListener('push', function (event) {
-  let data = { title: 'New order', body: 'You have a new order.', url: '/' }
+  let data = { title: 'New order', body: 'You have a new order.', url: '/', icon: '/adminslogo.webp' }
   if (event.data) {
     try {
       const raw = event.data.json()
-      // FCM: notification + data payload, or data-only { data: { title, body, url } }
+      // FCM: notification + data payload, or data-only { data: { title, body, url, icon } }
       const notif = raw.notification || {}
-      const dataPayload = raw.data || {}
+      const dataPayload = raw.data || raw
       data = {
         title: notif.title ?? dataPayload.title ?? raw.title ?? data.title,
         body: notif.body ?? dataPayload.body ?? raw.body ?? data.body,
         url: dataPayload.url ?? raw.url ?? data.url,
+        icon: notif.icon ?? dataPayload.icon ?? raw.icon ?? data.icon,
       }
     } catch (_) {}
   }
   const options = {
     body: data.body || 'Open the app to view the order.',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-192x192.png',
+    icon: data.icon || '/adminslogo.webp',
+    badge: data.icon || '/adminslogo.webp',
     data: { url: data.url || '/' },
     tag: 'bedi-tenant-new-order',
     renotify: true,
@@ -58,7 +59,8 @@ self.addEventListener('notificationclick', function (event) {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
       for (const client of clientList) {
         if (client.url.indexOf(self.location.origin) !== -1 && 'focus' in client) {
-          if ('navigate' in client) client.navigate(fullUrl)
+          client.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
+          if ('navigate' in client && client.url !== fullUrl) client.navigate(fullUrl)
           return client.focus()
         }
       }

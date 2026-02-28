@@ -66,7 +66,8 @@ self.addEventListener('notificationclick', function (event) {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
       for (const client of clientList) {
         if (client.url.indexOf(self.location.origin) !== -1 && client.url.indexOf('/driver') !== -1 && 'focus' in client) {
-          if ('navigate' in client) client.navigate(fullUrl)
+          client.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
+          if ('navigate' in client && client.url !== fullUrl) client.navigate(fullUrl)
           return client.focus()
         }
       }

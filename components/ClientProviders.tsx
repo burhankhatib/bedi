@@ -1,10 +1,11 @@
 'use client'
 
-import { LanguageProvider } from '@/components/LanguageContext'
+import { LanguageProvider, useLanguage } from '@/components/LanguageContext'
 import { LocationProvider } from '@/components/LocationContext'
 import { CartProvider } from '@/components/Cart/CartContext'
 import { ToastProvider } from '@/components/ui/ToastProvider'
 import { ClerkProvider } from '@clerk/nextjs'
+import { arSA, enUS } from '@clerk/localizations'
 
 const clerkAppearance = {
   elements: {
@@ -21,11 +22,22 @@ const clerkAppearance = {
   },
 }
 
+function ClerkWithLocale({ children }: { children: React.ReactNode }) {
+  const { lang } = useLanguage()
+  const locale = lang === 'en' ? enUS : arSA
+
+  return (
+    <ClerkProvider appearance={clerkAppearance} localization={locale}>
+      {children}
+    </ClerkProvider>
+  )
+}
+
 /** Client-only providers. SanityLive is rendered separately in a Server Component. */
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider appearance={clerkAppearance}>
-      <LanguageProvider>
+    <LanguageProvider>
+      <ClerkWithLocale>
         <LocationProvider>
           <CartProvider>
             <ToastProvider>
@@ -33,7 +45,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
             </ToastProvider>
           </CartProvider>
         </LocationProvider>
-      </LanguageProvider>
-    </ClerkProvider>
+      </ClerkWithLocale>
+    </LanguageProvider>
   )
 }

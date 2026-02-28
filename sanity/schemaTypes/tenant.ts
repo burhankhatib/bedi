@@ -42,6 +42,18 @@ export const tenantType = defineType({
       description: 'Required for delivery: used to manage and share drivers in this city.',
     }),
     defineField({
+      name: 'locationLat',
+      title: 'Business latitude',
+      type: 'number',
+      description: 'GPS latitude of the business location. Used by drivers and customers to navigate here. Set via "Share Location" in the business settings.',
+    }),
+    defineField({
+      name: 'locationLng',
+      title: 'Business longitude',
+      type: 'number',
+      description: 'GPS longitude of the business location.',
+    }),
+    defineField({
       name: 'businessType',
       title: 'Business Type',
       type: 'string',

@@ -4,16 +4,16 @@ import { requirePermission } from '@/lib/staff-permissions'
 import { PATH_PERMISSION } from '@/lib/staff-permissions'
 
 const SECTION_ORDER: { path: string; permission: keyof typeof PATH_PERMISSION }[] = [
-  { path: '/menu', permission: 'menu' },
   { path: '/business', permission: 'business' },
+  { path: '/menu', permission: 'menu' },
   { path: '/tables', permission: 'tables' },
   { path: '/areas', permission: 'areas' },
   { path: '/drivers', permission: 'drivers' },
+  { path: '/staff', permission: 'staff' },
   { path: '/analytics', permission: 'analytics' },
   { path: '/history', permission: 'history' },
   { path: '/billing', permission: 'billing' },
   { path: '/transfer', permission: 'transfer' },
-  { path: '/staff', permission: 'staff' },
 ]
 
 export default async function ManagePage({

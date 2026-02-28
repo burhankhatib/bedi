@@ -1,5 +1,5 @@
 /**
- * Maps specialty/section keys (lowercase, from API) to Material Design icons for the search page.
+ * Maps specialty/section keys (lowercase, from API) to Material Design and Font Awesome icons for the search page.
  * Used for the horizontal Specialty strip with circular icon chips (Material You).
  */
 import type { IconType } from 'react-icons'
@@ -25,7 +25,37 @@ import {
   MdAddCircleOutline,
   MdEco,
   MdSetMeal,
+  MdFastfood,
+  MdLocalDining,
+  MdStore,
+  MdLocalMall,
+  MdLocalGroceryStore,
+  MdLocalPharmacy,
+  MdMonitorHeart,
+  MdCheckroom,
+  MdDevices,
+  MdCardGiftcard,
+  MdGrass,
 } from 'react-icons/md'
+
+import {
+  FaDrumstickBite,
+  FaFish,
+  FaLeaf,
+  FaCarrot,
+  FaAppleAlt,
+  FaIceCream,
+  FaHotdog,
+  FaCheese,
+  FaCandyCane,
+  FaCocktail,
+  FaGlassCheers,
+  FaMugHot,
+  FaShoppingBasket,
+  FaShoppingCart,
+  FaUtensils,
+  FaFireAlt,
+} from 'react-icons/fa'
 
 const SECTION_ICON_MAP: Record<string, IconType> = {
   // Pizza & Italian
@@ -41,15 +71,27 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
   hamburgers: MdLunchDining,
   sandwiches: MdLunchDining,
   sandwich: MdLunchDining,
+  shawarma: FaHotdog,
+  toasts: MdLunchDining,
+  hotdog: FaHotdog,
+  hotdogs: FaHotdog,
 
   // Chicken & meat
-  chicken: MdKebabDining,
-  'chicken wings': MdKebabDining,
-  wings: MdKebabDining,
+  chicken: FaDrumstickBite,
+  'chicken wings': FaDrumstickBite,
+  wings: FaDrumstickBite,
+  broasted: FaDrumstickBite,
   kebab: MdKebabDining,
   kebabs: MdKebabDining,
   meat: MdDinnerDining,
-  grill: MdKebabDining,
+  grill: FaFireAlt,
+  grills: FaFireAlt,
+
+  // Seafood
+  seafood: FaFish,
+  fish: FaFish,
+  sushi: MdRamenDining,
+  asian: MdRamenDining,
 
   // Mains & dishes
   'main dishes': MdDinnerDining,
@@ -59,6 +101,10 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
   dinner: MdDinnerDining,
   lunch: MdLunchDining,
   meals: MdSetMeal,
+  'home cooked': MdSoupKitchen,
+  'home-cooked': MdSoupKitchen,
+  'light meals': MdLocalDining,
+  'light-meals': MdLocalDining,
 
   // Appetizers & sides
   appetizers: MdTapas,
@@ -66,6 +112,8 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
   tapas: MdTapas,
   sides: MdBakeryDining,
   side: MdBakeryDining,
+  starters: MdTapas,
+  starter: MdTapas,
 
   // Desserts & sweets
   desserts: MdCake,
@@ -74,17 +122,21 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
   cakes: MdCake,
   cookies: MdCookie,
   cookie: MdCookie,
-  icecream: MdIcecream,
-  'ice cream': MdIcecream,
-  sweets: MdCake,
+  icecream: FaIceCream,
+  'ice cream': FaIceCream,
+  sweets: FaCandyCane,
+  gateau: MdCake,
+  'oriental sweets': FaCandyCane,
+  'oriental-sweets': FaCandyCane,
+  pastries: MdBakeryDining,
 
   // Drinks
-  drinks: MdLocalBar,
+  drinks: FaCocktail,
   beverages: MdLocalBar,
-  'hot drinks': MdLocalCafe,
-  'cold drinks': MdEmojiFoodBeverage,
+  'hot drinks': FaMugHot,
+  'cold drinks': FaGlassCheers,
   coffee: MdLocalCafe,
-  tea: MdLocalCafe,
+  tea: FaMugHot,
   juices: MdEmojiFoodBeverage,
   juice: MdEmojiFoodBeverage,
   smoothies: MdEmojiFoodBeverage,
@@ -94,23 +146,99 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
   breakfast: MdFreeBreakfast,
   bakery: MdBakeryDining,
   bread: MdBakeryDining,
+  savory: MdBakeryDining,
 
   // Soups & salads
   soups: MdSoupKitchen,
   soup: MdSoupKitchen,
-  salads: MdEco,
-  salad: MdEco,
+  salads: FaLeaf,
+  salad: FaLeaf,
+  healthy: MdEco,
+  vegan: FaLeaf,
+  vegetarian: FaLeaf,
+
+  // Groceries & Retail & Pharmacy
+  grocery: MdLocalGroceryStore,
+  supermarket: MdLocalGroceryStore,
+  'mini-market': MdStore,
+  'mini market': MdStore,
+  organic: MdEco,
+  dairy: FaCheese,
+  'fruits-vegetables': FaAppleAlt,
+  'fruits vegetables': FaAppleAlt,
+  fruits: FaAppleAlt,
+  vegetables: FaCarrot,
+  produce: FaAppleAlt,
+  retail: MdLocalMall,
+  clothing: MdCheckroom,
+  electronics: MdDevices,
+  gifts: MdCardGiftcard,
+  pharmacy: MdLocalPharmacy,
+  full: MdLocalPharmacy,
+  mini: MdLocalPharmacy,
+  donations: MdCardGiftcard,
 
   // Other
-  combos: MdRestaurantMenu,
-  combo: MdRestaurantMenu,
+  combos: MdFastfood,
+  combo: MdFastfood,
   extras: MdAddCircleOutline,
   'kids menu': MdChildCare,
   kids: MdChildCare,
   'kids meals': MdChildCare,
+  other: MdAddCircleOutline,
 }
+
+// Order matters: more specific keywords first
+const KEYWORD_FALLBACKS: Array<{ keyword: string; icon: IconType }> = [
+  { keyword: 'pizza', icon: MdLocalPizza },
+  { keyword: 'burger', icon: MdLunchDining },
+  { keyword: 'sandwich', icon: MdLunchDining },
+  { keyword: 'shawarma', icon: FaHotdog },
+  { keyword: 'chicken', icon: FaDrumstickBite },
+  { keyword: 'broast', icon: FaDrumstickBite },
+  { keyword: 'fish', icon: FaFish },
+  { keyword: 'seafood', icon: FaFish },
+  { keyword: 'grill', icon: FaFireAlt },
+  { keyword: 'meat', icon: MdDinnerDining },
+  { keyword: 'steak', icon: MdDinnerDining },
+  { keyword: 'kebab', icon: MdKebabDining },
+  { keyword: 'cake', icon: MdCake },
+  { keyword: 'sweet', icon: FaCandyCane },
+  { keyword: 'dessert', icon: MdCake },
+  { keyword: 'ice cream', icon: FaIceCream },
+  { keyword: 'coffee', icon: MdLocalCafe },
+  { keyword: 'tea', icon: FaMugHot },
+  { keyword: 'drink', icon: FaCocktail },
+  { keyword: 'juice', icon: MdEmojiFoodBeverage },
+  { keyword: 'smooth', icon: MdEmojiFoodBeverage },
+  { keyword: 'salad', icon: FaLeaf },
+  { keyword: 'soup', icon: MdSoupKitchen },
+  { keyword: 'vegan', icon: FaLeaf },
+  { keyword: 'health', icon: MdEco },
+  { keyword: 'organic', icon: MdEco },
+  { keyword: 'fruit', icon: FaAppleAlt },
+  { keyword: 'veg', icon: FaCarrot },
+  { keyword: 'bread', icon: MdBakeryDining },
+  { keyword: 'bake', icon: MdBakeryDining },
+  { keyword: 'break', icon: MdFreeBreakfast },
+  { keyword: 'kid', icon: MdChildCare },
+]
 
 export function getSectionIcon(key: string): IconType {
   const normalized = (key ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
-  return SECTION_ICON_MAP[normalized] ?? MdRestaurant
+  
+  // 1. Exact match
+  if (SECTION_ICON_MAP[normalized]) {
+    return SECTION_ICON_MAP[normalized]
+  }
+
+  // 2. Keyword fallback match
+  for (const fallback of KEYWORD_FALLBACKS) {
+    if (normalized.includes(fallback.keyword)) {
+      return fallback.icon
+    }
+  }
+
+  // 3. Default fallback
+  return MdRestaurant
 }

@@ -8,7 +8,6 @@
 import { TenantPushProvider } from '../manage/TenantPushContext'
 import { TenantOrdersGate } from '../manage/TenantOrdersGate'
 
-/** Scope must match the SW registration (trailing slash) so getRegistration() finds the tenant-orders SW when Customer PWA is also installed. */
 export function OrdersPushGateWrapper({
   slug,
   children,
@@ -17,7 +16,7 @@ export function OrdersPushGateWrapper({
   children: React.ReactNode
 }) {
   return (
-    <TenantPushProvider slug={slug} scope={`/t/${slug}/orders/`}>
+    <TenantPushProvider slug={slug} scope={`/t/${slug}/orders`}>
       <TenantOrdersGate slug={slug}>
         {children}
       </TenantOrdersGate>

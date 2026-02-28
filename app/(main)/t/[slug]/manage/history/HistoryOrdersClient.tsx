@@ -1,11 +1,23 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Package, Search, ChefHat, Clock, CheckCircle2, XCircle, Truck, UtensilsCrossed, Store } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Package, Search, ChefHat, Clock, CheckCircle2, XCircle, Truck, UtensilsCrossed, Store, HandHelping } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { Input } from '@/components/ui/input'
 import { OrderDetailsModal } from '@/components/Orders/OrderDetailsModal'
 import type { Order } from '@/app/(main)/orders/OrdersClient'
+
+interface TableRequestHistory {
+  _id: string
+  tableNumber: string
+  type: string
+  createdAt: string
+  acknowledgedAt: string
+}
+
+type HistoryItem = 
+  | { type: 'order'; data: Order; sortDate: string }
+  | { type: 'tableRequest'; data: TableRequestHistory; sortDate: string }
 
 const STATUS_CONFIG: Record<string, { label: string; labelAr: string; icon: typeof ChefHat; color: string }> = {
   new: { label: 'New', labelAr: 'جديد', icon: Package, color: 'bg-slate-500' },
@@ -21,6 +33,7 @@ const STATUS_CONFIG: Record<string, { label: string; labelAr: string; icon: type
 export function HistoryOrdersClient({ slug }: { slug: string }) {
   const { t } = useLanguage()
   const [orders, setOrders] = useState<Order[]>([])
+  const [tableRequests, setTableRequests] = useState<TableRequestHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -31,26 +44,36 @@ export function HistoryOrdersClient({ slug }: { slug: string }) {
     return () => clearTimeout(id)
   }, [search])
 
-  const fetchOrders = useCallback(async () => {
+  const fetchHistory = useCallback(async () => {
     setLoading(true)
     try {
       const url = `/api/tenants/${slug}/orders/history${debouncedSearch ? `?q=${encodeURIComponent(debouncedSearch)}` : ''}`
       const res = await fetch(url, { cache: 'no-store' })
       const data = await res.json()
       setOrders(Array.isArray(data?.orders) ? data.orders : [])
+      setTableRequests(Array.isArray(data?.tableRequests) ? data.tableRequests : [])
     } catch {
       setOrders([])
+      setTableRequests([])
     } finally {
       setLoading(false)
     }
   }, [slug, debouncedSearch])
 
   useEffect(() => {
-    fetchOrders()
-  }, [fetchOrders])
+    fetchHistory()
+  }, [fetchHistory])
 
   const statusConfig = (status: string) =>
     STATUS_CONFIG[status] ?? { label: status, labelAr: status, icon: Package, color: 'bg-slate-500' }
+
+  const historyItems = useMemo(() => {
+    const items: HistoryItem[] = [
+      ...orders.map(o => ({ type: 'order' as const, data: o, sortDate: o.completedAt || o.createdAt })),
+      ...tableRequests.map(r => ({ type: 'tableRequest' as const, data: r, sortDate: r.acknowledgedAt || r.createdAt }))
+    ]
+    return items.sort((a, b) => new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime())
+  }, [orders, tableRequests])
 
   return (
     <div className="space-y-6">
@@ -76,28 +99,54 @@ export function HistoryOrdersClient({ slug }: { slug: string }) {
 
       {loading ? (
         <p className="text-slate-400">{t('Loading…', 'جاري التحميل…')}</p>
-      ) : orders.length === 0 ? (
+      ) : historyItems.length === 0 ? (
         <div className="rounded-2xl border border-slate-700 bg-slate-800/40 p-12 text-center">
           <Package className="w-16 h-16 text-slate-500 mx-auto mb-4" />
           <h3 className="text-xl font-bold text-slate-400 mb-2">
-            {t('No orders found', 'لا توجد طلبات')}
+            {t('No history found', 'لا يوجد سجل')}
           </h3>
           <p className="text-slate-500">
             {debouncedSearch
               ? t('Try a different search term', 'جرّب كلمة بحث أخرى')
-              : t('Orders will appear here', 'ستظهر الطلبات هنا')}
+              : t('History will appear here', 'سيظهر السجل هنا')}
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {orders.map((order) => {
+          {historyItems.map((item) => {
+            if (item.type === 'tableRequest') {
+              const req = item.data
+              const reqTime = new Date(req.createdAt).toLocaleString()
+              return (
+                <div
+                  key={`tr-${req._id}`}
+                  className="text-left w-full rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="text-lg font-black text-white">{t('Table', 'طاولة')} {req.tableNumber}</h3>
+                      <p className="text-sm text-slate-500">{reqTime}</p>
+                    </div>
+                    <span className="bg-amber-500 text-white px-2.5 py-1 rounded-lg flex items-center gap-1 text-xs font-semibold">
+                      <HandHelping className="w-3.5 h-3.5" />
+                      {t('Waiter Help', 'طلب مساعدة')}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-400 mt-2">
+                    {t('Acknowledged at', 'تم الاستجابة في')}: {new Date(req.acknowledgedAt).toLocaleString()}
+                  </p>
+                </div>
+              )
+            }
+
+            const order = item.data
             const config = statusConfig(order.status)
             const StatusIcon = config.icon
             const orderTime = new Date(order.createdAt).toLocaleString()
 
             return (
               <button
-                key={order._id}
+                key={`o-${order._id}`}
                 type="button"
                 className="text-left w-full rounded-2xl border border-slate-700 bg-slate-800/60 p-5 hover:border-slate-600 hover:bg-slate-800/80 transition-colors"
                 onClick={() => order.status !== 'new' && setSelectedOrder(order)}
@@ -150,7 +199,7 @@ export function HistoryOrdersClient({ slug }: { slug: string }) {
           order={selectedOrder as Omit<Order, 'status'> & { status: Exclude<Order['status'], 'new'> }}
           onClose={() => setSelectedOrder(null)}
           onStatusUpdate={async () => {}}
-          onRefresh={fetchOrders}
+          onRefresh={fetchHistory}
           onOrderUpdated={(updated) => {
             setOrders((prev) => prev.map((o) => (o._id === updated._id ? updated : o)))
             setSelectedOrder((prev) => (prev && prev._id === updated._id ? updated : prev))

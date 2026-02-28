@@ -1,14 +1,25 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Bell, Check, Volume2, VolumeX, HandHelping, CreditCard, UtensilsCrossed } from 'lucide-react'
+import { Bell, Check, Volume2, VolumeX, HandHelping, CreditCard, UtensilsCrossed, Truck, Store, MapPin, Phone, Navigation } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { googleMapsNavigationUrl, wazeNavigationUrl } from '@/lib/maps-utils'
 
 interface NewOrder {
   _id: string
   orderNumber: string
   createdAt: string
+  orderType?: 'delivery' | 'dine-in' | 'receive-in-person'
+  customerName?: string
+  customerPhone?: string
+  tableNumber?: string
+  deliveryAddress?: string
+  deliveryArea?: { _id: string; name_en: string; name_ar: string }
+  deliveryLat?: number
+  deliveryLng?: number
+  totalAmount?: number
+  currency?: string
 }
 
 export interface TableRequest {
@@ -47,7 +58,7 @@ export function OrderNotifications({
   initialStandaloneTableRequests = [],
   initialNotificationSound: initialSound,
 }: OrderNotificationsProps) {
-  const [newOrders, setNewOrders] = useState<Array<{ _id: string; orderNumber: string }>>(initialNewOrders)
+  const [newOrders, setNewOrders] = useState<NewOrder[]>(initialNewOrders)
   const [tableRequests, setTableRequests] = useState<TableRequest[]>(initialTableRequests)
   const [standaloneTableRequests, setStandaloneTableRequests] = useState<StandaloneTableRequest[]>(initialStandaloneTableRequests)
   const [notificationSound, setNotificationSound] = useState<string>(initialSound ?? '1.wav')
@@ -239,7 +250,7 @@ export function OrderNotifications({
           <Button
             type="button"
             size="sm"
-            className="w-full mb-2 bg-amber-500 hover:bg-amber-600 text-white font-medium"
+            className="w-full mb-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-medium"
             onClick={() => {
               notificationAudioRef.current?.play().then(() => setSoundBlocked(false)).catch(() => {})
             }}
@@ -248,149 +259,318 @@ export function OrderNotifications({
             Click to enable sound
           </Button>
         )}
-        <div className="flex items-center gap-3 mb-2">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <Button onClick={toggleMute} variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" title={isMuted ? 'Unmute' : 'Mute'}>
-              {isMuted ? <VolumeX className="w-4 h-4 text-slate-600 dark:text-slate-400" /> : <Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
-            </Button>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.1"
-              value={isMuted ? 0 : volume}
-              onChange={handleVolumeChange}
-              className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-orange-500"
-              title="Volume"
-            />
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 w-8 text-right shrink-0">
-              {Math.round((isMuted ? 0 : volume) * 100)}%
-            </span>
-          </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={toggleMute} variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" title={isMuted ? 'Unmute' : 'Mute'}>
+            {isMuted ? <VolumeX className="w-4 h-4 text-slate-600 dark:text-slate-400" /> : <Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
+          </Button>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            value={isMuted ? 0 : volume}
+            onChange={handleVolumeChange}
+            className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-orange-500"
+            title="Volume"
+          />
+          <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 w-8 text-right shrink-0">
+            {Math.round((isMuted ? 0 : volume) * 100)}%
+          </span>
         </div>
       </div>
 
-      {/* Centered modal — Material Design style */}
+      {/* Centered modal */}
       <Dialog open={true}>
         <DialogContent
           showCloseButton={false}
-          className="max-w-md w-[calc(100%-2rem)] rounded-3xl border-0 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden"
+          className="max-w-lg w-[calc(100%-2rem)] rounded-3xl border-0 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden"
           overlayClassName="z-[200]"
           contentClassName="z-[201] fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
         >
-          <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-200 dark:border-slate-700">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-100 dark:bg-amber-900/40">
-                <Bell className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white">
-                  Order alert
-                </DialogTitle>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-                  {totalAlerts} waiting for acknowledgment · Sound continues until all are acknowledged
-                </p>
+          {/* Header */}
+          <DialogHeader className="px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-100 dark:bg-red-900/40">
+                  <Bell className="h-5 w-5 text-red-600 dark:text-red-400" />
+                  {totalAlerts > 1 && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white">
+                      {totalAlerts}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-black text-slate-900 dark:text-white leading-tight">
+                    {totalAlerts === 1 ? 'New Alert' : `${totalAlerts} Alerts`}
+                  </DialogTitle>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Acknowledge all to stop the sound
+                  </p>
+                </div>
               </div>
             </div>
           </DialogHeader>
 
-          <div className="max-h-[60vh] overflow-y-auto p-4 space-y-3">
-            {newOrders.map((order) => (
-              <div
-                key={order._id}
-                className="rounded-2xl border-2 border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/80 p-4 shadow-sm"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40">
-                      <UtensilsCrossed className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+          <div className="max-h-[70vh] overflow-y-auto p-4 space-y-3">
+
+            {/* New Orders */}
+            {newOrders.map((order) => {
+              const isDelivery = order.orderType === 'delivery'
+              const isDineIn = order.orderType === 'dine-in'
+              const isPickup = order.orderType === 'receive-in-person'
+              const hasCoords = order.deliveryLat != null && order.deliveryLng != null && Number.isFinite(order.deliveryLat) && Number.isFinite(order.deliveryLng)
+              const mapsUrl = hasCoords ? googleMapsNavigationUrl({ lat: order.deliveryLat!, lng: order.deliveryLng! }) : null
+              const wazeUrl = hasCoords ? wazeNavigationUrl({ lat: order.deliveryLat!, lng: order.deliveryLng! }) : null
+              const areaName = order.deliveryArea?.name_en || order.deliveryArea?.name_ar || null
+
+              // Per-type styles
+              const cardStyle = isDelivery
+                ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/40'
+                : isDineIn
+                  ? 'border-fuchsia-300 dark:border-fuchsia-700 bg-fuchsia-50 dark:bg-fuchsia-950/40'
+                  : 'border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/40'
+              const iconBg = isDelivery
+                ? 'bg-blue-600'
+                : isDineIn
+                  ? 'bg-fuchsia-600'
+                  : 'bg-teal-600'
+              const badgeBg = isDelivery
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300'
+                : isDineIn
+                  ? 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/60 dark:text-fuchsia-300'
+                  : 'bg-teal-100 text-teal-700 dark:bg-teal-900/60 dark:text-teal-300'
+              const btnStyle = isDelivery
+                ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                : isDineIn
+                  ? 'bg-fuchsia-600 hover:bg-fuchsia-700 text-white'
+                  : 'bg-teal-600 hover:bg-teal-700 text-white'
+              const Icon = isDelivery ? Truck : isDineIn ? UtensilsCrossed : Store
+              const typeLabel = isDelivery ? 'Delivery' : isDineIn ? 'Dine-in' : 'Pickup'
+
+              return (
+                <div
+                  key={order._id}
+                  className={`rounded-2xl border-2 p-4 shadow-sm ${cardStyle}`}
+                >
+                  {/* Top row: icon + type badge + order number */}
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
+                      <Icon className="h-5 w-5 text-white" />
                     </div>
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-white text-lg">Order #{order.orderNumber}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">New order — tap to acknowledge</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black uppercase tracking-wide ${badgeBg}`}>
+                          <Icon className="h-3 w-3" />
+                          {typeLabel}
+                        </span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">#{order.orderNumber}</span>
+                      </div>
+                      {/* Customer name — most prominent */}
+                      <p className="text-xl font-black text-slate-900 dark:text-white leading-tight truncate">
+                        {order.customerName || 'Customer'}
+                      </p>
                     </div>
                   </div>
+
+                  {/* Details row */}
+                  <div className="space-y-1.5 mb-3 pl-14">
+                    {/* Delivery: area + address + map links */}
+                    {isDelivery && (
+                      <>
+                        {areaName && (
+                          <div className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+                            <MapPin className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                            <span className="font-semibold">{areaName}</span>
+                          </div>
+                        )}
+                        {order.deliveryAddress && (
+                          <p className="text-sm text-slate-600 dark:text-slate-400 font-medium line-clamp-2">
+                            {order.deliveryAddress}
+                          </p>
+                        )}
+                        {order.customerPhone && (
+                          <div className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+                            <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <a href={`tel:${order.customerPhone}`} className="font-semibold hover:underline">{order.customerPhone}</a>
+                          </div>
+                        )}
+                        {hasCoords && (
+                          <div className="flex items-center gap-2 pt-0.5">
+                            <a
+                              href={mapsUrl!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-bold shadow-sm hover:bg-blue-700"
+                            >
+                              <Navigation className="h-3 w-3" />
+                              Maps
+                            </a>
+                            <a
+                              href={wazeUrl!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500 text-white text-xs font-bold shadow-sm hover:bg-sky-600"
+                            >
+                              <Navigation className="h-3 w-3" />
+                              Waze
+                            </a>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Dine-in: table number + phone */}
+                    {isDineIn && (
+                      <>
+                        {order.tableNumber && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-fuchsia-600 text-white text-sm font-black shrink-0">
+                              {order.tableNumber}
+                            </span>
+                            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Table {order.tableNumber}</span>
+                          </div>
+                        )}
+                        {order.customerPhone && (
+                          <div className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+                            <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <a href={`tel:${order.customerPhone}`} className="font-semibold hover:underline">{order.customerPhone}</a>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Pickup: phone */}
+                    {isPickup && order.customerPhone && (
+                      <div className="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+                        <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <a href={`tel:${order.customerPhone}`} className="font-semibold hover:underline">{order.customerPhone}</a>
+                      </div>
+                    )}
+
+                    {/* Total */}
+                    {order.totalAmount != null && (
+                      <p className="text-sm font-black text-slate-900 dark:text-white">
+                        {order.totalAmount.toFixed(2)} {order.currency || ''}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Acknowledge button */}
                   <Button
                     onClick={(e) => { e.stopPropagation(); handleAcknowledge(order._id) }}
-                    size="lg"
-                    className="shrink-0 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md"
+                    className={`w-full rounded-xl font-black text-base h-11 shadow-md ${btnStyle}`}
                   >
                     <Check className="w-4 h-4 mr-2" />
-                    Order Received
+                    {isDelivery ? 'Accept Delivery' : isDineIn ? 'Order Received' : 'Order Received'}
                   </Button>
                 </div>
-              </div>
-            ))}
+              )
+            })}
 
-            {tableRequests.map((req) => (
-              <div
-                key={req._id}
-                className="rounded-2xl border-2 border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20 p-4 shadow-sm"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40">
-                      {req.customerRequestType === 'call_waiter' ? (
-                        <HandHelping className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                      ) : (
-                        <CreditCard className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                      )}
+            {/* Table Requests (dine-in order: waiter or check) */}
+            {tableRequests.map((req) => {
+              const isWaiter = req.customerRequestType === 'call_waiter'
+              const cardStyle = isWaiter
+                ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40'
+                : 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40'
+              const iconBg = isWaiter ? 'bg-amber-500' : 'bg-emerald-600'
+              const badgeBg = isWaiter
+                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300'
+                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300'
+              const btnStyle = isWaiter
+                ? 'bg-amber-500 hover:bg-amber-600 text-slate-950'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              const Icon = isWaiter ? HandHelping : CreditCard
+              const typeLabel = isWaiter ? 'Waiter Help' : 'Pay Request'
+
+              return (
+                <div
+                  key={req._id}
+                  className={`rounded-2xl border-2 p-4 shadow-sm ${cardStyle}`}
+                >
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
+                      <Icon className="h-5 w-5 text-white" />
                     </div>
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-white text-lg">
-                        Table {req.tableNumber || '—'} · #{req.orderNumber}
-                      </p>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
-                        {req.customerRequestType === 'call_waiter' ? (
-                          <>Needs help</>
-                        ) : (
-                          <>Wants to pay ({req.customerRequestPaymentMethod === 'cash' ? 'Cash' : 'Card'})</>
-                        )}
-                      </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black uppercase tracking-wide ${badgeBg}`}>
+                          <Icon className="h-3 w-3" />
+                          {typeLabel}
+                        </span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">#{req.orderNumber}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-slate-900 dark:bg-slate-700 text-white text-base font-black shrink-0">
+                          {req.tableNumber || '?'}
+                        </span>
+                        <p className="text-xl font-black text-slate-900 dark:text-white leading-tight">
+                          Table {req.tableNumber || '—'}
+                        </p>
+                      </div>
                     </div>
+                  </div>
+                  <div className="pl-14 mb-3">
+                    {!isWaiter && req.customerRequestPaymentMethod && (
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        Payment method: <span className="font-black">{req.customerRequestPaymentMethod === 'cash' ? 'Cash' : 'Card'}</span>
+                      </p>
+                    )}
+                    {isWaiter && (
+                      <p className="text-sm text-slate-600 dark:text-slate-400">Customer needs assistance at the table.</p>
+                    )}
                   </div>
                   <Button
                     onClick={(e) => { e.stopPropagation(); handleAcknowledgeTableRequest(req._id) }}
-                    size="lg"
-                    className="shrink-0 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-md"
+                    className={`w-full rounded-xl font-black text-base h-11 shadow-md ${btnStyle}`}
                   >
                     <Check className="w-4 h-4 mr-2" />
-                    Got it
+                    {isWaiter ? `Go to Table ${req.tableNumber || ''}` : 'On My Way'}
                   </Button>
                 </div>
-              </div>
-            ))}
+              )
+            })}
 
+            {/* Standalone Waiter Requests (no order) */}
             {standaloneTableRequests.map((req) => (
               <div
                 key={req._id}
-                className="rounded-2xl border-2 border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-900/20 p-4 shadow-sm"
+                className="rounded-2xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-4 shadow-sm"
               >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/40">
-                      <HandHelping className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500">
+                    <HandHelping className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black uppercase tracking-wide bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
+                        <HandHelping className="h-3 w-3" />
+                        Waiter Call
+                      </span>
                     </div>
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-white text-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-slate-900 dark:bg-slate-700 text-white text-base font-black shrink-0">
+                        {req.tableNumber}
+                      </span>
+                      <p className="text-xl font-black text-slate-900 dark:text-white leading-tight">
                         Table {req.tableNumber}
-                      </p>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-                        Customer requested a waiter
                       </p>
                     </div>
                   </div>
-                  <Button
-                    onClick={(e) => { e.stopPropagation(); handleAcknowledgeStandaloneTableRequest(req._id) }}
-                    size="lg"
-                    className="shrink-0 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-md"
-                  >
-                    <Check className="w-4 h-4 mr-2" />
-                    Got it
-                  </Button>
                 </div>
+                <div className="pl-14 mb-3">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Customer needs a waiter at this table.</p>
+                </div>
+                <Button
+                  onClick={(e) => { e.stopPropagation(); handleAcknowledgeStandaloneTableRequest(req._id) }}
+                  className="w-full rounded-xl font-black text-base h-11 shadow-md bg-amber-500 hover:bg-amber-600 text-slate-950"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Go to Table {req.tableNumber}
+                </Button>
               </div>
             ))}
+
           </div>
         </DialogContent>
       </Dialog>

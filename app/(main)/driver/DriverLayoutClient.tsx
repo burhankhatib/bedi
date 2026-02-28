@@ -15,7 +15,9 @@ import { DriverPushProvider } from './DriverPushContext'
 import { DriverOrdersGate } from './DriverOrdersGate'
 import { DriverStatusProvider } from './DriverStatusContext'
 import { DriverStatusPushReminder } from './DriverStatusPushReminder'
+import { DriverLocationTracker } from './DriverLocationTracker'
 import { DriverInviteInMenu } from './DriverInviteInMenu'
+import { DriverSidebarActions } from './DriverSidebarActions'
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
 import { PREFER_DRIVER_KEY } from '@/components/StandaloneDriverRedirect'
 
@@ -91,66 +93,27 @@ export function DriverLayoutClient({
   return (
     <DriverPushProvider>
     <DriverStatusProvider>
+    <DriverLocationTracker />
     <div className="min-h-screen min-h-[100dvh] bg-slate-950 text-white" dir={isRtl ? 'rtl' : 'ltr'} lang={lang}>
       <DriverStatusPushReminder />
-      <header className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/95 backdrop-blur" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        <div className="mx-auto w-full max-w-[100vw] px-3 sm:max-w-lg sm:px-4">
-          <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:py-4">
-            {/* Row: Hamburger (mobile) | Toggle (center) | Bedi Driver (right). Desktop: Home + nav + toggle. */}
-            <div className="flex min-h-[48px] w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-11 w-11 shrink-0 text-slate-400 hover:text-white sm:hidden"
-                onClick={() => setMenuOpen(true)}
-                aria-label={t('Open menu', 'فتح القائمة')}
-              >
-                <Menu className="size-6" />
-              </Button>
-              <div className="flex flex-1 justify-center sm:justify-start sm:flex-initial">
-                <DriverDashboardNav />
-              </div>
-              <Link href="/driver" className="font-black text-lg text-white hover:text-slate-200 shrink-0 sm:text-base">
-                Bedi Driver
-              </Link>
-            </div>
-
-            {/* Mobile: full-width nav pills (2x2 grid). Desktop: inline links. When no profile yet, only Profile. */}
-            <nav className="grid w-full grid-cols-2 gap-2 sm:hidden" aria-label={t('Navigation', 'التنقل')}>
-              {(hasNoProfileYet ? NAV_ITEMS.filter((i) => i.href === '/driver/profile') : NAV_ITEMS).map((item) => (
-                <Link key={item.href} href={item.href} className="min-h-[48px]">
-                  <span
-                    className={`flex h-full min-h-[48px] items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-center text-sm font-semibold transition-colors ${
-                      pathname === item.href
-                        ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300'
-                        : 'border-slate-700 bg-slate-800/80 text-slate-200 hover:border-slate-600 hover:bg-slate-800'
-                    }`}
-                  >
-                    <item.icon className="size-4 shrink-0" />
-                    {navLabel(item)}
-                  </span>
-                </Link>
-              ))}
-            </nav>
-            <div className="hidden items-center gap-6 sm:flex">
-              {!hasNoProfileYet && (
-                <Link href="/driver" className="text-sm font-medium text-slate-400 hover:text-white sm:text-base">
-                  {t('Home', 'الرئيسية')}
-                </Link>
-              )}
-              {(hasNoProfileYet ? NAV_ITEMS.filter((i) => i.href === '/driver/profile') : NAV_ITEMS).map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="text-sm font-medium text-slate-400 hover:text-white sm:text-base"
-                >
-                  {navLabel(item)}
-                </Link>
-              ))}
-              <div className="shrink-0">
-                <DriverDashboardNav />
-              </div>
-            </div>
+      <header className="sticky top-0 z-10 border-b border-slate-800/60 bg-slate-950/95 backdrop-blur shadow-sm" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        <div className="mx-auto w-full max-w-[100vw] sm:max-w-lg px-3 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-12 w-12 shrink-0 rounded-full text-slate-300 hover:bg-slate-800 hover:text-white"
+              onClick={() => setMenuOpen(true)}
+              aria-label={t('Open menu', 'فتح القائمة')}
+            >
+              <Menu className="size-6" />
+            </Button>
+            <Link href="/driver" className="font-black text-lg sm:text-xl text-white hover:text-slate-200 tracking-wide">
+              Bedi Driver
+            </Link>
+          </div>
+          <div className="shrink-0">
+            <DriverDashboardNav />
           </div>
         </div>
       </header>
@@ -158,48 +121,71 @@ export function DriverLayoutClient({
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
         <SheetContent
           side={isRtl ? 'left' : 'right'}
-          className="w-[min(100vw-2rem,300px)] border-slate-800 bg-slate-950 p-0 pt-[max(1.5rem,env(safe-area-inset-top))] [&_button]:text-slate-400 [&_button]:hover:bg-slate-800 [&_button]:hover:text-white"
+          className="w-[min(100vw-2rem,320px)] border-slate-800/60 bg-slate-950 p-0 pt-[max(1.5rem,env(safe-area-inset-top))] flex flex-col"
         >
           <SheetTitle className="sr-only">{t('Menu', 'القائمة')}</SheetTitle>
-          <nav className="flex flex-col pb-6 pt-4" dir={isRtl ? 'rtl' : 'ltr'}>
-            <div className="mb-2 px-4 pb-3 border-b border-slate-800">
+          <nav className="flex flex-col h-full overflow-y-auto pb-6 pt-2" dir={isRtl ? 'rtl' : 'ltr'}>
+            <div className="mb-4 px-6 pb-4 border-b border-slate-800/60">
+              <h2 className="text-xl font-black text-white mb-4">Bedi Driver</h2>
               <LanguageSwitcher />
             </div>
-            <Link
-              href="/"
-              onClick={() => {
-                try { localStorage.removeItem(PREFER_DRIVER_KEY) } catch { /* ignore */ }
-                setMenuOpen(false)
-              }}
-              className="flex items-center gap-3 px-6 py-4 text-slate-200 hover:bg-slate-800/80 hover:text-white"
-            >
-              <Home className="size-5 shrink-0" />
-              {t('Switch to Customer', 'التبديل إلى زبون')}
-            </Link>
-            {!hasNoProfileYet && (
+            
+            <div className="flex flex-col px-3 space-y-1 flex-1">
               <Link
-                href="/driver"
-                className="flex items-center gap-3 px-6 py-4 text-slate-200 hover:bg-slate-800/80 hover:text-white"
-                onClick={() => setMenuOpen(false)}
+                href="/"
+                onClick={() => {
+                  try { localStorage.removeItem(PREFER_DRIVER_KEY) } catch { /* ignore */ }
+                  setMenuOpen(false)
+                }}
+                className="flex items-center gap-4 px-4 py-3.5 rounded-2xl text-slate-300 hover:bg-slate-800/80 hover:text-white transition-colors"
               >
-                <Package className="size-5 shrink-0" />
-                {t('Home', 'الرئيسية')}
+                <Home className="size-6 text-slate-400" />
+                <span className="font-medium text-[15px]">{t('Switch to Customer', 'التبديل إلى زبون')}</span>
               </Link>
-            )}
-            {(hasNoProfileYet ? NAV_ITEMS.filter((i) => i.href === '/driver/profile') : NAV_ITEMS).map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-3 px-6 py-4 text-slate-200 hover:bg-slate-800/80 hover:text-white"
-                onClick={() => setMenuOpen(false)}
-              >
-                <item.icon className="size-5 shrink-0" />
-                {navLabel(item)}
-              </Link>
-            ))}
-            {!hasNoProfileYet && <DriverInviteInMenu />}
-            <div className="mt-4 border-t border-slate-800 px-6 pt-4">
-              <DriverDashboardNav />
+
+              <div className="my-2 border-t border-slate-800/60 mx-2"></div>
+
+              {!hasNoProfileYet && (
+                <Link
+                  href="/driver"
+                  className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-colors ${
+                    pathname === '/driver' 
+                      ? 'bg-emerald-500/10 text-emerald-400' 
+                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                  }`}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Home className={`size-6 ${pathname === '/driver' ? 'text-emerald-400' : 'text-slate-400'}`} />
+                  <span className="font-medium text-[15px]">{t('Home', 'الرئيسية')}</span>
+                </Link>
+              )}
+              
+              {(hasNoProfileYet ? NAV_ITEMS.filter((i) => i.href === '/driver/profile') : NAV_ITEMS).map((item) => {
+                const isActive = pathname === item.href
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-colors ${
+                      isActive 
+                        ? 'bg-emerald-500/10 text-emerald-400' 
+                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    }`}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <item.icon className={`size-6 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
+                    <span className="font-medium text-[15px]">{navLabel(item)}</span>
+                  </Link>
+                )
+              })}
+
+              <div className="my-2 border-t border-slate-800/60 mx-2"></div>
+
+              {!hasNoProfileYet && <DriverInviteInMenu />}
+              {!hasNoProfileYet && <DriverSidebarActions />}
+            </div>
+
+            <div className="mt-4 px-4 border-t border-slate-800/60 pt-4 mx-3">
               <DriverSignOutButton onClose={() => setMenuOpen(false)} />
             </div>
           </nav>

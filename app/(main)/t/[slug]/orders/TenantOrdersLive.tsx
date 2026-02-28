@@ -12,7 +12,21 @@ import { useSanityLiveStream } from '@/lib/useSanityLiveStream'
  */
 const DRIVER_CANCELLED_SOUND = '/sounds/1.wav'
 
-type NewOrder = { _id: string; orderNumber: string; createdAt: string }
+type NewOrder = {
+  _id: string
+  orderNumber: string
+  createdAt: string
+  orderType?: 'delivery' | 'dine-in' | 'receive-in-person'
+  customerName?: string
+  customerPhone?: string
+  tableNumber?: string
+  deliveryAddress?: string
+  deliveryArea?: { _id: string; name_en: string; name_ar: string }
+  deliveryLat?: number
+  deliveryLng?: number
+  totalAmount?: number
+  currency?: string
+}
 export type TableRequest = {
   _id: string
   orderNumber: string
@@ -89,12 +103,11 @@ export function TenantOrdersLive({
     }
   }, [slug, showToast])
 
-  // When Sanity sends an order-change event, refetch after short delays so the DB has propagated
-  // (table request / new order). Multiple retries so "Call the waiter" (fast click) is reliably seen on desktop.
+  // When Sanity sends an order-change event, refetch immediately then once more for stragglers.
   const fetchOrdersOnLiveUpdate = useCallback(() => {
     liveUpdateTimeoutsRef.current.forEach(clearTimeout)
     liveUpdateTimeoutsRef.current = []
-    const delays = [400, 800, 1500]
+    const delays = [100, 600]
     liveUpdateTimeoutsRef.current = delays.map((ms) => setTimeout(fetchOrders, ms))
   }, [fetchOrders])
 
@@ -127,9 +140,25 @@ export function TenantOrdersLive({
     setStandaloneTableRequests((prev) => prev.filter((r) => r._id !== id))
   }, [])
 
-  // Initial load (one GET). No polling.
+  // Initial load, plus listener for visibility and SW messages (no polling).
   useEffect(() => {
     fetchOrders()
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') fetchOrders()
+    }
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'PUSH_NOTIFICATION_CLICK') fetchOrders()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', onMessage)
+    }
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', onMessage)
+      }
+    }
   }, [fetchOrders])
 
   // SSE: when any order for this tenant changes (new order, status, table request), refetch with

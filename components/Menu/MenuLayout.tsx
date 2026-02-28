@@ -35,6 +35,7 @@ import {
   useUser,
 } from '@clerk/nextjs'
 import { UserButtonWithSignOutUrl } from '@/components/Auth/UserButtonWithSignOutUrl'
+import { CustomerSidebarActions } from '@/components/saas/CustomerSidebarActions'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from '@/components/ui/sheet'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -519,6 +520,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                             </button>
                           </div>
                         </SignedIn>
+                      </div>
+                      <div className="-mx-2">
+                        <CustomerSidebarActions />
                       </div>
                     </nav>
                     <div className="mt-auto border-t border-slate-200 pt-4 px-2">

@@ -1,16 +1,45 @@
 'use client'
 
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Bell, Share } from 'lucide-react'
+import { Bell, CheckCircle2, RefreshCw, Share } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { useDriverPush } from './DriverPushContext'
 
-/** Banner: prompts driver to enable push (required for receiving orders). Always shown when push is not enabled. */
+/** Banner: prompts driver to enable push (required for receiving orders). When push is active, shows a compact refresh button. */
 export function DriverPushSetup() {
   const { t } = useLanguage()
-  const { hasPush, checked, loading, isDenied, needsIOSHomeScreen, subscribe } = useDriverPush()
+  const { hasPush, checked, loading, isDenied, needsIOSHomeScreen, subscribe, refreshToken } = useDriverPush()
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
-  if (!checked || hasPush) return null
+  if (!checked) return null
+
+  // Push is active — show compact status + refresh option
+  if (hasPush) {
+    return (
+      <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-600/40 bg-emerald-950/30 px-4 py-3">
+        <span className="flex items-center gap-2 text-sm font-medium text-emerald-300">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          {t('Notifications active', 'الإشعارات مفعّلة')}
+        </span>
+        <Button
+          type="button"
+          size="sm"
+          disabled={isRefreshing}
+          variant="ghost"
+          className="h-8 px-3 text-xs text-emerald-300 hover:bg-emerald-900/40 hover:text-emerald-200"
+          onClick={async () => {
+            setIsRefreshing(true)
+            await refreshToken()
+            setIsRefreshing(false)
+          }}
+        >
+          <RefreshCw className={`mr-1.5 h-3.5 w-3.5 rtl:ml-1.5 rtl:mr-0 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? t('Refreshing…', 'جاري…') : t('Refresh', 'تحديث')}
+        </Button>
+      </div>
+    )
+  }
 
   const iosTitle = t('Enable notifications required', 'تفعيل الإشعارات مطلوب')
   const iosBody = t(

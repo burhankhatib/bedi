@@ -81,7 +81,10 @@ export async function sendPushNotificationDetailed(
     url: payload.url ?? '/',
   })
   try {
-    await webpush.sendNotification(pushSubscription, body)
+    // @ts-expect-error - web-push types might not include options but it is supported by the library
+    await webpush.sendNotification(pushSubscription, body, {
+      headers: { Urgency: 'high' }
+    })
     return { ok: true, permanent: false }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

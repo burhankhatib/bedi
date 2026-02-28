@@ -8,7 +8,7 @@
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Bell } from 'lucide-react'
+import { Bell, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
 import { getFCMToken } from '@/lib/firebase'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
@@ -51,6 +51,7 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
   const [loading, setLoading] = useState(false)
   const [checked, setChecked] = useState(false)
   const [remindLaterAt, setRemindLaterAt] = useState<number | null>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   // When inside TenantPushProvider, reuse its single GET so we don't double-request push-subscription
   useEffect(() => {
@@ -114,8 +115,9 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
     if (!('serviceWorker' in navigator)) return
 
     let cancelled = false
-    const scopeForReg = scope.endsWith('/') ? scope : scope + '/'
-    const swScript = scope.endsWith('/orders') || scope.endsWith('/manage') ? `${scope.replace(/\/?$/, '')}/sw.js` : '/tenant-sw.js'
+    // Use the scope as-is — no forced trailing slash (same reason as subscribe()).
+    const scopeForReg = scope
+    const swScript = scope.endsWith('/orders') || scope.endsWith('/manage') || scope.endsWith('/orders/') ? `${scope.replace(/\/?$/, '')}/sw.js` : '/tenant-sw.js'
     ;(async () => {
       try {
         await navigator.serviceWorker.register(swScript, { scope: scopeForReg })
@@ -166,8 +168,11 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
       // Per-business PWA: when scope is provided (e.g. /t/xxx/manage), use that scope's SW and per-tenant API. Unified (app-sw + business-push-subscription) is only for dashboard via BusinessPushSetup.
       const useUnified = useFCM && !scope
       const swScope = useUnified ? '/' : (scope ?? '/t')
-      const scopeForReg = useUnified ? '/' : (swScope.endsWith('/') ? swScope : swScope + '/')
-      const swScript = useUnified ? '/app-sw.js' : (scope?.endsWith('/orders') || scope?.endsWith('/manage') ? `${scope.replace(/\/?$/, '')}/sw.js` : '/tenant-sw.js')
+      // Do NOT force a trailing slash — the manage scope is "/t/slug/manage" (no slash) so the SW
+      // controls the layout index page. Adding "/" makes scope "/t/slug/manage/" which misses the
+      // index page and causes getFCMToken to fail on iOS/Android PWA.
+      const scopeForReg = swScope
+      const swScript = useUnified ? '/app-sw.js' : (scope?.endsWith('/orders') || scope?.endsWith('/manage') || scope?.endsWith('/orders/') ? `${scope.replace(/\/?$/, '')}/sw.js` : '/tenant-sw.js')
       await navigator.serviceWorker.register(swScript, useUnified ? { scope: '/' } : scope ? { scope: scopeForReg } : undefined)
       await navigator.serviceWorker.ready
       const reg = await navigator.serviceWorker.getRegistration(scopeForReg) ?? undefined
@@ -299,6 +304,55 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
   // Don't show the banner if neither FCM nor VAPID is configured (avoids "contact support" error on click)
   const pushAvailable = (typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()) || !!VAPID_PUBLIC
   if (!pushAvailable) return null
+
+  // ── When push IS already enabled, show a subtle "active" indicator + manual refresh ──
+  if (done && checked) {
+    const handleRefresh = async () => {
+      setIsRefreshing(true)
+      try {
+        const ok = await pushContext.refreshToken()
+        if (ok) {
+          showToast(
+            'Notifications refreshed. Your device is now receiving fresh alerts.',
+            'تم تحديث الإشعارات. جهازك يستقبل التنبيهات الآن.',
+            'success'
+          )
+        } else {
+          showToast(
+            'Could not refresh notifications. Try tapping "Enable" from the settings.',
+            'تعذّر تحديث الإشعارات. حاول النقر على «تفعيل» من الإعدادات.',
+            'error'
+          )
+        }
+      } finally {
+        setIsRefreshing(false)
+      }
+    }
+
+    return (
+      <div className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-emerald-800/50 bg-emerald-950/30 px-4 py-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <CheckCircle2 className="size-4 shrink-0 text-emerald-400" />
+          <span className="text-sm text-emerald-300 truncate">
+            الإشعارات مفعّلة
+            <span className="hidden sm:inline text-emerald-400/70"> — Notifications active</span>
+          </span>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={isRefreshing}
+          onClick={handleRefresh}
+          className="shrink-0 h-8 px-2 text-xs text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-900/40"
+          title="Refresh FCM token / تحديث رمز الإشعارات"
+        >
+          <RefreshCw className={`size-3.5 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? 'جاري التحديث…' : 'تحديث'}
+        </Button>
+      </div>
+    )
+  }
 
   // Show when push is not enabled and either we never reminded later, or 24h have passed (ask at least once per day)
   const remindLaterStillActive = remindLaterAt != null && Date.now() - remindLaterAt < REMIND_LATER_MS

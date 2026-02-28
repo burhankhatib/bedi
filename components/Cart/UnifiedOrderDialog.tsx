@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/components/LanguageContext'
 import { toEnglishDigits } from '@/lib/phone'
-import { Store, UtensilsCrossed, Truck, User, MapPin, Phone, Locate, Check, Loader2 } from 'lucide-react'
+import { Store, UtensilsCrossed, Truck, User, MapPin, Phone, Locate, Check, Loader2, Link } from 'lucide-react'
 import { OrderType } from './CartContext'
+import { parseCoordsFromGoogleMapsUrl } from '@/lib/maps-utils'
 
 interface Area {
   _id: string
@@ -79,6 +80,8 @@ export function UnifiedOrderDialog({
   const [loading, setLoading] = useState(false)
   const [locationLoading, setLocationLoading] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
+  const [mapsLinkInput, setMapsLinkInput] = useState('')
+  const [mapsLinkError, setMapsLinkError] = useState<string | null>(null)
 
   const showDeliveryOption = hasDelivery === true || (hasDelivery == null && tenantSlug && (loading || areas.length > 0))
 
@@ -122,6 +125,8 @@ export function UnifiedOrderDialog({
       setAddress('')
       setAreas([])
       setLocationError(null)
+      setMapsLinkInput('')
+      setMapsLinkError(null)
       clearDeliveryLocation?.()
       setTimeout(() => nameInputRef.current?.focus(), 100)
     }
@@ -219,6 +224,21 @@ export function UnifiedOrderDialog({
       }
     }, options)
   }, [setDeliveryLocation, t, isIOS])
+
+  const handleMapsLinkChange = (value: string) => {
+    setMapsLinkInput(value)
+    setMapsLinkError(null)
+    if (!value.trim()) return
+    const coords = parseCoordsFromGoogleMapsUrl(value.trim())
+    if (coords && setDeliveryLocation) {
+      setDeliveryLocation(coords.lat, coords.lng)
+      setMapsLinkError(null)
+    } else if (value.trim().length > 10) {
+      setMapsLinkError(
+        t('Could not read location from this link. Try copying the link from Google Maps → Share → Copy link.', 'تعذر قراءة الموقع من هذا الرابط. جرب نسخ الرابط من Google Maps ← مشاركة ← نسخ الرابط.')
+      )
+    }
+  }
 
   const handleTypeSelection = (type: OrderType) => {
     if (type === 'receive-in-person') {
@@ -724,6 +744,29 @@ export function UnifiedOrderDialog({
                       <p className="text-xs text-emerald-700 mt-2 font-medium">
                         {t('Driver will get a map link to this spot.', 'سيحصل السائق على رابط خريطة لهذا الموقع.')}
                       </p>
+                    )}
+                    {!!setDeliveryLocation && (deliveryLat == null || deliveryLng == null) && (
+                      <div className="mt-3 pt-3 border-t border-slate-200">
+                        <p className="text-xs font-semibold text-slate-500 mb-1.5">
+                          {t('Or paste your Google Maps link:', 'أو الصق رابط Google Maps الخاص بك:')}
+                        </p>
+                        <div className="relative">
+                          <Link className="absolute left-3 rtl:right-3 rtl:left-auto top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                          <input
+                            type="url"
+                            value={mapsLinkInput}
+                            onChange={(e) => handleMapsLinkChange(e.target.value)}
+                            placeholder={t('https://maps.google.com/...', 'https://maps.google.com/...')}
+                            className="w-full h-11 pl-9 pr-4 rtl:pr-9 rtl:pl-4 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 font-medium"
+                          />
+                        </div>
+                        {mapsLinkError && (
+                          <p className="text-xs text-red-600 mt-1 font-medium">{mapsLinkError}</p>
+                        )}
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          {t('Open Google Maps → long press your location → tap "Share" → copy link.', 'افتح Google Maps ← اضغط طويلاً على موقعك ← اضغط "مشاركة" ← انسخ الرابط.')}
+                        </p>
+                      </div>
                     )}
                   </div>
                 )}

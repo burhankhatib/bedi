@@ -45,7 +45,9 @@ type TenantPushContextValue = {
   permission: NotificationPermission | null
   isDenied: boolean
   needsIOSHomeScreen: boolean
-  subscribe: () => Promise<boolean>
+  subscribe: (silent?: boolean) => Promise<boolean>
+  /** Force a fresh FCM token to be fetched and registered, even if already subscribed. */
+  refreshToken: () => Promise<boolean>
 }
 
 const TenantPushContext = createContext<TenantPushContextValue | null>(null)
@@ -61,28 +63,33 @@ export function useTenantPush(): TenantPushContextValue {
       isDenied: false,
       needsIOSHomeScreen: false,
       subscribe: async () => false,
+      refreshToken: async () => false,
     }
   }
   return ctx
 }
 
 export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug: string; scope?: string; children: ReactNode }) {
-  // Trailing slash so getRegistration(swScope) matches the SW registered at /t/[slug]/orders/sw.js (scope = /t/[slug]/orders/)
-  const swScope = scopeProp ?? `/t/${slug}/orders/`
+  // No trailing slash: scope must exactly match the page URL /t/[slug]/orders so the SW controls it (required for iOS web push).
+  const swScope = scopeProp ?? `/t/${slug}/orders`
   const { showToast } = useToast()
   const [hasPush, setHasPush] = useState(false)
   const [checked, setChecked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [permission, setPermission] = useState<NotificationPermission | null>(null)
-  const mountedAt = useRef<number>(Date.now())
-  const minShowMs = 2500
+  const autoSubscribeRef = useRef(false)
 
   useEffect(() => {
     if (typeof window !== 'undefined' && typeof Notification !== 'undefined')
       setPermission(Notification.permission)
   }, [])
 
-  // Smart check: avoid API/Sanity when we already know user is subscribed (permission + localStorage).
+  /**
+   * On every mount, verify push status against the live API.
+   * localStorage is used only for instant initial render (no gate flicker).
+   * If the API disagrees with localStorage (stale token was pruned server-side),
+   * we clear the cache and trigger a silent re-subscribe.
+   */
   useEffect(() => {
     if (!slug) return
     const contextKey = PUSH_CONTEXT_KEYS.tenant(slug)
@@ -94,10 +101,13 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
       setChecked(true)
       return
     }
-    if (perm === 'granted' && getStoredPushOk(contextKey)) {
+
+    // Show optimistic state immediately so the page renders without a flicker
+    const localOk = perm === 'granted' && getStoredPushOk(contextKey)
+    if (localOk) {
       setHasPush(true)
       setChecked(true)
-      return
+      // Fall through to always verify with API in background
     }
 
     let cancelled = false
@@ -108,15 +118,18 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
         const apiSaysHasPush = data?.hasPush === true
         if (apiSaysHasPush) {
           setStoredPushOk(contextKey)
-          const elapsed = Date.now() - mountedAt.current
-          if (elapsed >= minShowMs) {
-            setHasPush(true)
-          } else {
-            setTimeout(() => {
-              if (!cancelled) setHasPush(true)
-            }, minShowMs - elapsed)
+          setHasPush(true)
+          
+          // Auto-heal: If they have a legacy token but lack a central token, silently refresh
+          if (data?.needsRefresh && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            if (!autoSubscribeRef.current) {
+              autoSubscribeRef.current = true
+              subscribe(true).catch(() => {})
+            }
           }
         } else {
+          // Server has no token (pruned stale, never subscribed, or scope changed).
+          // Clear the local cache so the gate / auto-resubscribe can kick in.
           clearStoredPushOk(contextKey)
           setHasPush(false)
         }
@@ -128,10 +141,10 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
     return () => { cancelled = true }
   }, [slug])
 
-  const subscribe = useCallback(async (): Promise<boolean> => {
+  const subscribe = useCallback(async (silent = false): Promise<boolean> => {
     if (typeof window === 'undefined' || !slug) return false
     if (isIOS() && !isStandalone()) {
-      showToast(
+      if (!silent) showToast(
         'On iPhone: add this app to Home Screen first, then open it and tap Enable.',
         'على iPhone: أضف التطبيق إلى الشاشة الرئيسية ثم افتحه واضغط تفعيل.',
         'info'
@@ -139,18 +152,17 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
       return false
     }
     if (!('serviceWorker' in navigator) || !('Notification' in window)) {
-      showToast('Push notifications are not supported in this browser.', 'الإشعارات غير مدعومة في هذا المتصفح.', 'error')
+      if (!silent) showToast('Push notifications are not supported in this browser.', 'الإشعارات غير مدعومة في هذا المتصفح.', 'error')
       return false
     }
     const useFCM = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
     if (!useFCM && !VAPID_PUBLIC) {
-      showToast('Push notifications are not configured. Please contact support.', 'الإشعارات غير مُعدّة. تواصل مع الدعم.', 'error')
+      if (!silent) showToast('Push notifications are not configured. Please contact support.', 'الإشعارات غير مُعدّة. تواصل مع الدعم.', 'error')
       return false
     }
-    // Per-business PWA: always use tenant-scoped SW and per-tenant API when on orders or manage (unified Business is only when installing from /dashboard via BusinessPushSetup).
-    const useUnifiedBusiness = false
     setLoading(true)
     try {
+      // scriptPath: /t/slug/orders/sw.js  scope: /t/slug/orders
       const scriptPath = swScope.endsWith('/')
         ? `${swScope.replace(/\/$/, '')}/sw.js`
         : `${swScope}/sw.js`
@@ -162,7 +174,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
       const perm = await Notification.requestPermission()
       setPermission(perm)
       if (perm !== 'granted') {
-        showToast(
+        if (!silent) showToast(
           'Notifications blocked. Enable them in your device settings to get new order alerts.',
           'تم رفض الإشعارات. فعّلها من إعدادات الجهاز لاستقبال الطلبات.',
           'info'
@@ -201,7 +213,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
           }
           setStoredPushOk(PUSH_CONTEXT_KEYS.tenant(slug))
           setHasPush(true)
-          showToast(
+          if (!silent) showToast(
             'Push notifications enabled. You will get an alert when you receive a new order, even if the app is closed.',
             'تم تفعيل الإشعارات. ستستقبل تنبيهاً عند وصول طلب جديد حتى لو كان التطبيق مغلقاً.',
             'success'
@@ -231,7 +243,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
             if (res.ok) {
               setStoredPushOk(PUSH_CONTEXT_KEYS.tenant(slug))
               setHasPush(true)
-              showToast(
+              if (!silent) showToast(
                 'Push notifications enabled. You will get an alert when you receive a new order.',
                 'تم تفعيل الإشعارات. ستستقبل تنبيهاً عند وصول طلب جديد.',
                 'success'
@@ -267,7 +279,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
       }
       setStoredPushOk(PUSH_CONTEXT_KEYS.tenant(slug))
       setHasPush(true)
-      showToast(
+      if (!silent) showToast(
         'Push notifications enabled. You will get an alert when you receive a new order.',
         'تم تفعيل الإشعارات. ستستقبل تنبيهاً عند وصول طلب جديد.',
         'success'
@@ -276,20 +288,44 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to enable'
       if (typeof console !== 'undefined') console.error('[Tenant Push]', e)
-      if (isIOS()) {
-        showToast(
-          'On iPhone: add this app to Home Screen first, then tap Enable again.',
-          'على iPhone: أضف التطبيق إلى الشاشة الرئيسية أولاً، ثم اضغط تفعيل مرة أخرى.',
-          'info'
-        )
-      } else {
-        showToast(msg, `فشل التفعيل. ${msg}`, 'error')
+      if (!silent) {
+        if (isIOS()) {
+          showToast(
+            'On iPhone: add this app to Home Screen first, then tap Enable again.',
+            'على iPhone: أضف التطبيق إلى الشاشة الرئيسية أولاً، ثم اضغط تفعيل مرة أخرى.',
+            'info'
+          )
+        } else {
+          showToast(msg, `فشل التفعيل. ${msg}`, 'error')
+        }
       }
       return false
     } finally {
       setLoading(false)
     }
   }, [slug, swScope, showToast])
+
+  /**
+   * Auto re-subscribe (silent):
+   * - When API says no push (hasPush=false) but permission is already granted.
+   * - Covers both first-time visits and stale-token recovery after server-side cleanup.
+   */
+  useEffect(() => {
+    if (!slug || !checked || hasPush || loading) return
+    if (autoSubscribeRef.current) return
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    autoSubscribeRef.current = true
+    subscribe(true).catch(() => {})
+  }, [slug, checked, hasPush, loading, subscribe])
+
+  /**
+   * Force a fresh FCM token — call this manually when the user suspects their
+   * notifications stopped working. Resets autoSubscribeRef so subscribe() runs fresh.
+   */
+  const refreshToken = useCallback(async (): Promise<boolean> => {
+    autoSubscribeRef.current = false
+    return subscribe(false)
+  }, [subscribe])
 
   const value: TenantPushContextValue = {
     hasPush,
@@ -299,6 +335,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
     isDenied: permission === 'denied',
     needsIOSHomeScreen: typeof window !== 'undefined' && isIOS() && !isStandalone(),
     subscribe,
+    refreshToken,
   }
 
   return (

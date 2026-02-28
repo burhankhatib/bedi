@@ -2,32 +2,50 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useLanguage } from '@/components/LanguageContext'
-import { motion } from 'motion/react'
-import { Menu, MapPin, Truck, ArrowLeft, Store, LayoutGrid, TrendingUp, History, ShoppingBag, ArrowRightLeft, CreditCard, Table, Users } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Menu, MapPin, Truck, ArrowLeft, Store, TrendingUp, History, ShoppingBag, ArrowRightLeft, CreditCard, Table, Users } from 'lucide-react'
 import type { StaffPermission } from '@/lib/staff-permissions'
+import { TenantSidebarActions } from './TenantSidebarActions'
 
-const MANAGE_NAV_ITEMS: { path: string; labelEn: string; labelAr: string; icon: React.ComponentType<{ className?: string }>; permission?: StaffPermission }[] = [
-  { path: '/business', labelEn: 'Business profile', labelAr: 'الملف التعريفي', icon: Store, permission: 'settings_business' },
-  { path: '/menu', labelEn: 'Menu', labelAr: 'القائمة', icon: Menu, permission: 'settings_menu' },
-  { path: '/tables', labelEn: 'Tables', labelAr: 'الطاولات', icon: Table, permission: 'settings_tables' },
-  { path: '/areas', labelEn: 'Delivery areas', labelAr: 'مناطق التوصيل', icon: MapPin, permission: 'settings_areas' },
-  { path: '/drivers', labelEn: 'Drivers', labelAr: 'السائقون', icon: Truck, permission: 'settings_drivers' },
-  { path: '/analytics', labelEn: 'Analytics', labelAr: 'التحليلات', icon: TrendingUp, permission: 'analytics' },
-  { path: '/history', labelEn: 'History', labelAr: 'السجل', icon: History, permission: 'history' },
-  { path: '/billing', labelEn: 'Billing', labelAr: 'الدفع والفوترة', icon: CreditCard, permission: 'billing' },
-  { path: '/transfer', labelEn: 'Transfer ownership', labelAr: 'نقل الملكية', icon: ArrowRightLeft, permission: 'transfer' },
-  { path: '/staff', labelEn: 'Staff', labelAr: 'الموظفون', icon: Users, permission: 'staff_manage' },
+const NAV_GROUPS = [
+  {
+    titleEn: 'Settings',
+    titleAr: 'الإعدادات',
+    items: [
+      { path: '/business', labelEn: 'Business profile', labelAr: 'الملف التعريفي', icon: Store, permission: 'settings_business' },
+      { path: '/billing', labelEn: 'Billing', labelAr: 'الدفع والفوترة', icon: CreditCard, permission: 'billing' },
+      { path: '/transfer', labelEn: 'Transfer ownership', labelAr: 'نقل الملكية', icon: ArrowRightLeft, permission: 'transfer' },
+    ]
+  },
+  {
+    titleEn: 'Operations',
+    titleAr: 'العمليات',
+    items: [
+      { path: '/menu', labelEn: 'Menu', labelAr: 'القائمة', icon: Menu, permission: 'settings_menu' },
+      { path: '/tables', labelEn: 'Tables', labelAr: 'الطاولات', icon: Table, permission: 'settings_tables' },
+      { path: '/areas', labelEn: 'Delivery areas', labelAr: 'مناطق التوصيل', icon: MapPin, permission: 'settings_areas' },
+      { path: '/drivers', labelEn: 'Drivers', labelAr: 'السائقون', icon: Truck, permission: 'settings_drivers' },
+    ]
+  },
+  {
+    titleEn: 'Management',
+    titleAr: 'الإدارة',
+    items: [
+      { path: '/staff', labelEn: 'Staff', labelAr: 'الموظفون', icon: Users, permission: 'staff_manage' },
+      { path: '/analytics', labelEn: 'Analytics', labelAr: 'التحليلات', icon: TrendingUp, permission: 'analytics' },
+      { path: '/history', labelEn: 'History', labelAr: 'السجل', icon: History, permission: 'history' },
+    ]
+  }
 ]
 
 export function ManageNavClient({ slug, permissions }: { slug: string; permissions?: StaffPermission[] }) {
-  const hasPermission = (p?: StaffPermission) => !p || (Array.isArray(permissions) && permissions.includes(p))
-  const navItems = MANAGE_NAV_ITEMS.filter((item) => hasPermission(item.permission))
-  const [open, setOpen] = useState(false)
+  const hasPermission = (p?: string) => !p || (Array.isArray(permissions) && permissions.includes(p as StaffPermission))
   const [newOrdersCount, setNewOrdersCount] = useState(0)
   const { t, lang } = useLanguage()
+  const pathname = usePathname()
   const fetchedSlugRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -41,11 +59,6 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
 
   const ordersHref = `/t/${slug}/orders`
   const base = `/t/${slug}/manage`
-  const manageNav = navItems.map(({ path, labelEn, labelAr, icon }) => ({
-    href: `${base}${path}`,
-    label: t(labelEn, labelAr),
-    icon,
-  }))
 
   const NewOrdersBadge = ({ compact = false }: { compact?: boolean }) =>
     newOrdersCount > 0 ? (
@@ -54,109 +67,124 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
         initial={{ scale: 1.3 }}
         animate={{ scale: 1 }}
         transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-        className={`inline-flex items-center justify-center rounded-full bg-amber-500 text-slate-950 font-bold shadow-[0_0_12px_rgba(245,158,11,0.5)] ${compact ? 'min-w-[20px] h-5 px-1.5 text-xs' : 'min-w-[24px] h-6 px-2 text-sm'}`}
+        className={`inline-flex items-center justify-center rounded-full bg-slate-900 text-amber-400 font-bold ${compact ? 'min-w-[20px] h-5 px-1.5 text-xs' : 'min-w-[24px] h-6 px-2 text-sm'}`}
       >
         {newOrdersCount > 99 ? '99+' : newOrdersCount}
       </motion.span>
     ) : null
 
+  // Flatten items for mobile scrollable nav
+  const allNavItems = NAV_GROUPS.flatMap(g => g.items).filter(item => hasPermission(item.permission))
+
   return (
-    <>
-      <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2 sm:mb-6">
-        <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:bg-slate-800 hover:text-white">
+    <div className="flex flex-col md:h-full">
+      {/* Desktop & Mobile Header / Breadcrumb */}
+      <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2">
+        <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:bg-slate-800 hover:text-white rounded-full">
           <Link href="/dashboard">
-            <ArrowLeft className="mr-1.5 size-4 shrink-0" />
+            <ArrowLeft className="mr-1.5 size-4 shrink-0 rtl:ml-1.5 rtl:mr-0 rtl:rotate-180" />
             {t('Dashboard', 'لوحة التحكم')}
           </Link>
         </Button>
         <span className="shrink-0 text-slate-600">/</span>
-        <span className="min-w-0 truncate font-medium text-white">{t('Manage', 'إدارة')}: {slug}</span>
+        <span className="min-w-0 truncate font-medium text-white px-2">{t('Manage', 'إدارة')}: {slug}</span>
       </div>
 
-      {/* Desktop: prominent Orders button + all sections */}
-      <nav className="mb-6 hidden flex-wrap items-center gap-2 border-b border-slate-800/60 pb-4 md:flex">
-        <Button
-          asChild
-          size="default"
-          className="min-h-11 rounded-xl bg-amber-500 px-5 font-semibold text-slate-950 shadow-md transition-all hover:bg-amber-400 hover:shadow-amber-500/20 md:min-h-12 md:px-6 md:text-base"
-        >
-          <Link href={ordersHref} className="inline-flex items-center gap-2">
-            <ShoppingBag className="size-5 shrink-0" />
-            {t('Orders', 'الطلبات')}
-            <NewOrdersBadge />
-          </Link>
-        </Button>
-        {navItems.map(({ path, labelEn, labelAr, icon: Icon }) => (
-          <Button
-            key={path}
-            asChild
-            variant="ghost"
-            size="sm"
-            className="text-slate-400 hover:bg-slate-800 hover:text-white"
-          >
-            <Link href={`${base}${path}`}>
-              <Icon className="mr-1.5 size-4 shrink-0" />
-              {t(labelEn, labelAr)}
-            </Link>
-          </Button>
-        ))}
-      </nav>
+      {/* Primary Orders Banner */}
+      <Link
+        href={ordersHref}
+        className="group relative overflow-hidden mb-6 flex items-center justify-between rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500 to-amber-400 px-5 py-4 font-bold text-slate-950 shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98] hover:shadow-amber-500/40"
+      >
+        <span className="flex items-center gap-3 relative z-10">
+          <ShoppingBag className="size-6 shrink-0" />
+          <span className="text-lg tracking-wide">{t('Orders', 'الطلبات')}</span>
+        </span>
+        <div className="relative z-10">
+          <NewOrdersBadge />
+        </div>
+        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out rounded-2xl"></div>
+      </Link>
 
-      {/* Mobile: hamburger + Orders CTA */}
-      <div className="mb-6 flex flex-col gap-3 md:hidden">
-        <Link
-          href={ordersHref}
-          className="flex items-center justify-between rounded-xl border-2 border-amber-500/60 bg-amber-500/15 px-4 py-3.5 font-semibold text-amber-400 shadow-sm transition-colors active:scale-[0.99]"
-        >
-          <span className="flex items-center gap-2">
-            <ShoppingBag className="size-5 shrink-0" />
-            {t('Orders', 'الطلبات')}
-          </span>
-          <NewOrdersBadge compact />
-        </Link>
-        <Button
-          variant="outline"
-          size="lg"
-          className="w-full justify-center gap-3 rounded-xl border-2 border-slate-600 bg-slate-800/60 py-5 text-base font-semibold text-white shadow-md transition-colors hover:border-slate-500 hover:bg-slate-700/80 active:scale-[0.99]"
-          onClick={() => setOpen(true)}
-        >
-          <LayoutGrid className="size-5 shrink-0" />
-          {t('All admin sections', 'كل أقسام الإدارة')}
-        </Button>
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent
-            side={lang === 'ar' ? 'left' : 'right'}
-            className="w-[min(100vw-2rem,320px)] border-slate-800 bg-slate-950 p-0 [&_button]:text-slate-400 [&_button]:hover:bg-slate-800 [&_button]:hover:text-white"
-          >
-            <SheetTitle className="sr-only">{t('Admin sections', 'أقسام الإدارة')}</SheetTitle>
-            <nav className="flex flex-col py-4">
+      {/* Mobile: Horizontal Scrollable Chip Menu */}
+      <div className="md:hidden -mx-4 px-4 mb-6 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="flex gap-2 w-max pb-2">
+          {allNavItems.map(({ path, labelEn, labelAr, icon: Icon }) => {
+            const href = `${base}${path}`
+            const isActive = pathname === href
+            return (
               <Link
-                href={ordersHref}
-                className="mx-3 mb-2 flex items-center justify-between rounded-lg bg-amber-500/20 px-4 py-3.5 font-semibold text-amber-400 hover:bg-amber-500/30"
-                onClick={() => setOpen(false)}
+                key={href}
+                href={href}
+                className={`relative flex items-center gap-2 px-4 py-3 rounded-full text-sm font-semibold transition-colors ${
+                  isActive ? 'text-amber-400' : 'text-slate-400 bg-slate-900 border border-slate-800'
+                }`}
               >
-                <span className="flex items-center gap-3">
-                  <ShoppingBag className="size-5 shrink-0" />
-                  {t('Orders', 'الطلبات')}
-                </span>
-                <NewOrdersBadge compact />
+                {isActive && (
+                  <motion.div
+                    layoutId="mobile-nav-pill"
+                    className="absolute inset-0 rounded-full bg-amber-500/10 border border-amber-500/30"
+                    initial={false}
+                    transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+                <Icon className="size-4 relative z-10" />
+                <span className="relative z-10 whitespace-nowrap">{t(labelEn, labelAr)}</span>
               </Link>
-              <div className="mx-3 my-2 border-t border-slate-800" />
-              {manageNav.map(({ href, label, icon: Icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className="flex items-center gap-3 px-6 py-3.5 text-slate-200 hover:bg-slate-800/80 hover:text-white"
-                  onClick={() => setOpen(false)}
-                >
-                  <Icon className="size-5 shrink-0" />
-                  {label}
-                </Link>
-              ))}
-            </nav>
-          </SheetContent>
-        </Sheet>
+            )
+          })}
+        </div>
       </div>
-    </>
+
+      {/* Desktop: Sidebar Navigation */}
+      <nav className="hidden md:flex flex-col gap-6 flex-1">
+        {NAV_GROUPS.map((group, idx) => {
+          const items = group.items.filter(item => hasPermission(item.permission))
+          if (items.length === 0) return null
+          return (
+            <div key={idx} className="flex flex-col gap-1">
+              <h3 className="px-4 text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+                {t(group.titleEn, group.titleAr)}
+              </h3>
+              {items.map(({ path, labelEn, labelAr, icon: Icon }) => {
+                const href = `${base}${path}`
+                const isActive = pathname === href
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`relative flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-colors group overflow-hidden ${
+                      isActive ? 'text-amber-400' : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="desktop-nav-pill"
+                        className="absolute inset-0 rounded-2xl bg-amber-500/10 border border-amber-500/30"
+                        initial={false}
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                    {!isActive && (
+                      <div className="absolute inset-0 rounded-2xl bg-slate-800/0 group-hover:bg-slate-800/50 transition-colors" />
+                    )}
+                    <Icon className={`size-5 relative z-10 ${isActive ? 'text-amber-400' : 'text-slate-400 group-hover:text-slate-300'}`} />
+                    <span className="relative z-10">{t(labelEn, labelAr)}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          )
+        })}
+        
+        <div className="mt-auto pt-6 border-t border-slate-800/60">
+          <TenantSidebarActions slug={slug} />
+        </div>
+      </nav>
+      
+      {/* Mobile: Tenant Sidebar Actions */}
+      <div className="md:hidden mb-4">
+        <TenantSidebarActions slug={slug} />
+      </div>
+    </div>
   )
 }

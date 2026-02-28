@@ -12,12 +12,14 @@ export async function GET(
 ) {
   const { slug } = await params
   const body = readFileSync(join(process.cwd(), 'public', 'tenant-sw.js'), 'utf-8')
-  const scope = `/t/${slug}/manage/`
+  // Allow scope without trailing slash so the SW can control /t/[slug]/manage (the layout page)
+  // as well as all sub-pages (/t/[slug]/manage/menu, /settings, etc.)
+  const allowedScope = `/t/${slug}/manage`
   return new Response(body, {
     headers: {
       'Content-Type': 'application/javascript; charset=utf-8',
       'Cache-Control': 'public, max-age=0, must-revalidate',
-      'Service-Worker-Allowed': scope,
+      'Service-Worker-Allowed': allowedScope,
     },
   })
 }

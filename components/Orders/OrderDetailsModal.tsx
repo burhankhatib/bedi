@@ -74,6 +74,9 @@ interface Order {
   totalAmount: number
   currency: string
   createdAt: string
+  preparedAt?: string
+  driverAcceptedAt?: string
+  driverPickedUpAt?: string
   completedAt?: string
 }
 
@@ -195,6 +198,7 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
   const [showDriverSelector, setShowDriverSelector] = useState(false)
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loadingDrivers, setLoadingDrivers] = useState(false)
+  const [showOfflineDrivers, setShowOfflineDrivers] = useState(false)
   const [assigningDriverId, setAssigningDriverId] = useState<string | null>(null)
   const [requestingDriver, setRequestingDriver] = useState(false)
   const [unassigningDriver, setUnassigningDriver] = useState(false)
@@ -572,6 +576,7 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
         'تم تعيين السائق بنجاح!',
         'success'
       )
+      onClose()
     } catch (error) {
       console.error('Failed to assign driver:', error)
       showToast(
@@ -595,7 +600,8 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
       })
       if (!res.ok) throw new Error('Failed to request delivery')
       onRefresh()
-      showToast('Delivery requested. Captains in your area will see this order.', 'تم طلب التوصيل. سيرى الكباتن الطلب.', 'success')
+      showToast('Delivery requested. Captains in your area will see this order.', 'تم طلب التوصيل. سيرى الكباتن في منطقتك الطلب.', 'success')
+      onClose()
     } catch {
       showToast('Failed to request delivery. Please try again.', 'فشل طلب التوصيل. يرجى المحاولة مرة أخرى.', 'error')
     } finally {
@@ -1156,290 +1162,318 @@ Please deliver this order to the customer.
           </div>
         </div>
 
-        {/* Driver Assignment (for delivery orders) — special section: Request Delivery by default, expand to choose specific driver */}
-        {localOrder.orderType === 'delivery' && (
-          <div className="my-8 mx-1 sm:mx-0 p-6 sm:p-8 rounded-2xl border-2 border-slate-200 bg-slate-50/80 shadow-sm">
-            <h3 className="font-black text-lg text-slate-900 flex items-center gap-2 mb-4">
-              <Truck className="w-5 h-5 text-slate-700" />
-              {t('Delivery', 'التوصيل')}
-            </h3>
+        {/* Unified Status Timeline */}
+        <div className="space-y-4 my-8">
+          <h3 className="font-black text-lg text-slate-900 mb-4">{t('Update Order Status', 'تحديث حالة الطلب')}</h3>
 
-            {tenantSlug && !loadingBusinessLocation && (!businessLocation?.country?.trim() || !businessLocation?.city?.trim()) && (
-              <div className="mb-4 rounded-xl border-2 border-amber-400/80 bg-amber-50 p-5">
-                <p className="font-semibold text-amber-900 mb-1">
-                  {t('Set your business location to request drivers', 'حدّد موقع عملك لطلب السائقين')}
-                </p>
-                <p className="text-sm text-amber-800 mb-4">
-                  {t('Delivery requests are only available when your business country and city are set. Drivers must be in the same country and city as your business.', 'طلب التوصيل متاح فقط عند تحديد بلد ومدينة عملك. يجب أن يكون السائقون في نفس البلد والمدينة.')}
-                </p>
-                <Button asChild size="default" className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl">
-                  <Link href={`/t/${tenantSlug}/manage/business`}>
-                    <Settings className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
-                    {t('Go to Business settings', 'إعدادات العمل')}
-                  </Link>
-                </Button>
-              </div>
-            )}
-
-            {localOrder.assignedDriver && !showDriverSelector && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <p className="font-bold text-green-900">{localOrder.assignedDriver.name}</p>
-                    <p className="text-sm text-green-700">{localOrder.assignedDriver.phoneNumber}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {tenantSlug && (
-                      <Button
-                        onClick={unassignDriver}
-                        disabled={unassigningDriver}
-                        variant="outline"
-                        size="sm"
-                        className="rounded-xl font-bold border-orange-300 text-orange-700 hover:bg-orange-50"
-                      >
-                        {unassigningDriver ? t('Unassigning...', 'جارٍ إلغاء التعيين...') : t('Unassign', 'إلغاء التعيين')}
-                      </Button>
-                    )}
-                    {tenantSlug && (
-                      <Button
-                        onClick={() => setReportTarget('driver')}
-                        variant="outline"
-                        size="sm"
-                        className="rounded-xl font-bold border-slate-300 text-slate-600 hover:bg-slate-100"
-                      >
-                        <Flag className="w-4 h-4 mr-1 rtl:ml-1 rtl:mr-0" />
-                        {t('Report driver', 'الإبلاغ عن السائق')}
-                      </Button>
-                    )}
-                    <Button
-                      onClick={() => sendWhatsAppToDriver(localOrder.assignedDriver!)}
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700 rounded-xl font-bold"
-                    >
-                      <MessageCircle className="w-4 h-4 mr-1 rtl:ml-1 rtl:mr-0" />
-                      {t('Send via WhatsApp', 'إرسال عبر واتساب')}
-                    </Button>
-                  </div>
+          {/* Activity Timeline (only visible when there are timestamps to show) */}
+          <div className="mb-6 p-5 rounded-2xl bg-slate-50 border border-slate-200">
+            <h4 className="font-bold text-slate-900 mb-4">{t('Activity Timeline', 'سجل النشاطات')}</h4>
+            <div className="space-y-3 relative before:absolute before:inset-0 before:ml-2 rtl:before:ml-0 rtl:before:mr-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
+              <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
+                  <p className="text-xs font-bold text-slate-800">{t('Order Received', 'تم استلام الطلب')}</p>
+                  <p className="text-xs text-slate-500 mt-1">{new Date(localOrder.createdAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: 'numeric', hour12: true, day: 'numeric', month: 'short' })}</p>
                 </div>
               </div>
-            )}
 
-            {/* Request Delivery + Choose driver: only when business has country and city set */}
-            {tenantSlug && !loadingBusinessLocation && businessLocation?.country?.trim() && businessLocation?.city?.trim() && (
-              <>
-                {/* Request Delivery: shown by default (no need to expand). Any captain in area gets push. */}
-                {!localOrder.assignedDriver && (
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-white rounded-xl border-2 border-emerald-200 mb-4">
-                    <p className="text-sm font-medium text-slate-700">
-                      {t('Any captain in your area can accept this delivery. Tap below to send a request to all available captains.', 'أي كابتن في منطقتك يمكنه قبول هذا التوصيل. اضغط أدناه لإرسال الطلب لجميع الكباتن المتاحين.')}
-                    </p>
-                    <Button
-                      onClick={requestDelivery}
-                      disabled={requestingDriver}
-                      size="default"
-                      className="rounded-xl font-bold shrink-0 min-h-[48px] bg-emerald-600 hover:bg-emerald-700 text-white"
-                    >
-                      <Truck className="w-5 h-5 mr-2 rtl:ml-2 rtl:mr-0" />
-                      {requestingDriver ? t('Requesting...', 'جارٍ الطلب...') : t('Request delivery', 'طلب توصيل')}
-                    </Button>
+              {localOrder.preparedAt && (
+                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                  <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                  <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
+                    <p className="text-xs font-bold text-slate-800">{t('Order Ready', 'الطلب جاهز')}</p>
+                    <p className="text-xs text-slate-500 mt-1">{new Date(localOrder.preparedAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: 'numeric', hour12: true, day: 'numeric', month: 'short' })}</p>
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Expand to choose a specific driver */}
-                {!showDriverSelector ? (
-                  <Button
-                    onClick={handleOrderACaptain}
-                    variant="outline"
-                    size="sm"
-                    className="rounded-xl font-bold border-slate-300 text-slate-700 hover:bg-slate-100"
-                  >
-                    {localOrder.assignedDriver ? t('Change driver', 'تغيير السائق') : t('Choose a specific driver', 'اختيار سائق معيّن')}
-                    <span className="ml-1.5 rtl:mr-1.5 rtl:ml-0">▼</span>
-                  </Button>
-                ) : (
-              <div className="mt-4">
-                <p className="text-sm font-medium text-slate-600 mb-3">{t('Assign to a specific driver (they will receive a push notification):', 'تعيين لسائق معيّن (سيستلم إشعاراً):')}</p>
-                <div className="bg-white rounded-xl p-4 border border-slate-200">
-                {loadingDrivers ? (
-                  <p className="text-center text-slate-500 py-4">{t('Loading drivers...', 'جارٍ تحميل السائقين...')}</p>
-                ) : drivers.length === 0 ? (
-                  <p className="text-center text-slate-500 py-4">{t('No active drivers available', 'لا يوجد سائقون متاحون')}</p>
-                ) : (
-                  <div className="space-y-2">
-                    {drivers.map((driver) => {
-                      // Check if driver can serve this order's area
-                      const canServeArea = !localOrder.deliveryArea ||
-                        !driver.deliveryAreas ||
-                        driver.deliveryAreas.length === 0 ||
-                        driver.deliveryAreas.some(area => area._id === localOrder.deliveryArea?._id)
+              {localOrder.driverAcceptedAt && (
+                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                  <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                  <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
+                    <p className="text-xs font-bold text-slate-800">{t('Driver Assigned/Accepted', 'تم تعيين السائق')}</p>
+                    {localOrder.assignedDriver && (
+                      <p className="text-xs font-medium text-slate-700">{localOrder.assignedDriver.name} ({localOrder.assignedDriver.phoneNumber})</p>
+                    )}
+                    <p className="text-xs text-slate-500 mt-1">{new Date(localOrder.driverAcceptedAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: 'numeric', hour12: true, day: 'numeric', month: 'short' })}</p>
+                  </div>
+                </div>
+              )}
 
-                      return (
-                        <div
-                          key={driver._id}
-                          className={`flex items-center justify-between p-3 bg-white rounded-lg border transition-colors ${canServeArea
-                            ? 'border-slate-200 hover:border-black'
-                            : 'border-orange-200 bg-orange-50'
-                            }`}
-                        >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-bold">{driver.name}</p>
-                              {driver.isOnline && (
-                                <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full font-semibold">
-                                  {t('Online', 'متصل')}
-                                </span>
-                              )}
-                              {!driver.isOnline && (
-                                <span className="text-xs bg-slate-400 text-white px-2 py-0.5 rounded-full font-semibold">
-                                  {t('Offline', 'غير متصل')}
-                                </span>
-                              )}
-                              {!canServeArea && (
-                                <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-full font-semibold">
-                                  {t('Different Area', 'منطقة أخرى')}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-slate-600">{driver.phoneNumber}</p>
-                            {driver.vehicleType && (
-                              <p className="text-xs text-slate-500 capitalize">{driver.vehicleType}</p>
-                            )}
-                            {driver.deliveryAreas && driver.deliveryAreas.length > 0 && (
-                              <div className="mt-1">
-                                <p className="text-xs text-slate-400 mb-1">{t('Can deliver to', 'يمكن التوصيل إلى')}:</p>
-                                <div className="flex flex-wrap gap-1">
-                                  {driver.deliveryAreas.map((area) => (
-                                    <span
-                                      key={area._id}
-                                      className={`text-xs px-2 py-0.5 rounded-full font-semibold ${area._id === localOrder.deliveryArea?._id
-                                        ? 'bg-green-100 text-green-700 border border-green-300'
-                                        : 'bg-slate-100 text-slate-600'
-                                        }`}
-                                    >
-                                      {lang === 'ar' ? area.name_ar : area.name_en}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+              {localOrder.driverPickedUpAt && (
+                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                  <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                  <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
+                    <p className="text-xs font-bold text-slate-800">{t('Order Picked Up', 'تم استلام الطلب من المطعم')}</p>
+                    <p className="text-xs text-slate-500 mt-1">{new Date(localOrder.driverPickedUpAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: 'numeric', hour12: true, day: 'numeric', month: 'short' })}</p>
+                  </div>
+                </div>
+              )}
+
+              {localOrder.completedAt && (
+                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                  <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                  <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
+                    <p className="text-xs font-bold text-slate-800">{t('Order Completed', 'مكتمل')}</p>
+                    <p className="text-xs text-slate-500 mt-1">{new Date(localOrder.completedAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: 'numeric', hour12: true, day: 'numeric', month: 'short' })}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {(() => {
+            const currentStatus = localOrder.status
+            const isDelivery = localOrder.orderType === 'delivery'
+            const isDineIn = localOrder.orderType === 'dine-in'
+            const canChangeStatus = !['completed', 'served', 'cancelled', 'refunded'].includes(currentStatus)
+            
+            // StepButton: active = large primary, completed = strikethrough gray, upcoming = small+faded but CLICKABLE to allow bypass
+            const StepButton = ({ 
+              isActive, 
+              isCompleted, 
+              onClick, 
+              icon: Icon, 
+              labelEn, 
+              labelAr, 
+              colorClass,
+              children 
+            }: {
+              isActive: boolean
+              isCompleted: boolean
+              onClick?: () => void
+              icon: any
+              labelEn: string
+              labelAr: string
+              colorClass: string
+              children?: React.ReactNode
+            }) => {
+              if (isCompleted) {
+                return (
+                  <div className="flex items-center gap-3 p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 opacity-60">
+                    <CheckCircle2 className="w-5 h-5 text-slate-400" />
+                    <span className="font-bold text-slate-500 line-through">{t(labelEn, labelAr)}</span>
+                  </div>
+                )
+              }
+              
+              if (isActive) {
+                return (
+                  <div className={`p-1 rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200 border-2 ${colorClass.replace('bg-', 'border-').replace(/-([\d]+)$/, '-300')}`}>
+                    <Button
+                      onClick={onClick}
+                      className={`w-full ${colorClass} hover:opacity-90 text-white rounded-2xl font-black text-lg flex items-center justify-center gap-3 h-16 shadow-sm`}
+                    >
+                      <Icon className="w-6 h-6" />
+                      {t(labelEn, labelAr)}
+                    </Button>
+                    {children && <div className="p-3">{children}</div>}
+                  </div>
+                )
+              }
+              
+              // Upcoming — clickable with reduced opacity so tenant can bypass any step
+              return (
+                <Button
+                  onClick={onClick}
+                  className={`w-full ${colorClass} opacity-40 hover:opacity-65 text-white rounded-xl font-bold flex items-center justify-center gap-2 h-10 transition-opacity`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {t(labelEn, labelAr)}
+                </Button>
+              )
+            }
+
+            if (isDelivery) {
+              const s1Active = currentStatus === 'new'
+              const s1Done = ['preparing', 'waiting_for_delivery', 'driver_on_the_way', 'out-for-delivery', 'completed'].includes(currentStatus)
+              
+              // "Order is Ready" is optional — tenant can skip directly to Request Delivery
+              const s2Active = currentStatus === 'preparing'
+              const s2Done = ['waiting_for_delivery', 'driver_on_the_way', 'out-for-delivery', 'completed'].includes(currentStatus)
+
+              // Step 3 (Request/Assign): active when preparing (bypass) OR waiting_for_delivery without driver
+              // Grayed when driver manually assigned (assignedDriver set while still waiting_for_delivery)
+              const hasAssignedDriver = !!localOrder.assignedDriver
+              const step3Done = ['driver_on_the_way', 'out-for-delivery', 'completed'].includes(currentStatus)
+                || (currentStatus === 'waiting_for_delivery' && hasAssignedDriver)
+              const step3Active = (currentStatus === 'waiting_for_delivery' && !hasAssignedDriver)
+                || currentStatus === 'preparing'
+
+              // Step 4 (Picked up): active when driver_on_the_way OR when driver assigned but status still waiting
+              const step4Active = currentStatus === 'driver_on_the_way'
+                || (currentStatus === 'waiting_for_delivery' && hasAssignedDriver)
+              const step4Done = ['out-for-delivery', 'completed'].includes(currentStatus)
+
+              const step5Active = currentStatus === 'out-for-delivery'
+              const step5Done = currentStatus === 'completed'
+
+              return (
+                <div className="flex flex-col gap-3">
+                  <StepButton isActive={s1Active} isCompleted={s1Done} onClick={() => onStatusUpdate(localOrder._id, 'preparing')} icon={ChefHat} labelEn="Start Preparing" labelAr="بدء التحضير" colorClass="bg-orange-500" />
+                  
+                  {/* Order is Ready — optional step, shown but bypassable */}
+                  <StepButton isActive={s2Active} isCompleted={s2Done} onClick={() => onStatusUpdate(localOrder._id, 'waiting_for_delivery')} icon={Package} labelEn="Order is Ready (optional)" labelAr="الطلب جاهز (اختياري)" colorClass="bg-amber-500" />
+                  
+                  {/* Step 3: Request / Assign Delivery */}
+                  {step3Done ? (
+                    <div className="flex flex-col gap-2 p-4 rounded-2xl border-2 border-slate-200 bg-slate-50 opacity-80">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="w-5 h-5 text-slate-400" />
+                        <span className="font-bold text-slate-500 line-through">{t('Driver Assigned', 'تم تعيين السائق')}</span>
+                      </div>
+                      {localOrder.assignedDriver && (
+                        <div className="ml-8 rtl:mr-8 rtl:ml-0 flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200">
+                          <div>
+                            <p className="font-bold text-slate-800">{localOrder.assignedDriver.name}</p>
+                            <p className="text-sm text-slate-500">{localOrder.assignedDriver.phoneNumber}</p>
                           </div>
                           <div className="flex gap-2">
-                            <Button
-                              onClick={() => sendWhatsAppToDriver(driver)}
-                              size="sm"
-                              variant="outline"
-                              className="rounded-xl"
-                            >
+                            {tenantSlug && (
+                              <Button onClick={unassignDriver} disabled={unassigningDriver} variant="ghost" size="sm" className="text-orange-600 hover:bg-orange-50 px-2 h-8">
+                                {unassigningDriver ? '...' : t('Unassign', 'إلغاء التعيين')}
+                              </Button>
+                            )}
+                            <Button onClick={() => sendWhatsAppToDriver(localOrder.assignedDriver!)} variant="ghost" size="sm" className="text-green-600 hover:bg-green-50 px-2 h-8">
                               <MessageCircle className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              onClick={() => assignDriver(driver._id)}
-                              disabled={assigningDriverId !== null}
-                              size="sm"
-                              className="rounded-xl font-bold"
-                            >
-                              {assigningDriverId === driver._id ? t('Assigning...', 'جارٍ التعيين...') : t('Assign', 'تعيين')}
                             </Button>
                           </div>
                         </div>
-                      )
-                    })}
-                  </div>
+                      )}
+                    </div>
+                  ) : step3Active ? (
+                    <div className="p-1 rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200 border-2 border-blue-300">
+                      <div className="flex gap-2 mb-2 px-1 pt-1">
+                        <Button
+                          onClick={requestDelivery}
+                          disabled={requestingDriver}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-lg h-16 shadow-sm"
+                        >
+                          <Truck className="w-6 h-6 mr-2 rtl:ml-2 rtl:mr-0" />
+                          {requestingDriver ? t('Requesting...', 'جارٍ الطلب...') : t('Request Delivery', 'طلب توصيل')}
+                        </Button>
+                        <Button
+                          onClick={handleOrderACaptain}
+                          variant="outline"
+                          className="w-16 h-16 rounded-2xl border-2 border-blue-200 bg-white text-blue-600 hover:bg-blue-50 shrink-0"
+                        >
+                          <User className="w-6 h-6" />
+                        </Button>
+                      </div>
+                      
+                      {tenantSlug && !loadingBusinessLocation && (!businessLocation?.country?.trim() || !businessLocation?.city?.trim()) && (
+                        <div className="mx-2 mb-2 p-3 bg-amber-50 rounded-xl text-sm text-amber-900 border border-amber-200">
+                          {t('Set your business location in settings to request drivers.', 'حدّد موقع عملك في الإعدادات لطلب السائقين.')}
+                        </div>
+                      )}
+
+                      {showDriverSelector && (
+                        <div className="mx-2 mb-2 p-4 bg-white rounded-2xl border border-slate-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="font-bold text-slate-800">{t('Available Drivers', 'السائقون المتاحون')}</p>
+                            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                              <input type="checkbox" checked={showOfflineDrivers} onChange={(e) => setShowOfflineDrivers(e.target.checked)} className="rounded border-slate-300" />
+                              {t('Show offline', 'إظهار غير المتصلين')}
+                            </label>
+                          </div>
+                          
+                          {loadingDrivers ? (
+                            <p className="text-center text-slate-500 py-4 text-sm">{t('Loading...', 'جارٍ التحميل...')}</p>
+                          ) : (
+                            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                              {drivers.filter(d => showOfflineDrivers || d.isOnline).map((driver) => {
+                                const canServeArea = !localOrder.deliveryArea || !driver.deliveryAreas || driver.deliveryAreas.length === 0 || driver.deliveryAreas.some(area => area._id === localOrder.deliveryArea?._id)
+                                return (
+                                  <div key={driver._id} className={`flex items-center justify-between p-3 rounded-xl border ${canServeArea ? 'border-slate-200' : 'border-orange-200 bg-orange-50'}`}>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-bold text-sm">{driver.name}</p>
+                                        {driver.isOnline ? (
+                                          <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                        ) : (
+                                          <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-slate-500">{driver.phoneNumber}</p>
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <Button onClick={() => sendWhatsAppToDriver(driver)} size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600">
+                                        <MessageCircle className="w-4 h-4" />
+                                      </Button>
+                                      <Button onClick={() => assignDriver(driver._id)} disabled={assigningDriverId !== null} size="sm" className="h-8 px-3 rounded-lg text-xs font-bold">
+                                        {t('Assign', 'تعيين')}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                              {drivers.filter(d => showOfflineDrivers || d.isOnline).length === 0 && (
+                                <p className="text-center text-slate-500 py-4 text-sm">{t('No drivers found.', 'لم يتم العثور على سائقين.')}</p>
+                              )}
+                            </div>
+                          )}
+                          <Button onClick={() => setShowDriverSelector(false)} variant="ghost" size="sm" className="w-full mt-2 text-slate-500 hover:text-slate-700">
+                            {t('Close', 'إغلاق')}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <StepButton isActive={false} isCompleted={false} onClick={() => onStatusUpdate(localOrder._id, 'waiting_for_delivery')} icon={Truck} labelEn="Request Delivery" labelAr="طلب توصيل" colorClass="bg-blue-600" />
+                  )}
+
+                  <StepButton isActive={step4Active} isCompleted={step4Done} onClick={() => onStatusUpdate(localOrder._id, 'out-for-delivery')} icon={Package} labelEn="Order Picked up" labelAr="تم استلام الطلب" colorClass="bg-purple-500" />
+                  
+                  <StepButton isActive={step5Active} isCompleted={step5Done} onClick={() => onStatusUpdate(localOrder._id, 'completed')} icon={CheckCircle2} labelEn="Completed" labelAr="مكتمل" colorClass="bg-green-600" />
+
+                </div>
+              )
+            }
+
+            // Dine-in / Receive in person
+            const s1Active = currentStatus === 'new'
+            const s1Done = ['preparing', 'served', 'completed'].includes(currentStatus)
+            
+            const s2Active = currentStatus === 'preparing'
+            const s2Done = ['served', 'completed'].includes(currentStatus)
+
+            return (
+              <div className="flex flex-col gap-3">
+                <StepButton isActive={s1Active} isCompleted={s1Done} onClick={() => onStatusUpdate(localOrder._id, 'preparing')} icon={ChefHat} labelEn="Start Preparing" labelAr="بدء التحضير" colorClass="bg-orange-500" />
+                
+                {isDineIn && (
+                  <StepButton isActive={s2Active} isCompleted={s2Done} onClick={() => onStatusUpdate(localOrder._id, 'served')} icon={UtensilsCrossed} labelEn="Mark as Served" labelAr="تم التقديم للعميل" colorClass="bg-emerald-600" />
                 )}
-                <Button
-                  onClick={() => setShowDriverSelector(false)}
-                  variant="outline"
-                  size="sm"
-                  className="w-full mt-3 rounded-xl"
-                >
-                  {t('Close list', 'إغلاق القائمة')}
-                </Button>
+
+                <StepButton isActive={isDineIn ? currentStatus === 'served' : s2Active} isCompleted={currentStatus === 'completed'} onClick={() => onStatusUpdate(localOrder._id, 'completed')} icon={CheckCircle2} labelEn="Completed" labelAr="مكتمل" colorClass="bg-green-600" />
               </div>
-              </div>
-                )}
-              </>
-            )}
-
-            {tenantSlug && loadingBusinessLocation && (
-              <p className="text-sm text-slate-500">{t('Checking business settings…', 'جاري التحقق من إعدادات العمل…')}</p>
-            )}
-          </div>
-        )}
-
-        {/* Status Update: steps first, then Slide to complete last, then Cancel | Refund row */}
-        <div className="space-y-4">
-          <h3 className="font-black text-lg text-slate-900 mb-3">{t('Update Order Status', 'تحديث حالة الطلب')}</h3>
-
-          {/* Status steps — hide delivery-only steps for dine-in and receive-in-person */}
-          {(() => {
-            const statusStepOptions = (localOrder.orderType === 'dine-in' || localOrder.orderType === 'receive-in-person')
-              ? STATUS_STEP_OPTIONS.filter(s => !DELIVERY_ONLY_STATUS_VALUES.includes(s.value))
-              : STATUS_STEP_OPTIONS
-            const options = statusStepOptions.filter(s => s.value !== localOrder.status)
-            return options.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3">
-              {options.map((status) => {
-                const StatusIcon = status.icon
-                return (
-                  <Button
-                    key={status.value}
-                    onClick={() => onStatusUpdate(localOrder._id, status.value)}
-                    className={`${status.color} text-white hover:opacity-90 rounded-xl font-bold flex items-center justify-center gap-2`}
-                  >
-                    <StatusIcon className="w-4 h-4" />
-                    {statusLabel(status)}
-                  </Button>
-                )
-              })}
-            </div>
-            ) : null
+            )
           })()}
 
-          {/* Dine-in: Mark as Served */}
-          {isDineIn && canChangeStatus && (
-            <Button
-              onClick={() => onStatusUpdate(localOrder._id, 'served')}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 py-3"
-            >
-              <UtensilsCrossed className="w-5 h-5" />
-              {t('Mark as Served', 'تم التقديم للعميل')}
-            </Button>
-          )}
-
-          {/* Slide to complete — last in status list. Dine-in: visible when Served so business can mark paid. */}
-          {showCompleteSlider && (
-            <div className="pt-2">
-              <SlideToCompleteOrder
-                onComplete={async () => {
-                  await Promise.resolve(onStatusUpdate(localOrder._id, 'completed'))
-                }}
-              />
-            </div>
-          )}
-
-          {/* Cancel and Refund on same row, with margin */}
+          {/* Cancel and Refund */}
           {canChangeStatus && (
-            <div className="flex flex-wrap gap-4 pt-4 mt-6 border-t border-slate-200">
+            <div className="flex flex-wrap gap-3 pt-4 mt-6 border-t border-slate-200">
               <Button
                 onClick={() => setConfirmAction('cancelled')}
                 variant="outline"
-                className="flex-1 min-w-[140px] border-red-300 text-red-700 hover:bg-red-50 rounded-xl font-semibold flex items-center justify-center gap-2 py-3"
+                className="flex-1 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-xl font-bold h-11"
               >
-                <XCircle className="w-4 h-4" />
-                {t('Cancel order', 'إلغاء الطلب')}
+                <XCircle className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                {t('Cancel', 'إلغاء')}
               </Button>
               <Button
                 onClick={() => setConfirmAction('refunded')}
                 variant="outline"
-                className="flex-1 min-w-[140px] border-amber-400 text-amber-700 hover:bg-amber-50 rounded-xl font-semibold flex items-center justify-center gap-2 py-3"
+                className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-50 hover:border-amber-400 rounded-xl font-bold h-11"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
                 {t('Refund', 'استرداد')}
               </Button>
             </div>
           )}
 
-          {/* Report form modal */}
+        {/* Report form modal */}
           {reportTarget && tenantSlug && (
             <ReportFormModal
               open={true}
