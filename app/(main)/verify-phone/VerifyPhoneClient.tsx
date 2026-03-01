@@ -30,7 +30,7 @@ export default function VerifyPhoneClient() {
   const [codeInput, setCodeInput] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [pendingPhoneResource, setPendingPhoneResource] = useState<{ prepareVerification: () => Promise<unknown>; attemptVerification: (p: { code: string }) => Promise<unknown> } | null>(null)
+  const [pendingPhoneResource, setPendingPhoneResource] = useState<{ prepareVerification: (p?: { strategy: string }) => Promise<unknown>; attemptVerification: (p: { code: string }) => Promise<unknown> } | null>(null)
 
   // Pre-fill from query params (e.g. redirect from driver profile or tenant onboarding)
   useEffect(() => {
@@ -100,7 +100,7 @@ export default function VerifyPhoneClient() {
       const existing = user.phoneNumbers?.find((p) => {
         const pn = (p as { phoneNumber?: string }).phoneNumber
         return pn && toCompareDigits(pn) === inputDigits
-      }) as { id?: string; verification?: { status?: string }; prepareVerification: () => Promise<unknown>; attemptVerification: (p: { code: string }) => Promise<unknown> } | undefined
+      }) as { id?: string; verification?: { status?: string }; prepareVerification: (p?: { strategy: string }) => Promise<unknown>; attemptVerification: (p: { code: string }) => Promise<unknown> } | undefined
 
       if (existing) {
         if (existing.verification?.status === 'verified') {
@@ -109,7 +109,7 @@ export default function VerifyPhoneClient() {
           return
         }
         // Existing but unverified: send code to this number (no create, so no "already in use").
-        await existing.prepareVerification()
+        await existing.prepareVerification({ strategy: 'phone_code' })
         setPendingPhoneResource(existing)
         setStep('code')
         return
@@ -119,9 +119,9 @@ export default function VerifyPhoneClient() {
       const res = await createPhoneNumberWithReverification(phoneNumber)
       if (!res) throw new Error('Could not add phone number')
       await user.reload()
-      const newPhone = user.phoneNumbers?.find((p) => (p as { id?: string }).id === (res as { id?: string }).id) as { prepareVerification: () => Promise<unknown>; attemptVerification: (p: { code: string }) => Promise<unknown> } | undefined
+      const newPhone = user.phoneNumbers?.find((p) => (p as { id?: string }).id === (res as { id?: string }).id) as { prepareVerification: (p?: { strategy: string }) => Promise<unknown>; attemptVerification: (p: { code: string }) => Promise<unknown> } | undefined
       if (!newPhone) throw new Error('Could not send code')
-      await newPhone.prepareVerification()
+      await newPhone.prepareVerification({ strategy: 'phone_code' })
       setPendingPhoneResource(newPhone)
       setStep('code')
     } catch (e) {
@@ -218,6 +218,14 @@ export default function VerifyPhoneClient() {
 
         {step === 'code' && (
           <>
+            <div className="mb-4">
+              <p className="text-sm text-slate-600 mb-1">
+                {t('Enter the 6-digit code we sent via SMS to', 'أدخل الرمز المكوّن من 6 أرقام الذي أرسلناه عبر رسالة SMS إلى')} <span className="font-mono font-medium" dir="ltr">{ensureE164(phoneInput, countryCode)}</span>
+              </p>
+              <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-md border border-amber-200">
+                {t('Note: The code is sent via standard SMS (Text Message), NOT WhatsApp. If you don\'t receive it, try using the +970 country code or wait a few minutes.', 'ملاحظة: يتم إرسال الرمز عبر رسالة نصية قصيرة (SMS) وليس واتساب. إذا لم يصلك، جرب استخدام مفتاح فلسطين +970 أو انتظر بضع دقائق.')}
+              </p>
+            </div>
             <Input
               type="text"
               inputMode="numeric"
