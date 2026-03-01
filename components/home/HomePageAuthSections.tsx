@@ -130,7 +130,7 @@ export function HomePageAuthSections() {
               </CardContent>
               <CardFooter className="flex flex-wrap gap-3 border-t border-amber-100/80 bg-amber-50/30 pt-6">
                 <Button asChild size="lg" className="gap-2 rounded-xl bg-amber-500 text-slate-950 shadow-md hover:bg-amber-400">
-                  <Link href="/sign-up?redirect_url=/">
+                  <Link href="/sign-up?redirect_url=/onboarding">
                     <UserPlus className="size-5" />
                     {t('Sign up (Business)', 'تسجيل (أعمال)')}
                   </Link>
@@ -222,7 +222,7 @@ export function HomePageAuthSections() {
               </CardContent>
               <CardFooter className="flex flex-wrap gap-3 border-t border-emerald-100/80 bg-emerald-50/30 pt-6">
                 <Button asChild size="lg" className="gap-2 rounded-xl bg-emerald-600 text-white shadow-md hover:bg-emerald-500">
-                  <Link href="/sign-up?redirect_url=/">
+                  <Link href="/sign-up?redirect_url=/driver">
                     <UserPlus className="size-5" />
                     {t('Sign up (Driver)', 'تسجيل (سائق)')}
                   </Link>

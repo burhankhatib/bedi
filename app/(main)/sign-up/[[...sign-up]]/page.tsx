@@ -8,10 +8,8 @@ export default async function SignUpPage({
 }) {
   const { redirect_url } = await searchParams
   const allowedRedirect = getAllowedRedirectPath(redirect_url, '/')
-  const isTenantMenu = allowedRedirect.startsWith('/t/')
-  const afterSignUpUrl = isTenantMenu
-    ? `/verify-phone?returnTo=${encodeURIComponent(allowedRedirect)}`
-    : allowedRedirect
+  const afterSignUpUrl = `/verify-phone?returnTo=${encodeURIComponent(allowedRedirect)}`
+  
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-12">
       <SignUp
