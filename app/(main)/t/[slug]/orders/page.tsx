@@ -14,6 +14,7 @@ import { OrdersPWASetup } from './OrdersPWASetup'
 import { OrdersPushRefreshButton } from './OrdersPushRefreshButton'
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
 import { OrdersPushGateWrapper } from './OrdersPushGateWrapper'
+import { enforcePhoneVerification } from '@/lib/enforce-phone'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -35,6 +36,8 @@ export default async function TenantOrdersPage({
   const auth = await checkTenantAuth(slug)
   if (!auth.ok) redirect('/dashboard')
   if (!requirePermission(auth, 'orders')) redirect(`/t/${slug}/manage`)
+
+  await enforcePhoneVerification(`/t/${slug}/orders`)
 
   const siteId = auth.tenantId
   const siteFilter = '(site._ref == $siteId || !defined(site))'

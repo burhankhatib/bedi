@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/components/LanguageContext'
-import { Truck, MessageCircle } from 'lucide-react'
+import { Truck, MessageCircle, ShieldCheck, ShieldAlert } from 'lucide-react'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { getDriverInviteMessageAr } from '@/lib/driver-invite'
 import { toEnglishDigits } from '@/lib/phone'
@@ -22,6 +22,7 @@ type DriverInArea = {
   vehicleType?: string
   vehicleNumber?: string
   isOnline?: boolean
+  isVerifiedByAdmin?: boolean
   picture?: { asset?: { _ref: string } }
 }
 
@@ -185,7 +186,18 @@ export function DriversManageClient({
                 >
                   <div className="flex flex-wrap items-center gap-3">
                     <Truck className="size-5 shrink-0 text-amber-400" />
-                    <span className="font-semibold text-white">{displayName(d)}</span>
+                    <span className="font-semibold text-white flex items-center gap-1.5">
+                      {displayName(d)}
+                      {d.isVerifiedByAdmin ? (
+                        <div title={t('Verified Driver', 'سائق موثّق')}>
+                          <ShieldCheck className="size-4 text-blue-500" />
+                        </div>
+                      ) : (
+                        <div title={t('Under Review', 'قيد المراجعة')}>
+                          <ShieldAlert className="size-4 text-slate-500" />
+                        </div>
+                      )}
+                    </span>
                     {d.nickname && d.nickname !== d.name && (
                       <span className="text-xs text-slate-500">({d.name})</span>
                     )}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLanguage } from '@/components/LanguageContext'
-import { useSanityLiveStream } from '@/lib/useSanityLiveStream'
+import { usePusherStream } from '@/lib/usePusherStream'
 import { getWhatsAppUrl, normalizePhoneForWhatsApp } from '@/lib/whatsapp'
 import { formatCurrency } from '@/lib/currency'
 import Link from 'next/link'
@@ -309,8 +309,9 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
     }
   }
 
-  useSanityLiveStream(
-    slug && token?.trim() ? `/api/tenants/${slug}/track/${encodeURIComponent(token)}/live` : null,
+  usePusherStream(
+    data?.order?._id ? `order-${data.order._id}` : null,
+    'order-update',
     () => fetchTrack(true)
   )
 

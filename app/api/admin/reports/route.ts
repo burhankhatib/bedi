@@ -174,6 +174,21 @@ export async function GET(req: NextRequest) {
     `*[_type == "report"]{ reportedTenantId, reportedDriverId, reportedCustomerInfo, "orderCustomerId": order->customer._ref }`
   )
 
+  const pendingDrivers = await freshClient.fetch<
+    Array<{
+      _id: string
+      name?: string
+      phoneNumber?: string
+      country?: string
+      city?: string
+      _createdAt: string
+    }>
+  >(
+    `*[_type == "driver" && isVerifiedByAdmin != true] | order(_createdAt desc) {
+      _id, name, phoneNumber, country, city, _createdAt
+    }`
+  )
+
   const countTenant: Record<string, number> = {}
   const countDriver: Record<string, number> = {}
   const countCustomer: Record<string, number> = {}
@@ -193,5 +208,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     reports: reportsWithPhones,
     reportCounts: { tenant: countTenant, driver: countDriver, customer: countCustomer },
+    pendingDrivers: pendingDrivers ?? [],
   })
 }

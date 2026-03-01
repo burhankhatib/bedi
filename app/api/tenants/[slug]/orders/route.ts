@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 const siteFilter = '(site._ref == $siteId || !defined(site))'
 const noCacheClient = client.withConfig({ useCdn: false })
-const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc) {
+const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc)[0...100] {
   _id,
   orderNumber,
   orderType,

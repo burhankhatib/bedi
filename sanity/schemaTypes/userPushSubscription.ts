@@ -32,6 +32,14 @@ export const userPushSubscriptionType = defineType({
       readOnly: true,
     }),
     defineField({
+      name: 'site',
+      title: 'Tenant (Site)',
+      type: 'reference',
+      to: [{ type: 'tenant' }],
+      description: 'The tenant this subscription is associated with (for Tenant role).',
+      readOnly: true,
+    }),
+    defineField({
       name: 'fcmToken',
       title: 'FCM Token',
       type: 'string',

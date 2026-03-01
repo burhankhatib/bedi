@@ -172,7 +172,7 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
       // controls the layout index page. Adding "/" makes scope "/t/slug/manage/" which misses the
       // index page and causes getFCMToken to fail on iOS/Android PWA.
       const scopeForReg = swScope
-      const swScript = useUnified ? '/app-sw.js' : (scope?.endsWith('/orders') || scope?.endsWith('/manage') || scope?.endsWith('/orders/') ? `${scope.replace(/\/?$/, '')}/sw.js` : '/tenant-sw.js')
+      const swScript = useUnified ? '/app-sw.js' : `/t/${slug}/sw.js`
       await navigator.serviceWorker.register(swScript, useUnified ? { scope: '/' } : scope ? { scope: scopeForReg } : undefined)
       await navigator.serviceWorker.ready
       const reg = await navigator.serviceWorker.getRegistration(scopeForReg) ?? undefined

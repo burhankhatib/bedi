@@ -152,17 +152,17 @@ export async function sendTenantAndStaffPush(
     ...(staffList ?? []).map((s) => s.clerkUserId),
   ].filter((id): id is string => !!id)
 
-  // Step 2: query central userPushSubscription table for ALL matching users
+  // Step 2: query central userPushSubscription table for ALL matching users or site
   let centralSubs: CentralSub[] = []
-  if (clerkUserIds.length > 0) {
+  if (clerkUserIds.length > 0 || tenantId) {
     centralSubs = await client.fetch<CentralSub[]>(
       `*[
         _type == "userPushSubscription" &&
-        clerkUserId in $ids &&
         roleContext == "tenant" &&
+        (site._ref == $tenantId || clerkUserId in $ids) &&
         isActive != false
       ]{ _id, fcmToken, "webPush": webPush }`,
-      { ids: clerkUserIds }
+      { ids: clerkUserIds, tenantId }
     ).catch(() => [])
   }
 
@@ -173,22 +173,26 @@ export async function sendTenantAndStaffPush(
 
   // Step 3: send via central subscriptions
   for (const sub of centralSubs) {
+    let fcmSent = false
     if (sub.fcmToken) {
       const { sent: ok, permanent } = await sendCentralFcm(sub, payload)
       if (ok) {
         sent = true
+        fcmSent = true
         sentTokens.add(sub.fcmToken)
       }
       if (permanent) staleCentralIds.push(sub._id)
     }
     // Web push via central sub
-    const wp = sub.webPush
-    if (wp?.endpoint && wp?.p256dh && wp?.auth && isPushConfigured()) {
-      const ok = await sendPushNotification(
-        { endpoint: wp.endpoint, keys: { p256dh: wp.p256dh, auth: wp.auth } },
-        payload
-      )
-      if (ok) sent = true
+    if (!fcmSent) {
+      const wp = sub.webPush
+      if (wp?.endpoint && wp?.p256dh && wp?.auth && isPushConfigured()) {
+        const ok = await sendPushNotification(
+          { endpoint: wp.endpoint, keys: { p256dh: wp.p256dh, auth: wp.auth } },
+          payload
+        )
+        if (ok) sent = true
+      }
     }
   }
 

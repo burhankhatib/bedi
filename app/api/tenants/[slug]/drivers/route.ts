@@ -21,7 +21,7 @@ export async function GET(
     return NextResponse.json([])
   }
 
-  const drivers = await client.fetch<
+    const drivers = await client.fetch<
     Array<{
       _id: string
       name: string
@@ -30,6 +30,7 @@ export async function GET(
       vehicleType?: string
       vehicleNumber?: string
       isOnline?: boolean
+      isVerifiedByAdmin?: boolean
       picture?: { asset?: { _ref: string } }
       deliveryAreas?: Array<{ _id: string; name_en: string; name_ar: string }>
       lastKnownLat?: number
@@ -38,7 +39,7 @@ export async function GET(
     }>
   >(
     `*[_type == "driver" && defined(clerkUserId) && country == $country && city == $city] | order(name asc) {
-      _id, name, nickname, phoneNumber, vehicleType, vehicleNumber, isOnline,
+      _id, name, nickname, phoneNumber, vehicleType, vehicleNumber, isOnline, isVerifiedByAdmin,
       "picture": picture,
       "deliveryAreas": deliveryAreas[]->{ _id, name_en, name_ar },
       lastKnownLat, lastKnownLng, lastLocationAt

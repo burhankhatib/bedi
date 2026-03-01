@@ -13,6 +13,7 @@ import { SubscriptionBanner } from './SubscriptionBanner'
 import { ManageLanguageSync } from './ManageLanguageSync'
 import { TenantManagePushWrapper } from './TenantManagePushWrapper'
 import { TenantBusinessProvider } from './TenantBusinessContext'
+import { enforcePhoneVerification } from '@/lib/enforce-phone'
 
 export async function generateMetadata({
   params,
@@ -40,6 +41,8 @@ export default async function ManageLayout({
   }
 
   const tenant = await getTenantBySlug(slug, { useCdn: false })
+  await enforcePhoneVerification(`/t/${slug}/manage`)
+
   let subscriptionStatus = tenant?.subscriptionStatus ?? 'trial'
   if (tenant && isTenantSubscriptionExpired(tenant) && (subscriptionStatus === 'active' || subscriptionStatus === 'trial')) {
     if (token) {

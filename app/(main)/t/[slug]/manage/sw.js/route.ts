@@ -14,7 +14,7 @@ export async function GET(
   const body = readFileSync(join(process.cwd(), 'public', 'tenant-sw.js'), 'utf-8')
   // Allow scope without trailing slash so the SW can control /t/[slug]/manage (the layout page)
   // as well as all sub-pages (/t/[slug]/manage/menu, /settings, etc.)
-  const allowedScope = `/t/${slug}/manage`
+  const allowedScope = `/t/${slug}/`
   return new Response(body, {
     headers: {
       'Content-Type': 'application/javascript; charset=utf-8',

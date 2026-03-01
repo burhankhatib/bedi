@@ -23,6 +23,7 @@ function normalizeDeviceInfo(v: string | null | undefined): string {
 export async function upsertUserPushSubscription(input: {
   clerkUserId: string
   roleContext: RoleContext
+  siteId?: string
   fcmToken?: string | null
   webPush?: WebPushKeys | null
   deviceInfo?: string | null
@@ -66,6 +67,9 @@ export async function upsertUserPushSubscription(input: {
     roleContext,
     isActive: true,
     lastSeenAt: now,
+  }
+  if (input.siteId) {
+    setPayload.site = { _type: 'reference', _ref: input.siteId }
   }
   if (fcmToken) setPayload.fcmToken = fcmToken
   if (webPush?.endpoint && webPush?.p256dh && webPush?.auth) {

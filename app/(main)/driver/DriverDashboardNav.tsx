@@ -2,11 +2,13 @@
 
 import { useDriverStatus } from './DriverStatusContext'
 import { useLanguage } from '@/components/LanguageContext'
+import { ShieldAlert, ShieldCheck } from 'lucide-react'
 
 export function DriverDashboardNav() {
   const { t } = useLanguage()
   const {
     isOnline,
+    isVerifiedByAdmin,
     loading,
     updating,
     duration,
@@ -38,12 +40,17 @@ export function DriverDashboardNav() {
             {t('Complete deliveries first', 'أكمل التوصيلات أولاً')}
           </span>
         )}
-        {cannotGoOnline && !isOnline && (
+        {!isVerifiedByAdmin && !isOnline && (
+          <span className="text-[10px] font-medium text-amber-400">
+            {t('Profile under review', 'الملف قيد المراجعة')}
+          </span>
+        )}
+        {isVerifiedByAdmin && cannotGoOnline && !isOnline && (
           <span className="text-[10px] font-medium text-rose-400">
             {t('Enable notifications first', 'فعّل الإشعارات أولاً')}
           </span>
         )}
-        {!isOnline && !cannotGoOnline && (
+        {isVerifiedByAdmin && !isOnline && !cannotGoOnline && (
           <span className="text-xs font-medium text-slate-400">
             {t('Go online to get orders', 'اتصل لاستقبال الطلبات')}
           </span>
@@ -66,6 +73,11 @@ export function DriverDashboardNav() {
         } ${(showCannotOffline || (cannotGoOnline && !isOnline)) ? 'opacity-70' : 'opacity-100'}`}
       >
         <div className="flex items-center gap-2">
+          {isVerifiedByAdmin ? (
+            <ShieldCheck className="size-4 shrink-0 text-emerald-500 bg-white rounded-full" />
+          ) : (
+            <ShieldAlert className="size-4 shrink-0 text-slate-400" />
+          )}
           <span className={`relative flex h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full ${isOnline ? 'bg-slate-950' : 'bg-slate-500'}`}>
             {isOnline && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-slate-950 opacity-40"></span>}
           </span>

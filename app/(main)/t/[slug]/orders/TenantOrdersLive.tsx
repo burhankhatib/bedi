@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { OrdersClient, type Order } from '@/app/(main)/orders/OrdersClient'
 import { OrderNotificationsWrapper } from '@/app/(main)/orders/OrderNotificationsWrapper'
 import { useToast } from '@/components/ui/ToastProvider'
-import { useSanityLiveStream } from '@/lib/useSanityLiveStream'
+import { usePusherStream } from '@/lib/usePusherStream'
 
 /**
  * Business (tenant) orders list. Same pattern as customer track: initial fetch + SSE only, refetch on event.
@@ -161,9 +161,9 @@ export function TenantOrdersLive({
     }
   }, [fetchOrders])
 
-  // SSE: when any order for this tenant changes (new order, status, table request), refetch with
+  // Pusher: when any order for this tenant changes (new order, status, table request), refetch with
   // delay + one retry so we see the update even if Sanity read is briefly stale (no extra polling).
-  useSanityLiveStream(slug ? `/api/tenants/${slug}/orders/live` : null, fetchOrdersOnLiveUpdate)
+  usePusherStream(siteId ? `tenant-${siteId}` : null, 'order-update', fetchOrdersOnLiveUpdate)
 
   const openOrderIdForTableRequest = initialOpenOrderId || tableRequests[0]?._id
 

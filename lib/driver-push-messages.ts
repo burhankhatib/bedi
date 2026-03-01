@@ -42,3 +42,12 @@ export function getAutoOfflinePushEn(_nick: string | undefined | null): { title:
     body: "You were set to offline after 8 hours. Open the app and switch to Online again if you want to receive delivery requests.",
   }
 }
+
+/** Sent when admin verifies the driver. */
+export function getAdminVerifiedPushAr(nick: string | undefined | null): { title: string; body: string } {
+  const name = nickname(nick)
+  return {
+    title: `أهلاً بك ${name}! 🎉`,
+    body: 'تم توثيق حسابك! يمكنك الآن الدخول كـ "متصل" لاستقبال الطلبات.',
+  }
+}

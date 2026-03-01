@@ -48,8 +48,8 @@ self.addEventListener('push', function (event) {
   const url = data.url || '/dashboard'
   const options = {
     body: data.body || 'Open the app to view the order.',
-    icon: '/adminslogo.webp',
-    badge: '/adminslogo.webp',
+    icon: data.icon || '/adminslogo.webp',
+    badge: data.icon || '/adminslogo.webp',
     data: { url: url },
     tag: 'bedi-business-new-order',
     renotify: true,

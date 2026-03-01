@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Truck, Loader2 } from 'lucide-react'
+import { Truck, Loader2, Edit } from 'lucide-react'
 import { BlockToggle } from '@/components/admin/BlockToggle'
+import { VerifyToggle } from '@/components/admin/VerifyToggle'
+import Link from 'next/link'
 
 type Driver = {
   _id: string
@@ -12,6 +14,7 @@ type Driver = {
   city?: string
   isOnline?: boolean
   vehicleType?: string
+  isVerifiedByAdmin?: boolean
   blockedBySuperAdmin?: boolean
 }
 
@@ -56,7 +59,9 @@ export function AdminDriversClient() {
               <th className="hidden px-4 py-3 font-medium md:px-6 md:table-cell">Location</th>
               <th className="px-4 py-3 font-medium md:px-6">Vehicle</th>
               <th className="px-4 py-3 font-medium md:px-6">Status</th>
+              <th className="px-4 py-3 font-medium md:px-6 text-center">Verified</th>
               <th className="px-4 py-3 font-medium md:px-6 text-center">Block</th>
+              <th className="px-4 py-3 font-medium md:px-6 text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -74,7 +79,20 @@ export function AdminDriversClient() {
                   </span>
                 </td>
                 <td className="px-4 py-3 md:px-6 text-center">
+                  <VerifyToggle id={d._id} verified={!!d.isVerifiedByAdmin} onSuccess={() => setDrivers((prev) => prev.map((x) => (x._id === d._id ? { ...x, isVerifiedByAdmin: !x.isVerifiedByAdmin } : x)))} />
+                </td>
+                <td className="px-4 py-3 md:px-6 text-center">
                   <BlockToggle id={d._id} type="driver" blocked={!!d.blockedBySuperAdmin} onSuccess={() => setDrivers((prev) => prev.map((x) => (x._id === d._id ? { ...x, blockedBySuperAdmin: !x.blockedBySuperAdmin } : x)))} />
+                </td>
+                <td className="px-4 py-3 md:px-6 text-center">
+                  <Link
+                    href={`/studio/structure/intent/edit/template=driver;type=driver;id=${d._id}`}
+                    target="_blank"
+                    className="inline-flex items-center justify-center p-2 text-slate-400 hover:text-amber-400 transition-colors"
+                    title="Edit in Studio"
+                  >
+                    <Edit className="size-4" />
+                  </Link>
                 </td>
               </tr>
             ))}

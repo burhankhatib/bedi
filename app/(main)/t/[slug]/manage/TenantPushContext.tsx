@@ -70,8 +70,8 @@ export function useTenantPush(): TenantPushContextValue {
 }
 
 export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug: string; scope?: string; children: ReactNode }) {
-  // No trailing slash: scope must exactly match the page URL /t/[slug]/orders so the SW controls it (required for iOS web push).
-  const swScope = scopeProp ?? `/t/${slug}/orders`
+  // Scope must be /t/[slug]/ so the SW controls both /orders and /manage.
+  const swScope = scopeProp ?? `/t/${slug}/`
   const { showToast } = useToast()
   const [hasPush, setHasPush] = useState(false)
   const [checked, setChecked] = useState(false)

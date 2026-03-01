@@ -94,6 +94,7 @@ export async function POST(
   await upsertUserPushSubscription({
     clerkUserId: userId,
     roleContext: 'tenant',
+    siteId: authResult.tenantId,
     fcmToken: fcmToken || null,
     webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : null,
   }).catch((e) => console.warn('[push-subscription] central upsert failed', e))

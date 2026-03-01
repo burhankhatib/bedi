@@ -7,6 +7,7 @@ import { getDriverIdByClerkUserId } from '@/lib/driver'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { DashboardClient } from './DashboardClient'
+import { enforcePhoneVerification } from '@/lib/enforce-phone'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -87,6 +88,7 @@ export default async function DashboardPage() {
     }
 
     // Tenant account: business dashboard only
+    await enforcePhoneVerification('/dashboard')
     return <DashboardClient tenants={tenants} showAdmin={showAdmin} hasDriver={hasDriver} />
   } catch (err) {
     if (err && typeof err === 'object' && 'digest' in err && String((err as { digest?: string }).digest).startsWith('NEXT_REDIRECT')) {

@@ -58,6 +58,7 @@ export default async function ManageMenuPage({
       <p className="mt-1 text-slate-400">Categories and products for your menu. Add or edit below.</p>
       <MenuManageClient
         slug={slug}
+        siteId={authResult.tenantId}
         initialCategories={categories || []}
         initialProducts={(products || []).map((p) => ({ ...p, categoryId: p.categoryRef }))}
       />

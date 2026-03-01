@@ -23,13 +23,20 @@ export async function PATCH(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
   const body = await req.json().catch(() => ({}))
   const wantOffline = body && body.isOnline === false
-  const driver = await client.fetch<{ _id: string; fcmToken?: string; pushSubscription?: { endpoint?: string } } | null>(
-    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, fcmToken, "pushSubscription": pushSubscription }`,
+  const driver = await client.fetch<{ _id: string; isVerifiedByAdmin?: boolean; fcmToken?: string; pushSubscription?: { endpoint?: string } } | null>(
+    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, isVerifiedByAdmin, fcmToken, "pushSubscription": pushSubscription }`,
     { userId }
   )
   if (!driver) return NextResponse.json({ error: 'Driver profile not found' }, { status: 404 })
   // Require push to be enabled before going online (core business: driver must receive order alerts)
   if (!wantOffline) {
+    if (driver.isVerifiedByAdmin !== true) {
+      return NextResponse.json(
+        { error: 'not_verified', message: 'Your profile is under review. You will be able to go online once verified.' },
+        { status: 403 }
+      )
+    }
+
     const hasPush = !!(driver.fcmToken || driver.pushSubscription?.endpoint)
     if (!hasPush) {
       return NextResponse.json(
@@ -77,13 +84,14 @@ export async function GET() {
   const driver = await writeClient.fetch<{
     _id: string
     isOnline?: boolean
+    isVerifiedByAdmin?: boolean
     lastSeenAt?: string
     onlineSince?: string
     nickname?: string
     fcmToken?: string
     pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
   } | null>(
-    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, isOnline, lastSeenAt, onlineSince, nickname, fcmToken, "pushSubscription": pushSubscription }`,
+    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, isOnline, isVerifiedByAdmin, lastSeenAt, onlineSince, nickname, fcmToken, "pushSubscription": pushSubscription }`,
     { userId }
   )
   if (!driver) return NextResponse.json({ error: 'Driver profile not found' }, { status: 404 })
@@ -144,6 +152,7 @@ export async function GET() {
   )
   return NextResponse.json({
     isOnline: driver.isOnline ?? false,
+    isVerifiedByAdmin: driver.isVerifiedByAdmin ?? false,
     lastSeenAt: driver.lastSeenAt,
     onlineSince: driver.onlineSince,
     activeDeliveriesCount,

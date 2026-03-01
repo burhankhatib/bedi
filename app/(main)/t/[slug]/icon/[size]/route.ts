@@ -7,7 +7,7 @@ import { urlFor } from '@/sanity/lib/image'
 const ALLOWED_SIZES = [48, 72, 96, 128, 144, 152, 192, 256, 384, 512]
 
 /** Theme background for icons (no transparency → no black circle on install/splash) */
-const ICON_BG = { r: 15, g: 23, b: 42, alpha: 1 } // #0f172a
+const ICON_BG = { r: 255, g: 255, b: 255, alpha: 1 } // #ffffff
 
 /** GET tenant PWA icon at the given size. Renders logo on solid background so install/splash never show a black circle. */
 export async function GET(

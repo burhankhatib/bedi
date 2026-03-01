@@ -8,7 +8,7 @@ import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
 import { useDriverPush } from '../DriverPushContext'
 import { useDriverStatus } from '../DriverStatusContext'
-import { useSanityLiveStream } from '@/lib/useSanityLiveStream'
+import { usePusherStream } from '@/lib/usePusherStream'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { parseCoordsFromGoogleMapsUrl, googleMapsNavigationUrl, wazeNavigationUrl } from '@/lib/maps-utils'
 import { getCityDisplayName } from '@/lib/registration-translations'
@@ -175,7 +175,7 @@ export default function DriverOrdersPage() {
     }
   }, [isOnline, fetchOrders])
 
-  useSanityLiveStream('/api/driver/orders/live', fetchOrders, { debounceMs: 700 })
+  usePusherStream('driver-global', 'order-update', fetchOrders, { debounceMs: 700 })
 
   // Once per session: if driver has push and is offline, send a friendly reminder push (Arabic).
   useEffect(() => {

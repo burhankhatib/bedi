@@ -6,6 +6,7 @@ import { urlFor } from '@/sanity/lib/image'
 import { normalizePhone } from '@/lib/driver-utils'
 import { isAllowedRegistrationCountry } from '@/lib/constants'
 import { getPlatformUser } from '@/lib/platform-user'
+import { sendAdminNotification } from '@/lib/admin-push'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -201,6 +202,14 @@ export async function PATCH(req: NextRequest) {
       `*[_type == "driver" && _id == $id][0]{ _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city }`,
       { id: placeholderByPhone._id }
     )
+    
+    // Notify admin about new driver
+    await sendAdminNotification(
+      'New Driver Pending Verification',
+      `${name} has claimed a driver profile and is waiting to be verified.`,
+      '/admin/reports'
+    )
+    
     return NextResponse.json({ ...taken, claimedPlaceholder: true })
   }
 
@@ -231,5 +240,13 @@ export async function PATCH(req: NextRequest) {
   }
   const created = await writeClient.create(createPayload)
   await upsertPlatformUserDriver(userId)
+  
+  // Notify admin about new driver
+  await sendAdminNotification(
+    'New Driver Pending Verification',
+    `${name} has registered as a driver and is waiting to be verified.`,
+    '/admin/reports'
+  )
+
   return NextResponse.json(created)
 }

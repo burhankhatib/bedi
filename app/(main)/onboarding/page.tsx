@@ -5,6 +5,7 @@ import { TENANTS_FOR_USER_QUERY } from '@/sanity/lib/queries'
 import { getDriverIdByClerkUserId } from '@/lib/driver'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { OnboardingClient } from './OnboardingClient'
+import { enforcePhoneVerification } from '@/lib/enforce-phone'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,8 @@ export default async function OnboardingPage() {
   if (!userId) {
     redirect('/sign-in?redirect_url=/onboarding')
   }
+
+  await enforcePhoneVerification('/onboarding')
 
   let email = ''
   try {

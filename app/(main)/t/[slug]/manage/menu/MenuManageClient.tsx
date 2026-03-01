@@ -32,7 +32,7 @@ import {
 import { Plus, Pencil, Trash2, Copy, ChevronDown, ChevronRight, GripVertical, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
-import { useSanityLiveStream } from '@/lib/useSanityLiveStream'
+import { usePusherStream } from '@/lib/usePusherStream'
 import { ProductFormModal, type ProductFormData } from './ProductFormModal'
 
 function SortableItem({
@@ -182,10 +182,12 @@ type Product = {
 
 export function MenuManageClient({
   slug,
+  siteId,
   initialCategories,
   initialProducts,
 }: {
   slug: string
+  siteId: string
   initialCategories: Category[]
   initialProducts: Product[]
 }) {
@@ -254,7 +256,7 @@ export function MenuManageClient({
     if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current)
   }, [])
 
-  useSanityLiveStream(slug ? `/api/tenants/${slug}/menu/live` : null, refreshMenuDebounced)
+  usePusherStream(siteId ? `tenant-${siteId}` : null, 'menu-update', refreshMenuDebounced)
 
   const [submittingCategory, setSubmittingCategory] = useState(false)
   const [sectionSuggestions, setSectionSuggestions] = useState<{ businessType?: string; commonSections: Array<{ title_en: string; title_ar: string }>; subcategories: Array<{ _id: string; title_en: string; title_ar: string }> } | null>(null)

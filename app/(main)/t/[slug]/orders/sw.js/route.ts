@@ -17,7 +17,7 @@ export async function GET(
     headers: {
       'Content-Type': 'application/javascript; charset=utf-8',
       'Cache-Control': 'public, max-age=0, must-revalidate',
-      'Service-Worker-Allowed': `/t/${slug}/orders`,
+      'Service-Worker-Allowed': `/t/${slug}/`,
     },
   })
 }

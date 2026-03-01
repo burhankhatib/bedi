@@ -27,6 +27,7 @@ export async function GET() {
       city?: string
       isOnline?: boolean
       vehicleType?: string
+      isVerifiedByAdmin?: boolean
       blockedBySuperAdmin?: boolean
     }>
   >(
@@ -38,6 +39,7 @@ export async function GET() {
       city,
       isOnline,
       vehicleType,
+      isVerifiedByAdmin,
       blockedBySuperAdmin
     }`
   )

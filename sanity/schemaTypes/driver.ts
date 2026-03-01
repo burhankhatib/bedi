@@ -92,6 +92,22 @@ export const driverType = defineType({
       hidden: true,
     }),
     defineField({
+      name: 'isVerifiedByAdmin',
+      title: 'Verified by Admin',
+      type: 'boolean',
+      initialValue: false,
+      description: 'Super admin must verify the driver after calling them before they can go online.',
+    }),
+    defineField({
+      name: 'welcomeFcmSent',
+      title: 'Welcome FCM Sent',
+      type: 'boolean',
+      initialValue: false,
+      readOnly: true,
+      hidden: true,
+      description: 'Tracks if the welcome push notification was sent upon admin verification.',
+    }),
+    defineField({
       name: 'isActive',
       title: 'Active',
       type: 'boolean',

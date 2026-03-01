@@ -22,12 +22,15 @@ const t = {
   completeDeliveriesAr: 'أكمل أو ألغِ توصيلاتك أولاً.',
   enableNotificationsEn: 'Enable notifications from the Orders page first.',
   enableNotificationsAr: 'فعّل الإشعارات من صفحة الطلبات أولاً.',
+  profileUnderReviewEn: 'Profile is under review. Please wait for verification.',
+  profileUnderReviewAr: 'الملف قيد المراجعة. يرجى انتظار التوثيق.',
 }
 
 export function DriverOnlineOfflineBar() {
   const { t: tLang } = useLanguage()
   const {
     isOnline,
+    isVerifiedByAdmin,
     loading,
     updating,
     duration,
@@ -55,9 +58,11 @@ export function DriverOnlineOfflineBar() {
   const disabled = updating || (isOnline && !canGoOffline) || (!isOnline && cannotGoOnline)
   const title = showCannotOffline
     ? tLang(t.completeDeliveriesEn, t.completeDeliveriesAr)
-    : !isOnline && cannotGoOnline
-      ? tLang(t.enableNotificationsEn, t.enableNotificationsAr)
-      : undefined
+    : !isVerifiedByAdmin
+      ? tLang(t.profileUnderReviewEn, t.profileUnderReviewAr)
+      : !isOnline && cannotGoOnline
+        ? tLang(t.enableNotificationsEn, t.enableNotificationsAr)
+        : undefined
 
   const loadingText = tLang(t.loadingEn, t.loadingAr)
   const expandedOnlineText = isOnline ? `${tLang(t.onlineForEn, t.onlineForAr)} ${duration || (tLang('0 min', '0 د'))}` : tLang(t.offlineCtaEn, t.offlineCtaAr)

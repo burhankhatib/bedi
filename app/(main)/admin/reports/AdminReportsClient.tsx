@@ -1,10 +1,21 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { FileWarning, Loader2, Phone, Archive, Shield, ShieldOff, MessageCircle, Mail } from 'lucide-react'
+import { FileWarning, Loader2, Phone, Archive, Shield, ShieldOff, MessageCircle, Mail, Truck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getCategoryLabel } from '@/lib/report-categories'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
+import { VerifyToggle } from '@/components/admin/VerifyToggle'
+import Link from 'next/link'
+
+type PendingDriver = {
+  _id: string
+  name?: string
+  phoneNumber?: string
+  country?: string
+  city?: string
+  _createdAt: string
+}
 
 type Report = {
   _id: string
@@ -84,6 +95,7 @@ export function AdminReportsClient() {
   const [reports, setReports] = useState<Report[]>([])
   const [reportCounts, setReportCounts] = useState<ReportCounts>({ tenant: {}, driver: {}, customer: {} })
   const [suspendedContacts, setSuspendedContacts] = useState<SuspendedContact[]>([])
+  const [pendingDrivers, setPendingDrivers] = useState<PendingDriver[]>([])
   const [loading, setLoading] = useState(true)
   const [showArchived, setShowArchived] = useState(false)
   const [busy, setBusy] = useState<Record<string, boolean>>({})
@@ -98,11 +110,13 @@ export function AdminReportsClient() {
       .then(([reportsData, contactsData]) => {
         setReports(Array.isArray(reportsData.reports) ? reportsData.reports : [])
         setReportCounts(reportsData.reportCounts ?? { tenant: {}, driver: {}, customer: {} })
+        setPendingDrivers(Array.isArray(reportsData.pendingDrivers) ? reportsData.pendingDrivers : [])
         setSuspendedContacts(Array.isArray(contactsData.contacts) ? contactsData.contacts : [])
       })
       .catch(() => {
         setReports([])
         setReportCounts({ tenant: {}, driver: {}, customer: {} })
+        setPendingDrivers([])
         setSuspendedContacts([])
       })
       .finally(() => setLoading(false))
@@ -192,6 +206,81 @@ export function AdminReportsClient() {
           Show archived (read)
         </label>
       </div>
+
+      {/* Pending Drivers */}
+      {pendingDrivers.length > 0 && (
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/40 overflow-hidden">
+          <h2 className="px-4 py-3 text-sm font-semibold text-slate-300 border-b border-slate-800/60 flex items-center justify-between md:px-6">
+            <span className="flex items-center gap-2">
+              <Truck className="size-4 text-amber-400" />
+              Drivers Pending Verification
+            </span>
+            <Button asChild variant="ghost" size="sm" className="h-6 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-400/10">
+              <Link href="/admin/drivers">Manage Drivers</Link>
+            </Button>
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-800/60 text-slate-400">
+                  <th className="px-4 py-3 font-medium md:px-6">Joined Date</th>
+                  <th className="px-4 py-3 font-medium md:px-6">Name</th>
+                  <th className="px-4 py-3 font-medium md:px-6">Phone</th>
+                  <th className="px-4 py-3 font-medium md:px-6">Location</th>
+                  <th className="px-4 py-3 font-medium md:px-6">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingDrivers.map((d) => (
+                  <tr key={d._id} className="border-b border-slate-800/40 hover:bg-slate-800/30">
+                    <td className="whitespace-nowrap px-4 py-3 md:px-6 text-slate-300">
+                      {d._createdAt ? new Date(d._createdAt).toLocaleString() : '—'}
+                    </td>
+                    <td className="px-4 py-3 md:px-6 text-slate-300 font-medium">
+                      {d.name || '—'}
+                    </td>
+                    <td className="px-4 py-3 md:px-6 font-mono text-slate-400">
+                      {d.phoneNumber || '—'}
+                    </td>
+                    <td className="px-4 py-3 md:px-6 text-slate-400">
+                      {[d.city, d.country].filter(Boolean).join(', ') || '—'}
+                    </td>
+                    <td className="px-4 py-3 md:px-6">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <VerifyToggle
+                          id={d._id}
+                          verified={false}
+                          onSuccess={() => setPendingDrivers(prev => prev.filter(x => x._id !== d._id))}
+                        />
+                        {d.phoneNumber && (
+                          <>
+                            <a
+                              href={getWhatsAppUrl(d.phoneNumber)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded border border-slate-600 bg-slate-800/50 px-2 py-1 text-xs text-slate-300 hover:bg-slate-700/50"
+                            >
+                              <MessageCircle className="size-3.5" />
+                              WhatsApp
+                            </a>
+                            <a
+                              href={`tel:${d.phoneNumber.replace(/[^\d+]/g, '')}`}
+                              className="inline-flex items-center gap-1 rounded border border-slate-600 bg-slate-800/50 px-2 py-1 text-xs text-slate-300 hover:bg-slate-700/50"
+                            >
+                              <Phone className="size-3.5" />
+                              Call
+                            </a>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Suspended account appeals / complaints */}
       {suspendedContacts.length > 0 && (

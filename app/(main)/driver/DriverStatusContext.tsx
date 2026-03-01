@@ -9,7 +9,8 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { useSanityLiveStream } from '@/lib/useSanityLiveStream'
+import { usePusherStream } from '@/lib/usePusherStream'
+import { useAuth } from '@clerk/nextjs'
 import { useDriverPush } from './DriverPushContext'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
@@ -32,6 +33,7 @@ const SKIP_APPLY_MS = 3500
 
 type DriverStatusContextValue = {
   isOnline: boolean
+  isVerifiedByAdmin: boolean
   onlineSince: string | undefined
   activeDeliveriesCount: number
   loading: boolean
@@ -51,6 +53,7 @@ export function useDriverStatus(): DriverStatusContextValue {
   if (!ctx) {
     return {
       isOnline: false,
+      isVerifiedByAdmin: false,
       onlineSince: undefined,
       activeDeliveriesCount: 0,
       loading: true,
@@ -71,12 +74,15 @@ export function DriverStatusProvider({ children }: { children: ReactNode }) {
   const { hasPush } = useDriverPush()
   const { showToast } = useToast()
   const [isOnline, setIsOnline] = useState(false)
+  const [isVerifiedByAdmin, setIsVerifiedByAdmin] = useState(false)
   const [onlineSince, setOnlineSince] = useState<string | undefined>()
   const [activeDeliveriesCount, setActiveDeliveriesCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const [duration, setDuration] = useState('')
   const skipStatusApplyUntilRef = useRef(0)
+
+  const { userId } = useAuth()
 
   const fetchStatus = useCallback(() => {
     return fetch('/api/driver/status')
@@ -88,6 +94,7 @@ export function DriverStatusProvider({ children }: { children: ReactNode }) {
           return
         }
         if (data && typeof data.isOnline === 'boolean') setIsOnline(data.isOnline)
+        if (data && typeof data.isVerifiedByAdmin === 'boolean') setIsVerifiedByAdmin(data.isVerifiedByAdmin)
         if (data?.onlineSince != null) setOnlineSince(data.onlineSince)
         if (typeof data?.activeDeliveriesCount === 'number') setActiveDeliveriesCount(data.activeDeliveriesCount)
         if (data?.autoOfflined === true) {
@@ -113,7 +120,7 @@ export function DriverStatusProvider({ children }: { children: ReactNode }) {
   }, [fetchStatus])
 
   // Real-time: refetch when driver document changes (toggle, auto-offline). No polling.
-  useSanityLiveStream('/api/driver/status/live', fetchStatus)
+  usePusherStream(userId ? `driver-${userId}` : null, 'driver-update', fetchStatus)
 
   useEffect(() => {
     if (!isOnline || !onlineSince) {
@@ -174,10 +181,11 @@ export function DriverStatusProvider({ children }: { children: ReactNode }) {
 
   const canGoOffline = activeDeliveriesCount === 0
   const showCannotOffline = isOnline && !canGoOffline
-  const cannotGoOnline = !hasPush
+  const cannotGoOnline = !hasPush || !isVerifiedByAdmin
 
   const value: DriverStatusContextValue = {
     isOnline,
+    isVerifiedByAdmin,
     onlineSince,
     activeDeliveriesCount,
     loading,

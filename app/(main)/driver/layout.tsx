@@ -5,6 +5,7 @@ import { TENANTS_FOR_USER_QUERY } from '@/sanity/lib/queries'
 import { getDriverIdByClerkUserId } from '@/lib/driver'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { DriverLayoutClient } from './DriverLayoutClient'
+import { enforcePhoneVerification } from '@/lib/enforce-phone'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,7 @@ export default async function DriverLayout({
       redirectToDriverSignIn()
     }
     if (!userId) redirectToDriverSignIn()
+    await enforcePhoneVerification('/driver')
 
     let email = ''
     try {

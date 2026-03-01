@@ -480,13 +480,10 @@ export function UnifiedOrderDialog({
                 <Input
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(toEnglishDigits(e.target.value))}
-                  placeholder={t('e.g., 0501234567', 'مثال: 0501234567')}
-                  className="h-14 text-lg rounded-2xl border-slate-100 bg-slate-50 focus:bg-white transition-all font-bold px-5"
+                  readOnly
+                  className="h-14 text-lg rounded-2xl border-slate-100 bg-slate-100 text-slate-500 font-bold px-5 cursor-not-allowed"
                   required
                   inputMode="tel"
-                  autoComplete="tel"
-                  autoFocus
                 />
               </div>
 
@@ -638,13 +635,10 @@ export function UnifiedOrderDialog({
                 <Input
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(toEnglishDigits(e.target.value))}
-                  placeholder={t('e.g., 0501234567', 'مثال: 0501234567')}
-                  className="h-14 text-lg rounded-2xl border-slate-100 bg-slate-50 focus:bg-white transition-all font-bold px-5"
+                  readOnly
+                  className="h-14 text-lg rounded-2xl border-slate-100 bg-slate-100 text-slate-500 font-bold px-5 cursor-not-allowed"
                   required
                   inputMode="tel"
-                  autoComplete="tel"
-                  autoFocus
                 />
               </div>
 
@@ -665,15 +659,7 @@ export function UnifiedOrderDialog({
                     </div>
                   </div>
                 ) : (
-                  <select
-                    value={areaId}
-                    onChange={(e) => setAreaId(e.target.value)}
-                    className="h-14 w-full text-lg rounded-2xl border border-slate-100 bg-slate-50 focus:bg-white transition-all font-bold px-5 cursor-pointer"
-                    required
-                  >
-                    <option value="">
-                      {t('Select your area', 'اختر منطقتك')}
-                    </option>
+                  <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-2 space-y-1.5">
                     {areas.map((area) => {
                       const areaName = lang === 'ar' ? area.name_ar : area.name_en
                       const priceText = area.deliveryPrice === 0
@@ -682,27 +668,30 @@ export function UnifiedOrderDialog({
                       const timeText = area.estimatedTime
                         ? ` • ${area.estimatedTime} ${t('min', 'دقيقة')}`
                         : ''
+                      const isSelected = areaId === area._id
                       return (
-                        <option key={area._id} value={area._id}>
-                          {areaName} - {priceText}{timeText}
-                        </option>
+                        <button
+                          key={area._id}
+                          type="button"
+                          onClick={() => setAreaId(area._id)}
+                          className={`w-full flex items-center justify-between p-3.5 rounded-xl text-left transition-all border ${
+                            isSelected 
+                              ? 'bg-green-50 border-green-500 shadow-sm ring-1 ring-green-500' 
+                              : 'bg-white border-slate-100 hover:border-slate-300'
+                          }`}
+                        >
+                          <div>
+                            <p className={`font-bold text-base ${isSelected ? 'text-green-900' : 'text-slate-800'}`}>
+                              {areaName}
+                            </p>
+                            <p className={`text-xs mt-0.5 font-semibold ${isSelected ? 'text-green-700' : 'text-slate-500'}`}>
+                              {t('Delivery:', 'التوصيل:')} {priceText}{timeText}
+                            </p>
+                          </div>
+                          {isSelected && <Check className="w-5 h-5 text-green-600 shrink-0 ml-2 rtl:mr-2 rtl:ml-0" />}
+                        </button>
                       )
                     })}
-                  </select>
-                )}
-                {selectedArea && (
-                  <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl">
-                    <p className="text-sm font-bold text-green-800">
-                      {t('Delivery Fee', 'رسوم التوصيل')}: {selectedArea.deliveryPrice === 0
-                        ? t('Free', 'مجاني')
-                        : `${selectedArea.deliveryPrice} ${selectedArea.currency}`
-                      }
-                      {selectedArea.estimatedTime && (
-                        <span className="ml-2 rtl:mr-2 rtl:ml-0">
-                          • {t('Est.', 'تقريباً')} {selectedArea.estimatedTime} {t('min', 'دقيقة')}
-                        </span>
-                      )}
-                    </p>
                   </div>
                 )}
               </div>

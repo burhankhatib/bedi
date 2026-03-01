@@ -39,7 +39,7 @@ export async function GET(
   const name = `${businessName} Orders`
   const shortName = name.length > 12 ? name.slice(0, 11) + '…' : name
   const startUrl = `${origin}/t/${slug}/orders`
-  const scope = `${origin}/t/${slug}/orders`
+  const scope = `${origin}/t/${slug}/`
 
   let icons: Array<{ src: string; sizes: string; type: string; purpose: string }>
   if (restaurantInfo?.logo) {
