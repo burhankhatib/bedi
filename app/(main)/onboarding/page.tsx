@@ -20,6 +20,8 @@ export default async function OnboardingPage() {
     redirect('/sign-in?redirect_url=/onboarding')
   }
 
+  await enforcePhoneVerification('/onboarding')
+
   let email = ''
   try {
     email = await getEmailForUser(userId, sessionClaims as Record<string, unknown> | null)
@@ -37,11 +39,6 @@ export default async function OnboardingPage() {
   ])
   const hasTenants = Array.isArray(rawTenants) && rawTenants.length > 0
   const hasDriver = !!driverId
-
-  // Only enforce Clerk phone verification when user already has a tenant (returning). New users can create business first, then we redirect to verify-phone with owner phone.
-  if (hasTenants) {
-    await enforcePhoneVerification('/onboarding')
-  }
 
   return <OnboardingClient showRoleChoice={!hasTenants && !hasDriver} />
 }

@@ -142,14 +142,9 @@ export default function SignInPhoneDirectClient() {
 
         {step === 'code' && (
           <>
-            <div className="mb-4">
-              <p className="text-sm text-slate-400 mb-2">
-                {t('Enter the 6-digit code we sent via SMS to', 'أدخل الرمز المكوّن من 6 أرقام الذي أرسلناه عبر رسالة SMS إلى')} <span className="font-mono text-white" dir="ltr">{ensureE164(phoneInput)}</span>
-              </p>
-              <p className="text-xs text-amber-500/90 bg-amber-500/10 p-3 rounded-lg border border-amber-500/20 leading-relaxed">
-                {t('Note: The code is sent via standard SMS (Text Message), NOT WhatsApp. If you don\'t receive it, try using the +970 country code instead of +972 or wait a few minutes.', 'ملاحظة: يتم إرسال الرمز عبر رسالة نصية قصيرة (SMS) وليس واتساب. إذا لم يصلك، ارجع للوراء وجرب استخدام المفتاح +970 بدلاً من +972 أو انتظر بضع دقائق.')}
-              </p>
-            </div>
+            <p className="text-sm text-slate-400 mb-3">
+              {t('Enter the 6-digit code we sent to your phone.', 'أدخل الرمز المكوّن من 6 أرقام الذي أرسلناه إلى هاتفك.')}
+            </p>
             <Input
               type="text"
               inputMode="numeric"
