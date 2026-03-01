@@ -696,18 +696,22 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                 <div className="p-5">
                   <p className="font-medium text-slate-800 mb-3">{data.driver.name}</p>
                   <div className="flex flex-wrap gap-3 items-center">
-                    <Button asChild size="sm" className="bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl h-10 shadow-sm">
-                      <a href={getWhatsAppUrl(data.driver.phoneNumber, '', countryCode) || '#'} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-1">
-                        <MessageCircle className="h-4 w-4" />
-                        {t('WhatsApp', 'واتساب')}
-                      </a>
-                    </Button>
-                    <Button asChild variant="outline" size="sm" className="rounded-xl border-slate-200 h-10 text-slate-700 hover:bg-slate-50">
-                      <a href={`tel:+${normalizePhoneForWhatsApp(data.driver.phoneNumber, countryCode)}`} className="inline-flex items-center gap-2 px-1">
-                        <Phone className="h-4 w-4" />
-                        {t('Call', 'اتصال')}
-                      </a>
-                    </Button>
+                    {!['completed', 'cancelled', 'refunded'].includes(data.order.status ?? '') && (
+                      <>
+                        <Button asChild size="sm" className="bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl h-10 shadow-sm">
+                          <a href={getWhatsAppUrl(data.driver.phoneNumber, '', countryCode) || '#'} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-1">
+                            <MessageCircle className="h-4 w-4" />
+                            {t('WhatsApp', 'واتساب')}
+                          </a>
+                        </Button>
+                        <Button asChild variant="outline" size="sm" className="rounded-xl border-slate-200 h-10 text-slate-700 hover:bg-slate-50">
+                          <a href={`tel:+${normalizePhoneForWhatsApp(data.driver.phoneNumber, countryCode)}`} className="inline-flex items-center gap-2 px-1">
+                            <Phone className="h-4 w-4" />
+                            {t('Call', 'اتصال')}
+                          </a>
+                        </Button>
+                      </>
+                    )}
                     <Button
                       type="button"
                       variant="ghost"

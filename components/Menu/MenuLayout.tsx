@@ -937,6 +937,26 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
       </Dialog>
 
       <CartToast />
+
+      {/* Floating Cart Action - Only visible when items are in cart */}
+      {!catalogOnly && totalItems > 0 && (
+        <div className="fixed bottom-6 left-0 right-0 z-40 px-4 pointer-events-none pb-[calc(env(safe-area-inset-bottom,0px)+4rem)] md:pb-0">
+          <div className="max-w-md mx-auto pointer-events-auto">
+            <Button
+              onClick={() => setIsOpen(true)}
+              className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-xl shadow-emerald-600/20 font-bold text-base flex items-center justify-between px-6 transition-transform active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 min-w-[2rem] items-center justify-center rounded-full bg-white/20 px-2 text-sm font-bold backdrop-blur-sm">
+                  {totalItems}
+                </div>
+                <span>{t('View Cart', 'عرض السلة')}</span>
+              </div>
+              <ShoppingCart className="h-5 w-5 opacity-90" />
+            </Button>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

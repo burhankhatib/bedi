@@ -177,7 +177,7 @@ export function SearchPageClient() {
   const [sectionsWithImages, setSectionsWithImages] = useState<SectionWithImage[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [filtersExpanded, setFiltersExpanded] = useState(() => expandFilters || !category)
+  const [filtersExpanded, setFiltersExpanded] = useState(false)
   const [allCategoryImageError, setAllCategoryImageError] = useState(false)
   const allCategoryImageUrl =
     category && !allCategoryImageError
