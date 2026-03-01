@@ -9,6 +9,7 @@ import { AppNav } from '@/components/saas/AppNav'
 import { useLanguage } from '@/components/LanguageContext'
 import { BUSINESS_TYPES } from '@/lib/constants'
 import { slugify } from '@/lib/slugify'
+import { toEnglishDigits } from '@/lib/phone'
 import { Loader2, Store, ArrowRight, Sparkles } from 'lucide-react'
 
 type Subcategory = { _id: string; slug: string; title_en: string; title_ar: string; businessType: string }
@@ -85,7 +86,20 @@ export function CreateBusinessForm() {
         setLoading(false)
         return
       }
-      router.push('/dashboard')
+      const digits = toEnglishDigits(phoneTrimmed).replace(/\D/g, '')
+      const countryCode = digits.startsWith('970') ? '+970' : '+972'
+      const e164 =
+        digits.startsWith('970') || digits.startsWith('972')
+          ? '+' + digits
+          : digits.startsWith('0') && digits.length >= 10
+            ? '+972' + digits.slice(1)
+            : countryCode + digits.replace(/^0+/, '')
+      const params = new URLSearchParams({
+        returnTo: '/dashboard',
+        phone: e164.startsWith('+') ? e164 : '+' + e164,
+      })
+      params.set('countryCode', countryCode)
+      router.push(`/verify-phone?${params.toString()}`)
       router.refresh()
     } catch {
       setError(t('Network error. Please try again.', 'خطأ في الشبكة. يرجى المحاولة مرة أخرى.'))

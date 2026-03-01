@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useUser, useReverification } from '@clerk/nextjs'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -31,6 +31,25 @@ export default function VerifyPhoneClient() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [pendingPhoneResource, setPendingPhoneResource] = useState<{ prepareVerification: () => Promise<unknown>; attemptVerification: (p: { code: string }) => Promise<unknown> } | null>(null)
+
+  // Pre-fill from query params (e.g. redirect from driver profile or tenant onboarding)
+  useEffect(() => {
+    const phoneParam = searchParams.get('phone')?.trim()
+    const codeParam = searchParams.get('countryCode')?.trim()
+    if (!phoneParam) return
+    const digits = phoneParam.replace(/\D/g, '')
+    if (digits.startsWith('970')) {
+      setCountryCode('+970')
+      setPhoneInput(digits.slice(3).replace(/^0+/, '') || digits.slice(3))
+    } else if (digits.startsWith('972')) {
+      setCountryCode('+972')
+      setPhoneInput(digits.slice(3).replace(/^0+/, '') || digits.slice(3))
+    } else {
+      if (codeParam === '+970') setCountryCode('+970')
+      else if (codeParam === '+972') setCountryCode('+972')
+      setPhoneInput(digits.startsWith('0') ? digits.slice(1) : digits)
+    }
+  }, [searchParams])
 
   const hasVerified = user?.phoneNumbers?.some(
     (p) => (p as { verification?: { status?: string | null } | null }).verification?.status === 'verified'
@@ -110,6 +129,12 @@ export default function VerifyPhoneClient() {
       const isPhoneNotEnabled = /phone_number is not a valid parameter|appropriate settings are enabled in the Clerk Dashboard/i.test(msg)
       const isCountryNotSupported = /not supported|from this country/i.test(msg)
       const isAlreadyInUse = /already in use|already used|linked to another|another (user|account|person)/i.test(msg)
+      const hasEmailNoPhone = (user?.emailAddresses?.length ?? 0) > 0 && !user?.phoneNumbers?.some((p) => (p as { verification?: { status?: string } }).verification?.status === 'verified')
+      const reverificationHint = hasEmailNoPhone
+        ? (lang === 'ar'
+          ? ' إذا سجّلت بالبريد، قد يُطلب منك تأكيد هويتك (كلمة المرور أو رمز البريد) قبل إرسال الرسالة.'
+          : ' If you signed up with email, you may need to confirm your identity (e.g. enter your password) before we can send the SMS.')
+        : ''
       setError(
         isPhoneNotEnabled
           ? (lang === 'ar'
@@ -124,7 +149,7 @@ export default function VerifyPhoneClient() {
                 ? 'هذا الرقم مرتبط بحساب آخر. سجّل الدخول بالحساب الذي يملك هذا الرقم، أو استخدم رقماً آخر. إذا كان هذا رقمك الوحيد، تواصل مع الدعم.'
                 : 'This number is linked to another account. Sign in with the account that has this number, or use a different number. If this is your only number, contact support.')
               : msg
-      )
+      ) + reverificationHint
     } finally {
       setLoading(false)
     }

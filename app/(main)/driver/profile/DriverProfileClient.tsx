@@ -175,7 +175,25 @@ export function DriverProfileClient() {
         }
         // Re-fetch server layout so it sees the new driver doc before showing orders (avoids redirect loop)
         router.refresh()
-        router.replace('/driver/orders?registered=1')
+        const phoneTrimmed = form.phoneNumber.replace(/\s/g, '').trim()
+        if (phoneTrimmed) {
+          const digits = toEnglishDigits(phoneTrimmed).replace(/\D/g, '')
+          const countryCode = digits.startsWith('970') ? '+970' : '+972'
+          const e164 =
+            digits.startsWith('970') || digits.startsWith('972')
+              ? '+' + digits
+              : digits.startsWith('0') && digits.length >= 10
+                ? '+972' + digits.slice(1)
+                : countryCode + digits.replace(/^0+/, '')
+          const params = new URLSearchParams({
+            returnTo: '/driver/orders',
+            phone: e164.startsWith('+') ? e164 : '+' + e164,
+          })
+          params.set('countryCode', countryCode)
+          router.replace(`/verify-phone?${params.toString()}`)
+        } else {
+          router.replace('/driver/orders?registered=1')
+        }
       } else {
         showToast(data?.error || t('Failed to save.', 'فشل الحفظ.'), '', 'error')
       }

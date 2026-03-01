@@ -50,7 +50,6 @@ export default async function DriverLayout({
       redirectToDriverSignIn()
     }
     if (!userId) redirectToDriverSignIn()
-    await enforcePhoneVerification('/driver')
 
     let email = ''
     try {
@@ -68,6 +67,11 @@ export default async function DriverLayout({
       getDriverIdByClerkUserId(userId),
     ])
     const hasTenants = Array.isArray(tenants) && tenants.length > 0
+    // Only enforce Clerk phone verification when user already has a driver doc (so they can complete profile first).
+    if (driverId) {
+      await enforcePhoneVerification('/driver')
+    }
+
     if (!driverId) {
       return <DriverLayoutClient hasNoProfileYet>{children}</DriverLayoutClient>
     }
