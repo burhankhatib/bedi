@@ -51,11 +51,14 @@ export async function POST(req: NextRequest) {
 
       await Promise.all(triggerPromises)
     } else if (_type === 'driver') {
-      // Check for welcome notification
+      // Check for welcome notification (only once per driver)
       if (token) {
         try {
-          const fullDriver = await client.fetch<{ isVerifiedByAdmin?: boolean; welcomeFcmSent?: boolean; fcmToken?: string; pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }; nickname?: string }>(`*[_type == "driver" && _id == $_id][0]`, { _id })
+          const fullDriver = await writeClient.fetch<{ isVerifiedByAdmin?: boolean; welcomeFcmSent?: boolean; fcmToken?: string; pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }; nickname?: string }>(`*[_type == "driver" && _id == $_id][0]`, { _id })
           if (fullDriver?.isVerifiedByAdmin && !fullDriver?.welcomeFcmSent) {
+            // Set flag FIRST so any re-triggered webhook (from this patch) sees it and skips sending again
+            await writeClient.patch(_id).set({ welcomeFcmSent: true }).commit()
+
             const pushData = getAdminVerifiedPushAr(fullDriver.nickname)
             const payload = { title: pushData.title, body: pushData.body, url: '/driver' }
             let sent = false
@@ -66,9 +69,6 @@ export async function POST(req: NextRequest) {
             if (!sent && fullDriver.pushSubscription?.endpoint && fullDriver.pushSubscription?.p256dh && fullDriver.pushSubscription?.auth && isPushConfigured()) {
               await sendPushNotification({ endpoint: fullDriver.pushSubscription.endpoint, keys: { p256dh: fullDriver.pushSubscription.p256dh, auth: fullDriver.pushSubscription.auth } }, payload)
             }
-
-            // Mark as sent so we don't send it again
-            await writeClient.patch(_id).set({ welcomeFcmSent: true }).commit()
           }
         } catch (e) {
           console.error('[Webhook] Failed to process driver welcome notification:', e)
