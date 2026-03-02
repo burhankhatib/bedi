@@ -19,6 +19,10 @@ export async function POST(req: Request) {
       apiToken: process.env.PRELUDE_API_KEY!,
     })
 
+    // #region agent log
+    fetch('http://127.0.0.1:7893/ingest/a956dccd-3cc7-4993-8038-2d7f86d93e5e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9a2ec5'},body:JSON.stringify({sessionId:'9a2ec5',hypothesisId:'H3',location:'check/route.ts:17',message:'Before Prelude check',data:{phoneNumber, code},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     const verification = await client.verification.check({
       target: {
         type: 'phone_number',
@@ -57,6 +61,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7893/ingest/a956dccd-3cc7-4993-8038-2d7f86d93e5e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9a2ec5'},body:JSON.stringify({sessionId:'9a2ec5',hypothesisId:'H1',location:'check/route.ts:catch',message:'Check route error',data:{errMsg: error instanceof Error ? error.message : String(error), errStack: error instanceof Error ? error.stack : undefined, isPreludeConstructor: typeof Prelude === 'undefined'},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     console.error('Error in Prelude verification check:', error)
     return new NextResponse('Invalid or expired verification code', { status: 400 })
   }
