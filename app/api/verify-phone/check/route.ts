@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth, clerkClient } from '@clerk/nextjs/server'
+import Prelude from "@prelude.so/sdk"
 
 export async function POST(req: Request) {
   try {
@@ -14,49 +15,39 @@ export async function POST(req: Request) {
     }
 
     // 1. Verify with Prelude
-    const response = await fetch('https://api.prelude.dev/v2/verification/check', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.PRELUDE_API_KEY}`,
-      },
-      body: JSON.stringify({
-        target: {
-          type: 'phone_number',
-          value: phoneNumber,
-        },
-        code: code,
-      }),
+    const client = new Prelude({
+      apiToken: process.env.PRELUDE_API_KEY!,
     })
 
-    if (!response.ok) {
-      const errorData = await response.text()
-      console.error('Prelude API error (check):', errorData)
-      return new NextResponse('Invalid or expired verification code', { status: 400 })
-    }
+    const verification = await client.verification.check({
+      target: {
+        type: 'phone_number',
+        value: phoneNumber,
+      },
+      code: code,
+    })
 
-    const preludeData = await response.json()
-    if (preludeData.status !== 'success') {
+    if (verification.status !== 'success') {
       return new NextResponse('Verification failed', { status: 400 })
     }
 
     // 2. Mark as verified in Clerk
-    const client = await clerkClient()
+    const clerk = await clerkClient()
     
     // First, let's see if the user already has this phone number added but unverified
-    const user = await client.users.getUser(userId)
+    const user = await clerk.users.getUser(userId)
     const existingPhone = user.phoneNumbers.find((p) => p.phoneNumber === phoneNumber)
     
     if (existingPhone) {
       // If it exists but is unverified, verify it
       if (existingPhone.verification?.status !== 'verified') {
-        await client.phoneNumbers.updatePhoneNumber(existingPhone.id, {
+        await clerk.phoneNumbers.updatePhoneNumber(existingPhone.id, {
           verified: true,
         })
       }
     } else {
       // If it doesn't exist, create it as verified
-      await client.phoneNumbers.createPhoneNumber({
+      await clerk.phoneNumbers.createPhoneNumber({
         userId,
         phoneNumber,
         verified: true,
@@ -67,6 +58,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error in Prelude verification check:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    return new NextResponse('Invalid or expired verification code', { status: 400 })
   }
 }
