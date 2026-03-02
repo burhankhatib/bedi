@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['web-push', 'firebase-admin', 'sanity', 'styled-components'],
+  serverExternalPackages: ['web-push', 'firebase-admin', 'sanity', 'styled-components', '@prelude.so/sdk'],
   experimental: {
     proxyClientMaxBodySize: '20mb',
     serverActions: { bodySizeLimit: '10mb' },

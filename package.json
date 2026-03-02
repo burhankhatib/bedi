@@ -8,7 +8,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "deploy": "clear && npm run build && git add . && (git commit -m \"deploy\" || true) && git push origin main && vercel --prod"
+    "deploy": "clear && npm run build && git add . && (git commit -m \"deploy\" || true) && git push origin main"
   },
   "dependencies": {
     "@clerk/localizations": "^3.37.2",
