@@ -659,7 +659,12 @@ export function UnifiedOrderDialog({
                     </div>
                   </div>
                 ) : (
-                  <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-2 space-y-1.5">
+                  <select
+                    value={areaId}
+                    onChange={(e) => setAreaId(e.target.value)}
+                    size={areas.length > 8 ? 8 : areas.length}
+                    className="w-full rounded-2xl border border-slate-200 bg-white p-2 text-base font-semibold shadow-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20 scrollbar-thin"
+                  >
                     {areas.map((area) => {
                       const areaName = lang === 'ar' ? area.name_ar : area.name_en
                       const priceText = area.deliveryPrice === 0
@@ -668,31 +673,17 @@ export function UnifiedOrderDialog({
                       const timeText = area.estimatedTime
                         ? ` • ${area.estimatedTime} ${t('min', 'دقيقة')}`
                         : ''
-                      const isSelected = areaId === area._id
                       return (
-                        <button
-                          key={area._id}
-                          type="button"
-                          onClick={() => setAreaId(area._id)}
-                          className={`w-full flex items-center justify-between p-3.5 rounded-xl text-left transition-all border ${
-                            isSelected 
-                              ? 'bg-green-50 border-green-500 shadow-sm ring-1 ring-green-500' 
-                              : 'bg-white border-slate-100 hover:border-slate-300'
-                          }`}
+                        <option 
+                          key={area._id} 
+                          value={area._id}
+                          className="p-3 my-0.5 rounded-lg cursor-pointer hover:bg-slate-50 checked:bg-green-100 checked:text-green-900 checked:font-bold"
                         >
-                          <div>
-                            <p className={`font-bold text-base ${isSelected ? 'text-green-900' : 'text-slate-800'}`}>
-                              {areaName}
-                            </p>
-                            <p className={`text-xs mt-0.5 font-semibold ${isSelected ? 'text-green-700' : 'text-slate-500'}`}>
-                              {t('Delivery:', 'التوصيل:')} {priceText}{timeText}
-                            </p>
-                          </div>
-                          {isSelected && <Check className="w-5 h-5 text-green-600 shrink-0 ml-2 rtl:mr-2 rtl:ml-0" />}
-                        </button>
+                          {areaName} — {t('Delivery:', 'التوصيل:')} {priceText}{timeText}
+                        </option>
                       )
                     })}
-                  </div>
+                  </select>
                 )}
               </div>
 
