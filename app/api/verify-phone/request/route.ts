@@ -5,6 +5,11 @@ import Prelude from "@prelude.so/sdk"
 export async function POST(req: Request) {
   try {
     const { userId } = await auth()
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7893/ingest/a956dccd-3cc7-4993-8038-2d7f86d93e5e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'9a2ec5'},body:JSON.stringify({sessionId:'9a2ec5',hypothesisId:'H3',location:'request/route.ts:8',message:'Auth check',data:{userId, authHasUserId: !!userId},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
