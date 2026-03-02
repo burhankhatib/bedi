@@ -24,6 +24,9 @@ export async function POST(req: Request) {
         type: "phone_number",
         value: phoneNumber,
       },
+      options: {
+        preferred_channel: "whatsapp",
+      },
     })
 
     return NextResponse.json({ success: true, data: verification })
