@@ -63,8 +63,13 @@ export function DriverLayoutClient({
   const navLabel = (item: (typeof NAV_ITEMS)[0]) => (lang === 'ar' ? item.labelAr : item.labelEn)
   const isRtl = lang === 'ar'
 
+  useEffect(() => {
+    if (hasNoProfileYet && pathname && !DRIVER_SETUP_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
+      router.replace('/driver/profile')
+    }
+  }, [hasNoProfileYet, pathname, router])
+
   if (hasNoProfileYet && pathname && !DRIVER_SETUP_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
-    router.replace('/driver/profile')
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-slate-400">
         <p>{t('Redirecting…', 'جاري التوجيه...')}</p>

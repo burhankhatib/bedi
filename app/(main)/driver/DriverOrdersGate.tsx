@@ -25,11 +25,15 @@ export function DriverOrdersGate({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage()
   const { hasPush, checked, loading, isDenied, needsIOSHomeScreen, subscribe } = useDriverPush()
   const [skipped, setSkipped] = useState(false)
+  const [isStandalone, setIsStandalone] = useState(true)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     try {
       setSkipped(sessionStorage.getItem(GATE_SKIP_KEY) === '1')
+      const standalone = window.matchMedia('(display-mode: standalone)').matches
+        || (window.navigator as unknown as { standalone?: boolean }).standalone === true
+      setIsStandalone(standalone)
     } catch {
       setSkipped(false)
     }
@@ -60,7 +64,7 @@ export function DriverOrdersGate({ children }: { children: React.ReactNode }) {
     setSkipped(true)
   }
 
-  if (!isDriverPage || isProfilePage || isReadOnlyPage || hasPush || skipped) return <>{children}</>
+  if (!isDriverPage || isProfilePage || isReadOnlyPage || hasPush || skipped || !isStandalone) return <>{children}</>
   if (!checked) return <>{children}</>
 
   const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent)

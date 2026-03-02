@@ -49,8 +49,13 @@ export default function VerifyPhoneClient() {
     (p) => (p as { verification?: { status?: string | null } | null }).verification?.status === 'verified'
   )
 
+  useEffect(() => {
+    if (user && hasVerified) {
+      window.location.href = returnTo
+    }
+  }, [user, hasVerified, returnTo])
+
   if (user && hasVerified) {
-    router.replace(returnTo)
     return (
       <div className="min-h-[40vh] flex items-center justify-center p-6">
         <p className="text-slate-600">{t('Redirecting…', 'جاري التوجيه…')}</p>
@@ -86,10 +91,21 @@ export default function VerifyPhoneClient() {
     try {
       const phoneNumber = ensureE164(raw, countryCode)
 
+      let dispatchId: string | undefined
+      const sdkKey = process.env.NEXT_PUBLIC_PRELUDE_SDK_KEY
+      if (sdkKey) {
+        try {
+          const { dispatchSignals } = await import('@prelude.so/js-sdk/signals')
+          dispatchId = await dispatchSignals(sdkKey)
+        } catch (err) {
+          console.warn('Prelude SDK dispatch failed:', err)
+        }
+      }
+
       const res = await fetch('/api/verify-phone/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber }),
+        body: JSON.stringify({ phoneNumber, dispatchId }),
       })
 
       if (!res.ok) {
@@ -127,7 +143,9 @@ export default function VerifyPhoneClient() {
 
       await user?.reload()
       setStep('done')
-      setTimeout(() => router.replace(returnTo), 1500)
+      setTimeout(() => {
+        window.location.href = returnTo
+      }, 1500)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Invalid code'
       setError(msg)

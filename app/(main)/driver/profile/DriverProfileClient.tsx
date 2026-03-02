@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
 import { toEnglishDigits } from '@/lib/phone'
 import { getCountryNameAr, getCityNameAr } from '@/lib/registration-translations'
-import { Truck, Upload, ImageIcon } from 'lucide-react'
+import { Truck, Upload, ImageIcon, Trash2, AlertTriangle } from 'lucide-react'
 
 const VEHICLE_OPTIONS = [
   { value: '', label: '—', labelAr: '—' },
@@ -50,6 +50,8 @@ export function DriverProfileClient() {
   const [countries, setCountries] = useState<Array<{ code: string; name: string }>>([])
   const [cities, setCities] = useState<string[]>([])
   const [isNewRegistration, setIsNewRegistration] = useState(false)
+  const [deleteConfirming, setDeleteConfirming] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
   const { showToast } = useToast()
   const { t, lang } = useLanguage()
 
@@ -127,6 +129,25 @@ export function DriverProfileClient() {
     }
   }
 
+  const handleDeleteProfile = async () => {
+    setDeleteLoading(true)
+    try {
+      const res = await fetch('/api/driver/profile', { method: 'DELETE' })
+      if (res.ok) {
+        showToast(t('Profile deleted permanently.', 'تم حذف الملف نهائياً.'), '', 'success')
+        window.location.href = '/' // redirect to home
+      } else {
+        const data = await res.json().catch(() => ({}))
+        showToast(data?.error || t('Failed to delete profile.', 'فشل حذف الملف.'), '', 'error')
+      }
+    } catch {
+      showToast(t('Failed to delete profile.', 'فشل حذف الملف.'), '', 'error')
+    } finally {
+      setDeleteLoading(false)
+      setDeleteConfirming(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name.trim() || !form.phoneNumber.trim()) return
@@ -190,9 +211,9 @@ export function DriverProfileClient() {
             phone: e164.startsWith('+') ? e164 : '+' + e164,
           })
           params.set('countryCode', countryCode)
-          router.replace(`/verify-phone?${params.toString()}`)
+          window.location.href = `/verify-phone?${params.toString()}`
         } else {
-          router.replace('/driver/orders?registered=1')
+          window.location.href = '/driver/orders?registered=1'
         }
       } else {
         showToast(data?.error || t('Failed to save.', 'فشل الحفظ.'), '', 'error')
@@ -407,6 +428,57 @@ export function DriverProfileClient() {
           </p>
         )}
       </form>
+
+      {!isNewRegistration && (
+        <div className="mt-8 border-t border-rose-900/30 pt-6">
+          <h3 className="text-lg font-semibold text-rose-500 mb-2">
+            {t('Danger Zone', 'منطقة الخطر')}
+          </h3>
+          <p className="text-sm text-slate-400 mb-4">
+            {t('Permanently delete your profile. This action cannot be undone. All your active orders will be automatically reassigned.', 'حذف ملفك الشخصي نهائياً. لا يمكن التراجع عن هذا الإجراء. سيتم إعادة تعيين جميع طلباتك النشطة تلقائياً.')}
+          </p>
+
+          {deleteConfirming ? (
+            <div className="rounded-xl border border-rose-600/40 bg-rose-950/30 p-4">
+              <div className="flex items-start gap-3 mb-4">
+                <AlertTriangle className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-rose-200">
+                  {t('Are you absolutely sure you want to delete your profile? All data will be lost.', 'هل أنت متأكد تماماً أنك تريد حذف ملفك الشخصي؟ سيتم فقدان جميع البيانات.')}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  onClick={handleDeleteProfile}
+                  disabled={deleteLoading}
+                  className="bg-rose-600 text-white hover:bg-rose-700"
+                >
+                  {deleteLoading ? t('Deleting...', 'جاري الحذف...') : t('Yes, permanently delete', 'نعم، احذف نهائياً')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDeleteConfirming(false)}
+                  disabled={deleteLoading}
+                  className="border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
+                >
+                  {t('Cancel', 'إلغاء')}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteConfirming(true)}
+              className="border-rose-900/50 bg-rose-950/20 text-rose-400 hover:bg-rose-900/40 hover:text-rose-300"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {t('Permanently delete my profile', 'حذف ملفي الشخصي نهائياً')}
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

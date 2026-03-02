@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Bell, CheckCircle2, RefreshCw, Share } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
@@ -11,8 +11,20 @@ export function DriverPushSetup() {
   const { t } = useLanguage()
   const { hasPush, checked, loading, isDenied, needsIOSHomeScreen, subscribe, refreshToken } = useDriverPush()
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isStandalone, setIsStandalone] = useState(true)
 
-  if (!checked) return null
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const standalone = window.matchMedia('(display-mode: standalone)').matches
+        || (window.navigator as unknown as { standalone?: boolean }).standalone === true
+      setIsStandalone(standalone)
+    } catch {
+      setIsStandalone(true)
+    }
+  }, [])
+
+  if (!checked || !isStandalone) return null
 
   // Push is active — show compact status + refresh option
   if (hasPush) {

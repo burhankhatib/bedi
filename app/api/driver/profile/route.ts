@@ -105,6 +105,71 @@ function readBody(body: Record<string, unknown>) {
 }
 
 /** PATCH or create driver profile. When phone matches a tenant-added placeholder (no clerkUserId), driver "takes control" of that profile. New registrations require rulesAcknowledged. */
+export async function DELETE(req: NextRequest) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
+
+  const driver = await client.fetch<{ _id: string } | null>(
+    `*[_type == "driver" && clerkUserId == $userId][0]{ _id }`,
+    { userId }
+  )
+  if (!driver?._id) {
+    return NextResponse.json({ error: 'Driver profile not found' }, { status: 404 })
+  }
+
+  try {
+    // 1. Find or create "Default Driver"
+    let defaultDriver = await writeClient.fetch<{ _id: string } | null>(
+      `*[_type == "driver" && name == "Default Driver"][0]{ _id }`
+    )
+    if (!defaultDriver) {
+      defaultDriver = await writeClient.create({
+        _type: 'driver',
+        name: 'Default Driver',
+        phoneNumber: '0000000000',
+        normalizedPhone: '0000000000',
+        isActive: false,
+        rulesAcknowledged: true,
+      })
+    }
+
+    // 2. Reassign all orders to Default Driver
+    const orderIds = await writeClient.fetch<string[]>(
+      `*[_type == "order" && assignedDriver._ref == $driverId]._id`,
+      { driverId: driver._id }
+    )
+
+    for (const orderId of orderIds) {
+      try {
+        await writeClient
+          .patch(orderId)
+          .set({
+            assignedDriver: { _type: 'reference', _ref: defaultDriver._id },
+          })
+          .commit()
+      } catch (e) {
+        console.warn(`[Driver Delete] Failed to patch order ${orderId}:`, e)
+      }
+    }
+
+    // 3. Delete driver profile
+    await writeClient.delete(driver._id)
+
+    // 4. Update platformUser to remove isDriver status
+    const existing = await getPlatformUser(userId)
+    if (existing) {
+      await writeClient.patch(existing._id).set({ isDriver: false }).commit()
+    }
+
+    return NextResponse.json({ success: true, message: 'Profile deleted permanently.' })
+  } catch (err) {
+    console.error('[Driver Delete] Error:', err)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+  }
+}
+
+/** PATCH or create driver profile. When phone matches a tenant-added placeholder (no clerkUserId), driver "takes control" of that profile. New registrations require rulesAcknowledged. */
 export async function PATCH(req: NextRequest) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

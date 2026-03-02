@@ -10,7 +10,7 @@ export async function POST(req: Request) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    const { phoneNumber } = await req.json()
+    const { phoneNumber, dispatchId } = await req.json()
     if (!phoneNumber) {
       return new NextResponse('Phone number is required', { status: 400 })
     }
@@ -18,6 +18,8 @@ export async function POST(req: Request) {
     const client = new Prelude({
       apiToken: process.env.PRELUDE_API_KEY!,
     })
+
+    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || req.headers.get('cf-connecting-ip') || undefined
 
     const verification = await client.verification.create({
       target: {
@@ -27,6 +29,8 @@ export async function POST(req: Request) {
       options: {
         preferred_channel: "whatsapp",
       },
+      ...(dispatchId && { dispatch_id: dispatchId }),
+      ...(ip && { signals: { ip } }),
     })
 
     return NextResponse.json({ success: true, data: verification })

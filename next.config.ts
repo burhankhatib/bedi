@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  transpilePackages: ['@prelude.so/js-sdk'],
   serverExternalPackages: ['web-push', 'firebase-admin', 'sanity', 'styled-components', '@prelude.so/sdk'],
   experimental: {
     proxyClientMaxBodySize: '20mb',
