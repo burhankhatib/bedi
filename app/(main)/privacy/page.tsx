@@ -132,10 +132,7 @@ export default function PrivacyPage() {
           <dt className="font-medium text-slate-400">{t('Business ID number', 'رقم هوية الأعمال')}</dt>
           <dd className="mt-0.5 font-mono text-slate-200">*****1655</dd>
         </div>
-        <div>
-          <dt className="font-medium text-slate-400">{t('Nationality', 'الجنسية')}</dt>
-          <dd className="mt-0.5 text-slate-200">{t('Israeli', 'إسرائيلي')}</dd>
-        </div>
+       
         <div>
           <dt className="font-medium text-slate-400">{t('Primary contact number', 'رقم الاتصال الرئيسي')}</dt>
           <dd className="mt-0.5 font-mono text-slate-200" dir="ltr">+970569611116</dd>
