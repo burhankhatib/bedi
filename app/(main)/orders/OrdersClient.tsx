@@ -81,9 +81,11 @@ interface OrdersClientProps {
   openOrderIdForTableRequest?: string
   /** Called after acknowledging a table request (stops ringing, updates UI) */
   onAcknowledgeTableRequest?: (orderId: string) => void
+  /** Called when the order details modal opens or closes (so parent can hide blocking dialogs) */
+  onModalOpenChange?: (open: boolean) => void
 }
 
-export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOrderIdForTableRequest, onAcknowledgeTableRequest }: OrdersClientProps) {
+export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOrderIdForTableRequest, onAcknowledgeTableRequest, onModalOpenChange }: OrdersClientProps) {
   const { t, lang } = useLanguage()
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -117,6 +119,11 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     const order = orders.find((o) => o._id === openOrderIdForTableRequest)
     if (order) setSelectedOrder(order)
   }, [openOrderIdForTableRequest, orders])
+
+  // Notify parent when modal opens/closes so the red-bell dialog can be hidden and modal is clickable
+  useEffect(() => {
+    onModalOpenChange?.(selectedOrder != null)
+  }, [selectedOrder, onModalOpenChange])
 
   // Set default to today's date for initial load
   useEffect(() => {

@@ -47,6 +47,8 @@ interface OrderNotificationsProps {
   initialStandaloneTableRequests?: StandaloneTableRequest[]
   /** When provided (e.g. tenant page), use this sound so it works without fetching global restaurantInfo */
   initialNotificationSound?: string
+  /** When true, only show volume control; do not show the blocking alert dialog (so order details modal can receive touches) */
+  suppressDialog?: boolean
 }
 
 export function OrderNotifications({
@@ -57,6 +59,7 @@ export function OrderNotifications({
   initialTableRequests = [],
   initialStandaloneTableRequests = [],
   initialNotificationSound: initialSound,
+  suppressDialog = false,
 }: OrderNotificationsProps) {
   const [newOrders, setNewOrders] = useState<NewOrder[]>(initialNewOrders)
   const [tableRequests, setTableRequests] = useState<TableRequest[]>(initialTableRequests)
@@ -240,6 +243,26 @@ export function OrderNotifications({
 
   if (totalAlerts === 0) {
     return null
+  }
+
+  if (suppressDialog) {
+    return (
+      <div className="fixed bottom-4 right-4 z-[350] bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-600 p-3 max-w-xs">
+        {soundBlocked && (
+          <Button type="button" size="sm" className="w-full mb-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-medium" onClick={() => { notificationAudioRef.current?.play().then(() => setSoundBlocked(false)).catch(() => {}) }}>
+            <Volume2 className="w-4 h-4 mr-1.5 inline" />
+            Click to enable sound
+          </Button>
+        )}
+        <div className="flex items-center gap-2">
+          <Button onClick={toggleMute} variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" title={isMuted ? 'Unmute' : 'Mute'}>
+            {isMuted ? <VolumeX className="w-4 h-4 text-slate-600 dark:text-slate-400" /> : <Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
+          </Button>
+          <input type="range" min="0" max="1" step="0.1" value={isMuted ? 0 : volume} onChange={handleVolumeChange} className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-orange-500" title="Volume" />
+          <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 w-8 text-right shrink-0">{Math.round((isMuted ? 0 : volume) * 100)}%</span>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -65,6 +65,7 @@ export function TenantOrdersLive({
   const acknowledgedIdsRef = useRef<Set<string>>(new Set())
   const prevOrdersRef = useRef<Order[]>(initialOrders)
   const liveUpdateTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const [orderModalOpen, setOrderModalOpen] = useState(false)
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -175,6 +176,7 @@ export function TenantOrdersLive({
         skipProtection
         openOrderIdForTableRequest={openOrderIdForTableRequest}
         onAcknowledgeTableRequest={handleTableRequestAcknowledged}
+        onModalOpenChange={setOrderModalOpen}
       />
       <OrderNotificationsWrapper
         initialNewOrders={newOrders}
@@ -185,6 +187,7 @@ export function TenantOrdersLive({
         onAcknowledged={handleAcknowledged}
         onTableRequestAcknowledged={handleTableRequestAcknowledged}
         onStandaloneTableRequestAcknowledged={handleStandaloneTableRequestAcknowledged}
+        suppressDialog={orderModalOpen}
       />
     </>
   )

@@ -723,9 +723,10 @@ Please deliver this order to the customer.
       aria-modal="true"
     >
       <div
-        className="bg-white text-slate-900 rounded-3xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-xl relative z-10"
+        className="bg-white text-slate-900 rounded-3xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden shadow-xl relative z-10 overscroll-contain touch-pan-y"
         onClick={(e) => e.stopPropagation()}
         dir={lang === 'ar' ? 'rtl' : 'ltr'}
+        style={{ WebkitOverflowScrolling: 'touch' }}
       >
           {/* Header */}
         <div className="flex items-start justify-between gap-4 mb-6">
