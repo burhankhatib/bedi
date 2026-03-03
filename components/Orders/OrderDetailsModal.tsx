@@ -106,7 +106,7 @@ function TableRequestBanner({
   const isHelp = order.customerRequestType === 'call_waiter'
   const paymentLabel = order.customerRequestPaymentMethod === 'cash' ? t('Cash', 'نقداً') : t('Card', 'بطاقة')
   return (
-    <div className="bg-amber-100 border-2 border-amber-400 rounded-2xl p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div className="bg-amber-100 border-2 border-amber-400 rounded-2xl p-4 mb-6 flex flex-wrap items-center justify-between gap-3 relative z-20">
       <div className="flex items-center gap-3">
         {isHelp ? (
           <HandHelping className="w-8 h-8 text-amber-700 shrink-0" />
@@ -122,13 +122,16 @@ function TableRequestBanner({
         </div>
       </div>
       <Button
-        onClick={async () => {
+        type="button"
+        onClick={async (e) => {
+          e.preventDefault()
+          e.stopPropagation()
           setLoading(true)
           await Promise.resolve(onAcknowledge())
           setLoading(false)
         }}
         disabled={loading}
-        className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shrink-0"
+        className="bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shrink-0 cursor-pointer touch-manipulation relative z-30"
       >
         <Check className="w-4 h-4 mr-2" />
         {t('Okay', 'موافق')}
@@ -713,9 +716,17 @@ Please deliver this order to the customer.
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] overflow-y-auto" onClick={onClose}>
-      <div className="min-h-full flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <div className="bg-white text-slate-900 rounded-3xl p-8 max-w-3xl w-full relative" onClick={(e) => e.stopPropagation()} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div
+      className="fixed inset-0 z-[400] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="bg-white text-slate-900 rounded-3xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-xl relative z-10"
+        onClick={(e) => e.stopPropagation()}
+        dir={lang === 'ar' ? 'rtl' : 'ltr'}
+      >
           {/* Header */}
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
@@ -1533,7 +1544,6 @@ Please deliver this order to the customer.
           )}
         </div>
       </div>
-    </div>
     </div>
   )
 }
