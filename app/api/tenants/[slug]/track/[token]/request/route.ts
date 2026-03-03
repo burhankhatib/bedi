@@ -6,6 +6,8 @@ import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
 import { isFCMConfigured } from '@/lib/fcm'
 import { isPushConfigured } from '@/lib/push'
 
+import { pusherServer } from '@/lib/pusher'
+
 export const dynamic = 'force-dynamic'
 
 const freshClient = client.withConfig({ useCdn: false })
@@ -78,6 +80,8 @@ export async function POST(
     p = p.unset(['customerRequestPaymentMethod'])
   }
   await p.commit()
+  
+  await pusherServer.trigger(`tenant-${tenantId}`, 'order-update', { orderId: order._id }).catch(() => {})
 
   // Send high-priority FCM/push to tenant (owner) and all staff
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''

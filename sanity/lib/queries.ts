@@ -110,7 +110,17 @@ export const ANALYTICS_QUERY = defineQuery(`*[_type == "order"] {
 export const NEW_ORDERS_QUERY = defineQuery(`*[_type == "order" && status == "new"] | order(createdAt desc) {
   _id,
   orderNumber,
-  createdAt
+  createdAt,
+  orderType,
+  customerName,
+  customerPhone,
+  tableNumber,
+  deliveryAddress,
+  deliveryArea->{_id, name_en, name_ar},
+  deliveryLat,
+  deliveryLng,
+  totalAmount,
+  currency
 }`)
 
 // Tenant-scoped: filter by site (tenant) ref. Use $siteId = tenant document _id.
@@ -219,7 +229,17 @@ export const ORDERS_QUERY_TENANT = defineQuery(`*[_type == "order" && ${siteFilt
 export const NEW_ORDERS_QUERY_TENANT = defineQuery(`*[_type == "order" && ${siteFilter} && status == "new"] | order(createdAt desc) {
   _id,
   orderNumber,
-  createdAt
+  createdAt,
+  orderType,
+  customerName,
+  customerPhone,
+  tableNumber,
+  deliveryAddress,
+  deliveryArea->{_id, name_en, name_ar},
+  deliveryLat,
+  deliveryLng,
+  totalAmount,
+  currency
 }`)
 
 export const ANALYTICS_QUERY_TENANT = defineQuery(`*[_type == "order" && ${siteFilter}] {

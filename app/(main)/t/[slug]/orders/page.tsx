@@ -63,7 +63,21 @@ export default async function TenantOrdersPage({
         customerRequestType, customerRequestPaymentMethod, customerRequestedAt, customerRequestAcknowledgedAt,
         tipPercent, tipAmount
       }`, { siteId }),
-      freshClient.fetch(`*[_type == "order" && ${siteFilter} && status == "new"] | order(createdAt desc) { _id, orderNumber, createdAt }`, { siteId }),
+      freshClient.fetch(`*[_type == "order" && ${siteFilter} && status == "new"] | order(createdAt desc) {
+        _id,
+        orderNumber,
+        createdAt,
+        orderType,
+        customerName,
+        customerPhone,
+        tableNumber,
+        deliveryAddress,
+        deliveryArea->{_id, name_en, name_ar},
+        deliveryLat,
+        deliveryLng,
+        totalAmount,
+        currency
+      }`, { siteId }),
       freshClient.fetch(`*[_type == "order" && ${siteFilter} && orderType == "dine-in" && status != "completed" && defined(customerRequestedAt) && !defined(customerRequestAcknowledgedAt)] | order(customerRequestedAt desc) {
         _id, orderNumber, tableNumber, customerRequestType, customerRequestPaymentMethod, customerRequestedAt
       }`, { siteId }),

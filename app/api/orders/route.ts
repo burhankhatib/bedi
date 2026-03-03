@@ -8,6 +8,7 @@ import { isVerifiedPhoneForUser } from '@/lib/order-auth'
 import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
 import { isPushConfigured } from '@/lib/push'
 import { isFCMConfigured } from '@/lib/fcm'
+import { pusherServer } from '@/lib/pusher'
 
 function isTenantDeactivated(tenant: { deactivated?: boolean; deactivateUntil?: string | null }): boolean {
   if (!tenant?.deactivated) return false
@@ -263,6 +264,9 @@ export async function POST(request: NextRequest) {
         const url = `${base}${path}`
         const icon = `${base}/t/${tenantSlug}/icon/192`
         const num = result.orderNumber ?? result._id?.slice(-6)
+        
+        // Trigger live UI refresh immediately
+        await pusherServer.trigger(`tenant-${siteRef._ref}`, 'order-update', { orderId: result._id }).catch(() => {})
 
         // Fetch business name for personalised Arabic notification
         let businessName = tenantSlug

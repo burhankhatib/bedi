@@ -713,9 +713,10 @@ Please deliver this order to the customer.
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))]" onClick={onClose}>
-      <div className="bg-white text-slate-900 rounded-3xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]" onClick={(e) => e.stopPropagation()} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-        {/* Header */}
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] overflow-y-auto" onClick={onClose}>
+      <div className="min-h-full flex items-center justify-center p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="bg-white text-slate-900 rounded-3xl p-8 max-w-3xl w-full relative" onClick={(e) => e.stopPropagation()} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+          {/* Header */}
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -753,15 +754,32 @@ Please deliver this order to the customer.
           <TableRequestBanner
             order={localOrder}
             onAcknowledge={async () => {
-              if (!tenantSlug || !onAcknowledgeTableRequest) return
               try {
-                const res = await fetch(`/api/tenants/${tenantSlug}/orders/status`, {
+                const url = tenantSlug 
+                  ? `/api/tenants/${tenantSlug}/orders/status` 
+                  : `/api/orders/status`
+                const res = await fetch(url, {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ orderId: localOrder._id, acknowledgeTableRequest: true }),
                 })
-                if (res.ok) onAcknowledgeTableRequest(localOrder._id)
-              } catch (_) {}
+                if (res.ok) {
+                  const now = new Date().toISOString()
+                  setLocalOrder(prev => ({ ...prev, customerRequestAcknowledgedAt: now }))
+                  if (onAcknowledgeTableRequest) {
+                    onAcknowledgeTableRequest(localOrder._id)
+                  }
+                  if (onOrderUpdated) {
+                    onOrderUpdated({ ...localOrder, customerRequestAcknowledgedAt: now })
+                  }
+                  showToast(t('Request acknowledged', 'تم الرد على الطلب'), '', 'success')
+                } else {
+                  showToast(t('Failed to acknowledge request', 'فشل الرد على الطلب'), '', 'error')
+                }
+              } catch (e) {
+                console.error('Failed to acknowledge table request:', e)
+                showToast(t('Failed to acknowledge request', 'فشل الرد على الطلب'), '', 'error')
+              }
             }}
             t={t}
           />
@@ -1515,6 +1533,7 @@ Please deliver this order to the customer.
           )}
         </div>
       </div>
+    </div>
     </div>
   )
 }

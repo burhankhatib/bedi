@@ -6,6 +6,8 @@ import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
 import { isFCMConfigured } from '@/lib/fcm'
 import { isPushConfigured } from '@/lib/push'
 
+import { pusherServer } from '@/lib/pusher'
+
 export const dynamic = 'force-dynamic'
 
 const freshClient = client.withConfig({ useCdn: false })
@@ -54,6 +56,7 @@ export async function POST(
         type: 'call_waiter',
         createdAt: now,
       })
+      await pusherServer.trigger(`tenant-${tenantId}`, 'order-update', { _type: 'tableServiceRequest' }).catch(() => {})
     } catch (e) {
       console.error('[table-request] Failed to create tableServiceRequest:', e)
       return NextResponse.json({ error: 'Failed to save request' }, { status: 500 })
