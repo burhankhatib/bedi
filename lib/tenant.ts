@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { client, clientNoCdn } from '@/sanity/lib/client'
 
 export type Tenant = {
@@ -107,8 +108,8 @@ export function isTenantSubscriptionExpired(tenant: {
   return false
 }
 
-/** Get tenant by URL slug (e.g. from /t/[slug]). Uses no-CDN for fresh data on menu pages. */
-export async function getTenantBySlug(
+/** Get tenant by URL slug (e.g. from /t/[slug]). Uses no-CDN for fresh data on menu pages. Cached per request so metadata + page share one fetch. */
+export const getTenantBySlug = cache(async function getTenantBySlug(
   slug: string,
   options?: { useCdn?: boolean }
 ): Promise<Tenant | null> {
@@ -116,7 +117,7 @@ export async function getTenantBySlug(
   const c = options?.useCdn === false ? clientNoCdn : client
   const t = await c.fetch<Tenant | null>(TENANT_QUERY, { slug })
   return t ?? null
-}
+})
 
 /** Get all tenants for this user (by Clerk user ID and optionally by owner email so same email = same list). */
 export async function getTenantsForUser(

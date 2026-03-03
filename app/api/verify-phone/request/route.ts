@@ -21,6 +21,12 @@ export async function POST(req: Request) {
 
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || req.headers.get('cf-connecting-ip') || undefined
 
+    // Optional: send events to our webhook (requires PRELUDE_WEBHOOK_PUBLIC_KEY for signature verification)
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
+    const callbackUrl = baseUrl
+      ? `${baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`}/api/webhooks/prelude`
+      : undefined
+
     // Prefer WhatsApp for +972/+970; force message channel (no silent verification) so OTP is actually sent
     const isIsrael = phoneNumber.startsWith('+972')
     const isPalestine = phoneNumber.startsWith('+970')
@@ -35,6 +41,7 @@ export async function POST(req: Request) {
         method: "message",
         preferred_channel: "whatsapp",
         ...(locale && { locale }),
+        ...(callbackUrl && { callback_url: callbackUrl }),
       },
       ...(dispatchId && { dispatch_id: dispatchId }),
       ...(ip && { signals: { ip } }),

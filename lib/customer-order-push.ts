@@ -64,13 +64,18 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
   const tenantId = order.siteRef
   if (!tenantId) return false
 
-  const [tenant, restaurant] = await Promise.all([
-    client.fetch<{ slug?: string } | null>(`*[_type == "tenant" && _id == $id][0]{ "slug": slug.current }`, { id: tenantId }),
-    client.fetch<{ name_en?: string; name_ar?: string } | null>(
-      `*[_type == "restaurantInfo" && site._ref == $siteId][0]{ name_en, name_ar }`,
-      { siteId: tenantId }
-    ),
-  ])
+  const combined = await client.fetch<{
+    tenant: { slug?: string } | null
+    restaurant: { name_en?: string; name_ar?: string } | null
+  }>(
+    `{
+      "tenant": *[_type == "tenant" && _id == $id][0]{ "slug": slug.current },
+      "restaurant": *[_type == "restaurantInfo" && site._ref == $id][0]{ name_en, name_ar }
+    }`,
+    { id: tenantId }
+  )
+  const tenant = combined.tenant
+  const restaurant = combined.restaurant
   const slug = tenant?.slug
   if (!slug) return false
 

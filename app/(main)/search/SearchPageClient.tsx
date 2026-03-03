@@ -162,6 +162,12 @@ type BusinessCategory = {
   tenantCount: number
 }
 
+const CACHE_TTL_MS = 120000
+
+const tenantsCache = new Map<string, { data: any; expires: number }>()
+const categoriesCache = new Map<string, { data: any; expires: number }>()
+const sectionsCache = new Map<string, { data: any; expires: number }>()
+
 export function SearchPageClient() {
   const { t, lang } = useLanguage()
   const { city, isChosen, setOpenLocationModal } = useLocation()
@@ -205,9 +211,21 @@ export function SearchPageClient() {
     if (category) params.set('category', category)
     if (section) params.set('section', section)
     if (area) params.set('area', area)
+
+    const cacheKey = params.toString()
+    const now = Date.now()
+    const cached = tenantsCache.get(cacheKey)
+    if (cached && cached.expires > now) {
+      setTenants(Array.isArray(cached.data?.tenants) ? cached.data.tenants : [])
+      setMeta(cached.data?.meta ?? null)
+      setLoading(false)
+      return
+    }
+
     fetch(`/api/home/tenants?${params}`)
       .then((res) => res.json())
       .then((data) => {
+        tenantsCache.set(cacheKey, { data, expires: now + CACHE_TTL_MS })
         setTenants(Array.isArray(data?.tenants) ? data.tenants : [])
         setMeta(data?.meta ?? null)
       })
@@ -220,9 +238,18 @@ export function SearchPageClient() {
       return
     }
     const params = new URLSearchParams({ city })
+    const cacheKey = params.toString()
+    const now = Date.now()
+    const cached = categoriesCache.get(cacheKey)
+    if (cached && cached.expires > now) {
+      setBusinessCategories(Array.isArray(cached.data) ? cached.data : [])
+      return
+    }
+
     fetch(`/api/home/categories?${params}`)
       .then((res) => res.json())
       .then((data) => {
+        categoriesCache.set(cacheKey, { data, expires: now + CACHE_TTL_MS })
         setBusinessCategories(Array.isArray(data) ? data : [])
       })
       .catch(() => setBusinessCategories([]))
@@ -234,9 +261,18 @@ export function SearchPageClient() {
       return
     }
     const params = new URLSearchParams({ city, category })
+    const cacheKey = params.toString()
+    const now = Date.now()
+    const cached = sectionsCache.get(cacheKey)
+    if (cached && cached.expires > now) {
+      setSectionsWithImages(Array.isArray(cached.data) ? cached.data : [])
+      return
+    }
+
     fetch(`/api/home/sections?${params}`)
       .then((res) => res.json())
       .then((data) => {
+        sectionsCache.set(cacheKey, { data, expires: now + CACHE_TTL_MS })
         setSectionsWithImages(Array.isArray(data) ? data : [])
       })
       .catch(() => setSectionsWithImages([]))

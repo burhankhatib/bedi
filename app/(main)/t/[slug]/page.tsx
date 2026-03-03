@@ -18,18 +18,6 @@ const defaultData: InitialData = {
   aboutUs: null,
 }
 
-const TENANT_FOR_MENU_QUERY = `*[_type == "tenant" && slug.current == $slug][0] {
-  _id,
-  name,
-  deactivated,
-  deactivateUntil,
-  subscriptionExpiresAt,
-  supportsDineIn,
-  supportsReceiveInPerson,
-  supportsDelivery,
-  country
-}`
-
 export async function generateMetadata({
   params,
 }: {
@@ -124,23 +112,16 @@ export default async function TenantMenuPage({
 
   const siteId = tenantFromSlug._id
   let menuData: InitialData = defaultData
-  type TenantForMenu = { _id: string; name: string; deactivated?: boolean; deactivateUntil?: string | null; subscriptionExpiresAt?: string | null; supportsDineIn?: boolean; supportsReceiveInPerson?: boolean; supportsDelivery?: boolean; country?: string | null }
-  let tenantForMenu: TenantForMenu | null = null
 
   try {
-    const [menuResult, tenantResult] = await Promise.all([
-      clientNoCdn.fetch<InitialData>(MENU_QUERY_TENANT, { siteId }),
-      clientNoCdn.fetch<TenantForMenu | null>(TENANT_FOR_MENU_QUERY, { slug }),
-    ])
+    const menuResult = await clientNoCdn.fetch<InitialData>(MENU_QUERY_TENANT, { siteId })
     menuData = menuResult ?? defaultData
-    tenantForMenu = tenantResult ?? null
   } catch (error) {
     console.error('[TenantMenu] Failed to fetch:', error)
     menuData = defaultData
-    tenantForMenu = { _id: siteId, name: tenantFromSlug.name, deactivated: tenantFromSlug.deactivated, deactivateUntil: tenantFromSlug.deactivateUntil, subscriptionExpiresAt: tenantFromSlug.subscriptionExpiresAt, supportsDineIn: tenantFromSlug.supportsDineIn, supportsReceiveInPerson: tenantFromSlug.supportsReceiveInPerson, supportsDelivery: tenantFromSlug.supportsDelivery, country: tenantFromSlug.country }
   }
 
-  const tenant = tenantForMenu ?? tenantFromSlug
+  const tenant = tenantFromSlug
   const isManuallyClosed = isTenantDeactivated(tenant)
   const deliveryAreasCount = await getDeliveryAreasCount(siteId, { useCdn: false })
   const supportsDelivery = tenant.supportsDelivery !== false

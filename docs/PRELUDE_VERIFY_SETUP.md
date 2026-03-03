@@ -42,3 +42,26 @@ In `app/api/verify-phone/request/route.ts` the backend sends:
 - `options.locale` — `he-IL` for +972, `ar-PS` for +970 when applicable.
 
 Delivery still requires the above **Dashboard** setup (WhatsApp connected and Routes enabled for the relevant countries).
+
+---
+
+## Webhook signature (SDK signing key)
+
+If you enabled the **webhook signing key** in Prelude (Verify API → Configure → Webhooks), set the following in your `.env` so incoming webhooks are verified:
+
+```bash
+PRELUDE_WEBHOOK_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA9aT01oXIOK77t+YTnuNl
+52jG8T8KMzTBcC+pq21fxmSBKIePC/BvzhNgSMT/0nyqS31If5+kzxjsFgACiVjI
+iommMaicO2Qi9MasWAF18jPay4yg+i9UzDzngNtgcUfPkHxS3s1DOGFSPXamRWp3
+xaSMr837zL1BHX2ndsG2TbzHY8ms+nlqMIYMRxWLBgXQnYmjb3zWhgtsrFPuwOS7
+Vu9oWicAR6tKRmxOZpQFfWeLebx6HzrVAAGp6YFevOkFHYo0uJo+yJ0EyHjMTLma
+d9aQnysknlxcM931tJ2Xna0CM75pmnxxVQC7K9YKgDAbJBWkBwfLA5xEc1a5ZiPY
+/QIDAQAB
+-----END PUBLIC KEY-----"
+```
+
+- **Webhook URL:** `https://<your-domain>/api/webhooks/prelude`  
+  Configure this in Prelude Dashboard (Verify API → Configure → Webhooks).
+- The app verifies the `X-Webhook-Signature` header (rsassa-pss-sha256) using this public key and rejects requests with an invalid or missing signature when the key is set.
+- To receive events (e.g. verify.authentication, verify.attempt, verify.delivery_status), you can pass `callback_url: 'https://<your-domain>/api/webhooks/prelude'` when creating a verification in your backend (optional).

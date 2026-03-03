@@ -18,20 +18,19 @@ export async function getHomePageStats(): Promise<HomePageStats> {
   if (cachedStats && cachedStats.expires > now) return cachedStats.data
 
   const [
-    businesses,
-    ordersCount,
+    counts,
     ordersWithQuantities,
-    drivers,
-    tenantLocations,
   ] = await Promise.all([
-    client.fetch<number>(`count(*[_type == "tenant"])`),
-    client.fetch<number>(`count(*[_type == "order"])`),
+    client.fetch<{ businesses: number; orders: number; drivers: number; tenantLocations: { country: string | null; city: string | null }[] }>(
+      `{
+        "businesses": count(*[_type == "tenant"]),
+        "orders": count(*[_type == "order"]),
+        "drivers": count(*[_type == "driver"]),
+        "tenantLocations": *[_type == "tenant" && defined(country) && country != ""]{ country, city }
+      }`
+    ),
     client.fetch<{ quantities: (number | null)[] }[]>(
       `*[_type == "order"]{ "quantities": items[].quantity }`
-    ),
-    client.fetch<number>(`count(*[_type == "driver"])`),
-    client.fetch<{ country: string | null; city: string | null }[]>(
-      `*[_type == "tenant" && defined(country) && country != ""]{ country, city }`
     ),
   ])
 
@@ -41,19 +40,19 @@ export async function getHomePageStats(): Promise<HomePageStats> {
 
   const countrySet = new Set<string>()
   const cityKeySet = new Set<string>()
-  for (const t of tenantLocations ?? []) {
+  for (const t of counts.tenantLocations ?? []) {
     if (t?.country) countrySet.add(t.country)
     const city = (t?.city ?? '').trim()
     if (city) cityKeySet.add(`${t?.country ?? ''}|${city}`)
   }
 
   const data: HomePageStats = {
-    businesses: businesses ?? 0,
+    businesses: counts.businesses ?? 0,
     productsSold: productsSold ?? 0,
-    drivers: drivers ?? 0,
+    drivers: counts.drivers ?? 0,
     cities: cityKeySet.size,
     countries: countrySet.size,
-    orders: ordersCount ?? 0,
+    orders: counts.orders ?? 0,
   }
   cachedStats = { data, expires: now + CACHE_TTL_MS }
   return data

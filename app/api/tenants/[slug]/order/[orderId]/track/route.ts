@@ -71,26 +71,17 @@ export async function GET(
   }
 
   const driverRef = order.assignedDriver?._ref
-  let driver: { _id: string; name: string; phoneNumber: string } | null = null
-  if (driverRef) {
-    driver = await client.fetch<{ _id: string; name: string; phoneNumber: string } | null>(
-      `*[_type == "driver" && _id == $driverId][0]{ _id, name, phoneNumber }`,
-      { driverId: driverRef }
-    )
-  }
-
-  const restaurantInfo = await client.fetch<{
-    name_en?: string
-    name_ar?: string
-    socials?: { whatsapp?: string }
-  } | null>(
-    `*[_type == "restaurantInfo" && site._ref == $tenantId][0]{ name_en, name_ar, socials }`,
-    { tenantId }
-  )
-
-  const tenant = await client.fetch<{ country?: string; city?: string } | null>(
-    `*[_type == "tenant" && _id == $tenantId][0]{ country, city }`,
-    { tenantId }
+  const { driver, restaurantInfo, tenant } = await client.fetch<{
+    driver: { _id: string; name: string; phoneNumber: string } | null
+    restaurantInfo: { name_en?: string; name_ar?: string; socials?: { whatsapp?: string } } | null
+    tenant: { country?: string; city?: string } | null
+  }>(
+    `{
+      "driver": *[_type == "driver" && _id == $driverId][0]{ _id, name, phoneNumber },
+      "restaurantInfo": *[_type == "restaurantInfo" && site._ref == $tenantId][0]{ name_en, name_ar, socials },
+      "tenant": *[_type == "tenant" && _id == $tenantId][0]{ country, city }
+    }`,
+    { tenantId, driverId: driverRef ?? 'none' }
   )
 
   return NextResponse.json({

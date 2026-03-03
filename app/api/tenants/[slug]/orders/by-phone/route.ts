@@ -26,22 +26,6 @@ export async function GET(
   }
 
   const orders = await client.fetch<
-    Array<{ orderNumber?: string; createdAt?: string; trackingToken?: string }>
-  >(
-    `*[_type == "order" && site._ref == $tenantId && defined(trackingToken)] | order(createdAt desc) {
-      orderNumber,
-      createdAt,
-      trackingToken
-    }`,
-    { tenantId }
-  )
-
-  const filtered = (orders ?? []).filter((o) => o.trackingToken)
-  if (filtered.length === 0) {
-    return NextResponse.json({ orders: [] })
-  }
-
-  const withPhone = await client.fetch<
     Array<{ _id: string; customerPhone?: string; orderNumber?: string; createdAt?: string; trackingToken?: string }>
   >(
     `*[_type == "order" && site._ref == $tenantId && defined(trackingToken)] | order(createdAt desc) {
@@ -54,7 +38,7 @@ export async function GET(
     { tenantId }
   )
 
-  const matching = withPhone
+  const matching = (orders ?? [])
     .filter((o) => phonesMatchForOrderLookup(phoneParam, o.customerPhone ?? ''))
     .map((o) => ({
       orderNumber: o.orderNumber,

@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
 
+/** Cache 60s per (city, category) to reduce Sanity API calls. */
+export const revalidate = 60
+
 type ImageSource = { asset?: { _ref: string } } | null | undefined
 
 /**
@@ -29,18 +32,27 @@ export async function GET(req: NextRequest) {
   const city = searchParams.get('city') ?? ''
   const categoryParam = searchParams.get('category') ?? ''
 
-  const [categoriesWithImages, subcategoriesInUse] = await Promise.all([
-    client.fetch<
-      Array<{
-        _id: string
-        title_en?: string
-        title_ar?: string
-        image?: ImageSource
-        siteRef?: string
-        sampleProductImage?: ImageSource
-      }>
-    >(
-      `*[_type == "category" && site._ref in *[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now()))) ${
+  const { categoriesWithImages, subcategoriesInUse, tenantsWithSubs } = await client.fetch<{
+    categoriesWithImages: Array<{
+      _id: string
+      title_en?: string
+      title_ar?: string
+      image?: ImageSource
+      siteRef?: string
+      sampleProductImage?: ImageSource
+    }>
+    subcategoriesInUse: Array<{
+      _id: string
+      title_en: string
+      title_ar: string
+      businessType: string
+      image?: ImageSource
+      sortOrder?: number
+    }>
+    tenantsWithSubs: Array<{ _id: string; businessSubcategoryIds: string[] }>
+  }>(
+    `{
+      "categoriesWithImages": *[_type == "category" && site._ref in *[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now()))) ${
         categoryParam ? '&& businessType == $category' : ''
       }]._id] | order(site->name asc) {
         _id,
@@ -49,20 +61,8 @@ export async function GET(req: NextRequest) {
         image,
         "siteRef": site._ref,
         "sampleProductImage": *[_type == "product" && references(^._id) && defined(image)][0].image
-      }`,
-      { city, ...(categoryParam ? { category: categoryParam } : {}) }
-    ),
-    client.fetch<
-      Array<{
-        _id: string
-        title_en: string
-        title_ar: string
-        businessType: string
-        image?: ImageSource
-        sortOrder?: number
-      }>
-    >(
-      `*[_type == "businessSubcategory" ${
+      },
+      "subcategoriesInUse": *[_type == "businessSubcategory" ${
         categoryParam ? '&& businessType == $category' : ''
       }] | order(sortOrder asc, title_en asc) {
         _id,
@@ -71,10 +71,13 @@ export async function GET(req: NextRequest) {
         businessType,
         image,
         sortOrder
-      }`,
-      categoryParam ? { category: categoryParam } : {}
-    ),
-  ])
+      },
+      "tenantsWithSubs": *[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now()))) && count(businessSubcategories) > 0 ${
+        categoryParam ? '&& businessType == $category' : ''
+      }] { _id, "businessSubcategoryIds": businessSubcategories[]._ref }
+    }`,
+    { city, ...(categoryParam ? { category: categoryParam } : {}) }
+  )
 
   const sectionMap = new Map<
     string,
@@ -109,14 +112,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const tenantsWithSubs = await client.fetch<
-    Array<{ _id: string; businessSubcategoryIds: string[] }>
-  >(
-    `*[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now()))) && count(businessSubcategories) > 0 ${
-      categoryParam ? '&& businessType == $category' : ''
-    }] { _id, "businessSubcategoryIds": businessSubcategories[]._ref }`,
-    { city, ...(categoryParam ? { category: categoryParam } : {}) }
-  )
   const usedSubcategoryIds = new Set<string>()
   const tenantCountBySubcategory = new Map<string, number>()
   for (const t of tenantsWithSubs ?? []) {

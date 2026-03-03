@@ -198,8 +198,13 @@ export function HeroBanner() {
   }, [isChosen, city, lang])
 
   useEffect(() => {
+    if (!isChosen || !city) {
+      setBanners([])
+      setLoading(false)
+      return
+    }
     fetchBanners()
-  }, [fetchBanners])
+  }, [fetchBanners, isChosen, city])
 
   const currentIsVideo = (() => {
     if (banners.length === 0) return false

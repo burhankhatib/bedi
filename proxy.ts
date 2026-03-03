@@ -9,6 +9,35 @@ const isProtectedRoute = (path: string) =>
   path.startsWith('/driver') ||
   /^\/t\/[^/]+\/manage/.test(path)
 
+/**
+ * Public API routes: no auth() call — saves Clerk API usage for home, search, contact, public menus, webhooks.
+ * Only paths that never need the current user should be listed here.
+ */
+function isPublicApiPath(path: string): boolean {
+  if (!path.startsWith('/api/')) return false
+  // Home discovery (cities, banners, categories, sections, tenants, popular-products, subcategories)
+  if (path.startsWith('/api/home/')) return true
+  if (path === '/api/countries' || path === '/api/cities') return true
+  if (path === '/api/contact') return true
+  if (path === '/api/menu') return true
+  if (path === '/api/geo') return true
+  if (path.startsWith('/api/areas')) return true
+  // Public tracking: tenant track by token, order status for tracking
+  if (/^\/api\/tenants\/[^/]+\/track\//.test(path)) return true
+  if (path === '/api/orders/status') return true
+  if (/^\/api\/tenants\/[^/]+\/orders\/status$/.test(path)) return true
+  // Webhooks (Sanity, Prelude — use their own signature verification)
+  if (path.startsWith('/api/webhooks/')) return true
+  // Onboarding/registration forms (country/city/subcategory lists)
+  if (path.startsWith('/api/business-subcategories')) return true
+  // NVP/PayPal webhook
+  if (path.startsWith('/api/nvp/')) return true
+  // Public tenant data for menu/order flow (by-table, by-phone, track)
+  if (/^\/api\/tenants\/[^/]+\/orders\/by-table$/.test(path)) return true
+  if (/^\/api\/tenants\/[^/]+\/orders\/by-phone$/.test(path)) return true
+  return false
+}
+
 const SUPER_ADMIN_EMAIL = 'burhank@gmail.com'
 
 /** Pass through with x-pathname header for SanityLive routing in layout. */
@@ -57,6 +86,11 @@ const clerkHandler = clerkMiddleware(async (auth, req) => {
   // Studio: skip Clerk in middleware to avoid Next.js "immutable" Headers error.
   // Auth is enforced client-side in app/studio/StudioAuthGuard.
   if (isStudioRoute(path)) {
+    return nextWithPath(req)
+  }
+
+  // Public API routes: skip auth() to reduce Clerk API usage (home, search, contact, webhooks, etc.)
+  if (path.startsWith('/api/') && isPublicApiPath(path)) {
     return nextWithPath(req)
   }
 

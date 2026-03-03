@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { getTenantBySlug } from '@/lib/tenant'
 import { client } from '@/sanity/lib/client'
 
 const FALLBACK_ICONS = [
@@ -20,22 +19,32 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params
-  const tenant = await getTenantBySlug(slug)
-  if (!tenant) {
+  const result = await client.fetch<{
+    _id: string
+    name: string
+    restaurantInfo?: {
+      name_en?: string
+      name_ar?: string
+      logo?: { _type: string; asset?: { _ref: string } }
+    } | null
+  } | null>(
+    `*[_type == "tenant" && slug.current == $slug][0]{
+      _id,
+      name,
+      "restaurantInfo": *[_type == "restaurantInfo" && site._ref == ^._id][0]{ name_en, name_ar, logo }
+    }`,
+    { slug }
+  )
+
+  if (!result) {
     return new Response(JSON.stringify({ error: 'Not found' }), {
       status: 404,
       headers: { 'Content-Type': 'application/json' },
     })
   }
-
-  const restaurantInfo = await client.fetch<{
-    name_en?: string
-    name_ar?: string
-    logo?: { _type: string; asset?: { _ref: string } }
-  } | null>(
-    `*[_type == "restaurantInfo" && site._ref == $siteId][0]{ name_en, name_ar, logo }`,
-    { siteId: tenant._id }
-  )
+  
+  const tenant = result
+  const restaurantInfo = result.restaurantInfo
 
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000'
   const protocol = host.includes('localhost') ? 'http' : 'https'

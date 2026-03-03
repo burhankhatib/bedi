@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
 import sharp from 'sharp'
-import { getTenantBySlug } from '@/lib/tenant'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
 
@@ -20,17 +19,21 @@ export async function GET(
     return new Response('Invalid size', { status: 400 })
   }
 
-  const tenant = await getTenantBySlug(slug)
-  if (!tenant) {
+  const result = await client.fetch<{
+    _id: string
+    restaurantInfo?: { logo?: { _type: string; asset?: { _ref: string } } } | null
+  } | null>(
+    `*[_type == "tenant" && slug.current == $slug][0]{
+      _id,
+      "restaurantInfo": *[_type == "restaurantInfo" && site._ref == ^._id][0]{ logo }
+    }`,
+    { slug }
+  )
+
+  if (!result) {
     return new Response('Not found', { status: 404 })
   }
-
-  const restaurantInfo = await client.fetch<{
-    logo?: { _type: string; asset?: { _ref: string } }
-  } | null>(
-    `*[_type == "restaurantInfo" && site._ref == $siteId][0]{ logo }`,
-    { siteId: tenant._id }
-  )
+  const restaurantInfo = result.restaurantInfo
 
   if (!restaurantInfo?.logo) {
     const base = new URL(req.url)

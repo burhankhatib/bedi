@@ -15,42 +15,40 @@ export default async function ManageMenuPage({
   if (!authResult.ok) redirect('/dashboard')
   if (!requirePermission(authResult, 'settings_menu')) redirect(`/t/${slug}/manage`)
 
-  const [categories, products] = await Promise.all([
-    client.fetch<Array<{ _id: string; title_en: string; title_ar: string; slug: string; sortOrder?: number }>>(
-      `*[_type == "category" && site._ref == $siteId] | order(sortOrder asc) { _id, title_en, title_ar, "slug": slug.current, sortOrder }`,
-      { siteId: authResult.tenantId }
-    ),
-    client.fetch<
-      Array<{
-        _id: string
-        title_en: string
-        title_ar: string
-        description_en?: string
-        description_ar?: string
-        ingredients_en?: string[]
-        ingredients_ar?: string[]
-        price: number
-        specialPrice?: number
-        specialPriceExpires?: string
-        currency: string
-        categoryRef: string
-        sortOrder?: number
-        isPopular?: boolean
-        isAvailable?: boolean
-        availableAgainAt?: string
-        dietaryTags?: string[]
-        addOns?: Array<{ name_en: string; name_ar: string; price: number }>
-      }>
-    >(
-      `*[_type == "product" && site._ref == $siteId] | order(sortOrder asc) {
+  const { categories, products } = await client.fetch<{
+    categories: Array<{ _id: string; title_en: string; title_ar: string; slug: string; sortOrder?: number }>
+    products: Array<{
+      _id: string
+      title_en: string
+      title_ar: string
+      description_en?: string
+      description_ar?: string
+      ingredients_en?: string[]
+      ingredients_ar?: string[]
+      price: number
+      specialPrice?: number
+      specialPriceExpires?: string
+      currency: string
+      categoryRef: string
+      sortOrder?: number
+      isPopular?: boolean
+      isAvailable?: boolean
+      availableAgainAt?: string
+      dietaryTags?: string[]
+      addOns?: Array<{ name_en: string; name_ar: string; price: number }>
+    }>
+  }>(
+    `{
+      "categories": *[_type == "category" && site._ref == $siteId] | order(sortOrder asc) { _id, title_en, title_ar, "slug": slug.current, sortOrder },
+      "products": *[_type == "product" && site._ref == $siteId] | order(sortOrder asc) {
         _id, title_en, title_ar, description_en, description_ar,
         ingredients_en, ingredients_ar, price, specialPrice, specialPriceExpires, currency,
         "categoryRef": category._ref, sortOrder, isPopular, isAvailable, availableAgainAt,
         dietaryTags, addOns
-      }`,
-      { siteId: authResult.tenantId }
-    ),
-  ])
+      }
+    }`,
+    { siteId: authResult.tenantId }
+  )
 
   return (
     <div>

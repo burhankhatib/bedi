@@ -1,5 +1,8 @@
 import { client } from '@/sanity/lib/client'
 
+/** Cache 60s to reduce Sanity API calls for repeated visits. */
+export const revalidate = 60
+
 /**
  * GET /api/home/cities
  * Returns unique cities from tenants that have at least one business.

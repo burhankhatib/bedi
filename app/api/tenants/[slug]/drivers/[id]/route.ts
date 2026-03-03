@@ -10,16 +10,14 @@ async function resolveFleetEntry(slug: string, id: string) {
   const auth = await checkTenantAuth(slug)
   if (!auth.ok) return { auth: null as never, kind: null as never, doc: null }
   const siteId = auth.tenantId
-  const tenantDriver = await client.fetch<{ _id: string; site: { _ref: string } } | null>(
-    `*[_type == "tenantDriver" && _id == $id && site._ref == $siteId][0]{ _id, site }`,
+  const doc = await client.fetch<{ _id: string; _type: string; site?: { _ref: string } } | null>(
+    `*[_type in ["tenantDriver", "driver"] && _id == $id && site._ref == $siteId][0]{ _id, _type, site }`,
     { id, siteId }
   )
-  if (tenantDriver) return { auth, kind: 'tenantDriver' as const, doc: tenantDriver }
-  const legacyDriver = await client.fetch<{ _id: string; site?: { _ref: string } } | null>(
-    `*[_type == "driver" && _id == $id && site._ref == $siteId][0]{ _id, site }`,
-    { id, siteId }
-  )
-  if (legacyDriver) return { auth, kind: 'driver' as const, doc: legacyDriver }
+  if (doc) {
+    if (doc._type === 'tenantDriver') return { auth, kind: 'tenantDriver' as const, doc: doc as { _id: string; site: { _ref: string } } }
+    if (doc._type === 'driver') return { auth, kind: 'driver' as const, doc }
+  }
   return { auth, kind: null, doc: null }
 }
 

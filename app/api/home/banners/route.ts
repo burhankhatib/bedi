@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
 
+/** Cache 60s per (city, lang) to reduce Sanity API calls. */
+export const revalidate = 60
+
 /**
  * GET /api/home/banners?city=Jerusalem&lang=ar|en
  * Returns hero banners. Filters by city when provided. Language: ar default, en falls back to ar.
@@ -11,62 +14,65 @@ export async function GET(req: NextRequest) {
   const city = searchParams.get('city') ?? ''
   const lang = searchParams.get('lang') ?? 'ar'
 
-  const [banners, bannerSettings] = await Promise.all([
-    client.fetch<
-    Array<{
-      _id: string
-      image: { asset?: { _ref: string } }
-      imageDesktopAr?: { asset?: { _ref: string } }
-      imageDesktopEn?: { asset?: { _ref: string } }
-      imageMobileAr?: { asset?: { _ref: string } }
-      imageMobileEn?: { asset?: { _ref: string } }
-      linkType: string
-      tenant?: { slug?: { current?: string } }
-      url?: string
-      countries?: string[]
-      cities?: string[]
-      sortOrder?: number
-      language?: string
-      height?: string
-      preferredDesktopWidth?: number
-      preferredDesktopHeight?: number
-      preferredMobileWidth?: number
-      preferredMobileHeight?: number
-      videoDesktopArUrl?: string | null
-      videoDesktopEnUrl?: string | null
-      videoMobileArUrl?: string | null
-      videoMobileEnUrl?: string | null
-    }>
-  >(
-    `*[_type == "heroBanner" && (!defined(startDate) || startDate <= now()) && (!defined(endDate) || endDate >= now())] | order(sortOrder asc) {
-      _id,
-      image,
-      imageDesktopAr,
-      imageDesktopEn,
-      imageMobileAr,
-      imageMobileEn,
-      linkType,
-      tenant->{ "slug": slug.current },
-      url,
-      countries,
-      cities,
-      sortOrder,
-      language,
-      height,
-      preferredDesktopWidth,
-      preferredDesktopHeight,
-      preferredMobileWidth,
-      preferredMobileHeight,
-      "videoDesktopArUrl": videoDesktopAr.asset->url,
-      "videoDesktopEnUrl": videoDesktopEn.asset->url,
-      "videoMobileArUrl": videoMobileAr.asset->url,
-      "videoMobileEnUrl": videoMobileEn.asset->url
+  type BannerDoc = {
+    _id: string
+    image: { asset?: { _ref: string } }
+    imageDesktopAr?: { asset?: { _ref: string } }
+    imageDesktopEn?: { asset?: { _ref: string } }
+    imageMobileAr?: { asset?: { _ref: string } }
+    imageMobileEn?: { asset?: { _ref: string } }
+    linkType: string
+    tenant?: { slug?: { current?: string } }
+    url?: string
+    countries?: string[]
+    cities?: string[]
+    sortOrder?: number
+    language?: string
+    height?: string
+    preferredDesktopWidth?: number
+    preferredDesktopHeight?: number
+    preferredMobileWidth?: number
+    preferredMobileHeight?: number
+    videoDesktopArUrl?: string | null
+    videoDesktopEnUrl?: string | null
+    videoMobileArUrl?: string | null
+    videoMobileEnUrl?: string | null
+  }
+
+  const { banners: rawBanners, settings: bannerSettings } = await client.fetch<{
+    banners: BannerDoc[]
+    settings: { imageDurationSeconds?: number } | null
+  }>(
+    `{
+      "banners": *[_type == "heroBanner" && (!defined(startDate) || startDate <= now()) && (!defined(endDate) || endDate >= now())] | order(sortOrder asc) {
+        _id,
+        image,
+        imageDesktopAr,
+        imageDesktopEn,
+        imageMobileAr,
+        imageMobileEn,
+        linkType,
+        tenant->{ "slug": slug.current },
+        url,
+        countries,
+        cities,
+        sortOrder,
+        language,
+        height,
+        preferredDesktopWidth,
+        preferredDesktopHeight,
+        preferredMobileWidth,
+        preferredMobileHeight,
+        "videoDesktopArUrl": videoDesktopAr.asset->url,
+        "videoDesktopEnUrl": videoDesktopEn.asset->url,
+        "videoMobileArUrl": videoMobileAr.asset->url,
+        "videoMobileEnUrl": videoMobileEn.asset->url
+      },
+      "settings": *[_type == "bannerSettings" && _id == "bannerSettings"][0]{ imageDurationSeconds }
     }`
-    ),
-    client.fetch<{ imageDurationSeconds?: number } | null>(
-      `*[_type == "bannerSettings" && _id == "bannerSettings"][0]{ imageDurationSeconds }`
-    ),
-  ])
+  )
+
+  const banners = rawBanners ?? []
 
   const imageDurationSeconds =
     bannerSettings?.imageDurationSeconds != null && bannerSettings.imageDurationSeconds >= 3 && bannerSettings.imageDurationSeconds <= 120

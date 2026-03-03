@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
 
+/** Cache 60s per city to reduce Sanity API calls. */
+export const revalidate = 60
+
 /**
  * GET /api/home/categories?city=Jerusalem
  * Returns categories that have at least one tenant in that city.
@@ -10,33 +13,30 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const city = searchParams.get('city') ?? ''
 
-  const [categories, tenants] = await Promise.all([
-    client.fetch<
-      Array<{
-        _id: string
-        value: string
-        name_en: string
-        name_ar: string
-        image: { asset?: { _ref: string } }
-        sortOrder?: number
-      }>
-    >(
-      `*[_type == "businessCategory"] | order(sortOrder asc) {
+  const { categories, tenants } = await client.fetch<{
+    categories: Array<{
+      _id: string
+      value: string
+      name_en: string
+      name_ar: string
+      image: { asset?: { _ref: string } }
+      sortOrder?: number
+    }>
+    tenants: Array<{ businessType: string }>
+  }>(
+    `{
+      "categories": *[_type == "businessCategory"] | order(sortOrder asc) {
         _id,
         value,
         name_en,
         name_ar,
         image,
         sortOrder
-      }`
-    ),
-    client.fetch<
-      Array<{ businessType: string }>
-    >(
-      `*[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now())))]{ businessType }`,
-      { city }
-    ),
-  ])
+      },
+      "tenants": *[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now())))]{ businessType }
+    }`,
+    { city }
+  )
 
   const tenantCounts = new Map<string, number>()
   for (const t of tenants ?? []) {

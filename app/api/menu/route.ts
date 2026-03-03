@@ -3,8 +3,8 @@ import { client } from '@/sanity/lib/client'
 import { MENU_QUERY } from '@/sanity/lib/queries'
 import { InitialData } from '@/app/types/menu'
 
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+/** Cache menu for 60s to reduce Sanity API calls on repeated visits / refreshes. */
+export const revalidate = 60
 
 const defaultData: InitialData = {
   categories: [],

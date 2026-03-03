@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
 
+/** Cache 60s per (city, category, section, area) to reduce Sanity API calls. */
+export const revalidate = 60
+
 type LogoSource = { asset?: { _ref: string } } | null | undefined
 
 function normalizeForMatch(s: string): string {
