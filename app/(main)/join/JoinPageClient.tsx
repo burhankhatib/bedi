@@ -28,8 +28,8 @@ export function JoinPageClient({ stats }: { stats: HomePageStats }) {
   const isRtl = lang === 'ar'
 
   const tagline = t(
-    `© ${new Date().getFullYear()} Bedi Delivery. Menu & delivery for your business.`,
-    `© ${new Date().getFullYear()} Bedi Delivery. القائمة والتوصيل لأعمالك.`
+    `© 2026 Bedi Delivery. All rights reserved.`,
+    `© 2026 Bedi Delivery. جميع الحقوق محفوظة.`
   )
 
   return (

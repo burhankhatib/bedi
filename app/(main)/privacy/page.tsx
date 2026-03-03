@@ -23,8 +23,8 @@ export default function PrivacyPage() {
       </h2>
       <p>
         {t(
-          'Bedi Delivery (“we”, “us”) respects your privacy. This Privacy Policy explains how we collect, use, store, and protect information when you use our website, applications, and services—whether you are a customer, a business, or a delivery driver.',
-          'Bedi Delivery («نحن») تحترم خصوصيتك. توضح سياسة الخصوصية هذه كيف نجمع ونستخدم نخزن ونحمي المعلومات عند استخدامك لموقعنا وتطبيقاتنا وخدماتنا—سواء كنت عميلاً أو صاحب عمل أو سائق توصيل.'
+          'This Privacy Policy describes how Bedi Delivery collects, uses, stores, and protects information when you use our website, applications, and services—whether you are a customer, a business, or a delivery driver.',
+          'تصف سياسة الخصوصية هذه كيف تجمع Bedi Delivery وتستخدم وتخزن وتحمي المعلومات عند استخدامك لموقعنا وتطبيقاتنا وخدماتنا—سواء كنت عميلاً أو صاحب عمل أو سائق توصيل.'
         )}
       </p>
 
@@ -107,6 +107,49 @@ export default function PrivacyPage() {
           'قد نحدّث سياسة الخصوصية هذه من وقت لآخر؛ سنوضح تاريخ «آخر تحديث». الاستمرار في الاستخدام بعد التغييرات يعني قبولك السياسة المحدثة. للأسئلة أو الطلبات المتعلقة بالخصوصية، تواصل معنا عبر معلومات الاتصال على موقعنا أو في التطبيق.'
         )}
       </p>
+
+      <h2 id="business-details" className="mt-10 text-lg font-semibold text-white">
+        {t('10. Business profile details', '10. بيانات الملف التجاري')}
+      </h2>
+      <dl className="mt-4 space-y-3 text-sm">
+        <div>
+          <dt className="font-medium text-slate-400">{t('Registered business name', 'الاسم التجاري المسجل')}</dt>
+          <dd className="mt-0.5 text-slate-200">Bedi Delivery</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-400">{t('Address', 'العنوان')}</dt>
+          <dd className="mt-0.5 text-slate-200">University Street, Bethany, 9144002, Palestine.</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-400">{t('Legal business structure', 'الهيكل القانوني للأعمال')}</dt>
+          <dd className="mt-0.5 text-slate-200">{t('Sole proprietorship', 'ملكية فردية')}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-400">{t('Owner / principal', 'المالك / المسؤول')}</dt>
+          <dd className="mt-0.5 text-slate-200">Mr. Burhan Khatib</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-400">{t('Business ID number', 'رقم هوية الأعمال')}</dt>
+          <dd className="mt-0.5 font-mono text-slate-200">*****1655</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-400">{t('Nationality', 'الجنسية')}</dt>
+          <dd className="mt-0.5 text-slate-200">{t('Israeli', 'إسرائيلي')}</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-400">{t('Primary contact number', 'رقم الاتصال الرئيسي')}</dt>
+          <dd className="mt-0.5 font-mono text-slate-200" dir="ltr">+970569611116</dd>
+        </div>
+        <div>
+          <dt className="font-medium text-slate-400">{t('Key services provided', 'الخدمات الرئيسية المقدمة')}</dt>
+          <dd className="mt-0.5 text-slate-200">
+            {t(
+              'Bedi Delivery is a modern SaaS system that enables businesses to create their e-commerce pages in minutes and connect with tens of delivery drivers.',
+              'Bedi Delivery نظام SaaS حديث يمكّن الأعمال من إنشاء صفحات التجارة الإلكترونية الخاصة بها في دقائق والاتصال بعشرات سائقي التوصيل.'
+            )}
+          </dd>
+        </div>
+      </dl>
     </LegalPageLayout>
   )
 }

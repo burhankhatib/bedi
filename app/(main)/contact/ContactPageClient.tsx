@@ -141,6 +141,11 @@ export function ContactPageClient() {
             <p className="mt-2 text-slate-400">
               {t('Send us a message and we’ll get back to you.', 'أرسل رسالتك وسنتواصل معك.')}
             </p>
+            <div className="mt-4 rounded-lg border border-slate-700/60 bg-slate-900/40 p-4 text-sm text-slate-300">
+              <p className="font-medium text-white">{t('Business name', 'اسم العمل')}: Bedi Delivery</p>
+              <p className="mt-1">{t('Address', 'العنوان')}: University Street, Bethany, 9144002, Palestine</p>
+              <p className="mt-1">{t('Phone', 'الهاتف')}: +970 56 961 1116</p>
+            </div>
           </div>
         </section>
 

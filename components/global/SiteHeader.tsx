@@ -244,8 +244,8 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
           href="/"
           className="flex min-w-0 shrink items-center gap-2 font-bold text-slate-900 transition-opacity hover:opacity-80"
         >
-          <Image src="/logo.webp" alt="Bedi" width={36} height={36} className="h-9 w-auto shrink-0" />
-          <span className="text-xl tracking-tight">Bedi</span>
+          <Image src="/logo.webp" alt="Bedi Delivery" width={36} height={36} className="h-9 w-auto shrink-0" />
+          <span className="text-xl font-semibold tracking-tight [font-family:var(--font-brand),var(--font-cairo),ui-sans-serif,sans-serif]">Bedi Delivery</span>
         </Link>
 
         {/* Desktop: full inline controls */}

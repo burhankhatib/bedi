@@ -10,6 +10,7 @@ import { ChevronLeft } from 'lucide-react'
 export const legalFooterLinks = [
   { labelEn: 'Terms & Conditions', labelAr: 'الشروط والأحكام', href: '/terms' },
   { labelEn: 'Privacy Policy', labelAr: 'سياسة الخصوصية', href: '/privacy' },
+  { labelEn: 'Business details', labelAr: 'بيانات الأعمال', href: '/privacy#business-details' },
   { labelEn: 'Refund Policy', labelAr: 'سياسة الاسترداد', href: '/refund-policy' },
 ]
 

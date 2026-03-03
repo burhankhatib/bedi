@@ -15,13 +15,13 @@ interface LandingFooterProps {
 
 export function LandingFooter({ links = defaultFooterLinks, tagline }: LandingFooterProps) {
   const year = new Date().getFullYear()
-  const copy = tagline ?? `© ${year} Bedi Delivery. Menu & delivery for your business.`
+  const copy = tagline ?? `© 2026 Bedi Delivery. All rights reserved.`
   return (
     <footer className="border-t border-slate-800/60 bg-slate-950">
       <div className="container mx-auto px-4 py-12">
         <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
           <Link href="/" className="text-lg font-semibold text-white">
-            Bedi
+            Bedi Delivery
           </Link>
           <nav className="flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
             {links.map(({ label, href }) => (

@@ -31,8 +31,8 @@ export function PublicFooter({ tagline }: PublicFooterProps) {
   const year = new Date().getFullYear()
 
   const defaultTagline = t(
-    `© ${year} Bedi Delivery. Menu & delivery for your business.`,
-    `© ${year} Bedi Delivery. القائمة والتوصيل لأعمالك.`
+    `© 2026 Bedi Delivery. All rights reserved.`,
+    `© 2026 Bedi Delivery. جميع الحقوق محفوظة.`
   )
 
   // Sections matching the website (join page structure)
@@ -43,6 +43,7 @@ export function PublicFooter({ tagline }: PublicFooterProps) {
   ]
 
   const howItWorksLinks: PublicFooterLink[] = [
+    { label: t('About', 'من نحن'), href: '/about' },
     { label: t('Join', 'انضم'), href: '/join' },
     { label: t('How it works', 'كيف يعمل'), href: '/join#how-it-works' },
     { label: t('Features', 'المميزات'), href: '/join#features' },
@@ -59,6 +60,7 @@ export function PublicFooter({ tagline }: PublicFooterProps) {
   const legalLinks: PublicFooterLink[] = [
     { label: t('Terms', 'الشروط'), href: '/terms' },
     { label: t('Privacy', 'الخصوصية'), href: '/privacy' },
+    { label: t('Business details', 'بيانات الأعمال'), href: '/privacy#business-details' },
     { label: t('Refund policy', 'الاسترداد'), href: '/refund-policy' },
   ]
 
@@ -185,6 +187,9 @@ export function PublicFooter({ tagline }: PublicFooterProps) {
             </Link>
             <Link href="/privacy" className="hover:text-slate-400">
               {t('Privacy', 'الخصوصية')}
+            </Link>
+            <Link href="/privacy#business-details" className="hover:text-slate-400">
+              {t('Business details', 'بيانات الأعمال')}
             </Link>
             <Link href="/refund-policy" className="hover:text-slate-400">
               {t('Refunds', 'الاسترداد')}

@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Cairo } from "next/font/google";
+import { Cairo, Plus_Jakarta_Sans } from "next/font/google";
 import { ClientProviders } from "@/components/ClientProviders";
 import "./globals.css";
 
 const cairo = Cairo({
   variable: "--font-cairo",
   subsets: ["latin", "arabic"],
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-brand",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -40,7 +46,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cairo.variable} suppressHydrationWarning>
+    <html lang="en" className={`${cairo.variable} ${plusJakartaSans.variable}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
         <Script
           id="customer-pwa-sw"

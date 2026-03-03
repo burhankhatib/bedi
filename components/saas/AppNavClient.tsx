@@ -66,7 +66,7 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
             className="flex min-w-0 shrink items-center gap-2 font-semibold text-white transition-opacity hover:opacity-90"
           >
             <Image src="/logo.webp" alt="Bedi Delivery" width={32} height={32} className="h-8 w-auto shrink-0" />
-            <span className="truncate text-lg tracking-tight">Bedi</span>
+            <span className="truncate text-lg font-semibold tracking-tight [font-family:var(--font-brand),var(--font-cairo),ui-sans-serif,sans-serif]">Bedi Delivery</span>
           </Link>
 
           {/* Desktop nav: visible from md up */}
