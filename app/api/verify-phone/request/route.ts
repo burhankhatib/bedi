@@ -21,13 +21,20 @@ export async function POST(req: Request) {
 
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || req.headers.get('cf-connecting-ip') || undefined
 
+    // Prefer WhatsApp for +972/+970; force message channel (no silent verification) so OTP is actually sent
+    const isIsrael = phoneNumber.startsWith('+972')
+    const isPalestine = phoneNumber.startsWith('+970')
+    const locale = isIsrael ? 'he-IL' : isPalestine ? 'ar-PS' : undefined
+
     const verification = await client.verification.create({
       target: {
         type: "phone_number",
         value: phoneNumber,
       },
       options: {
+        method: "message",
         preferred_channel: "whatsapp",
+        ...(locale && { locale }),
       },
       ...(dispatchId && { dispatch_id: dispatchId }),
       ...(ip && { signals: { ip } }),
