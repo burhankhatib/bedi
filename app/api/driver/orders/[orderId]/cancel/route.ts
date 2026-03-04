@@ -49,7 +49,13 @@ export async function POST(
     orderId,
     status: 'preparing',
     baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+    customTitle: 'السائق ألغى التوصيل',
+    customBody: 'تم إرسال الطلب مرة أخرى إلى جميع السائقين المتاحين. يمكن لأي سائق قبوله.',
   }).catch((e) => console.warn('[tenant-order-push]', e))
+
+  // Re-ping all available drivers since the order is back in the pool
+  const { notifyDriversOfDeliveryOrder } = await import('@/lib/notify-drivers-for-order')
+  await notifyDriversOfDeliveryOrder(orderId).catch((e) => console.warn('[notify-drivers]', e))
 
   return NextResponse.json({ success: true })
 }

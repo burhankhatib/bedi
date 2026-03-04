@@ -45,6 +45,11 @@ export async function PATCH(
   const check = await checkOrderOwnership(slug, orderId)
   if (!check.ok) return NextResponse.json({ error: 'Forbidden' }, { status: check.status })
 
+  const orderBefore = await writeClient.fetch<{ assignedDriver?: any } | null>(
+    `*[_type == "order" && _id == $orderId][0]{ assignedDriver }`,
+    { orderId }
+  )
+
   if (acknowledgeTableRequest === true) {
     const now = new Date().toISOString()
     const updateData: Record<string, unknown> = { customerRequestAcknowledgedAt: now }
@@ -59,10 +64,15 @@ export async function PATCH(
     return NextResponse.json({ error: 'status required' }, { status: 400 })
   }
 
+  const patch = writeClient.patch(orderId)
   const updateData: Record<string, unknown> = { status }
   if (completedAt != null) updateData.completedAt = completedAt
   if (status === 'preparing' || status === 'waiting_for_delivery') {
     updateData.preparedAt = new Date().toISOString()
+    if (orderBefore?.assignedDriver) {
+      updateData.deliveryRequestedAt = new Date().toISOString()
+      patch.unset(['assignedDriver'])
+    }
   }
   if (status === 'out-for-delivery') {
     updateData.driverPickedUpAt = new Date().toISOString()
@@ -74,7 +84,7 @@ export async function PATCH(
     updateData.site = { _type: 'reference', _ref: check.auth.tenantId }
   }
 
-  await writeClient.patch(orderId).set(updateData).commit()
+  await patch.set(updateData).commit()
 
   sendCustomerOrderStatusPush({
     orderId,

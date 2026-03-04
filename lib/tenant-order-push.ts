@@ -61,6 +61,10 @@ export type SendTenantOrderPushOptions = {
   status: TenantOrderPushStatus
   /** Optional base URL for orders link (e.g. process.env.NEXT_PUBLIC_APP_URL). */
   baseUrl?: string
+  /** Optional override for title (used when driver cancels) */
+  customTitle?: string
+  /** Optional override for body (used when driver cancels) */
+  customBody?: string
 }
 
 const noCdnClient = client.withConfig({ useCdn: false })
@@ -68,7 +72,7 @@ const noCdnClient = client.withConfig({ useCdn: false })
 export async function sendTenantOrderUpdatePush(
   options: SendTenantOrderPushOptions
 ): Promise<boolean> {
-  const { orderId, status, baseUrl = '' } = options
+  const { orderId, status, baseUrl = '', customTitle, customBody } = options
 
   const msg = MESSAGES[status]
   if (!msg) return false
@@ -107,8 +111,8 @@ export async function sendTenantOrderUpdatePush(
   }
 
   const num = orderNumber ?? orderId.slice(-6)
-  const title = `${businessName}: ${msg.title} — #${num}`
-  const body = msg.body
+  const title = customTitle ? `${businessName}: ${customTitle} — #${num}` : `${businessName}: ${msg.title} — #${num}`
+  const body = customBody || msg.body
   const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
 
   // Build URL — fall back to /orders if slug is unavailable

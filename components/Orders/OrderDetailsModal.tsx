@@ -1323,6 +1323,21 @@ Please deliver this order to the customer.
               children?: React.ReactNode
             }) => {
               if (isCompleted) {
+                if (canChangeStatus && onClick) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={onClick}
+                      className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 transition-colors text-left rtl:text-right text-slate-500 group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="w-5 h-5 text-slate-400 group-hover:text-slate-500 transition-colors" />
+                        <span className="font-bold line-through group-hover:no-underline transition-all">{t(labelEn, labelAr)}</span>
+                      </div>
+                      <span className="text-xs font-semibold px-2 py-1 bg-slate-200 rounded-lg text-slate-600 uppercase tracking-wider">{t('Revert', 'تراجع')}</span>
+                    </button>
+                  )
+                }
                 return (
                   <div className="flex items-center gap-3 p-3 rounded-2xl border-2 border-slate-200 bg-slate-50 opacity-60">
                     <CheckCircle2 className="w-5 h-5 text-slate-400" />
@@ -1404,7 +1419,7 @@ Please deliver this order to the customer.
                           </div>
                           <div className="flex gap-2">
                             {tenantSlug && (
-                              <Button onClick={unassignDriver} disabled={unassigningDriver} variant="ghost" size="sm" className="text-orange-600 hover:bg-orange-50 px-2 h-8">
+                              <Button onClick={unassignDriver} disabled={unassigningDriver || !canChangeStatus} variant="ghost" size="sm" className="text-orange-600 hover:bg-orange-50 px-2 h-8">
                                 {unassigningDriver ? '...' : t('Unassign', 'إلغاء التعيين')}
                               </Button>
                             )}

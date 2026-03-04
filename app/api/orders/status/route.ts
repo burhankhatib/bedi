@@ -33,24 +33,6 @@ export async function PATCH(request: Request) {
       useCdn: false 
     })
 
-    // Build the update data
-    const updateData: Record<string, unknown> = { status }
-    
-    if (completedAt) {
-      updateData.completedAt = completedAt
-    }
-    if (status === 'preparing' || status === 'waiting_for_delivery') {
-      updateData.preparedAt = new Date().toISOString()
-    }
-    if (status === 'out-for-delivery') {
-      updateData.driverPickedUpAt = new Date().toISOString()
-    }
-    if (status === 'cancelled' || status === 'refunded') {
-      updateData.cancelledAt = new Date().toISOString()
-    }
-
-    console.log('Updating order with data:', updateData)
-
     // First verify the order exists
     const existingOrder = await writeClient.fetch(`*[_id == $orderId][0]`, { orderId })
     if (!existingOrder) {
@@ -63,11 +45,32 @@ export async function PATCH(request: Request) {
 
     console.log('Order found, current status:', existingOrder.status)
 
+    const patch = writeClient.patch(orderId)
+
+    // Build the update data
+    const updateData: Record<string, unknown> = { status }
+    
+    if (completedAt) {
+      updateData.completedAt = completedAt
+    }
+    if (status === 'preparing' || status === 'waiting_for_delivery') {
+      updateData.preparedAt = new Date().toISOString()
+      if (existingOrder.assignedDriver) {
+        updateData.deliveryRequestedAt = new Date().toISOString()
+        patch.unset(['assignedDriver'])
+      }
+    }
+    if (status === 'out-for-delivery') {
+      updateData.driverPickedUpAt = new Date().toISOString()
+    }
+    if (status === 'cancelled' || status === 'refunded') {
+      updateData.cancelledAt = new Date().toISOString()
+    }
+
+    console.log('Updating order with data:', updateData)
+
     // Update the order
-    const result = await writeClient
-      .patch(orderId)
-      .set(updateData)
-      .commit()
+    const result = await patch.set(updateData).commit()
 
     sendCustomerOrderStatusPush({
       orderId,
