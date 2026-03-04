@@ -59,11 +59,11 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
 
       case 'horizontal':
         return (
-          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-6 snap-x scroll-smooth px-4">
+          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-6 snap-x scroll-smooth px-4 items-stretch">
             {products.map((product, index) => (
               <div
                 key={product._id}
-                className={`w-[196px] md:w-[224px] shrink-0 snap-start h-full ${index === 0 ? 'ms-4' : ''} ${index === products.length - 1 ? 'me-4' : ''}`}
+                className={`w-[196px] md:w-[224px] shrink-0 snap-start flex ${index === 0 ? 'ms-4' : ''} ${index === products.length - 1 ? 'me-4' : ''}`}
               >
                 <ProductCard
                   product={product}

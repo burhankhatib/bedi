@@ -159,12 +159,12 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
         )}
       </div>
 
-      <div className="p-5 flex flex-col grow">
-        <h3 className="font-black text-xl leading-tight mb-2 tracking-tight group-hover:text-primary transition-colors">
+      <div className="p-5 flex flex-col grow min-h-0">
+        <h3 className="font-black text-xl leading-tight mb-2 tracking-tight group-hover:text-primary transition-colors line-clamp-2 min-h-[2.75rem]">
           {t(product.title_en, product.title_ar)}
         </h3>
 
-        <p className="text-sm text-slate-500 line-clamp-2 mb-4 leading-relaxed grow">
+        <p className="text-sm text-slate-500 line-clamp-2 mb-4 leading-relaxed grow min-h-[2.5rem]">
           {t(product.description_en || '', product.description_ar || '')}
         </p>
 
