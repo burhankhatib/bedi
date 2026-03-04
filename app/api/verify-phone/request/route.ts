@@ -2,18 +2,36 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import Prelude from "@prelude.so/sdk"
 
+/** Normalize to E.164 for Israel (+972) and Palestine (+970). Mobile: 9 digits after country code. */
+function normalizeE164ILPS(value: string): string {
+  const digits = value.replace(/\D/g, '')
+  if (digits.startsWith('972')) {
+    const local = digits.slice(3).replace(/^0+/, '')
+    return '+972' + (local.length >= 9 ? local.slice(0, 9) : local)
+  }
+  if (digits.startsWith('970')) {
+    const local = digits.slice(3).replace(/^0+/, '')
+    return '+970' + (local.length >= 9 ? local.slice(0, 9) : local)
+  }
+  return value
+}
+
 export async function POST(req: Request) {
   try {
     const { userId } = await auth()
-    
+
     if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    const { phoneNumber, dispatchId } = await req.json()
-    if (!phoneNumber) {
+    const { phoneNumber: rawPhone, dispatchId } = await req.json()
+    if (!rawPhone || typeof rawPhone !== 'string') {
       return new NextResponse('Phone number is required', { status: 400 })
     }
+
+    const phoneNumber = rawPhone.trim().startsWith('+972') || rawPhone.trim().startsWith('+970')
+      ? normalizeE164ILPS(rawPhone.trim())
+      : rawPhone.trim()
 
     const client = new Prelude({
       apiToken: process.env.PRELUDE_API_KEY!,
@@ -27,10 +45,18 @@ export async function POST(req: Request) {
       ? `${baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`}/api/webhooks/prelude`
       : undefined
 
-    // Prefer WhatsApp for +972/+970; force message channel (no silent verification) so OTP is actually sent
     const isIsrael = phoneNumber.startsWith('+972')
     const isPalestine = phoneNumber.startsWith('+970')
     const locale = isIsrael ? 'he-IL' : isPalestine ? 'ar-PS' : undefined
+
+    // Israel/Palestine: use SMS until WhatsApp Business is connected. Set PRELUDE_WHATSAPP_ENABLED=true when ready.
+    const whatsappEnabled = process.env.PRELUDE_WHATSAPP_ENABLED === 'true'
+    const preferredChannel =
+      (isIsrael || isPalestine) && !whatsappEnabled
+        ? 'sms'
+        : (isIsrael || isPalestine) && whatsappEnabled
+          ? 'whatsapp'
+          : undefined
 
     const verification = await client.verification.create({
       target: {
@@ -39,7 +65,7 @@ export async function POST(req: Request) {
       },
       options: {
         method: "message",
-        preferred_channel: "whatsapp",
+        ...(preferredChannel && { preferred_channel: preferredChannel }),
         ...(locale && { locale }),
         ...(callbackUrl && { callback_url: callbackUrl }),
       },

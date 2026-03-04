@@ -91,8 +91,9 @@ export default function VerifyPhoneClient() {
     try {
       const phoneNumber = ensureE164(raw, countryCode)
 
+      // Best practice: collect browser signals and send dispatchId to backend for fraud context (Prelude Web SDK).
       let dispatchId: string | undefined
-      const sdkKey = process.env.NEXT_PUBLIC_PRELUDE_SDK_KEY
+      const sdkKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_PRELUDE_SDK_KEY : undefined
       if (sdkKey) {
         try {
           const { dispatchSignals } = await import('@prelude.so/js-sdk/signals')
@@ -165,6 +166,9 @@ export default function VerifyPhoneClient() {
         </div>
         <p className="text-sm text-slate-600 mb-6">
           {t('Orders are only accepted from verified numbers. Add your number and enter the code we send you.', 'الطلبات تُقبل فقط من أرقام موثّقة. أضف رقمك وأدخل الرمز الذي نرسله إليك.')}
+        </p>
+        <p className="text-xs text-slate-500 mb-4">
+          {t('Code is sent by SMS (or WhatsApp when available).', 'يُرسل الرمز عبر الرسائل القصيرة (أو واتساب عند التوفّر).')}
         </p>
 
         {step === 'add' && (
