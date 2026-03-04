@@ -49,14 +49,18 @@ export async function POST(req: Request) {
     const isPalestine = phoneNumber.startsWith('+970')
     const locale = isIsrael ? 'he-IL' : isPalestine ? 'ar-PS' : undefined
 
-    // Israel/Palestine: use SMS until WhatsApp Business is connected. Set PRELUDE_WHATSAPP_ENABLED=true when ready.
+    // Israel: use SMS until WhatsApp Business is connected (PRELUDE_WHATSAPP_ENABLED=true).
+    // Palestine (+970): do not force a channel — let Prelude's multi-routing pick the best available
+    // (SMS may not be configured or reliable for +970; Prelude can try WhatsApp or other routes).
     const whatsappEnabled = process.env.PRELUDE_WHATSAPP_ENABLED === 'true'
     const preferredChannel =
-      (isIsrael || isPalestine) && !whatsappEnabled
+      isIsrael && !whatsappEnabled
         ? 'sms'
-        : (isIsrael || isPalestine) && whatsappEnabled
+        : isIsrael && whatsappEnabled
           ? 'whatsapp'
-          : undefined
+          : isPalestine && whatsappEnabled
+            ? 'whatsapp'
+            : undefined
 
     const verification = await client.verification.create({
       target: {
