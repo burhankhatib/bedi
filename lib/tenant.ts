@@ -30,6 +30,7 @@ export type Tenant = {
   supportsReceiveInPerson?: boolean
   supportsDelivery?: boolean
   country?: string | null
+  city?: string | null
   blockedBySuperAdmin?: boolean
 }
 
@@ -90,6 +91,8 @@ const ALL_TENANTS_QUERY = `*[_type == "tenant"] | order(createdAt desc) {
   createdAt,
   businessCreatedAt,
   subscriptionExpiresAt,
+  country,
+  city,
   blockedBySuperAdmin
 }`
 

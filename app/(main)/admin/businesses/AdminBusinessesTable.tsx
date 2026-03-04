@@ -27,6 +27,7 @@ type Tenant = {
   subscriptionExpiresAt?: string | null
   createdAt?: string
   businessCreatedAt?: string | null
+  city?: string | null
   blockedBySuperAdmin?: boolean
 }
 
@@ -44,6 +45,67 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
   const [subExpiresAt, setSubExpiresAt] = useState('')
   const [subStatus, setSubStatus] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  const [filterQuery, setFilterQuery] = useState('')
+  const [filterCity, setFilterCity] = useState('all')
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [sortBy, setSortBy] = useState('newest')
+
+  const uniqueCities = Array.from(new Set(tenants.map(t => t.city).filter(Boolean))) as string[]
+
+  const getDaysLeft = (t: Tenant) => {
+    const now = Date.now()
+    let expiry = 0
+    if (t.subscriptionExpiresAt) {
+      expiry = new Date(t.subscriptionExpiresAt).getTime()
+    } else {
+      const createdDate = t.businessCreatedAt || t.createdAt
+      if (createdDate) {
+        expiry = new Date(createdDate).getTime() + 30 * 24 * 60 * 60 * 1000
+      }
+    }
+    if (!expiry) return null
+    const diff = expiry - now
+    if (diff <= 0) return 0
+    return Math.ceil(diff / (24 * 60 * 60 * 1000))
+  }
+
+  const filteredTenants = tenants.filter((t) => {
+    if (filterQuery) {
+      const q = filterQuery.toLowerCase()
+      const matchName = t.name?.toLowerCase().includes(q)
+      const matchSlug = t.slug?.toLowerCase().includes(q)
+      const matchEmail = t.clerkUserEmail?.toLowerCase().includes(q)
+      if (!matchName && !matchSlug && !matchEmail) return false
+    }
+    if (filterCity !== 'all' && t.city !== filterCity) {
+      return false
+    }
+    if (filterStatus !== 'all') {
+      if (filterStatus === 'expired') {
+        const dl = getDaysLeft(t)
+        if (dl !== 0) return false
+      } else if (filterStatus === 'active_or_trial') {
+        const dl = getDaysLeft(t)
+        if (dl === 0) return false
+      } else {
+        if (t.subscriptionStatus !== filterStatus) return false
+      }
+    }
+    return true
+  })
+
+  const sortedTenants = [...filteredTenants].sort((a, b) => {
+    if (sortBy === 'alphabetical') {
+      return a.name.localeCompare(b.name)
+    }
+    if (sortBy === 'expiring') {
+      const aDays = getDaysLeft(a) ?? Infinity
+      const bDays = getDaysLeft(b) ?? Infinity
+      return aDays - bDays
+    }
+    return 0 // default 'newest' uses original array order
+  })
 
   const openSubModal = (t: Tenant) => {
     setSubTenant(t)
@@ -209,6 +271,46 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
           </DialogContent>
         </Dialog>
       </div>
+
+      <div className="border-b border-slate-800/60 bg-slate-900/60 px-4 py-3 md:px-6 flex flex-col sm:flex-row gap-3">
+        <input
+          type="text"
+          placeholder="Search by name, slug, email..."
+          value={filterQuery}
+          onChange={(e) => setFilterQuery(e.target.value)}
+          className="w-full sm:max-w-xs rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+        />
+        <select
+          value={filterCity}
+          onChange={(e) => setFilterCity(e.target.value)}
+          className="w-full sm:w-auto rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+        >
+          <option value="all">All Cities</option>
+          {uniqueCities.sort().map(city => (
+            <option key={city} value={city}>{city}</option>
+          ))}
+        </select>
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="w-full sm:w-auto rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+        >
+          <option value="all">All Statuses</option>
+          <option value="active_or_trial">Active / Trial</option>
+          <option value="expired">Expired</option>
+          <option value="past_due">Past Due</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="w-full sm:w-auto rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+        >
+          <option value="newest">Newest First</option>
+          <option value="alphabetical">A-Z</option>
+          <option value="expiring">Expiring Soon</option>
+        </select>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead>
@@ -223,22 +325,31 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
             </tr>
           </thead>
           <tbody>
-            {tenants.length === 0 ? (
+            {sortedTenants.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-12 text-center text-slate-500 md:px-6">
-                  No tenants yet.
+                  No businesses found.
                 </td>
               </tr>
             ) : (
-              tenants.map((t) => (
+              sortedTenants.map((t) => {
+                const daysLeft = getDaysLeft(t)
+                return (
                 <tr
                   key={t._id}
                   className={`border-b border-slate-800/40 transition-colors hover:bg-slate-800/30 ${t.blockedBySuperAdmin ? 'opacity-80' : ''}`}
                 >
                   <td className="px-4 py-3 md:px-6">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="size-4 shrink-0 text-slate-500" />
-                      <span className="font-medium">{t.name}</span>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="size-4 shrink-0 text-slate-500" />
+                        <span className="font-medium">{t.name}</span>
+                      </div>
+                      {daysLeft !== null && (
+                        <span className={`text-xs font-medium ${daysLeft <= 7 ? (daysLeft === 0 ? 'text-red-400' : 'text-amber-400') : 'text-emerald-400'}`}>
+                          {daysLeft === 0 ? 'Expired' : `${daysLeft} days left`}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 capitalize text-slate-400 md:px-6">{t.businessType}</td>
@@ -294,7 +405,8 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
                     </div>
                   </td>
                 </tr>
-              ))
+              )
+            })
             )}
           </tbody>
         </table>
