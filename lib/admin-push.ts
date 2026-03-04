@@ -4,6 +4,10 @@ import { SUPER_ADMIN_EMAIL } from '@/lib/constants'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
 
+/**
+ * Send FCM (or Web Push) notification to the Super Admin only.
+ * Used e.g. when a driver registers and is waiting for verification — only the Super Admin is notified.
+ */
 export async function sendAdminNotification(title: string, body: string, url: string = '/admin') {
   try {
     const clClient = await clerkClient()

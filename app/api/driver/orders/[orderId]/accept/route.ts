@@ -55,17 +55,33 @@ export async function POST(
     .unset(['deliveryRequestedAt'])
     .commit()
 
-  sendCustomerOrderStatusPush({
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+
+  // Notify customer: driver accepted, on the way to store
+  const customerPushPromise = sendCustomerOrderStatusPush({
     orderId,
     newStatus: 'driver_on_the_way',
-    baseUrl: process.env.NEXT_PUBLIC_APP_URL,
-  }).catch((e) => console.warn('[customer-order-push]', e))
+    baseUrl,
+  }).catch((e) => {
+    console.warn('[driver-accept] customer push failed', e)
+    return false
+  })
 
-  sendTenantOrderUpdatePush({
+  // Notify business (tenant + staff): driver accepted delivery
+  const tenantPushPromise = sendTenantOrderUpdatePush({
     orderId,
     status: 'driver_on_the_way',
-    baseUrl: process.env.NEXT_PUBLIC_APP_URL,
-  }).catch((e) => console.warn('[tenant-order-push]', e))
+    baseUrl,
+  }).catch((e) => {
+    console.warn('[driver-accept] tenant push failed', e)
+    return false
+  })
+
+  const [customerSent, tenantSent] = await Promise.all([customerPushPromise, tenantPushPromise])
+  if (!tenantSent) {
+    console.warn('[driver-accept] tenant push did not deliver (no tokens or send failed). Ensure business has enabled notifications on /t/[slug]/orders.')
+  }
+  console.info('[driver-accept] orderId=%s customerPush=%s tenantPush=%s', orderId, customerSent, tenantSent)
 
   return NextResponse.json({ success: true })
 }

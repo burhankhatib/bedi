@@ -50,7 +50,12 @@ export interface Order {
   totalAmount: number
   currency: string
   createdAt: string
+  preparedAt?: string
+  driverAcceptedAt?: string
+  driverPickedUpAt?: string
   completedAt?: string
+  cancelledAt?: string
+  driverCancelledAt?: string
   customerRequestType?: 'call_waiter' | 'request_check'
   customerRequestPaymentMethod?: 'cash' | 'card'
   customerRequestedAt?: string

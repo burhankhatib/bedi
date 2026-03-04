@@ -78,6 +78,8 @@ interface Order {
   driverAcceptedAt?: string
   driverPickedUpAt?: string
   completedAt?: string
+  cancelledAt?: string
+  driverCancelledAt?: string
 }
 
 interface OrderDetailsModalProps {
@@ -1197,60 +1199,101 @@ Please deliver this order to the customer.
           <h3 className="font-black text-lg text-slate-900 mb-4">{t('Update Order Status', 'تحديث حالة الطلب')}</h3>
 
           {/* Activity Timeline (only visible when there are timestamps to show) */}
+          {/* Activity Timeline: full timestamp for every step */}
           <div className="mb-6 p-5 rounded-2xl bg-slate-50 border border-slate-200">
             <h4 className="font-bold text-slate-900 mb-4">{t('Activity Timeline', 'سجل النشاطات')}</h4>
-            <div className="space-y-3 relative before:absolute before:inset-0 before:ml-2 rtl:before:ml-0 rtl:before:mr-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
-              <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
-                <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
-                  <p className="text-xs font-bold text-slate-800">{t('Order Received', 'تم استلام الطلب')}</p>
-                  <p className="text-xs text-slate-500 mt-1">{new Date(localOrder.createdAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: 'numeric', hour12: true, day: 'numeric', month: 'short' })}</p>
-                </div>
-              </div>
-
-              {localOrder.preparedAt && (
-                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                  <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
-                  <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
-                    <p className="text-xs font-bold text-slate-800">{t('Order Ready', 'الطلب جاهز')}</p>
-                    <p className="text-xs text-slate-500 mt-1">{new Date(localOrder.preparedAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: 'numeric', hour12: true, day: 'numeric', month: 'short' })}</p>
+            {(() => {
+              const fmt = (iso: string) =>
+                new Date(iso).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true,
+                })
+              return (
+                <div className="space-y-3 relative before:absolute before:inset-0 before:ml-2 rtl:before:ml-0 rtl:before:mr-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
+                  {/* 1. Order received — always shown */}
+                  <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                    <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                    <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
+                      <p className="text-xs font-bold text-slate-800">{t('Order received', 'تم استلام الطلب')}</p>
+                      <p className="text-xs text-slate-500 mt-1">{fmt(localOrder.createdAt)}</p>
+                    </div>
                   </div>
-                </div>
-              )}
 
-              {localOrder.driverAcceptedAt && (
-                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                  <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
-                  <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
-                    <p className="text-xs font-bold text-slate-800">{t('Driver Assigned/Accepted', 'تم تعيين السائق')}</p>
-                    {localOrder.assignedDriver && (
-                      <p className="text-xs font-medium text-slate-700">{localOrder.assignedDriver.name} ({localOrder.assignedDriver.phoneNumber})</p>
-                    )}
-                    <p className="text-xs text-slate-500 mt-1">{new Date(localOrder.driverAcceptedAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: 'numeric', hour12: true, day: 'numeric', month: 'short' })}</p>
-                  </div>
-                </div>
-              )}
+                  {/* 2. Order ready (optional) */}
+                  {localOrder.preparedAt && (
+                    <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                      <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                      <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
+                        <p className="text-xs font-bold text-slate-800">{t('Order is ready', 'الطلب جاهز')}</p>
+                        <p className="text-xs text-slate-500 mt-1">{fmt(localOrder.preparedAt)}</p>
+                      </div>
+                    </div>
+                  )}
 
-              {localOrder.driverPickedUpAt && (
-                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                  <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
-                  <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
-                    <p className="text-xs font-bold text-slate-800">{t('Order Picked Up', 'تم استلام الطلب من المطعم')}</p>
-                    <p className="text-xs text-slate-500 mt-1">{new Date(localOrder.driverPickedUpAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: 'numeric', hour12: true, day: 'numeric', month: 'short' })}</p>
-                  </div>
-                </div>
-              )}
+                  {/* 3. Driver on the way to business */}
+                  {localOrder.driverAcceptedAt && (
+                    <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                      <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                      <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
+                        <p className="text-xs font-bold text-slate-800">{t('Driver on the way to business', 'السائق في الطريق إلى المتجر')}</p>
+                        {localOrder.assignedDriver && (
+                          <p className="text-xs font-medium text-slate-700">{localOrder.assignedDriver.name} ({localOrder.assignedDriver.phoneNumber})</p>
+                        )}
+                        <p className="text-xs text-slate-500 mt-1">{fmt(localOrder.driverAcceptedAt)}</p>
+                      </div>
+                    </div>
+                  )}
 
-              {localOrder.completedAt && (
-                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                  <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
-                  <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
-                    <p className="text-xs font-bold text-slate-800">{t('Order Completed', 'مكتمل')}</p>
-                    <p className="text-xs text-slate-500 mt-1">{new Date(localOrder.completedAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: 'numeric', hour12: true, day: 'numeric', month: 'short' })}</p>
-                  </div>
+                  {/* 4. Order picked up / on the way to client */}
+                  {localOrder.driverPickedUpAt && (
+                    <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                      <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                      <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
+                        <p className="text-xs font-bold text-slate-800">{t('Order picked up — on the way to client', 'تم استلام الطلب — في الطريق إلى العميل')}</p>
+                        <p className="text-xs text-slate-500 mt-1">{fmt(localOrder.driverPickedUpAt)}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 5. Order delivered / completed */}
+                  {localOrder.completedAt && (
+                    <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                      <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                      <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
+                        <p className="text-xs font-bold text-slate-800">{t('Order delivered / completed', 'تم التوصيل / مكتمل')}</p>
+                        <p className="text-xs text-slate-500 mt-1">{fmt(localOrder.completedAt)}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Order cancelled (by business/customer) */}
+                  {localOrder.cancelledAt && (
+                    <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                      <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-red-300 bg-red-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                      <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-red-50 shadow-sm border border-red-100 flex flex-col">
+                        <p className="text-xs font-bold text-red-800">{t('Order cancelled', 'تم إلغاء الطلب')}</p>
+                        <p className="text-xs text-red-600 mt-1">{fmt(localOrder.cancelledAt)}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Driver cancelled delivery */}
+                  {localOrder.driverCancelledAt && (
+                    <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                      <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-300 bg-amber-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                      <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-amber-50 shadow-sm border border-amber-100 flex flex-col">
+                        <p className="text-xs font-bold text-amber-800">{t('Driver cancelled delivery', 'السائق ألغى التوصيل')}</p>
+                        <p className="text-xs text-amber-600 mt-1">{fmt(localOrder.driverCancelledAt)}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              )
+            })()}
           </div>
 
           {(() => {

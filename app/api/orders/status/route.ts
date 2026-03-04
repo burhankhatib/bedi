@@ -45,6 +45,9 @@ export async function PATCH(request: Request) {
     if (status === 'out-for-delivery') {
       updateData.driverPickedUpAt = new Date().toISOString()
     }
+    if (status === 'cancelled' || status === 'refunded') {
+      updateData.cancelledAt = new Date().toISOString()
+    }
 
     console.log('Updating order with data:', updateData)
 

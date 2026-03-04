@@ -118,5 +118,9 @@ export async function sendTenantOrderUpdatePush(
   // Icon: use the per-business icon route if slug is available; otherwise generic logo
   const icon = slug ? `${base}/t/${slug}/icon/192` : `${base}/adminslogo.webp`
 
-  return sendTenantAndStaffPush(siteRef, { title, body, url, icon, dir: 'rtl' })
+  const sent = await sendTenantAndStaffPush(siteRef, { title, body, url, icon, dir: 'rtl' })
+  if (status === 'driver_on_the_way' && !sent) {
+    console.warn('[tenant-order-push] driver_accepted notification not delivered', { orderId, siteRef, orderNumber: num })
+  }
+  return sent
 }

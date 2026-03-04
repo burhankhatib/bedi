@@ -67,6 +67,9 @@ export async function PATCH(
   if (status === 'out-for-delivery') {
     updateData.driverPickedUpAt = new Date().toISOString()
   }
+  if (status === 'cancelled' || status === 'refunded') {
+    updateData.cancelledAt = new Date().toISOString()
+  }
   if (check.backfillSite) {
     updateData.site = { _type: 'reference', _ref: check.auth.tenantId }
   }

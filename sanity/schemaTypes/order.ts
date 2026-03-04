@@ -272,6 +272,19 @@ export const orderType = defineType({
       description: 'When the order was completed',
     }),
     defineField({
+      name: 'cancelledAt',
+      title: 'Cancelled At',
+      type: 'datetime',
+      description: 'When the order was cancelled or refunded (by business or customer)',
+    }),
+    defineField({
+      name: 'driverCancelledAt',
+      title: 'Driver Cancelled At',
+      type: 'datetime',
+      description: 'When a driver cancelled the delivery (order goes back to preparing, available for other drivers)',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
       name: 'notes',
       title: 'Internal Notes',
       type: 'text',

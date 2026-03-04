@@ -268,7 +268,7 @@ export async function PATCH(req: NextRequest) {
       { id: placeholderByPhone._id }
     )
     
-    // Notify admin about new driver
+    // Notify Super Admin only (FCM / Web Push) — no tenant or other admins receive this
     await sendAdminNotification(
       'New Driver Pending Verification',
       `${name} has claimed a driver profile and is waiting to be verified.`,
@@ -306,7 +306,7 @@ export async function PATCH(req: NextRequest) {
   const created = await writeClient.create(createPayload)
   await upsertPlatformUserDriver(userId)
   
-  // Notify admin about new driver
+  // Notify Super Admin only (FCM / Web Push) — no tenant or other admins receive this
   await sendAdminNotification(
     'New Driver Pending Verification',
     `${name} has registered as a driver and is waiting to be verified.`,
