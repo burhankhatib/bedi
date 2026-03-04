@@ -10,12 +10,15 @@ const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const TRIAL_DAYS = 30
 const TRIAL_MS = TRIAL_DAYS * 24 * 60 * 60 * 1000
 
-/** Effective expiry: subscriptionExpiresAt, or for trial without it, createdAt + 30 days */
-function effectiveExpiry(expiresAt: string | null, createdAt: string | null, status: string): Date | null {
+/** Effective expiry: subscriptionExpiresAt, or for trial without it, businessCreatedAt (or createdAt) + 30 days */
+function effectiveExpiry(expiresAt: string | null, createdAt: string | null, businessCreatedAt: string | null, status: string): Date | null {
   if (expiresAt) return new Date(expiresAt)
-  if (status === 'trial' && createdAt) {
-    const created = new Date(createdAt).getTime()
-    return new Date(created + TRIAL_MS)
+  if (status === 'trial') {
+    const createdDate = businessCreatedAt || createdAt
+    if (createdDate) {
+      const created = new Date(createdDate).getTime()
+      return new Date(created + TRIAL_MS)
+    }
   }
   return null
 }
@@ -28,6 +31,7 @@ const OFFLINE_MESSAGE_AR =
 type InitialData = {
   subscriptionExpiresAt: string | null
   createdAt: string | null
+  businessCreatedAt?: string | null
   subscriptionStatus: string
 } | null
 
@@ -35,6 +39,7 @@ export function SubscriptionBanner({ slug, initialData = null }: { slug: string;
   const { t } = useLanguage()
   const [expiresAt, setExpiresAt] = useState<string | null>(initialData?.subscriptionExpiresAt ?? null)
   const [createdAt, setCreatedAt] = useState<string | null>(initialData?.createdAt ?? null)
+  const [businessCreatedAt, setBusinessCreatedAt] = useState<string | null>(initialData?.businessCreatedAt ?? null)
   const [status, setStatus] = useState<string>(initialData?.subscriptionStatus ?? 'trial')
   const [loaded, setLoaded] = useState(!!initialData)
 
@@ -44,22 +49,23 @@ export function SubscriptionBanner({ slug, initialData = null }: { slug: string;
       .then((data) => {
         setExpiresAt(data?.subscriptionExpiresAt ?? null)
         setCreatedAt(data?.createdAt ?? null)
+        setBusinessCreatedAt(data?.businessCreatedAt ?? null)
         setStatus(data?.subscriptionStatus ?? 'trial')
       })
       .catch(() => {})
       .finally(() => setLoaded(true))
   }, [slug])
 
-  const expiry = effectiveExpiry(expiresAt, createdAt, status)
+  const expiry = effectiveExpiry(expiresAt, createdAt, businessCreatedAt, status)
   const now = Date.now()
-  const isExpired = expiry ? expiry.getTime() <= now : !expiresAt && !createdAt
+  const isExpired = expiry ? expiry.getTime() <= now : !expiresAt && !(businessCreatedAt || createdAt)
   const daysLeft = expiry && !isExpired
     ? Math.max(0, Math.ceil((expiry.getTime() - now) / (24 * 60 * 60 * 1000)))
     : 0
   const withinOneWeek = expiry && expiry.getTime() - now <= ONE_WEEK_MS && !isExpired
   const hasActivePlan = expiry && !isExpired
   const isSubscribed = status === 'active' || (hasActivePlan && status !== 'trial')
-  const isTrialNoExpiry = !expiresAt && status === 'trial' && createdAt
+  const isTrialNoExpiry = !expiresAt && status === 'trial' && (businessCreatedAt || createdAt)
   const isTrialNoExpiryData = !expiresAt && status === 'trial'
 
   const billingHref = `/t/${slug}/manage/billing`

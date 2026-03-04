@@ -15,6 +15,7 @@ import { OrdersPushRefreshButton } from './OrdersPushRefreshButton'
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
 import { OrdersPushGateWrapper } from './OrdersPushGateWrapper'
 import { enforcePhoneVerification } from '@/lib/enforce-phone'
+import { SubscriptionBanner } from '../manage/SubscriptionBanner'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -108,6 +109,7 @@ export default async function TenantOrdersPage({
         <AppNav variant="dashboard" />
 
         <main className="mx-auto max-w-[100vw] px-4 py-4 sm:container sm:py-6">
+          <SubscriptionBanner slug={slug} />
           <PWAUpdatePrompt
             scriptUrl="/app-sw.js"
             scope="/"

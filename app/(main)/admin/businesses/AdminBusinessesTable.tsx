@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Building2, Mail, ExternalLink, Settings, Plus, Loader2 } from 'lucide-react'
+import { Building2, Mail, ExternalLink, Settings, Plus, Loader2, Calendar } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,9 @@ type Tenant = {
   clerkUserEmail?: string
   coOwnerEmails?: string[]
   subscriptionStatus: string
+  subscriptionExpiresAt?: string | null
+  createdAt?: string
+  businessCreatedAt?: string | null
   blockedBySuperAdmin?: boolean
 }
 
@@ -35,6 +38,73 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
   const [createType, setCreateType] = useState('restaurant')
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+
+  const [subModalOpen, setSubModalOpen] = useState(false)
+  const [subTenant, setSubTenant] = useState<Tenant | null>(null)
+  const [subExpiresAt, setSubExpiresAt] = useState('')
+  const [subStatus, setSubStatus] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const openSubModal = (t: Tenant) => {
+    setSubTenant(t)
+    let initialDate = ''
+    if (t.subscriptionExpiresAt) {
+      initialDate = new Date(t.subscriptionExpiresAt).toISOString().slice(0, 16)
+    } else {
+      const createdDate = t.businessCreatedAt || t.createdAt
+      if (createdDate) {
+        initialDate = new Date(new Date(createdDate).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16)
+      }
+    }
+    setSubExpiresAt(initialDate)
+    setSubStatus(t.subscriptionStatus || 'trial')
+    setSubModalOpen(true)
+  }
+
+  const handleSubSubmit = async (e?: React.FormEvent, isGracePeriod = false) => {
+    if (e) e.preventDefault()
+    if (!subTenant) return
+    setSubmitting(true)
+    
+    let newExpiresAt = subExpiresAt ? new Date(subExpiresAt).toISOString() : null
+    let newStatus = subStatus
+    
+    if (isGracePeriod) {
+      const now = Date.now()
+      let baseTime = now
+      if (subTenant.subscriptionExpiresAt) {
+        const currentExp = new Date(subTenant.subscriptionExpiresAt).getTime()
+        if (currentExp > now) baseTime = currentExp
+      } else {
+        const createdDate = subTenant.businessCreatedAt || subTenant.createdAt
+        if (createdDate) {
+          const currentExp = new Date(createdDate).getTime() + 30 * 24 * 60 * 60 * 1000
+          if (currentExp > now) baseTime = currentExp
+        }
+      }
+      newExpiresAt = new Date(baseTime + 3 * 24 * 60 * 60 * 1000).toISOString()
+      newStatus = subTenant.subscriptionStatus === 'past_due' ? 'active' : (subTenant.subscriptionStatus || 'trial')
+    }
+
+    try {
+      const res = await fetch(`/api/admin/tenants/${subTenant._id}/subscription`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subscriptionExpiresAt: newExpiresAt,
+          subscriptionStatus: newStatus,
+        })
+      })
+      if (!res.ok) throw new Error('Update failed')
+      setSubModalOpen(false)
+      router.refresh()
+    } catch (err) {
+      console.error(err)
+      alert('Failed to update subscription')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -208,6 +278,9 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
                   </td>
                   <td className="px-4 py-3 md:px-6">
                     <div className="flex items-center justify-end gap-1">
+                      <Button onClick={() => openSubModal(t)} size="sm" variant="ghost" className="text-emerald-400 hover:text-emerald-300" title="Manage subscription">
+                        <Calendar className="size-3.5" />
+                      </Button>
                       <Button asChild size="sm" variant="ghost" className="text-slate-400 hover:text-white" title="Open menu (public)">
                         <Link href={`/t/${t.slug}`} target="_blank" rel="noopener noreferrer">
                           <ExternalLink className="size-3.5" />
@@ -226,6 +299,61 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
           </tbody>
         </table>
       </div>
+      <Dialog open={subModalOpen} onOpenChange={setSubModalOpen}>
+        <DialogContent className="border-slate-700 bg-slate-900 text-white">
+          <DialogHeader>
+            <DialogTitle>Manage Subscription</DialogTitle>
+            <p className="text-sm text-slate-400">
+              {subTenant?.name} - Currently: <span className="capitalize">{subTenant?.subscriptionStatus}</span>
+            </p>
+          </DialogHeader>
+          <form onSubmit={(e) => handleSubSubmit(e, false)} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Expiration Date & Time</label>
+              <input
+                type="datetime-local"
+                value={subExpiresAt}
+                onChange={(e) => setSubExpiresAt(e.target.value)}
+                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Status</label>
+              <select
+                value={subStatus}
+                onChange={(e) => setSubStatus(e.target.value)}
+                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+              >
+                <option value="trial">Trial</option>
+                <option value="active">Active</option>
+                <option value="past_due">Past Due</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <DialogFooter className="gap-2 pt-2 flex flex-col sm:flex-row sm:justify-between items-center w-full">
+              <Button 
+                type="button" 
+                variant="secondary"
+                onClick={() => handleSubSubmit(undefined, true)}
+                disabled={submitting} 
+                className="w-full sm:w-auto bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 hover:text-emerald-300 border-0"
+              >
+                {submitting ? <Loader2 className="size-4 animate-spin mr-1.5" /> : null}
+                +3 Days Grace
+              </Button>
+              <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                <Button type="button" variant="outline" onClick={() => setSubModalOpen(false)} disabled={submitting} className="flex-1 sm:flex-none border-slate-600 text-slate-300 hover:bg-slate-800">
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={submitting} className="flex-1 sm:flex-none bg-amber-500 text-slate-950 hover:bg-amber-400">
+                  {submitting ? <Loader2 className="size-4 animate-spin mr-1.5" /> : null}
+                  Save
+                </Button>
+              </div>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

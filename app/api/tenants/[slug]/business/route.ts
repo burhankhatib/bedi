@@ -244,6 +244,14 @@ export async function PATCH(
         name_ar: (body.name_ar != null && body.name_ar !== '') ? String(body.name_ar) : 'متجر',
         ...restPatch,
       })
+
+      const now = new Date()
+      const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+      
+      await writeClient.patch(auth.tenantId).set({
+        businessCreatedAt: now.toISOString(),
+        subscriptionExpiresAt: expiresAt.toISOString(),
+      }).commit()
     }
     if (restPatch.logo) {
       await writeClient.patch(auth.tenantId).set({ businessLogo: restPatch.logo }).commit()

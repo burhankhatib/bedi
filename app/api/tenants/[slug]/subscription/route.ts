@@ -39,5 +39,6 @@ export async function GET(
     subscriptionLastPaymentAt: tenant.subscriptionLastPaymentAt ?? null,
     paypalSubscriptionId: tenant.paypalSubscriptionId ?? null,
     createdAt: tenant.createdAt ?? null,
+    businessCreatedAt: tenant.businessCreatedAt ?? null,
   })
 }

@@ -111,8 +111,6 @@ export async function POST(request: NextRequest) {
     const clerkUserEmail = typeof ownerEmail === 'string' && ownerEmail.trim() ? ownerEmail.trim().toLowerCase() : undefined
 
     const createdAt = new Date().toISOString()
-    // Trial: 30 days from tenant site creation. After that, business is hidden until they subscribe or pay.
-    const subscriptionExpiresAt = new Date(new Date(createdAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
     const doc = await writeClient.create({
       _type: 'tenant',
       slug: { _type: 'slug', current: slug },
@@ -131,7 +129,6 @@ export async function POST(request: NextRequest) {
       normalizedOwnerPhone,
       subscriptionStatus: 'trial',
       createdAt,
-      subscriptionExpiresAt,
     })
 
     // Upsert platformUser: creating a business makes this a tenant-only account

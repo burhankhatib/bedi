@@ -143,6 +143,18 @@ export const tenantType = defineType({
       initialValue: () => new Date().toISOString(),
     }),
     defineField({
+      name: 'businessCreatedAt',
+      title: 'Business Created At',
+      type: 'datetime',
+      description: 'Set when the business profile (restaurantInfo) is first submitted. Used to start the 30-day trial.',
+    }),
+    defineField({
+      name: 'lastSubscriptionReminderAt',
+      title: 'Last subscription reminder sent at',
+      type: 'datetime',
+      description: 'Tracks when the last FCM expiration reminder was sent to avoid spamming.',
+    }),
+    defineField({
       name: 'subscriptionExpiresAt',
       title: 'Subscription expires at',
       type: 'datetime',

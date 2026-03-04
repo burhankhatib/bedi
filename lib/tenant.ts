@@ -17,6 +17,7 @@ export type Tenant = {
   coOwnerEmails?: string[]
   subscriptionStatus: string
   createdAt?: string
+  businessCreatedAt?: string | null
   /** End of free trial or paid period; business hidden when past this date. */
   subscriptionExpiresAt?: string | null
   /** When the last subscription payment was recorded (for display). */
@@ -42,6 +43,7 @@ const TENANT_QUERY = `*[_type == "tenant" && slug.current == $slug][0] {
   coOwnerEmails,
   subscriptionStatus,
   createdAt,
+  businessCreatedAt,
   subscriptionExpiresAt,
   subscriptionLastPaymentAt,
   paypalSubscriptionId,
@@ -72,6 +74,7 @@ const TENANTS_FOR_USER_QUERY = `*[_type == "tenant" && (
   coOwnerEmails,
   subscriptionStatus,
   createdAt,
+  businessCreatedAt,
   subscriptionExpiresAt
 }`
 
@@ -85,6 +88,7 @@ const ALL_TENANTS_QUERY = `*[_type == "tenant"] | order(createdAt desc) {
   coOwnerEmails,
   subscriptionStatus,
   createdAt,
+  businessCreatedAt,
   subscriptionExpiresAt,
   blockedBySuperAdmin
 }`
@@ -95,15 +99,19 @@ const TRIAL_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 export function isTenantSubscriptionExpired(tenant: {
   subscriptionExpiresAt?: string | null
   createdAt?: string | null
+  businessCreatedAt?: string | null
   subscriptionStatus?: string
 }): boolean {
   const now = Date.now()
   if (tenant.subscriptionExpiresAt) {
     return new Date(tenant.subscriptionExpiresAt).getTime() <= now
   }
-  if ((tenant.subscriptionStatus === 'trial' || !tenant.subscriptionStatus) && tenant.createdAt) {
-    const end = new Date(tenant.createdAt).getTime() + TRIAL_DAYS_MS
-    return end <= now
+  if ((tenant.subscriptionStatus === 'trial' || !tenant.subscriptionStatus)) {
+    const createdDate = tenant.businessCreatedAt || tenant.createdAt
+    if (createdDate) {
+      const end = new Date(createdDate).getTime() + TRIAL_DAYS_MS
+      return end <= now
+    }
   }
   return false
 }
