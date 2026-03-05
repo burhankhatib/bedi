@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { isSuperAdminEmail } from '@/lib/constants'
@@ -19,7 +19,7 @@ type Row = {
 }
 
 /** GET: List suspended account contact submissions (super admin only). Resolves driver/tenant/customer when clerkUserId present. */
-export async function GET() {
+export async function GET(req: NextRequest) {
   const { userId, sessionClaims } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -28,8 +28,20 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const { searchParams } = new URL(req.url)
+  const filter = searchParams.get('filter') || 'new'
+
+  let condition = ''
+  if (filter === 'new') {
+    condition = `(!defined(status) || status == 'new') && (!defined(archived) || archived == false)`
+  } else if (filter === 'read') {
+    condition = `status == 'read' && (!defined(archived) || archived == false)`
+  } else if (filter === 'archived') {
+    condition = `archived == true`
+  }
+
   const list = await freshClient.fetch<Row[]>(
-    `*[_type == "suspendedContact"] | order(createdAt desc) {
+    `*[_type == "suspendedContact" && ${condition}] | order(createdAt desc) {
       _id,
       type,
       clerkUserId,

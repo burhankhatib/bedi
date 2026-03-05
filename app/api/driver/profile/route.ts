@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { auth, clerkClient } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { urlFor } from '@/sanity/lib/image'
@@ -60,9 +60,14 @@ export async function GET() {
     city?: string
     rulesAcknowledged?: boolean
     blockedBySuperAdmin?: boolean
+    referralCode?: string
+    recommendedBy?: { name: string; phoneNumber: string }
+    recommendedDrivers?: Array<{ name: string; phoneNumber: string; createdAt: string }>
   } | null>(
     `*[_type == "driver" && clerkUserId == $userId][0]{
-      _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city, rulesAcknowledged, blockedBySuperAdmin
+      _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city, rulesAcknowledged, blockedBySuperAdmin, referralCode,
+      "recommendedBy": recommendedBy->{name, phoneNumber},
+      "recommendedDrivers": *[_type == "driver" && recommendedBy._ref == ^._id]{ name, phoneNumber, "createdAt": _createdAt }
     }`,
     { userId }
   )
@@ -70,6 +75,29 @@ export async function GET() {
   if (doc.blockedBySuperAdmin) {
     return NextResponse.json({ error: 'Your driver account has been suspended. Contact support.' }, { status: 403 })
   }
+
+  // Sync with Clerk verified phone
+  try {
+    const clientClerk = await clerkClient()
+    const user = await clientClerk.users.getUser(userId)
+    const primaryPhoneId = user.primaryPhoneNumberId
+    const primaryPhone = user.phoneNumbers.find(p => p.id === primaryPhoneId)
+    if (primaryPhone && primaryPhone.verification?.status === 'verified') {
+      let clerkPhone = primaryPhone.phoneNumber
+      if (clerkPhone.startsWith('+')) {
+        clerkPhone = clerkPhone.substring(1)
+      }
+      const sanityPhoneNorm = normalizePhone(doc.phoneNumber || '')
+      const clerkPhoneNorm = normalizePhone(clerkPhone)
+      if (clerkPhoneNorm && sanityPhoneNorm !== clerkPhoneNorm) {
+        await writeClient.patch(doc._id).set({ phoneNumber: clerkPhone, normalizedPhone: clerkPhoneNorm }).commit()
+        doc.phoneNumber = clerkPhone // update returned doc
+      }
+    }
+  } catch (e) {
+    console.error('[API] Sync driver phone error:', e)
+  }
+
   const pictureUrl = doc.picture ? urlFor(doc.picture).width(200).height(200).url() : null
   return NextResponse.json({
     ...doc,
@@ -89,6 +117,7 @@ function readBody(body: Record<string, unknown>) {
   const gender = body.gender != null ? String(body.gender) : undefined
   const vehicleNumber = body.vehicleNumber != null ? String(body.vehicleNumber).trim() || undefined : undefined
   const rulesAcknowledged = body.rulesAcknowledged === true
+  const recommendedByCode = body.recommendedByCode != null ? String(body.recommendedByCode).trim() : undefined
   return {
     name,
     phoneNumber,
@@ -101,6 +130,7 @@ function readBody(body: Record<string, unknown>) {
     gender,
     vehicleNumber,
     rulesAcknowledged,
+    recommendedByCode,
   }
 }
 
@@ -187,6 +217,7 @@ export async function PATCH(req: NextRequest) {
     gender,
     vehicleNumber,
     rulesAcknowledged,
+    recommendedByCode,
   } = readBody(body)
 
   if (!name || !phoneNumber) return NextResponse.json({ error: 'name and phoneNumber required' }, { status: 400 })
@@ -199,10 +230,22 @@ export async function PATCH(req: NextRequest) {
   const normalized = normalizePhone(phoneNumber)
   if (!normalized) return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 })
 
-  const existingByClerk = await client.fetch<{ _id: string } | null>(
-    `*[_type == "driver" && clerkUserId == $userId][0]{ _id }`,
+  const existingByClerk = await client.fetch<{ _id: string; referralCode?: string; recommendedBy?: any } | null>(
+    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, referralCode, recommendedBy }`,
     { userId }
   )
+  
+  let recommendedByRef: { _type: 'reference', _ref: string } | undefined
+  if (recommendedByCode) {
+    const referrer = await client.fetch<{ _id: string } | null>(
+      `*[_type == "driver" && referralCode == $code][0]{ _id }`,
+      { code: recommendedByCode }
+    )
+    if (referrer) {
+      recommendedByRef = { _type: 'reference', _ref: referrer._id }
+    }
+  }
+
   if (existingByClerk?._id) {
     const samePhoneOther = await client.fetch<{ _id: string } | null>(
       `*[_type == "driver" && normalizedPhone == $normalized && clerkUserId != $userId && defined(clerkUserId)][0]{ _id }`,
@@ -221,26 +264,33 @@ export async function PATCH(req: NextRequest) {
       gender,
       vehicleNumber,
     }
+    if (!existingByClerk.referralCode) {
+      set.referralCode = Math.random().toString(36).substring(2, 10).toUpperCase()
+    }
+    // Only set recommendedBy if not already set
+    if (!existingByClerk.recommendedBy && recommendedByRef) {
+      set.recommendedBy = recommendedByRef
+    }
     if (pictureAssetId) set.picture = { _type: 'image', asset: { _type: 'reference', _ref: pictureAssetId } }
     await writeClient.patch(existingByClerk._id).set(set).commit()
     await upsertPlatformUserDriver(userId)
     const updated = await client.fetch(
-      `*[_type == "driver" && _id == $id][0]{ _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city }`,
+      `*[_type == "driver" && _id == $id][0]{ _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city, referralCode, recommendedBy }`,
       { id: existingByClerk._id }
     )
     return NextResponse.json(updated)
   }
 
-  let placeholderByPhone = await client.fetch<{ _id: string; clerkUserId?: string } | null>(
-    `*[_type == "driver" && normalizedPhone == $normalized][0]{ _id, clerkUserId }`,
+  let placeholderByPhone = await client.fetch<{ _id: string; clerkUserId?: string; referralCode?: string; recommendedBy?: any } | null>(
+    `*[_type == "driver" && normalizedPhone == $normalized][0]{ _id, clerkUserId, referralCode, recommendedBy }`,
     { normalized }
   )
   if (!placeholderByPhone?._id) {
-    const placeholdersNoField = await client.fetch<Array<{ _id: string; phoneNumber?: string; clerkUserId?: string }>>(
-      `*[_type == "driver" && !defined(clerkUserId)]{ _id, phoneNumber, clerkUserId }`
+    const placeholdersNoField = await client.fetch<Array<{ _id: string; phoneNumber?: string; clerkUserId?: string; referralCode?: string; recommendedBy?: any }>>(
+      `*[_type == "driver" && !defined(clerkUserId)]{ _id, phoneNumber, clerkUserId, referralCode, recommendedBy }`
     )
     const match = placeholdersNoField?.find((d) => normalizePhone(d.phoneNumber || '') === normalized)
-    if (match) placeholderByPhone = { _id: match._id, clerkUserId: match.clerkUserId }
+    if (match) placeholderByPhone = { _id: match._id, clerkUserId: match.clerkUserId, referralCode: match.referralCode, recommendedBy: match.recommendedBy }
   }
   if (placeholderByPhone?._id) {
     if (placeholderByPhone.clerkUserId && placeholderByPhone.clerkUserId !== userId) {
@@ -260,11 +310,17 @@ export async function PATCH(req: NextRequest) {
       vehicleNumber,
       rulesAcknowledged: true,
     }
+    if (!placeholderByPhone.referralCode) {
+      set.referralCode = Math.random().toString(36).substring(2, 10).toUpperCase()
+    }
+    if (!placeholderByPhone.recommendedBy && recommendedByRef) {
+      set.recommendedBy = recommendedByRef
+    }
     if (pictureAssetId) set.picture = { _type: 'image', asset: { _type: 'reference', _ref: pictureAssetId } }
     await writeClient.patch(placeholderByPhone._id).set(set).commit()
     await upsertPlatformUserDriver(userId)
     const taken = await client.fetch(
-      `*[_type == "driver" && _id == $id][0]{ _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city }`,
+      `*[_type == "driver" && _id == $id][0]{ _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city, referralCode, recommendedBy }`,
       { id: placeholderByPhone._id }
     )
     
@@ -294,6 +350,8 @@ export async function PATCH(req: NextRequest) {
     city: city ?? '',
     isActive: true,
     rulesAcknowledged: true,
+    referralCode: Math.random().toString(36).substring(2, 10).toUpperCase(),
+    ...(recommendedByRef && { recommendedBy: recommendedByRef }),
     ...(vehicleType && { vehicleType }),
     ...(nickname && { nickname }),
     ...(age != null && { age }),

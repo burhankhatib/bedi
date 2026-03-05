@@ -1071,16 +1071,26 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
             </div>
 
             <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
-              <label className="block text-sm font-semibold text-slate-300 mb-2">{t('Your mobile / WhatsApp (owner)', 'جوالك / واتساب (المالك)')}</label>
+              <label className="flex items-center justify-between text-sm font-semibold text-slate-300 mb-2">
+                <span>{t('Your mobile / WhatsApp (owner)', 'جوالك / واتساب (المالك)')}</span>
+                {form.ownerPhone && (
+                  <a href={`/verify-phone?returnTo=/t/${slug}/manage/business`} className="text-xs font-medium text-amber-500 hover:text-amber-400">
+                    {t('Change & Verify', 'تغيير وتأكيد')}
+                  </a>
+                )}
+              </label>
               <Input
                 type="tel"
                 value={form.ownerPhone}
                 onChange={(e) => setForm((f) => ({ ...f, ownerPhone: e.target.value }))}
                 placeholder="+972 50 123 4567"
-                className="w-full sm:max-w-md h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
+                className={`w-full sm:max-w-md h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base ${form.ownerPhone ? 'opacity-70 cursor-not-allowed' : ''}`}
+                readOnly={!!form.ownerPhone}
               />
               <p className="mt-2 text-xs text-slate-400">
-                {t('Used to place orders from the system. No SMS verification needed when set here.', 'يُستخدم لوضع الطلبات من النظام. لا حاجة للتحقق برسالة SMS عند تعيينه هنا.')}
+                {form.ownerPhone
+                  ? t('Verified phone number.', 'رقم الهاتف مؤكد.')
+                  : t('Must verify via SMS to place orders from the system.', 'يجب التحقق عبر SMS لوضع الطلبات من النظام.')}
               </p>
             </div>
           </div>

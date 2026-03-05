@@ -26,6 +26,7 @@ type Report = {
   description?: string
   status?: string
   archived?: boolean
+  orderId?: string
   orderNumber?: string
   reportedCustomerInfo?: string
   reporterTenantId?: string
@@ -97,15 +98,15 @@ export function AdminReportsClient() {
   const [suspendedContacts, setSuspendedContacts] = useState<SuspendedContact[]>([])
   const [pendingDrivers, setPendingDrivers] = useState<PendingDriver[]>([])
   const [loading, setLoading] = useState(true)
-  const [showArchived, setShowArchived] = useState(false)
+  const [filter, setFilter] = useState<'new' | 'read' | 'archived'>('new')
   const [busy, setBusy] = useState<Record<string, boolean>>({})
 
   const fetchReports = useCallback(() => {
     setLoading(true)
-    const q = showArchived ? '?archived=1' : ''
+    const q = `?filter=${filter}`
     Promise.all([
       fetch(`/api/admin/reports${q}`, { credentials: 'include' }).then((res) => res.json()),
-      fetch('/api/admin/suspended-contacts', { credentials: 'include' }).then((res) => res.json()),
+      fetch(`/api/admin/suspended-contacts${q}`, { credentials: 'include' }).then((res) => res.json()),
     ])
       .then(([reportsData, contactsData]) => {
         setReports(Array.isArray(reportsData.reports) ? reportsData.reports : [])
@@ -120,20 +121,20 @@ export function AdminReportsClient() {
         setSuspendedContacts([])
       })
       .finally(() => setLoading(false))
-  }, [showArchived])
+  }, [filter])
 
   useEffect(() => {
     fetchReports()
   }, [fetchReports])
 
-  const archiveReport = async (id: string) => {
+  const updateTaskState = async (id: string, type: 'report' | 'driver' | 'suspendedContact', updates: { status?: string, archived?: boolean }) => {
     setBusy((b) => ({ ...b, [id]: true }))
     try {
-      const res = await fetch(`/api/admin/reports/${id}`, {
+      const res = await fetch(`/api/admin/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ archived: true }),
+        body: JSON.stringify({ type, ...updates }),
       })
       if (res.ok) fetchReports()
     } finally {
@@ -195,16 +196,31 @@ export function AdminReportsClient() {
 
   return (
     <div className="mt-6 space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <label className="flex items-center gap-2 text-sm text-slate-400">
-          <input
-            type="checkbox"
-            checked={showArchived}
-            onChange={(e) => setShowArchived(e.target.checked)}
-            className="rounded border-slate-600 bg-slate-800 text-amber-500"
-          />
-          Show archived (read)
-        </label>
+      <div className="flex items-center gap-2">
+        <Button
+          variant={filter === 'new' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('new')}
+          className={filter === 'new' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : 'border-slate-700 text-slate-300'}
+        >
+          New
+        </Button>
+        <Button
+          variant={filter === 'read' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('read')}
+          className={filter === 'read' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : 'border-slate-700 text-slate-300'}
+        >
+          Read
+        </Button>
+        <Button
+          variant={filter === 'archived' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('archived')}
+          className={filter === 'archived' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : 'border-slate-700 text-slate-300'}
+        >
+          Archived
+        </Button>
       </div>
 
       {/* Pending Drivers */}
@@ -247,6 +263,29 @@ export function AdminReportsClient() {
                     </td>
                     <td className="px-4 py-3 md:px-6">
                       <div className="flex flex-wrap items-center gap-2">
+                        {filter !== 'read' && filter !== 'archived' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-slate-400 hover:text-slate-300"
+                            onClick={() => updateTaskState(d._id, 'driver', { status: 'read' })}
+                            disabled={busy[d._id]}
+                          >
+                            Mark Read
+                          </Button>
+                        )}
+                        {filter !== 'archived' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-slate-400 hover:text-slate-300"
+                            onClick={() => updateTaskState(d._id, 'driver', { archived: true })}
+                            disabled={busy[d._id]}
+                          >
+                            <Archive className="mr-1 size-3.5" />
+                            Archive
+                          </Button>
+                        )}
                         <VerifyToggle
                           id={d._id}
                           verified={false}
@@ -318,6 +357,29 @@ export function AdminReportsClient() {
                     </td>
                     <td className="px-4 py-3 md:px-6">
                       <div className="flex flex-wrap items-center gap-2">
+                        {filter !== 'read' && filter !== 'archived' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-slate-400 hover:text-slate-300"
+                            onClick={() => updateTaskState(c._id, 'suspendedContact', { status: 'read' })}
+                            disabled={busy[c._id]}
+                          >
+                            Mark Read
+                          </Button>
+                        )}
+                        {filter !== 'archived' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-slate-400 hover:text-slate-300"
+                            onClick={() => updateTaskState(c._id, 'suspendedContact', { archived: true })}
+                            disabled={busy[c._id]}
+                          >
+                            <Archive className="mr-1 size-3.5" />
+                            Archive
+                          </Button>
+                        )}
                         {c.resolved && (
                           <>
                             <Button
@@ -378,7 +440,7 @@ export function AdminReportsClient() {
         <div className="rounded-2xl border border-slate-800/60 bg-slate-900/40 p-12 text-center">
           <FileWarning className="mx-auto size-12 text-slate-600" />
           <p className="mt-4 text-slate-400">
-            {showArchived ? 'No archived reports.' : 'No reports yet.'}
+            {filter === 'archived' ? 'No archived reports.' : 'No reports yet.'}
           </p>
         </div>
       ) : (
@@ -434,16 +496,39 @@ export function AdminReportsClient() {
                       </td>
                       <td className="px-4 py-3 md:px-6">
                         <div className="flex flex-wrap items-center gap-2">
-                          {!r.archived && (
+                          {filter !== 'read' && filter !== 'archived' && (
                             <Button
                               variant="ghost"
                               size="sm"
                               className="h-8 text-slate-400 hover:text-slate-300"
-                              onClick={() => archiveReport(r._id)}
+                              onClick={() => updateTaskState(r._id, 'report', { status: 'read' })}
+                              disabled={busy[r._id]}
+                            >
+                              Mark Read
+                            </Button>
+                          )}
+                          {filter !== 'archived' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-slate-400 hover:text-slate-300"
+                              onClick={() => updateTaskState(r._id, 'report', { archived: true })}
                               disabled={busy[r._id]}
                             >
                               <Archive className="mr-1 size-3.5" />
-                              Mark read
+                              Archive
+                            </Button>
+                          )}
+                          {r.orderId && (
+                            <Button
+                              asChild
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-slate-400 hover:text-amber-400"
+                            >
+                              <Link href={`/studio/structure/intent/edit/template=order;type=order;id=${r.orderId}`} target="_blank">
+                                View Order
+                              </Link>
                             </Button>
                           )}
                           {r.reporterPhone && (

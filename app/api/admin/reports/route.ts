@@ -38,10 +38,19 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const showArchived = searchParams.get('archived') === '1'
+  const filter = searchParams.get('filter') || 'new'
+
+  let reportCondition = ''
+  if (filter === 'new') {
+    reportCondition = `(!defined(status) || status == 'new') && (!defined(archived) || archived == false)`
+  } else if (filter === 'read') {
+    reportCondition = `status == 'read' && (!defined(archived) || archived == false)`
+  } else if (filter === 'archived') {
+    reportCondition = `archived == true`
+  }
 
   const reports = await freshClient.fetch<ReportRow[]>(
-    `*[_type == "report" && (!defined(archived) || archived == $showArchived)] | order(_createdAt desc) {
+    `*[_type == "report" && ${reportCondition}] | order(_createdAt desc) {
       _id,
       _createdAt,
       reporterType,
@@ -50,6 +59,7 @@ export async function GET(req: NextRequest) {
       description,
       status,
       archived,
+      "orderId": order->_id,
       "orderNumber": order->orderNumber,
       reporterTenantId,
       reporterDriverId,
@@ -58,8 +68,7 @@ export async function GET(req: NextRequest) {
       reportedCustomerInfo,
       "orderCustomerId": order->customer._ref,
       "orderCustomerPhone": order->customerPhone
-    }`,
-    { showArchived }
+    }`
   )
 
   const list = reports ?? []
@@ -174,6 +183,15 @@ export async function GET(req: NextRequest) {
     `*[_type == "report"]{ reportedTenantId, reportedDriverId, reportedCustomerInfo, "orderCustomerId": order->customer._ref }`
   )
 
+  let driverCondition = `isVerifiedByAdmin != true`
+  if (filter === 'new') {
+    driverCondition += ` && (!defined(pendingTaskStatus) || pendingTaskStatus == 'new') && (!defined(pendingTaskArchived) || pendingTaskArchived == false)`
+  } else if (filter === 'read') {
+    driverCondition += ` && pendingTaskStatus == 'read' && (!defined(pendingTaskArchived) || pendingTaskArchived == false)`
+  } else if (filter === 'archived') {
+    driverCondition += ` && pendingTaskArchived == true`
+  }
+
   const pendingDrivers = await freshClient.fetch<
     Array<{
       _id: string
@@ -184,7 +202,7 @@ export async function GET(req: NextRequest) {
       _createdAt: string
     }>
   >(
-    `*[_type == "driver" && isVerifiedByAdmin != true] | order(_createdAt desc) {
+    `*[_type == "driver" && ${driverCondition}] | order(_createdAt desc) {
       _id, name, phoneNumber, country, city, _createdAt
     }`
   )

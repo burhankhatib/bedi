@@ -27,6 +27,7 @@ export default function VerifyPhoneClient() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [phoneId, setPhoneId] = useState<string | null>(null)
+  const [useWhatsapp, setUseWhatsapp] = useState(true)
 
   // Pre-fill from query params (e.g. redirect from driver profile or tenant onboarding)
   useEffect(() => {
@@ -109,7 +110,21 @@ export default function VerifyPhoneClient() {
         phoneObj = await user.createPhoneNumber({ phoneNumber })
       }
 
-      await phoneObj.prepareVerification()
+      // Attempt to use WhatsApp if requested, though standard Clerk types may not officially support it yet for PhoneNumberResource.
+      try {
+        if (useWhatsapp) {
+          await (phoneObj as any).prepareVerification({ strategy: 'whatsapp_code' })
+        } else {
+          await phoneObj.prepareVerification()
+        }
+      } catch (e: any) {
+        // Fallback to default (SMS) if whatsapp_code strategy is invalid/unsupported
+        if (e?.errors?.[0]?.code === 'invalid_strategy' || e?.errors?.[0]?.message?.includes('strategy')) {
+          await phoneObj.prepareVerification()
+        } else {
+          throw e
+        }
+      }
       
       setPhoneId(phoneObj.id)
       setStep('code')
@@ -212,6 +227,31 @@ export default function VerifyPhoneClient() {
                 className="flex-1"
               />
             </div>
+            
+            <div className="mb-4 rounded-xl border border-emerald-900/30 bg-emerald-50/50 p-4">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <div className="flex h-5 items-center">
+                  <input
+                    type="checkbox"
+                    checked={useWhatsapp}
+                    onChange={(e) => setUseWhatsapp(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-900 flex items-center gap-2">
+                    {t('Send code via WhatsApp', 'إرسال الرمز عبر واتساب')}
+                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                      {t('Recommended', 'موصى به')}
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {t('Faster and more reliable than SMS. Uncheck to use SMS instead.', 'أسرع وأكثر موثوقية من الرسائل النصية القصيرة. قم بإلغاء التحديد لاستخدام الرسائل النصية القصيرة.')}
+                  </p>
+                </div>
+              </label>
+            </div>
+
             {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
             <Button onClick={handleSendCode} disabled={loading} className="w-full bg-amber-600 text-slate-950 hover:bg-amber-700 hover:text-slate-950">
               {loading ? t('Sending…', 'جاري الإرسال…') : t('Send verification code', 'إرسال رمز التحقق')}

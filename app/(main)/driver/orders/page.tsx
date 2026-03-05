@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Package, Truck, History, Store, User, MapPin, Navigation, Flag, Wallet, Receipt, Smartphone, CircleAlert } from 'lucide-react'
@@ -77,7 +77,7 @@ const pushDriverLocation = () => {
   )
 }
 
-export default function DriverOrdersPage() {
+function DriverOrdersContent() {
   const { t, lang } = useLanguage()
   const { showToast } = useToast()
   const searchParams = useSearchParams()
@@ -740,5 +740,13 @@ export default function DriverOrdersPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function DriverOrdersPage() {
+  return (
+    <Suspense fallback={<p className="text-slate-400 text-base p-6">Loading…</p>}>
+      <DriverOrdersContent />
+    </Suspense>
   )
 }

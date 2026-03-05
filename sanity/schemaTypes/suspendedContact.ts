@@ -53,6 +53,26 @@ export const suspendedContactType = defineType({
       initialValue: () => new Date().toISOString(),
       readOnly: true,
     }),
+    defineField({
+      name: 'status',
+      title: 'Status',
+      type: 'string',
+      options: {
+        list: [
+          { title: 'New', value: 'new' },
+          { title: 'Read', value: 'read' },
+          { title: 'Resolved', value: 'resolved' },
+        ],
+      },
+      initialValue: 'new',
+    }),
+    defineField({
+      name: 'archived',
+      title: 'Archived',
+      type: 'boolean',
+      initialValue: false,
+      description: 'When true, item is marked as archived and hidden from the main list.',
+    }),
   ],
   preview: {
     select: { type: 'type', name: 'name', email: 'email', createdAt: 'createdAt' },

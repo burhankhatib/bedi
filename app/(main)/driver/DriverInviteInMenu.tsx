@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { MessageCircle } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
@@ -10,9 +10,25 @@ export function DriverInviteInMenu() {
   const { t, lang } = useLanguage()
   const [inviteName, setInviteName] = useState('')
   const [invitePhone, setInvitePhone] = useState('')
+  const [referralCode, setReferralCode] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/driver/profile')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.referralCode) {
+          setReferralCode(data.referralCode)
+        }
+      })
+      .catch((e) => console.error(e))
+  }, [])
 
   const openInviteWhatsApp = () => {
-    const message = getDriverInviteMessageAr(inviteName)
+    let inviteUrl = `https://bedi.delivery/driver/join`
+    if (referralCode) {
+      inviteUrl += `?ref=${referralCode}`
+    }
+    const message = getDriverInviteMessageAr(inviteName, inviteUrl)
     const url = getWhatsAppUrl(invitePhone, message)
     if (url) window.open(url, '_blank', 'noopener,noreferrer')
   }

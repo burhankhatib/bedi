@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,8 +23,6 @@ const GENDER_OPTIONS = [
   { value: '', label: '—', labelAr: '—' },
   { value: 'male', label: 'Male', labelAr: 'ذكر' },
   { value: 'female', label: 'Female', labelAr: 'أنثى' },
-  { value: 'other', label: 'Other', labelAr: 'آخر' },
-  { value: 'prefer_not_to_say', label: 'Prefer not to say', labelAr: 'أفضل عدم الإجابة' },
 ]
 
 export function DriverProfileClient() {
@@ -52,8 +50,14 @@ export function DriverProfileClient() {
   const [isNewRegistration, setIsNewRegistration] = useState(false)
   const [deleteConfirming, setDeleteConfirming] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [recommendations, setRecommendations] = useState<{
+    recommendedBy?: { name: string; phoneNumber: string }
+    recommendedDrivers?: Array<{ name: string; phoneNumber: string; createdAt: string }>
+  } | null>(null)
   const { showToast } = useToast()
   const { t, lang } = useLanguage()
+
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     fetch('/api/countries?registration=1')
@@ -99,6 +103,10 @@ export function DriverProfileClient() {
             vehicleNumber: data.vehicleNumber ?? '',
             gender: data.gender ?? '',
             rulesAcknowledged: data.rulesAcknowledged ?? true,
+          })
+          setRecommendations({
+            recommendedBy: data.recommendedBy,
+            recommendedDrivers: data.recommendedDrivers,
           })
           setPicturePreviewUrl(data.pictureUrl || null)
           if (data.picture?.asset?._ref) setPictureAssetId(data.picture.asset._ref)
@@ -176,6 +184,7 @@ export function DriverProfileClient() {
           gender: form.gender || undefined,
           pictureAssetId: pictureAssetId || undefined,
           rulesAcknowledged: form.rulesAcknowledged,
+          recommendedByCode: searchParams?.get('ref') || undefined,
         }),
       })
       const data = await res.json()
@@ -195,7 +204,7 @@ export function DriverProfileClient() {
           )
         }
         // Re-fetch server layout so it sees the new driver doc before showing orders (avoids redirect loop)
-        router.refresh()
+        // router.refresh() // Removed to prevent React Error #310 race condition with window.location.href
         const phoneTrimmed = form.phoneNumber.replace(/\s/g, '').trim()
         if (phoneTrimmed) {
           const digits = toEnglishDigits(phoneTrimmed).replace(/\D/g, '')
@@ -352,14 +361,23 @@ export function DriverProfileClient() {
           </select>
         </div>
         <div>
-          <label className="mb-2 block text-sm font-medium text-slate-400">{t('WhatsApp / phone', 'واتساب / الهاتف')} *</label>
+          <label className="mb-2 flex items-center justify-between text-sm font-medium text-slate-400">
+            <span>{t('WhatsApp / phone', 'واتساب / الهاتف')} *</span>
+            {form.phoneNumber && (
+              <a href={`/verify-phone?returnTo=/driver/profile`} className="text-xs text-amber-500 hover:text-amber-400">
+                {t('Change & Verify', 'تغيير وتأكيد')}
+              </a>
+            )}
+          </label>
           <Input
             value={form.phoneNumber}
             onChange={(e) => setForm((f) => ({ ...f, phoneNumber: toEnglishDigits(e.target.value) }))}
             placeholder="+972501234567"
-            className="min-h-[48px] bg-slate-800 border-slate-600 text-base text-white"
+            className={`min-h-[48px] bg-slate-800 border-slate-600 text-base text-white ${form.phoneNumber ? 'opacity-70 cursor-not-allowed' : ''}`}
             required
+            readOnly={!!form.phoneNumber}
           />
+          {form.phoneNumber && <p className="mt-1 text-xs text-slate-500">{t('Verified phone number.', 'رقم الهاتف مؤكد.')}</p>}
         </div>
         <div>
           <label className="mb-2 block text-sm font-medium text-slate-400">{t('Country', 'البلد')}</label>
@@ -428,6 +446,46 @@ export function DriverProfileClient() {
           </p>
         )}
       </form>
+
+      {!isNewRegistration && recommendations && (
+        <div className="mt-8 border-t border-slate-800 pt-6">
+          <h3 className="text-lg font-semibold text-slate-200 mb-4">
+            {t('Recommendations', 'التوصيات')}
+          </h3>
+          <div className="space-y-4">
+            {recommendations.recommendedBy && (
+              <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-4">
+                <p className="text-xs font-medium text-slate-400 mb-1">{t('You were invited by', 'تمت دعوتك بواسطة')}</p>
+                <div className="text-sm font-medium text-white">
+                  {recommendations.recommendedBy.name}
+                  {recommendations.recommendedBy.phoneNumber && <span className="text-slate-400 ml-2 block sm:inline" dir="ltr">{recommendations.recommendedBy.phoneNumber}</span>}
+                </div>
+              </div>
+            )}
+            
+            <div className="rounded-xl border border-slate-700 bg-slate-800/50 p-4">
+              <p className="text-xs font-medium text-slate-400 mb-2">
+                {t('Drivers you invited', 'السائقون الذين دعوتهم')} ({recommendations.recommendedDrivers?.length || 0})
+              </p>
+              {recommendations.recommendedDrivers && recommendations.recommendedDrivers.length > 0 ? (
+                <ul className="space-y-2 divide-y divide-slate-700/50">
+                  {recommendations.recommendedDrivers.map((rd, i) => (
+                    <li key={i} className="pt-2 first:pt-0">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="font-medium text-white">{rd.name}</span>
+                        <span className="text-slate-400 text-xs" dir="ltr">{new Date(rd.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      {rd.phoneNumber && <p className="text-xs text-slate-400 mt-0.5" dir="ltr">{rd.phoneNumber}</p>}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-slate-500">{t('You haven’t invited anyone yet.', 'لم تقم بدعوة أحد بعد.')}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {!isNewRegistration && (
         <div className="mt-8 border-t border-rose-900/30 pt-6">

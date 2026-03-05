@@ -134,6 +134,7 @@ export const reportType = defineType({
       options: {
         list: [
           { title: 'New', value: 'new' },
+          { title: 'Read', value: 'read' },
           { title: 'Reviewed', value: 'reviewed' },
           { title: 'Resolved', value: 'resolved' },
         ],

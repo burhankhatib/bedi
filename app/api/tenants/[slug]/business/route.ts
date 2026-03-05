@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { auth as clerkAuth, clerkClient } from '@clerk/nextjs/server'
 import { client, clientNoCdn } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
@@ -48,6 +49,8 @@ export async function GET(
       supportsDineIn?: boolean
       supportsReceiveInPerson?: boolean
       supportsDelivery?: boolean
+      ownerPhone?: string
+      normalizedOwnerPhone?: string
     } | null>(
       `*[_type == "tenant" && _id == $tenantId][0]{
         _id, name, country, city,
@@ -73,6 +76,33 @@ export async function GET(
   ])
 
   if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+
+  // Sync with Clerk verified phone
+  try {
+    const { userId } = await clerkAuth()
+    if (userId) {
+      const clientClerk = await clerkClient()
+      const user = await clientClerk.users.getUser(userId)
+      const primaryPhoneId = user.primaryPhoneNumberId
+      const primaryPhone = user.phoneNumbers.find(p => p.id === primaryPhoneId)
+      if (primaryPhone && primaryPhone.verification?.status === 'verified') {
+        let clerkPhone = primaryPhone.phoneNumber
+        if (clerkPhone.startsWith('+')) {
+          clerkPhone = clerkPhone.substring(1)
+        }
+        const { normalizePhoneDigits } = await import('@/lib/order-auth')
+        const sanityPhoneNorm = normalizePhoneDigits(tenant.ownerPhone || '')
+        const clerkPhoneNorm = normalizePhoneDigits(clerkPhone)
+        if (clerkPhoneNorm && sanityPhoneNorm !== clerkPhoneNorm) {
+          await writeClient.patch(tenant._id).set({ ownerPhone: clerkPhone, normalizedOwnerPhone: clerkPhoneNorm }).commit()
+          tenant.ownerPhone = clerkPhone // update returned doc
+          tenant.normalizedOwnerPhone = clerkPhoneNorm
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[API] Sync tenant phone error:', e)
+  }
 
   const restaurantInfo = restaurantInfoRaw
     ? {

@@ -63,8 +63,6 @@ export const driverType = defineType({
         list: [
           { title: 'Male', value: 'male' },
           { title: 'Female', value: 'female' },
-          { title: 'Other', value: 'other' },
-          { title: 'Prefer not to say', value: 'prefer_not_to_say' },
         ],
       },
     }),
@@ -235,6 +233,44 @@ export const driverType = defineType({
       type: 'boolean',
       initialValue: false,
       description: 'Super admin only: when true, this driver cannot sign in or receive delivery requests. They cannot override this.',
+    }),
+    defineField({
+      name: 'pendingTaskStatus',
+      title: 'Pending Task Status',
+      type: 'string',
+      options: {
+        list: [
+          { title: 'New', value: 'new' },
+          { title: 'Read', value: 'read' },
+        ],
+      },
+      initialValue: 'new',
+      description: 'Internal state tracking for super admin reports dashboard.',
+      hidden: true,
+    }),
+    defineField({
+      name: 'pendingTaskArchived',
+      title: 'Pending Task Archived',
+      type: 'boolean',
+      initialValue: false,
+      description: 'Internal state tracking for super admin reports dashboard.',
+      hidden: true,
+    }),
+    defineField({
+      name: 'referralCode',
+      title: 'Referral Code',
+      type: 'string',
+      description: 'Unique code for this driver to invite others.',
+      readOnly: true,
+      hidden: true,
+    }),
+    defineField({
+      name: 'recommendedBy',
+      title: 'Recommended By',
+      type: 'reference',
+      to: [{ type: 'driver' }],
+      description: 'The driver who invited this person.',
+      readOnly: true,
     }),
   ],
   preview: {
