@@ -17,7 +17,6 @@ export default function VerifyPhoneClient() {
   const { user } = useUser()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const returnTo = searchParams.get('returnTo') || '/'
   const { t, lang } = useLanguage()
 
   const [step, setStep] = useState<Step>('add')
@@ -28,6 +27,12 @@ export default function VerifyPhoneClient() {
   const [loading, setLoading] = useState(false)
   const [phoneId, setPhoneId] = useState<string | null>(null)
   const [useWhatsapp, setUseWhatsapp] = useState(true)
+
+  // Normalize returnTo: If driver, redirect to profile to avoid React Error #310 from orders page hydration.
+  let rawReturnTo = searchParams.get('returnTo') || '/'
+  const normalizedReturnTo = rawReturnTo === '/driver' || rawReturnTo.startsWith('/driver/') 
+    ? '/driver/profile' 
+    : rawReturnTo
 
   // Pre-fill from query params (e.g. redirect from driver profile or tenant onboarding)
   useEffect(() => {
@@ -54,9 +59,9 @@ export default function VerifyPhoneClient() {
 
   useEffect(() => {
     if (user && hasVerified) {
-      window.location.href = returnTo
+      window.location.href = normalizedReturnTo
     }
-  }, [user, hasVerified, returnTo])
+  }, [user, hasVerified, normalizedReturnTo])
 
   if (user && hasVerified) {
     return (
@@ -101,7 +106,7 @@ export default function VerifyPhoneClient() {
         if (phoneObj.verification?.status === 'verified') {
           setStep('done')
           setTimeout(() => {
-            window.location.href = returnTo
+            window.location.href = normalizedReturnTo
           }, 1500)
           return
         }
@@ -172,7 +177,7 @@ export default function VerifyPhoneClient() {
       await user.reload()
       setStep('done')
       setTimeout(() => {
-        window.location.href = returnTo
+        window.location.href = normalizedReturnTo
       }, 1500)
     } catch (e) {
       // Special handling for Clerk errors

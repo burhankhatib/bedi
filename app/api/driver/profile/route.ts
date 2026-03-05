@@ -77,12 +77,14 @@ export async function GET() {
   }
 
   // Sync with Clerk verified phone
+  let phoneVerified = false
   try {
     const clientClerk = await clerkClient()
     const user = await clientClerk.users.getUser(userId)
     const primaryPhoneId = user.primaryPhoneNumberId
     const primaryPhone = user.phoneNumbers.find(p => p.id === primaryPhoneId)
     if (primaryPhone && primaryPhone.verification?.status === 'verified') {
+      phoneVerified = true
       let clerkPhone = primaryPhone.phoneNumber
       if (clerkPhone.startsWith('+')) {
         clerkPhone = clerkPhone.substring(1)
@@ -102,6 +104,7 @@ export async function GET() {
   return NextResponse.json({
     ...doc,
     pictureUrl,
+    phoneVerified,
   })
 }
 

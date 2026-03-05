@@ -50,6 +50,7 @@ export function DriverProfileClient() {
   const [isNewRegistration, setIsNewRegistration] = useState(false)
   const [deleteConfirming, setDeleteConfirming] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [phoneVerified, setPhoneVerified] = useState(false)
   const [recommendations, setRecommendations] = useState<{
     recommendedBy?: { name: string; phoneNumber: string }
     recommendedDrivers?: Array<{ name: string; phoneNumber: string; createdAt: string }>
@@ -92,6 +93,7 @@ export function DriverProfileClient() {
         if (data === null) return
         if (data?._id) {
           setIsNewRegistration(false)
+          setPhoneVerified(data.phoneVerified === true)
           setForm({
             name: data.name ?? '',
             nickname: data.nickname ?? '',
@@ -216,13 +218,13 @@ export function DriverProfileClient() {
                 ? '+972' + digits.slice(1)
                 : countryCode + digits.replace(/^0+/, '')
           const params = new URLSearchParams({
-            returnTo: '/driver/orders',
+            returnTo: '/driver/profile',
             phone: e164.startsWith('+') ? e164 : '+' + e164,
           })
           params.set('countryCode', countryCode)
           window.location.href = `/verify-phone?${params.toString()}`
         } else {
-          window.location.href = '/driver/orders?registered=1'
+          window.location.href = '/driver/profile'
         }
       } else {
         showToast(data?.error || t('Failed to save.', 'فشل الحفظ.'), '', 'error')
@@ -363,7 +365,7 @@ export function DriverProfileClient() {
         <div>
           <label className="mb-2 flex items-center justify-between text-sm font-medium text-slate-400">
             <span>{t('WhatsApp / phone', 'واتساب / الهاتف')} *</span>
-            {form.phoneNumber && (
+            {phoneVerified && (
               <a href={`/verify-phone?returnTo=/driver/profile`} className="text-xs text-amber-500 hover:text-amber-400">
                 {t('Change & Verify', 'تغيير وتأكيد')}
               </a>
@@ -371,13 +373,20 @@ export function DriverProfileClient() {
           </label>
           <Input
             value={form.phoneNumber}
-            onChange={(e) => setForm((f) => ({ ...f, phoneNumber: toEnglishDigits(e.target.value) }))}
+            onChange={(e) => {
+              if (phoneVerified) return
+              setForm((f) => ({ ...f, phoneNumber: toEnglishDigits(e.target.value) }))
+            }}
             placeholder="+972501234567"
-            className={`min-h-[48px] bg-slate-800 border-slate-600 text-base text-white ${form.phoneNumber ? 'opacity-70 cursor-not-allowed' : ''}`}
+            className={`min-h-[48px] bg-slate-800 border-slate-600 text-base text-white ${phoneVerified ? 'opacity-70 cursor-not-allowed' : ''}`}
             required
-            readOnly={!!form.phoneNumber}
+            readOnly={phoneVerified}
           />
-          {form.phoneNumber && <p className="mt-1 text-xs text-slate-500">{t('Verified phone number.', 'رقم الهاتف مؤكد.')}</p>}
+          {phoneVerified ? (
+            <p className="mt-1 text-xs text-slate-500">{t('Verified phone number.', 'رقم الهاتف مؤكد.')}</p>
+          ) : (
+            <p className="mt-1 text-xs text-amber-500/80">{t('You will be asked to verify this number after saving.', 'سيُطلب منك تأكيد هذا الرقم بعد الحفظ.')}</p>
+          )}
         </div>
         <div>
           <label className="mb-2 block text-sm font-medium text-slate-400">{t('Country', 'البلد')}</label>
