@@ -71,13 +71,14 @@ export async function GET() {
     }`,
     { userId }
   )
-  if (!doc) return NextResponse.json(null)
-  if (doc.blockedBySuperAdmin) {
+  if (doc?.blockedBySuperAdmin) {
     return NextResponse.json({ error: 'Your driver account has been suspended. Contact support.' }, { status: 403 })
   }
 
   // Sync with Clerk verified phone
   let phoneVerified = false
+  let returnedDoc: any = doc ? { ...doc } : null
+
   try {
     const clientClerk = await clerkClient()
     const user = await clientClerk.users.getUser(userId)
@@ -89,20 +90,26 @@ export async function GET() {
       if (clerkPhone.startsWith('+')) {
         clerkPhone = clerkPhone.substring(1)
       }
-      const sanityPhoneNorm = normalizePhone(doc.phoneNumber || '')
-      const clerkPhoneNorm = normalizePhone(clerkPhone)
-      if (clerkPhoneNorm && sanityPhoneNorm !== clerkPhoneNorm) {
-        await writeClient.patch(doc._id).set({ phoneNumber: clerkPhone, normalizedPhone: clerkPhoneNorm }).commit()
-        doc.phoneNumber = clerkPhone // update returned doc
+      if (doc) {
+        const sanityPhoneNorm = normalizePhone(doc.phoneNumber || '')
+        const clerkPhoneNorm = normalizePhone(clerkPhone)
+        if (clerkPhoneNorm && sanityPhoneNorm !== clerkPhoneNorm) {
+          await writeClient.patch(doc._id).set({ phoneNumber: clerkPhone, normalizedPhone: clerkPhoneNorm }).commit()
+          returnedDoc.phoneNumber = clerkPhone // update returned doc
+        }
+      } else {
+        returnedDoc = { phoneNumber: clerkPhone }
       }
     }
   } catch (e) {
     console.error('[API] Sync driver phone error:', e)
   }
 
-  const pictureUrl = doc.picture ? urlFor(doc.picture).width(200).height(200).url() : null
+  if (!returnedDoc) return NextResponse.json(null)
+
+  const pictureUrl = returnedDoc.picture ? urlFor(returnedDoc.picture).width(200).height(200).url() : null
   return NextResponse.json({
-    ...doc,
+    ...returnedDoc,
     pictureUrl,
     phoneVerified,
   })

@@ -114,6 +114,12 @@ export function DriverProfileClient() {
           if (data.picture?.asset?._ref) setPictureAssetId(data.picture.asset._ref)
         } else {
           setIsNewRegistration(true)
+          if (data.phoneVerified) {
+            setPhoneVerified(true)
+            if (data.phoneNumber) {
+              setForm(f => ({ ...f, phoneNumber: data.phoneNumber }))
+            }
+          }
         }
       })
       .finally(() => setLoading(false))

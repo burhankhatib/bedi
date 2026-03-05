@@ -36,12 +36,29 @@ export default function VerifyPhoneClient() {
 
   const intentChange = searchParams.get('intent') === 'change'
 
-  // Pre-fill from query params (e.g. redirect from driver profile or tenant onboarding)
+  const [prefilled, setPrefilled] = useState(false)
+
+  // Pre-fill from query params (e.g. redirect from driver profile or tenant onboarding) or from Clerk user profile
   useEffect(() => {
+    if (prefilled) return
+
+    let digits = ''
+    let codeParam = searchParams.get('countryCode')?.trim()
     const phoneParam = searchParams.get('phone')?.trim()
-    const codeParam = searchParams.get('countryCode')?.trim()
-    if (!phoneParam) return
-    const digits = phoneParam.replace(/\D/g, '')
+    
+    if (phoneParam) {
+      digits = phoneParam.replace(/\D/g, '')
+    } else if (user?.phoneNumbers && user.phoneNumbers.length > 0) {
+      // Find an unverified phone number if available, otherwise just take the first one
+      const unverifiedPhone = user.phoneNumbers.find(p => p.verification?.status !== 'verified')
+      const phoneToUse = unverifiedPhone || user.phoneNumbers[0]
+      if (phoneToUse && phoneToUse.phoneNumber) {
+        digits = phoneToUse.phoneNumber.replace(/\D/g, '')
+      }
+    }
+
+    if (!digits) return
+
     if (digits.startsWith('970')) {
       setCountryCode('+970')
       setPhoneInput(digits.slice(3).replace(/^0+/, '') || digits.slice(3))
@@ -53,7 +70,8 @@ export default function VerifyPhoneClient() {
       else if (codeParam === '+972') setCountryCode('+972')
       setPhoneInput(digits.startsWith('0') ? digits.slice(1) : digits)
     }
-  }, [searchParams])
+    setPrefilled(true)
+  }, [searchParams, user, prefilled])
 
   const hasVerified = user?.phoneNumbers?.some(
     (p) => (p as { verification?: { status?: string | null } | null }).verification?.status === 'verified'
@@ -182,6 +200,14 @@ export default function VerifyPhoneClient() {
       }
 
       await user.reload()
+      
+      // Sync phone to all user profiles in backend
+      try {
+        await fetch('/api/verify-phone/sync', { method: 'POST' })
+      } catch (err) {
+        console.error('Failed to sync phone', err)
+      }
+
       setStep('done')
       setTimeout(() => {
         window.location.href = normalizedReturnTo
