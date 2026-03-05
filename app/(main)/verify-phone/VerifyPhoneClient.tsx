@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/components/LanguageContext'
 import { Phone, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
+import type { PhoneNumberResource } from '@clerk/types'
 
 type Step = 'add' | 'code' | 'done'
 type SupportedCountryCode = '+970' | '+972'
@@ -25,6 +26,7 @@ export default function VerifyPhoneClient() {
   const [codeInput, setCodeInput] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [phoneId, setPhoneId] = useState<string | null>(null)
 
   // Pre-fill from query params (e.g. redirect from driver profile or tenant onboarding)
   useEffect(() => {
@@ -91,31 +93,36 @@ export default function VerifyPhoneClient() {
     try {
       const phoneNumber = ensureE164(raw, countryCode)
 
-      // Best practice: collect browser signals and send dispatchId to backend for fraud context (Prelude Web SDK).
-      let dispatchId: string | undefined
-      const sdkKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_PRELUDE_SDK_KEY : undefined
-      if (sdkKey) {
-        try {
-          const { dispatchSignals } = await import('@prelude.so/js-sdk/signals')
-          dispatchId = await dispatchSignals(sdkKey)
-        } catch (err) {
-          console.warn('Prelude SDK dispatch failed:', err)
+      // Find if phone already exists
+      let phoneObj = user.phoneNumbers.find(p => p.phoneNumber === phoneNumber)
+      
+      if (phoneObj) {
+        if (phoneObj.verification?.status === 'verified') {
+          setStep('done')
+          setTimeout(() => {
+            window.location.href = returnTo
+          }, 1500)
+          return
         }
+      } else {
+        // Create unverified phone number
+        phoneObj = await user.createPhoneNumber({ phoneNumber })
       }
 
-      const res = await fetch('/api/verify-phone/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber, dispatchId }),
-      })
-
-      if (!res.ok) {
-        const msg = await res.text()
-        throw new Error(msg || 'Failed to request verification code')
-      }
-
+      await phoneObj.prepareVerification()
+      
+      setPhoneId(phoneObj.id)
       setStep('code')
     } catch (e) {
+      // Special handling for Clerk errors
+      if (typeof e === 'object' && e !== null && 'errors' in e) {
+        const clerkError = (e as any).errors?.[0]?.longMessage || (e as any).errors?.[0]?.message
+        if (clerkError) {
+          setError(clerkError)
+          setLoading(false)
+          return
+        }
+      }
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
     } finally {
@@ -129,25 +136,39 @@ export default function VerifyPhoneClient() {
     if (!code) return
     setLoading(true)
     try {
-      const phoneNumber = ensureE164(phoneInput.trim(), countryCode)
-
-      const res = await fetch('/api/verify-phone/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber, code }),
-      })
-
-      if (!res.ok) {
-        const msg = await res.text()
-        throw new Error(msg || 'Invalid code')
+      if (!user) throw new Error('User not found')
+      
+      const phoneObj = user.phoneNumbers.find(p => p.id === phoneId)
+      if (!phoneObj) {
+        throw new Error('Phone number not found')
       }
 
-      await user?.reload()
+      const verifyAttempt = await phoneObj.attemptVerification({ code })
+
+      if (verifyAttempt.verification.status !== 'verified') {
+        throw new Error('Invalid code')
+      }
+      
+      // If user has no primary phone number, set this as primary
+      if (!user.primaryPhoneNumberId) {
+        await user.update({ primaryPhoneNumberId: phoneObj.id })
+      }
+
+      await user.reload()
       setStep('done')
       setTimeout(() => {
         window.location.href = returnTo
       }, 1500)
     } catch (e) {
+      // Special handling for Clerk errors
+      if (typeof e === 'object' && e !== null && 'errors' in e) {
+        const clerkError = (e as any).errors?.[0]?.longMessage || (e as any).errors?.[0]?.message
+        if (clerkError) {
+          setError(clerkError)
+          setLoading(false)
+          return
+        }
+      }
       const msg = e instanceof Error ? e.message : 'Invalid code'
       setError(msg)
     } finally {

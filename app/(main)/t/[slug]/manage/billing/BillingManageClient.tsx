@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SUBSCRIPTION_PLANS, getPayPalLinkForPlan, type PlanId } from '@/lib/subscription'
 import { BankOfPalestineCard } from './BankOfPalestineCard'
-import { ExternalLink, CreditCard, Building2, Wallet } from 'lucide-react'
+import { ExternalLink, CreditCard, Building2, Wallet, Phone } from 'lucide-react'
 
 const PLAN_ORDER: PlanId[] = ['1m', '3m', '6m', '12m']
 
@@ -327,7 +327,7 @@ export function BillingManageClient({
                   dir="ltr"
                 >
                   <div className={`flex items-baseline gap-1.5 ${isRtl ? 'justify-start' : 'justify-end'}`}>
-                    <span className="text-4xl font-bold tracking-tight text-amber-400 md:text-5xl">300</span>
+                    <span className="text-4xl font-bold tracking-tight text-amber-400 md:text-5xl">350</span>
                     <span className="text-xl font-medium text-amber-300/90 md:text-2xl">ILS</span>
                   </div>
                   <p className="mt-1 text-sm font-medium text-slate-400 md:text-base">
@@ -657,6 +657,35 @@ export function BillingManageClient({
             </div>
           </>
         )}
+      </section>
+
+      {/* Manual Payment Section */}
+      <section className="mt-8">
+        <Card className="overflow-hidden border-indigo-500/50 bg-slate-900/90 ring-1 ring-indigo-500/40 transition-all hover:ring-indigo-500/60">
+          <CardContent className="flex flex-col items-center text-center p-8 space-y-4">
+            <div className="rounded-full bg-indigo-500/20 p-4">
+              <Phone className="h-8 w-8 text-indigo-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white mb-2">
+                {t('Pay in Cash or Bank Transfer', 'الدفع نقداً أو حوالة بنكية')}
+              </h2>
+              <p className="text-slate-400 max-w-md mx-auto">
+                {t(
+                  'Prefer to pay directly? You can contact us to arrange a cash payment or bank transfer. We will activate your subscription manually.',
+                  'تفضل الدفع المباشر؟ يمكنك التواصل معنا لترتيب الدفع نقداً أو عبر حوالة بنكية. سنقوم بتفعيل اشتراكك يدوياً.'
+                )}
+              </p>
+            </div>
+            <a
+              href="tel:0569611116"
+              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 font-semibold text-white shadow-lg transition-all hover:bg-indigo-500 hover:scale-105 active:scale-95"
+            >
+              <Phone className="h-5 w-5" />
+              <span dir="ltr">0569611116</span>
+            </a>
+          </CardContent>
+        </Card>
       </section>
 
       <p className="text-sm text-slate-500">
