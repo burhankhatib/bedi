@@ -34,6 +34,8 @@ export default function VerifyPhoneClient() {
     ? '/driver/profile' 
     : rawReturnTo
 
+  const intentChange = searchParams.get('intent') === 'change'
+
   // Pre-fill from query params (e.g. redirect from driver profile or tenant onboarding)
   useEffect(() => {
     const phoneParam = searchParams.get('phone')?.trim()
@@ -58,12 +60,12 @@ export default function VerifyPhoneClient() {
   )
 
   useEffect(() => {
-    if (user && hasVerified) {
+    if (user && hasVerified && !intentChange) {
       window.location.href = normalizedReturnTo
     }
-  }, [user, hasVerified, normalizedReturnTo])
+  }, [user, hasVerified, normalizedReturnTo, intentChange])
 
-  if (user && hasVerified) {
+  if (user && hasVerified && !intentChange) {
     return (
       <div className="min-h-[40vh] flex items-center justify-center p-6">
         <p className="text-slate-600">{t('Redirecting…', 'جاري التوجيه…')}</p>
@@ -104,6 +106,11 @@ export default function VerifyPhoneClient() {
       
       if (phoneObj) {
         if (phoneObj.verification?.status === 'verified') {
+          if (intentChange) {
+            setError(lang === 'ar' ? 'هذا الرقم مؤكد مسبقاً. يرجى إدخال رقم جديد لتغييره.' : 'This number is already verified. Please enter a new number to change it.')
+            setLoading(false)
+            return
+          }
           setStep('done')
           setTimeout(() => {
             window.location.href = normalizedReturnTo
@@ -169,8 +176,8 @@ export default function VerifyPhoneClient() {
         throw new Error('Invalid code')
       }
       
-      // If user has no primary phone number, set this as primary
-      if (!user.primaryPhoneNumberId) {
+      // If user has no primary phone number or intent is change, set this as primary
+      if (!user.primaryPhoneNumberId || intentChange) {
         await user.update({ primaryPhoneNumberId: phoneObj.id })
       }
 
@@ -202,11 +209,15 @@ export default function VerifyPhoneClient() {
         <div className="flex items-center gap-3 text-slate-800 mb-6">
           <Phone className="h-8 w-8 text-amber-600" />
           <h1 className="text-xl font-bold">
-            {t('Verify your phone number', 'تأكيد رقم الهاتف')}
+            {intentChange 
+              ? t('Change your phone number', 'تغيير رقم الهاتف') 
+              : t('Verify your phone number', 'تأكيد رقم الهاتف')}
           </h1>
         </div>
         <p className="text-sm text-slate-600 mb-6">
-          {t('Orders are only accepted from verified numbers. Add your number and enter the code we send you.', 'الطلبات تُقبل فقط من أرقام موثّقة. أضف رقمك وأدخل الرمز الذي نرسله إليك.')}
+          {intentChange
+            ? t('Enter your new number and we\'ll send a verification code. After verification it will be saved as your primary number.', 'أدخل رقمك الجديد وسنرسل لك رمز التحقق. بعد التأكيد سيتم حفظه كرقمك الأساسي.')
+            : t('Orders are only accepted from verified numbers. Add your number and enter the code we send you.', 'الطلبات تُقبل فقط من أرقام موثّقة. أضف رقمك وأدخل الرمز الذي نرسله إليك.')}
         </p>
         <p className="text-xs text-slate-500 mb-4">
           {t('Code is sent by SMS (or WhatsApp when available).', 'يُرسل الرمز عبر الرسائل القصيرة (أو واتساب عند التوفّر).')}

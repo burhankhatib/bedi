@@ -366,7 +366,7 @@ export function DriverProfileClient() {
           <label className="mb-2 flex items-center justify-between text-sm font-medium text-slate-400">
             <span>{t('WhatsApp / phone', 'واتساب / الهاتف')} *</span>
             {phoneVerified && (
-              <a href={`/verify-phone?returnTo=/driver/profile`} className="text-xs text-amber-500 hover:text-amber-400">
+              <a href={`/verify-phone?returnTo=/driver/profile&intent=change`} className="text-xs text-amber-500 hover:text-amber-400">
                 {t('Change & Verify', 'تغيير وتأكيد')}
               </a>
             )}
