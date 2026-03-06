@@ -10,7 +10,7 @@ export async function POST(req: Request) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    const { phoneNumber, code } = await req.json()
+    const { phoneNumber, code, intentChange } = await req.json()
     if (!phoneNumber || !code) {
       return new NextResponse('Phone number and code are required', { status: 400 })
     }
@@ -39,7 +39,10 @@ export async function POST(req: Request) {
     const user = await clerk.users.getUser(userId)
     const existingPhone = user.phoneNumbers.find((p) => p.phoneNumber === phoneNumber)
     
+    let verifiedPhoneId: string
+
     if (existingPhone) {
+      verifiedPhoneId = existingPhone.id
       // If it exists but is unverified, verify it
       if (existingPhone.verification?.status !== 'verified') {
         await clerk.phoneNumbers.updatePhoneNumber(existingPhone.id, {
@@ -48,12 +51,17 @@ export async function POST(req: Request) {
       }
     } else {
       // If it doesn't exist, create it as verified
-      await clerk.phoneNumbers.createPhoneNumber({
+      const newPhone = await clerk.phoneNumbers.createPhoneNumber({
         userId,
         phoneNumber,
         verified: true,
         primary: true,
       })
+      verifiedPhoneId = newPhone.id
+    }
+
+    if (!user.primaryPhoneNumberId || intentChange) {
+      await clerk.users.updateUser(userId, { primaryPhoneNumberID: verifiedPhoneId })
     }
 
     return NextResponse.json({ success: true })

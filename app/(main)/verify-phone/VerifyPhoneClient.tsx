@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/components/LanguageContext'
 import { Phone, ArrowLeft, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
-import type { PhoneNumberResource } from '@clerk/types'
 
 type Step = 'add' | 'code' | 'done'
 type SupportedCountryCode = '+970' | '+972'
@@ -25,7 +24,6 @@ export default function VerifyPhoneClient() {
   const [codeInput, setCodeInput] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [phoneId, setPhoneId] = useState<string | null>(null)
   const [useWhatsapp, setUseWhatsapp] = useState(true)
 
   // Normalize returnTo: If driver, redirect to profile to avoid React Error #310 from orders page hydration.
@@ -119,55 +117,47 @@ export default function VerifyPhoneClient() {
     try {
       const phoneNumber = ensureE164(raw, countryCode)
 
-      // Find if phone already exists
+      // Find if phone already exists in Clerk
       let phoneObj = user.phoneNumbers.find(p => p.phoneNumber === phoneNumber)
       
-      if (phoneObj) {
-        if (phoneObj.verification?.status === 'verified') {
-          if (intentChange) {
-            setError(lang === 'ar' ? 'هذا الرقم مؤكد مسبقاً. يرجى إدخال رقم جديد لتغييره.' : 'This number is already verified. Please enter a new number to change it.')
-            setLoading(false)
-            return
-          }
-          setStep('done')
-          setTimeout(() => {
-            window.location.href = normalizedReturnTo
-          }, 1500)
-          return
-        }
-      } else {
-        // Create unverified phone number
-        phoneObj = await user.createPhoneNumber({ phoneNumber })
-      }
-
-      // Attempt to use WhatsApp if requested, though standard Clerk types may not officially support it yet for PhoneNumberResource.
-      try {
-        if (useWhatsapp) {
-          await (phoneObj as any).prepareVerification({ strategy: 'whatsapp_code' })
-        } else {
-          await phoneObj.prepareVerification()
-        }
-      } catch (e: any) {
-        // Fallback to default (SMS) if whatsapp_code strategy is invalid/unsupported
-        if (e?.errors?.[0]?.code === 'invalid_strategy' || e?.errors?.[0]?.message?.includes('strategy')) {
-          await phoneObj.prepareVerification()
-        } else {
-          throw e
-        }
-      }
-      
-      setPhoneId(phoneObj.id)
-      setStep('code')
-    } catch (e) {
-      // Special handling for Clerk errors
-      if (typeof e === 'object' && e !== null && 'errors' in e) {
-        const clerkError = (e as any).errors?.[0]?.longMessage || (e as any).errors?.[0]?.message
-        if (clerkError) {
-          setError(clerkError)
+      if (phoneObj && phoneObj.verification?.status === 'verified') {
+        if (intentChange) {
+          setError(lang === 'ar' ? 'هذا الرقم مؤكد مسبقاً. يرجى إدخال رقم جديد لتغييره.' : 'This number is already verified. Please enter a new number to change it.')
           setLoading(false)
           return
         }
+        setStep('done')
+        setTimeout(() => {
+          window.location.href = normalizedReturnTo
+        }, 1500)
+        return
       }
+
+      // Best practice: collect browser signals and send dispatchId to backend for fraud context (Prelude Web SDK).
+      let dispatchId: string | undefined
+      const sdkKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_PRELUDE_SDK_KEY : undefined
+      if (sdkKey) {
+        try {
+          const { dispatchSignals } = await import('@prelude.so/js-sdk/signals')
+          dispatchId = await dispatchSignals(sdkKey)
+        } catch (err) {
+          console.warn('Prelude SDK dispatch failed:', err)
+        }
+      }
+
+      const res = await fetch('/api/verify-phone/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber, dispatchId, useWhatsapp }),
+      })
+
+      if (!res.ok) {
+        const msg = await res.text()
+        throw new Error(msg || 'Failed to request verification code')
+      }
+      
+      setStep('code')
+    } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
     } finally {
@@ -181,25 +171,20 @@ export default function VerifyPhoneClient() {
     if (!code) return
     setLoading(true)
     try {
-      if (!user) throw new Error('User not found')
-      
-      const phoneObj = user.phoneNumbers.find(p => p.id === phoneId)
-      if (!phoneObj) {
-        throw new Error('Phone number not found')
+      const phoneNumber = ensureE164(phoneInput.trim(), countryCode)
+
+      const res = await fetch('/api/verify-phone/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber, code, intentChange }),
+      })
+
+      if (!res.ok) {
+        const msg = await res.text()
+        throw new Error(msg || 'Invalid code')
       }
 
-      const verifyAttempt = await phoneObj.attemptVerification({ code })
-
-      if (verifyAttempt.verification.status !== 'verified') {
-        throw new Error('Invalid code')
-      }
-      
-      // If user has no primary phone number or intent is change, set this as primary
-      if (!user.primaryPhoneNumberId || intentChange) {
-        await user.update({ primaryPhoneNumberId: phoneObj.id })
-      }
-
-      await user.reload()
+      await user?.reload()
       
       // Sync phone to all user profiles in backend
       try {
@@ -213,15 +198,6 @@ export default function VerifyPhoneClient() {
         window.location.href = normalizedReturnTo
       }, 1500)
     } catch (e) {
-      // Special handling for Clerk errors
-      if (typeof e === 'object' && e !== null && 'errors' in e) {
-        const clerkError = (e as any).errors?.[0]?.longMessage || (e as any).errors?.[0]?.message
-        if (clerkError) {
-          setError(clerkError)
-          setLoading(false)
-          return
-        }
-      }
       const msg = e instanceof Error ? e.message : 'Invalid code'
       setError(msg)
     } finally {

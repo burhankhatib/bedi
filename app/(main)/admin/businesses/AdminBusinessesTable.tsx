@@ -147,8 +147,9 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
         alert('✅ WhatsApp message sent successfully!')
       } else {
         const errorDetails = data.details?.error?.message || data.details?.message || JSON.stringify(data.details || data)
-        console.error('WhatsApp Test Error:', errorDetails)
-        alert(`❌ Failed to send:\n${errorDetails}`)
+        const moreDetails = data.details?.error?.error_data?.details || ''
+        console.error('WhatsApp Test Error:', data.details || errorDetails)
+        alert(`❌ Failed to send:\n${errorDetails}\n${moreDetails}`)
       }
     } catch (err) {
       console.error(err)

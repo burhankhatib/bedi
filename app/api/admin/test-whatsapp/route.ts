@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
     const result = await sendWhatsAppTemplateMessage(
       phone,
-      'new_order_waiting',
+      'new_order',
       [tenantName || 'Business'],
       'ar'
     )

@@ -58,7 +58,7 @@ export async function GET(req: Request) {
           
           const result = await sendWhatsAppTemplateMessage(
             phone,
-            'new_order_waiting',
+            'new_order',
             [businessName],
             'ar'
           )

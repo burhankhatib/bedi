@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    const { phoneNumber: rawPhone, dispatchId } = await req.json()
+    const { phoneNumber: rawPhone, dispatchId, useWhatsapp } = await req.json()
     if (!rawPhone || typeof rawPhone !== 'string') {
       return new NextResponse('Phone number is required', { status: 400 })
     }
@@ -49,18 +49,13 @@ export async function POST(req: Request) {
     const isPalestine = phoneNumber.startsWith('+970')
     const locale = isIsrael ? 'he-IL' : isPalestine ? 'ar-PS' : undefined
 
-    // Israel: use SMS until WhatsApp Business is connected (PRELUDE_WHATSAPP_ENABLED=true).
-    // Palestine (+970): do not force a channel — let Prelude's multi-routing pick the best available
-    // (SMS may not be configured or reliable for +970; Prelude can try WhatsApp or other routes).
-    const whatsappEnabled = process.env.PRELUDE_WHATSAPP_ENABLED === 'true'
-    const preferredChannel =
-      isIsrael && !whatsappEnabled
-        ? 'sms'
-        : isIsrael && whatsappEnabled
-          ? 'whatsapp'
-          : isPalestine && whatsappEnabled
-            ? 'whatsapp'
-            : undefined
+    // Determine preferred channel based on client request and environment
+    let preferredChannel: string | undefined = undefined
+    if (useWhatsapp) {
+      preferredChannel = 'whatsapp'
+    } else if (isIsrael) {
+      preferredChannel = 'sms'
+    }
 
     const verification = await client.verification.create({
       target: {
