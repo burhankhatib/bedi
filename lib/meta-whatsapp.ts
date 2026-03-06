@@ -17,6 +17,9 @@ export async function sendWhatsAppTemplateMessage(
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
 
+  console.log('[Meta WhatsApp] Using phone number ID:', phoneNumberId ? '***' + phoneNumberId.slice(-4) : 'MISSING')
+  console.log('[Meta WhatsApp] Using access token:', accessToken ? 'PRESENT' : 'MISSING') // don't log token
+
   if (!phoneNumberId || !accessToken) {
     console.error('[Meta WhatsApp] API credentials missing in environment variables.')
     return { success: false, error: 'API credentials missing in environment variables' }
@@ -24,6 +27,8 @@ export async function sendWhatsAppTemplateMessage(
 
   // Normalize phone to E.164 without the '+'
   const to = normalizePhoneForWhatsApp(phone)
+  console.log('[Meta WhatsApp] Original phone:', phone, 'Normalized to:', to)
+  
   if (!to) {
     console.error(`[Meta WhatsApp] Invalid phone number provided: ${phone}`)
     return { success: false, error: 'Invalid phone number provided' }
