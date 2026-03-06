@@ -32,6 +32,7 @@ export type Tenant = {
   country?: string | null
   city?: string | null
   blockedBySuperAdmin?: boolean
+  ownerPhone?: string
 }
 
 const TENANT_QUERY = `*[_type == "tenant" && slug.current == $slug][0] {
@@ -93,7 +94,8 @@ const ALL_TENANTS_QUERY = `*[_type == "tenant"] | order(createdAt desc) {
   subscriptionExpiresAt,
   country,
   city,
-  blockedBySuperAdmin
+  blockedBySuperAdmin,
+  ownerPhone
 }`
 
 const TRIAL_DAYS_MS = 30 * 24 * 60 * 60 * 1000

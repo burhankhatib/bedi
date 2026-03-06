@@ -19,14 +19,14 @@ export async function sendWhatsAppTemplateMessage(
 
   if (!phoneNumberId || !accessToken) {
     console.error('[Meta WhatsApp] API credentials missing in environment variables.')
-    return false
+    return { success: false, error: 'API credentials missing in environment variables' }
   }
 
   // Normalize phone to E.164 without the '+'
   const to = normalizePhoneForWhatsApp(phone)
   if (!to) {
     console.error(`[Meta WhatsApp] Invalid phone number provided: ${phone}`)
-    return false
+    return { success: false, error: 'Invalid phone number provided' }
   }
 
   const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`
@@ -68,12 +68,12 @@ export async function sendWhatsAppTemplateMessage(
     if (!res.ok) {
       const errorData = await res.json()
       console.error('[Meta WhatsApp] API error:', JSON.stringify(errorData, null, 2))
-      return false
+      return { success: false, error: errorData }
     }
 
-    return true
+    return { success: true }
   } catch (error) {
     console.error('[Meta WhatsApp] Exception sending message:', error)
-    return false
+    return { success: false, error }
   }
 }

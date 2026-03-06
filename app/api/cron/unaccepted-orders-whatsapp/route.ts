@@ -56,17 +56,17 @@ export async function GET(req: Request) {
         if (phone) {
           const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
           
-          const sent = await sendWhatsAppTemplateMessage(
+          const result = await sendWhatsAppTemplateMessage(
             phone,
             'new_order_waiting',
             [businessName],
             'ar'
           )
 
-          if (sent) {
+          if (result.success) {
             notifiedCount++
           } else {
-            console.error(`[cron/unaccepted-orders-whatsapp] Failed to send to ${phone} for order ${order._id}`)
+            console.error(`[cron/unaccepted-orders-whatsapp] Failed to send to ${phone} for order ${order._id}`, result.error)
           }
         }
 

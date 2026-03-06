@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Building2, Mail, ExternalLink, Settings, Plus, Loader2, Calendar } from 'lucide-react'
+import { Building2, Mail, ExternalLink, Settings, Plus, Loader2, Calendar, MessageCircle } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ type Tenant = {
   businessCreatedAt?: string | null
   city?: string | null
   blockedBySuperAdmin?: boolean
+  ownerPhone?: string
 }
 
 export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
@@ -121,6 +122,39 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
     setSubExpiresAt(initialDate)
     setSubStatus(t.subscriptionStatus || 'trial')
     setSubModalOpen(true)
+  }
+
+  const [testingWa, setTestingWa] = useState<string | null>(null)
+
+  const handleTestWhatsApp = async (t: Tenant) => {
+    let phoneToUse = t.ownerPhone
+    if (!phoneToUse) {
+      phoneToUse = prompt(`Enter phone number to test WhatsApp for ${t.name}:`) || ''
+      if (!phoneToUse) return
+    } else {
+      if (!confirm(`Send test WhatsApp to ${t.name} (${t.ownerPhone})?`)) return
+    }
+
+    setTestingWa(t._id)
+    try {
+      const res = await fetch('/api/admin/test-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phoneToUse, tenantName: t.name })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        alert('✅ WhatsApp message sent successfully!')
+      } else {
+        console.error('WhatsApp Test Error:', data)
+        alert(`❌ Failed to send: ${data.error}\nCheck console for details.`)
+      }
+    } catch (err) {
+      console.error(err)
+      alert('❌ Error sending WhatsApp message')
+    } finally {
+      setTestingWa(null)
+    }
   }
 
   const handleSubSubmit = async (e?: React.FormEvent, isGracePeriod = false) => {
@@ -389,6 +423,9 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
                   </td>
                   <td className="px-4 py-3 md:px-6">
                     <div className="flex items-center justify-end gap-1">
+                      <Button onClick={() => handleTestWhatsApp(t)} disabled={testingWa === t._id} size="sm" variant="ghost" className="text-blue-400 hover:text-blue-300" title="Test WhatsApp Notification">
+                        {testingWa === t._id ? <Loader2 className="size-3.5 animate-spin" /> : <MessageCircle className="size-3.5" />}
+                      </Button>
                       <Button onClick={() => openSubModal(t)} size="sm" variant="ghost" className="text-emerald-400 hover:text-emerald-300" title="Manage subscription">
                         <Calendar className="size-3.5" />
                       </Button>
