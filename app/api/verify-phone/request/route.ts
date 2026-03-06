@@ -51,10 +51,23 @@ export async function POST(req: Request) {
 
     // Determine preferred channel based on client request and environment
     let preferredChannel: string | undefined = undefined
+    let customRouting: any = undefined
+    
     if (useWhatsapp) {
       preferredChannel = 'whatsapp'
+      // Explicitly request Prelude to try WhatsApp first, then fallback to SMS
+      customRouting = { channels: ['whatsapp', 'sms'] }
     } else if (isIsrael) {
       preferredChannel = 'sms'
+      customRouting = { channels: ['sms'] }
+    }
+
+    const verificationOptions: any = {
+      method: "message",
+      ...(preferredChannel && { preferred_channel: preferredChannel }),
+      ...(customRouting && { custom_routing: customRouting }),
+      ...(locale && { locale }),
+      ...(callbackUrl && { callback_url: callbackUrl }),
     }
 
     const verification = await client.verification.create({
@@ -62,12 +75,7 @@ export async function POST(req: Request) {
         type: "phone_number",
         value: phoneNumber,
       },
-      options: {
-        method: "message",
-        ...(preferredChannel && { preferred_channel: preferredChannel }),
-        ...(locale && { locale }),
-        ...(callbackUrl && { callback_url: callbackUrl }),
-      },
+      options: verificationOptions,
       ...(dispatchId && { dispatch_id: dispatchId }),
       ...(ip && { signals: { ip } }),
     })
