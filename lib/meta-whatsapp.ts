@@ -82,3 +82,83 @@ export async function sendWhatsAppTemplateMessage(
     return { success: false, error }
   }
 }
+
+/**
+ * Send an Authentication OTP via Meta WhatsApp Cloud API.
+ * 
+ * @param phone The recipient's phone number
+ * @param code The OTP code to send
+ */
+export async function sendWhatsAppAuthOTP(phone: string, code: string) {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+
+  if (!phoneNumberId || !accessToken) {
+    console.error('[Meta WhatsApp OTP] API credentials missing.')
+    return { success: false, error: 'API credentials missing' }
+  }
+
+  const to = normalizePhoneForWhatsApp(phone)
+  if (!to) {
+    console.error(`[Meta WhatsApp OTP] Invalid phone number: ${phone}`)
+    return { success: false, error: 'Invalid phone number' }
+  }
+
+  const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'template',
+    template: {
+      name: 'bedi_otp',
+      language: {
+        code: 'ar',
+      },
+      components: [
+        {
+          type: 'body',
+          parameters: [
+            {
+              type: 'text',
+              text: code,
+            },
+          ],
+        },
+        {
+          type: 'button',
+          sub_type: 'url',
+          index: '0',
+          parameters: [
+            {
+              type: 'text',
+              text: code,
+            },
+          ],
+        },
+      ],
+    },
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    })
+
+    if (!res.ok) {
+      const errorData = await res.json()
+      console.error('[Meta WhatsApp OTP] API error:', JSON.stringify(errorData, null, 2))
+      return { success: false, error: errorData }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('[Meta WhatsApp OTP] Exception sending OTP:', error)
+    return { success: false, error }
+  }
+}

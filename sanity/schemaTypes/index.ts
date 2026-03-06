@@ -22,7 +22,8 @@ import { tenantTableType } from './tenantTable'
 import { tenantStaffType } from './tenantStaff'
 import { userPushSubscriptionType } from './userPushSubscription'
 import { tableServiceRequestType } from './tableServiceRequest'
+import { otpVerificationType } from './otpVerification'
 
 export const schema: { types: SchemaTypeDefinition[] } = {
-  types: [tenantType, categoryType, productType, restaurantInfoType, aboutUsType, areaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType],
+  types: [tenantType, categoryType, productType, restaurantInfoType, aboutUsType, areaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType],
 }

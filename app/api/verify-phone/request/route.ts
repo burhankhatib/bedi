@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import Prelude from "@prelude.so/sdk"
+import { sendWhatsAppAuthOTP } from '@/lib/meta-whatsapp'
+import { client } from '@/sanity/lib/client'
+
+const token = process.env.SANITY_API_WRITE_TOKEN
+const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
 /** Normalize to E.164 for Israel (+972) and Palestine (+970). Mobile: 9 digits after country code. */
 function normalizeE164ILPS(value: string): string {
@@ -33,7 +38,7 @@ export async function POST(req: Request) {
       ? normalizeE164ILPS(rawPhone.trim())
       : rawPhone.trim()
 
-    const client = new Prelude({
+    const preludeClient = new Prelude({
       apiToken: process.env.PRELUDE_API_KEY!,
     })
 
@@ -48,6 +53,27 @@ export async function POST(req: Request) {
     const isIsrael = phoneNumber.startsWith('+972')
     const isPalestine = phoneNumber.startsWith('+970')
     const locale = isIsrael ? 'he-IL' : isPalestine ? 'ar-PS' : undefined
+
+    if (channel === 'meta_whatsapp') {
+      const code = Math.floor(100000 + Math.random() * 900000).toString()
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 minutes
+
+      await writeClient.create({
+        _type: 'otpVerification',
+        phoneNumber,
+        code,
+        expiresAt,
+      })
+
+      const whatsappRes = await sendWhatsAppAuthOTP(phoneNumber, code)
+      
+      if (!whatsappRes.success) {
+        console.error('[Verify Phone] Meta WhatsApp OTP failed:', whatsappRes.error)
+        return new NextResponse(JSON.stringify({ error: 'Failed to send WhatsApp OTP', details: whatsappRes.error }), { status: 400 })
+      }
+
+      return NextResponse.json({ success: true, method: 'meta_whatsapp' })
+    }
 
     // Determine preferred channel based on client request and environment
     let preferredChannel: string | undefined = undefined
@@ -65,7 +91,7 @@ export async function POST(req: Request) {
       ...(callbackUrl && { callback_url: callbackUrl }),
     }
 
-    const verification = await client.verification.create({
+    const verification = await preludeClient.verification.create({
       target: {
         type: "phone_number",
         value: phoneNumber,

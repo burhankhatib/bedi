@@ -11,7 +11,7 @@ import Link from 'next/link'
 
 type Step = 'add' | 'code' | 'done'
 type SupportedCountryCode = '+970' | '+972'
-type VerificationStrategy = 'prelude_whatsapp' | 'prelude_sms' | 'clerk'
+type VerificationStrategy = 'meta_whatsapp' | 'prelude_sms' | 'clerk'
 
 export default function VerifyPhoneClient() {
   const { user } = useUser()
@@ -26,7 +26,7 @@ export default function VerifyPhoneClient() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [phoneId, setPhoneId] = useState<string | null>(null)
-  const [strategy, setStrategy] = useState<VerificationStrategy>('prelude_whatsapp')
+  const [strategy, setStrategy] = useState<VerificationStrategy>('meta_whatsapp')
 
   // Normalize returnTo: If driver, redirect to profile to avoid React Error #310 from orders page hydration.
   let rawReturnTo = searchParams.get('returnTo') || '/'
@@ -107,7 +107,7 @@ export default function VerifyPhoneClient() {
     return `${selectedCode}${digits}`
   }
 
-  const handleSendCode = async (startingStrategy: VerificationStrategy = 'prelude_whatsapp') => {
+  const handleSendCode = async (startingStrategy: VerificationStrategy = 'meta_whatsapp') => {
     setError('')
     const raw = phoneInput.trim()
     if (!raw) {
@@ -157,11 +157,10 @@ export default function VerifyPhoneClient() {
             }
           }
 
-          const channel = currentStrategy === 'prelude_whatsapp' ? 'whatsapp' : 'sms'
           const res = await fetch('/api/verify-phone/request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phoneNumber, dispatchId, channel }),
+            body: JSON.stringify({ phoneNumber, dispatchId, channel: currentStrategy }),
           })
 
           if (!res.ok) {
@@ -178,8 +177,8 @@ export default function VerifyPhoneClient() {
 
     // Try strategies in order with automatic fallback
     let success = false
-    if (startingStrategy === 'prelude_whatsapp') {
-      success = await tryStrategy('prelude_whatsapp')
+    if (startingStrategy === 'meta_whatsapp') {
+      success = await tryStrategy('meta_whatsapp')
       if (!success) {
         success = await tryStrategy('prelude_sms')
       }
@@ -232,7 +231,7 @@ export default function VerifyPhoneClient() {
         const res = await fetch('/api/verify-phone/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phoneNumber, code, intentChange }),
+          body: JSON.stringify({ phoneNumber, code, intentChange, strategy }),
         })
 
         if (!res.ok) {
@@ -313,7 +312,7 @@ export default function VerifyPhoneClient() {
             </div>
 
             {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
-            <Button onClick={() => handleSendCode('prelude_whatsapp')} disabled={loading} className="w-full bg-amber-600 text-slate-950 hover:bg-amber-700 hover:text-slate-950">
+            <Button onClick={() => handleSendCode('meta_whatsapp')} disabled={loading} className="w-full bg-amber-600 text-slate-950 hover:bg-amber-700 hover:text-slate-950">
               {loading ? t('Sending…', 'جاري الإرسال…') : t('Send verification code', 'إرسال رمز التحقق')}
             </Button>
           </>
@@ -326,7 +325,7 @@ export default function VerifyPhoneClient() {
                 {t('Enter the verification code we sent to', 'أدخل رمز التحقق الذي أرسلناه إلى')} <span className="font-mono font-medium" dir="ltr">{ensureE164(phoneInput, countryCode)}</span>
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                {strategy === 'prelude_whatsapp' 
+                {strategy === 'meta_whatsapp' 
                   ? t('Sent via WhatsApp', 'تم الإرسال عبر واتساب')
                   : strategy === 'prelude_sms'
                     ? t('Sent via SMS', 'تم الإرسال عبر رسالة نصية قصيرة')
@@ -348,7 +347,7 @@ export default function VerifyPhoneClient() {
             </Button>
             
             <div className="mt-4 flex flex-col gap-2">
-              {strategy === 'prelude_whatsapp' && (
+              {strategy === 'meta_whatsapp' && (
                 <Button variant="outline" size="sm" onClick={() => handleSendCode('prelude_sms')} disabled={loading}>
                   {t("Didn't receive a WhatsApp? Resend via SMS", 'لم يصلك الرمز على واتساب؟ أرسل رسالة نصية')}
                 </Button>
