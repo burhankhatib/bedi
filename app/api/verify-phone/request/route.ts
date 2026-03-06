@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    const { phoneNumber: rawPhone, dispatchId, useWhatsapp } = await req.json()
+    const { phoneNumber: rawPhone, dispatchId, channel } = await req.json()
     if (!rawPhone || typeof rawPhone !== 'string') {
       return new NextResponse('Phone number is required', { status: 400 })
     }
@@ -51,21 +51,16 @@ export async function POST(req: Request) {
 
     // Determine preferred channel based on client request and environment
     let preferredChannel: string | undefined = undefined
-    let customRouting: any = undefined
     
-    if (useWhatsapp) {
+    if (channel === 'whatsapp') {
       preferredChannel = 'whatsapp'
-      // Explicitly request Prelude to try WhatsApp first, then fallback to SMS
-      customRouting = { channels: ['whatsapp', 'sms'] }
-    } else if (isIsrael) {
+    } else if (channel === 'sms' || isIsrael) {
       preferredChannel = 'sms'
-      customRouting = { channels: ['sms'] }
     }
 
     const verificationOptions: any = {
       method: "message",
       ...(preferredChannel && { preferred_channel: preferredChannel }),
-      ...(customRouting && { custom_routing: customRouting }),
       ...(locale && { locale }),
       ...(callbackUrl && { callback_url: callbackUrl }),
     }

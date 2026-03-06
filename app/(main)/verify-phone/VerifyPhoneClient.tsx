@@ -11,6 +11,7 @@ import Link from 'next/link'
 
 type Step = 'add' | 'code' | 'done'
 type SupportedCountryCode = '+970' | '+972'
+type VerificationStrategy = 'prelude_whatsapp' | 'prelude_sms' | 'clerk'
 
 export default function VerifyPhoneClient() {
   const { user } = useUser()
@@ -24,7 +25,8 @@ export default function VerifyPhoneClient() {
   const [codeInput, setCodeInput] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [useWhatsapp, setUseWhatsapp] = useState(true)
+  const [phoneId, setPhoneId] = useState<string | null>(null)
+  const [strategy, setStrategy] = useState<VerificationStrategy>('prelude_whatsapp')
 
   // Normalize returnTo: If driver, redirect to profile to avoid React Error #310 from orders page hydration.
   let rawReturnTo = searchParams.get('returnTo') || '/'
@@ -105,7 +107,7 @@ export default function VerifyPhoneClient() {
     return `${selectedCode}${digits}`
   }
 
-  const handleSendCode = async () => {
+  const handleSendCode = async (startingStrategy: VerificationStrategy = 'prelude_whatsapp') => {
     setError('')
     const raw = phoneInput.trim()
     if (!raw) {
@@ -114,54 +116,91 @@ export default function VerifyPhoneClient() {
     }
     if (!user) return
     setLoading(true)
-    try {
-      const phoneNumber = ensureE164(raw, countryCode)
 
-      // Find if phone already exists in Clerk
-      let phoneObj = user.phoneNumbers.find(p => p.phoneNumber === phoneNumber)
-      
-      if (phoneObj && phoneObj.verification?.status === 'verified') {
-        if (intentChange) {
-          setError(lang === 'ar' ? 'هذا الرقم مؤكد مسبقاً. يرجى إدخال رقم جديد لتغييره.' : 'This number is already verified. Please enter a new number to change it.')
-          setLoading(false)
-          return
-        }
-        setStep('done')
-        setTimeout(() => {
-          window.location.href = normalizedReturnTo
-        }, 1500)
+    const phoneNumber = ensureE164(raw, countryCode)
+
+    // Find if phone already exists in Clerk
+    let phoneObj = user.phoneNumbers.find(p => p.phoneNumber === phoneNumber)
+    
+    if (phoneObj && phoneObj.verification?.status === 'verified') {
+      if (intentChange) {
+        setError(lang === 'ar' ? 'هذا الرقم مؤكد مسبقاً. يرجى إدخال رقم جديد لتغييره.' : 'This number is already verified. Please enter a new number to change it.')
+        setLoading(false)
         return
       }
+      setStep('done')
+      setTimeout(() => {
+        window.location.href = normalizedReturnTo
+      }, 1500)
+      return
+    }
 
-      // Best practice: collect browser signals and send dispatchId to backend for fraud context (Prelude Web SDK).
-      let dispatchId: string | undefined
-      const sdkKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_PRELUDE_SDK_KEY : undefined
-      if (sdkKey) {
-        try {
-          const { dispatchSignals } = await import('@prelude.so/js-sdk/signals')
-          dispatchId = await dispatchSignals(sdkKey)
-        } catch (err) {
-          console.warn('Prelude SDK dispatch failed:', err)
+    const tryStrategy = async (currentStrategy: VerificationStrategy): Promise<boolean> => {
+      setStrategy(currentStrategy)
+      try {
+        if (currentStrategy === 'clerk') {
+          if (!phoneObj) {
+            phoneObj = await user.createPhoneNumber({ phoneNumber })
+          }
+          await phoneObj.prepareVerification()
+          setPhoneId(phoneObj.id)
+        } else {
+          // Best practice: collect browser signals and send dispatchId to backend for fraud context (Prelude Web SDK).
+          let dispatchId: string | undefined
+          const sdkKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_PRELUDE_SDK_KEY : undefined
+          if (sdkKey) {
+            try {
+              const { dispatchSignals } = await import('@prelude.so/js-sdk/signals')
+              dispatchId = await dispatchSignals(sdkKey)
+            } catch (err) {
+              console.warn('Prelude SDK dispatch failed:', err)
+            }
+          }
+
+          const channel = currentStrategy === 'prelude_whatsapp' ? 'whatsapp' : 'sms'
+          const res = await fetch('/api/verify-phone/request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phoneNumber, dispatchId, channel }),
+          })
+
+          if (!res.ok) {
+            const msg = await res.text()
+            throw new Error(msg || 'Failed to request verification code')
+          }
         }
+        return true
+      } catch (e) {
+        console.error(`Strategy ${currentStrategy} failed:`, e)
+        return false
       }
+    }
 
-      const res = await fetch('/api/verify-phone/request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber, dispatchId, useWhatsapp }),
-      })
-
-      if (!res.ok) {
-        const msg = await res.text()
-        throw new Error(msg || 'Failed to request verification code')
+    // Try strategies in order with automatic fallback
+    let success = false
+    if (startingStrategy === 'prelude_whatsapp') {
+      success = await tryStrategy('prelude_whatsapp')
+      if (!success) {
+        success = await tryStrategy('prelude_sms')
       }
-      
+      if (!success) {
+        success = await tryStrategy('clerk')
+      }
+    } else if (startingStrategy === 'prelude_sms') {
+      success = await tryStrategy('prelude_sms')
+      if (!success) {
+        success = await tryStrategy('clerk')
+      }
+    } else if (startingStrategy === 'clerk') {
+      success = await tryStrategy('clerk')
+    }
+
+    setLoading(false)
+
+    if (success) {
       setStep('code')
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setError(msg)
-    } finally {
-      setLoading(false)
+    } else {
+      setError(lang === 'ar' ? 'فشل إرسال رمز التحقق. يرجى المحاولة مرة أخرى لاحقاً.' : 'Failed to send verification code. Please try again later.')
     }
   }
 
@@ -171,17 +210,35 @@ export default function VerifyPhoneClient() {
     if (!code) return
     setLoading(true)
     try {
-      const phoneNumber = ensureE164(phoneInput.trim(), countryCode)
+      if (strategy === 'clerk') {
+        if (!user) throw new Error('User not found')
+        const phoneObj = user.phoneNumbers.find(p => p.id === phoneId)
+        if (!phoneObj) {
+          throw new Error('Phone number not found')
+        }
 
-      const res = await fetch('/api/verify-phone/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber, code, intentChange }),
-      })
+        const verifyAttempt = await phoneObj.attemptVerification({ code })
+        if (verifyAttempt.verification.status !== 'verified') {
+          throw new Error('Invalid code')
+        }
+        
+        // If user has no primary phone number or intent is change, set this as primary
+        if (!user.primaryPhoneNumberId || intentChange) {
+          await user.update({ primaryPhoneNumberId: phoneObj.id })
+        }
+      } else {
+        const phoneNumber = ensureE164(phoneInput.trim(), countryCode)
 
-      if (!res.ok) {
-        const msg = await res.text()
-        throw new Error(msg || 'Invalid code')
+        const res = await fetch('/api/verify-phone/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phoneNumber, code, intentChange }),
+        })
+
+        if (!res.ok) {
+          const msg = await res.text()
+          throw new Error(msg || 'Invalid code')
+        }
       }
 
       await user?.reload()
@@ -198,6 +255,15 @@ export default function VerifyPhoneClient() {
         window.location.href = normalizedReturnTo
       }, 1500)
     } catch (e) {
+      // Special handling for Clerk errors
+      if (e && typeof e === 'object' && 'errors' in e) {
+        const clerkError = (e as any).errors?.[0]?.longMessage || (e as any).errors?.[0]?.message
+        if (clerkError) {
+          setError(clerkError)
+          setLoading(false)
+          return
+        }
+      }
       const msg = e instanceof Error ? e.message : 'Invalid code'
       setError(msg)
     } finally {
@@ -245,33 +311,9 @@ export default function VerifyPhoneClient() {
                 className="flex-1"
               />
             </div>
-            
-            <div className="mb-4 rounded-xl border border-emerald-900/30 bg-emerald-50/50 p-4">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <div className="flex h-5 items-center">
-                  <input
-                    type="checkbox"
-                    checked={useWhatsapp}
-                    onChange={(e) => setUseWhatsapp(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                  />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-slate-900 flex items-center gap-2">
-                    {t('Send code via WhatsApp', 'إرسال الرمز عبر واتساب')}
-                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                      {t('Recommended', 'موصى به')}
-                    </span>
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {t('Faster and more reliable than SMS. Uncheck to use SMS instead.', 'أسرع وأكثر موثوقية من الرسائل النصية القصيرة. قم بإلغاء التحديد لاستخدام الرسائل النصية القصيرة.')}
-                  </p>
-                </div>
-              </label>
-            </div>
 
             {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
-            <Button onClick={handleSendCode} disabled={loading} className="w-full bg-amber-600 text-slate-950 hover:bg-amber-700 hover:text-slate-950">
+            <Button onClick={() => handleSendCode('prelude_whatsapp')} disabled={loading} className="w-full bg-amber-600 text-slate-950 hover:bg-amber-700 hover:text-slate-950">
               {loading ? t('Sending…', 'جاري الإرسال…') : t('Send verification code', 'إرسال رمز التحقق')}
             </Button>
           </>
@@ -283,6 +325,13 @@ export default function VerifyPhoneClient() {
               <p className="text-sm text-slate-600 mb-1">
                 {t('Enter the verification code we sent to', 'أدخل رمز التحقق الذي أرسلناه إلى')} <span className="font-mono font-medium" dir="ltr">{ensureE164(phoneInput, countryCode)}</span>
               </p>
+              <p className="text-xs text-slate-500 mt-1">
+                {strategy === 'prelude_whatsapp' 
+                  ? t('Sent via WhatsApp', 'تم الإرسال عبر واتساب')
+                  : strategy === 'prelude_sms'
+                    ? t('Sent via SMS', 'تم الإرسال عبر رسالة نصية قصيرة')
+                    : t('Sent via SMS (Alternate)', 'تم الإرسال عبر رسالة نصية (بديل)')}
+              </p>
             </div>
             <Input
               type="text"
@@ -290,16 +339,30 @@ export default function VerifyPhoneClient() {
               autoComplete="one-time-code"
               placeholder={t('Enter verification code', 'أدخل رمز التحقق')}
               value={codeInput}
-              onChange={(e) => setCodeInput(e.target.value.replace(/\D/g, '').slice(0, 10))} // Allow up to 10 just in case Prelude uses longer codes, though usually 5-6
+              onChange={(e) => setCodeInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
               className="mb-3"
             />
             {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
             <Button onClick={handleVerifyCode} disabled={loading || codeInput.length < 4} className="w-full bg-amber-600 text-slate-950 hover:bg-amber-700 hover:text-slate-950">
               {loading ? t('Verifying…', 'جاري التحقق…') : t('Verify', 'تحقق')}
             </Button>
-            <Button variant="ghost" className="w-full mt-2" onClick={() => { setStep('add'); setCodeInput(''); setError(''); }}>
-              {t('Use a different number', 'استخدام رقم آخر')}
-            </Button>
+            
+            <div className="mt-4 flex flex-col gap-2">
+              {strategy === 'prelude_whatsapp' && (
+                <Button variant="outline" size="sm" onClick={() => handleSendCode('prelude_sms')} disabled={loading}>
+                  {t("Didn't receive a WhatsApp? Resend via SMS", 'لم يصلك الرمز على واتساب؟ أرسل رسالة نصية')}
+                </Button>
+              )}
+              {strategy === 'prelude_sms' && (
+                <Button variant="outline" size="sm" onClick={() => handleSendCode('clerk')} disabled={loading}>
+                  {t("Didn't receive an SMS? Try alternate provider", 'لم تصلك رسالة نصية؟ جرب مزود بديل')}
+                </Button>
+              )}
+              
+              <Button variant="ghost" size="sm" className="w-full" onClick={() => { setStep('add'); setCodeInput(''); setError(''); }}>
+                {t('Use a different number', 'استخدام رقم آخر')}
+              </Button>
+            </div>
           </>
         )}
 
