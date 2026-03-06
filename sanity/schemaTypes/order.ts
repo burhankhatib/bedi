@@ -142,6 +142,14 @@ export const orderType = defineType({
       description: 'Updated by the retry-delivery-requests cron job each time it re-sends push to online drivers (every 3 min).',
     }),
     defineField({
+      name: 'businessWhatsappNotifiedAt',
+      title: 'Business WhatsApp Notified At',
+      type: 'datetime',
+      readOnly: true,
+      hidden: true,
+      description: 'When the business was notified via WhatsApp about an unaccepted order.',
+    }),
+    defineField({
       name: 'declinedByDriverIds',
       title: 'Declined by drivers',
       type: 'array',
