@@ -214,7 +214,7 @@ export function DriverProfileClient() {
         // Re-fetch server layout so it sees the new driver doc before showing orders (avoids redirect loop)
         // router.refresh() // Removed to prevent React Error #310 race condition with window.location.href
         const phoneTrimmed = form.phoneNumber.replace(/\s/g, '').trim()
-        if (phoneTrimmed) {
+        if (phoneTrimmed && !phoneVerified) {
           const digits = toEnglishDigits(phoneTrimmed).replace(/\D/g, '')
           const countryCode = digits.startsWith('970') ? '+970' : '+972'
           const e164 =
@@ -224,13 +224,17 @@ export function DriverProfileClient() {
                 ? '+972' + digits.slice(1)
                 : countryCode + digits.replace(/^0+/, '')
           const params = new URLSearchParams({
-            returnTo: '/driver/profile',
+            returnTo: isNewRegistration ? '/driver/orders?registered=1' : '/driver/profile',
             phone: e164.startsWith('+') ? e164 : '+' + e164,
           })
           params.set('countryCode', countryCode)
           window.location.href = `/verify-phone?${params.toString()}`
         } else {
-          window.location.href = '/driver/profile'
+          if (isNewRegistration) {
+            window.location.href = '/driver/orders?registered=1'
+          } else {
+            window.location.href = '/driver/profile'
+          }
         }
       } else {
         showToast(data?.error || t('Failed to save.', 'فشل الحفظ.'), '', 'error')
