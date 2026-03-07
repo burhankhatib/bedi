@@ -157,9 +157,21 @@ export function UnifiedOrderDialog({
     setLocationError(null)
     setLocationLoading(true)
 
-    const onSuccess = (pos: GeolocationPosition) => {
-      setDeliveryLocation(pos.coords.latitude, pos.coords.longitude)
+    const onSuccess = async (pos: GeolocationPosition) => {
+      const lat = pos.coords.latitude
+      const lng = pos.coords.longitude
+      setDeliveryLocation(lat, lng)
       setLocationLoading(false)
+
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+        const data = await res.json()
+        if (data && data.display_name) {
+          setAddress(prev => prev.trim() ? prev : data.display_name)
+        }
+      } catch (e) {
+        // ignore error
+      }
     }
 
     const onError = (err: GeolocationPositionError) => {

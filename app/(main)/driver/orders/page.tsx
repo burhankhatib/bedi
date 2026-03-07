@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useState, useEffect, useCallback, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Package, Truck, History, Store, User, MapPin, Navigation, Flag, Wallet, Receipt, Smartphone, CircleAlert } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
@@ -81,8 +81,22 @@ function DriverOrdersContent() {
   const { t, lang } = useLanguage()
   const { showToast } = useToast()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const { hasPush } = useDriverPush()
-  const { isOnline } = useDriverStatus()
+  const { isOnline, isVerifiedByAdmin, fetchStatus } = useDriverStatus()
+
+  useEffect(() => {
+    if (searchParams.get('goOnline') === '1') {
+      if (!isOnline && isVerifiedByAdmin) {
+        fetch('/api/driver/status', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isOnline: true }),
+        }).then(() => fetchStatus())
+      }
+      router.replace('/driver/orders')
+    }
+  }, [searchParams, isOnline, isVerifiedByAdmin, router, fetchStatus])
   const [pending, setPending] = useState<DriverOrder[]>([])
   const [myDeliveries, setMyDeliveries] = useState<DriverOrder[]>([])
   const [myCompletedToday, setMyCompletedToday] = useState<DriverOrder[]>([])
@@ -474,11 +488,11 @@ function DriverOrdersContent() {
           </div>
           <span className="font-bold text-slate-200 text-lg">{t('Delivery', 'التوصيل')}</span>
         </div>
-        <p className="text-slate-300 text-[15px] leading-relaxed pr-2 ml-12 rtl:mr-12 rtl:ml-2">
-          {showAcceptDecline
-            ? `${o.city ? `${getCityDisplayName(o.city, lang)} - ` : ''}${(lang === 'ar' && o.deliveryAreaNameAr) ? o.deliveryAreaNameAr : (o.deliveryAreaName || o.deliveryAddress || '—')}`
-            : `${o.city ? `${getCityDisplayName(o.city, lang)} - ` : ''}${o.deliveryAddress || '—'}`}
-        </p>
+        <div className="text-slate-300 text-[15px] leading-relaxed pr-2 ml-12 rtl:mr-12 rtl:ml-2 space-y-1">
+          {o.city && <p>{getCityDisplayName(o.city, lang)}</p>}
+          <p><span className="font-semibold">{t('Area:', 'المنطقة:')}</span> {lang === 'ar' && o.deliveryAreaNameAr ? o.deliveryAreaNameAr : (o.deliveryAreaName || '—')}</p>
+          <p><span className="font-semibold">{t('Address:', 'العنوان:')}</span> {o.deliveryAddress || '—'}</p>
+        </div>
         {!showAcceptDecline && o.deliveryLat != null && o.deliveryLng != null && Number.isFinite(o.deliveryLat) && Number.isFinite(o.deliveryLng) && (
           <div className={`flex flex-wrap gap-3 mt-4 ${isEnRouteToCustomer ? 'flex-col sm:flex-row' : ''}`}>
             <a

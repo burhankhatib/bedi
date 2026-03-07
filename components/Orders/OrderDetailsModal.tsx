@@ -1204,7 +1204,7 @@ Please deliver this order to the customer.
             <h4 className="font-bold text-slate-900 mb-4">{t('Activity Timeline', 'سجل النشاطات')}</h4>
             {(() => {
               const fmt = (iso: string) =>
-                new Date(iso).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', {
+                new Date(iso).toLocaleString('en-US', {
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',

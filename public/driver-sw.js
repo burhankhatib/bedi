@@ -61,7 +61,10 @@ self.addEventListener('push', function (event) {
 self.addEventListener('notificationclick', function (event) {
   event.notification.close()
   const path = event.notification.data?.url || '/driver/orders'
-  const fullUrl = path.startsWith('http') ? path : self.location.origin + (path.startsWith('/') ? path : '/' + path)
+  let fullUrl = path.startsWith('http') ? path : self.location.origin + (path.startsWith('/') ? path : '/' + path)
+  if (fullUrl.includes('/driver/orders') && !fullUrl.includes('goOnline=1')) {
+    fullUrl += (fullUrl.includes('?') ? '&' : '?') + 'goOnline=1'
+  }
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
       for (const client of clientList) {
