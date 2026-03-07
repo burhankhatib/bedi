@@ -102,8 +102,20 @@ export async function GET(req: Request) {
               )
 
               if (!result.success) {
-                const errorStr = typeof result.error === 'string' ? result.error : JSON.stringify(result.error || '')
-                if (errorStr.includes('does not exist in ar_EG')) {
+                let errorStr = ''
+                if (result.error) {
+                  if (typeof result.error === 'string') {
+                    errorStr = result.error
+                  } else if (result.error.error?.error_data?.details) {
+                    errorStr = result.error.error.error_data.details
+                  } else if (result.error.error?.message) {
+                    errorStr = result.error.error.message
+                  } else {
+                    errorStr = JSON.stringify(result.error)
+                  }
+                }
+                
+                if (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar')) {
                   result = await sendWhatsAppTemplateMessage(
                     phone,
                     'new_deliver',

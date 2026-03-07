@@ -21,13 +21,16 @@ export function AdminBroadcastClient() {
   const [targets, setTargets] = useState<string[]>([])
   const [countries, setCountries] = useState('')
   const [cities, setCities] = useState('')
-  const [specificNumbers, setSpecificNumbers] = useState('')
+  const [specificUsers, setSpecificUsers] = useState<{name: string, phone: string}[]>([])
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ success?: boolean, sentCount?: number, failedCount?: number, totalFound?: number, error?: string } | null>(null)
   
   const [history, setHistory] = useState<BroadcastHistory[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
+
+  const [availableCountries, setAvailableCountries] = useState<string[]>([])
+  const [availableCities, setAvailableCities] = useState<string[]>([])
 
   const fetchHistory = () => {
     setLoadingHistory(true)
@@ -40,8 +43,19 @@ export function AdminBroadcastClient() {
       .finally(() => setLoadingHistory(false))
   }
 
+  const fetchLocations = () => {
+    fetch('/api/admin/broadcast-locations')
+      .then(res => res.json())
+      .then(data => {
+        if (data.countries) setAvailableCountries(data.countries)
+        if (data.cities) setAvailableCities(data.cities)
+      })
+      .catch(err => console.error(err))
+  }
+
   useEffect(() => {
     fetchHistory()
+    fetchLocations()
   }, [])
 
   const toggleTarget = (t: string) => {
@@ -50,8 +64,9 @@ export function AdminBroadcastClient() {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (targets.length === 0 && !specificNumbers.trim()) {
-      alert('Please select at least one target audience or enter specific numbers.')
+    const validUsers = specificUsers.filter(u => u.name.trim() && u.phone.trim())
+    if (targets.length === 0 && validUsers.length === 0) {
+      alert('Please select at least one target audience or enter specific users.')
       return
     }
     if (!message.trim()) {
@@ -59,7 +74,7 @@ export function AdminBroadcastClient() {
       return
     }
 
-    const confirmMsg = `Are you sure you want to broadcast this message?\n\nTargets: ${targets.join(', ') || 'None'}\nLocations: ${countries || 'All'} / ${cities || 'All'}\nSpecific Numbers: ${specificNumbers ? 'Yes' : 'No'}\n\nMessage preview:\nمرحبا [Name]\n${message}\nهذه الرسالة اوتوماتيكية و لن يتم الرد عليها.`
+    const confirmMsg = `Are you sure you want to broadcast this message?\n\nTargets: ${targets.join(', ') || 'None'}\nLocations: ${countries || 'All'} / ${cities || 'All'}\nSpecific Users: ${validUsers.length}\n\nMessage preview:\nمرحبا [Name]\n${message}\nهذه الرسالة اوتوماتيكية و لن يتم الرد عليها.`
     if (!confirm(confirmMsg)) return
 
     setSending(true)
@@ -71,9 +86,9 @@ export function AdminBroadcastClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           targets,
-          country: countries,
+          country: countries, // Send directly to API which expects comma-separated
           city: cities,
-          specificNumbers,
+          specificUsers: validUsers,
           message
         })
       })
@@ -82,7 +97,7 @@ export function AdminBroadcastClient() {
         setResult({ error: data.error || 'Request failed' })
       } else {
         setResult(data)
-        setSpecificNumbers('')
+        setSpecificUsers([])
         setMessage('')
         fetchHistory()
       }
@@ -93,13 +108,33 @@ export function AdminBroadcastClient() {
     }
   }
 
+  const toggleLocationFilter = (type: 'country' | 'city', val: string) => {
+    if (type === 'country') {
+      const arr = countries.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+      const valLower = val.toLowerCase()
+      if (arr.includes(valLower)) {
+        setCountries(arr.filter(x => x !== valLower).join(', '))
+      } else {
+        setCountries([...arr, valLower].join(', '))
+      }
+    } else {
+      const arr = cities.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+      const valLower = val.toLowerCase()
+      if (arr.includes(valLower)) {
+        setCities(arr.filter(x => x !== valLower).join(', '))
+      } else {
+        setCities([...arr, valLower].join(', '))
+      }
+    }
+  }
+
   return (
     <div className="mt-6 rounded-2xl border border-slate-800/60 bg-slate-900/40 p-6">
       <form onSubmit={handleSend} className="space-y-6 max-w-2xl">
         
         {/* Target Audience */}
         <div className="space-y-3">
-          <label className="block text-sm font-medium text-slate-300">Target Audience (Optional if using specific numbers)</label>
+          <label className="block text-sm font-medium text-slate-300">Target Audience (Optional if using specific users)</label>
           <div className="flex flex-wrap gap-3">
             {[
               { id: 'businesses', label: 'Businesses' },
@@ -121,25 +156,51 @@ export function AdminBroadcastClient() {
 
         {/* Location Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
+          <div className="space-y-3">
             <label className="block text-sm font-medium text-slate-300">Country Filters (Optional)</label>
-            <input
-              type="text"
-              value={countries}
-              onChange={e => setCountries(e.target.value)}
-              placeholder="e.g. PS, IL (comma separated)"
-              className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-            />
+            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 rounded-lg border border-slate-700 bg-slate-800/80 p-3">
+              {availableCountries.length === 0 ? (
+                <span className="text-xs text-slate-500">No countries found</span>
+              ) : (
+                availableCountries.map(c => {
+                  const isChecked = countries.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).includes(c.toLowerCase())
+                  return (
+                    <label key={c} className="flex items-center gap-2 rounded border border-slate-600 bg-slate-800 px-2 py-1 cursor-pointer hover:bg-slate-700 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleLocationFilter('country', c)}
+                        className="rounded border-slate-500 bg-slate-900 text-amber-500 focus:ring-amber-500/50"
+                      />
+                      <span className="text-xs font-medium text-slate-300">{c}</span>
+                    </label>
+                  )
+                })
+              )}
+            </div>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-3">
             <label className="block text-sm font-medium text-slate-300">City Filters (Optional)</label>
-            <input
-              type="text"
-              value={cities}
-              onChange={e => setCities(e.target.value)}
-              placeholder="e.g. Ramallah, Nablus"
-              className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-            />
+            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 rounded-lg border border-slate-700 bg-slate-800/80 p-3">
+              {availableCities.length === 0 ? (
+                <span className="text-xs text-slate-500">No cities found</span>
+              ) : (
+                availableCities.map(c => {
+                  const isChecked = cities.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).includes(c.toLowerCase())
+                  return (
+                    <label key={c} className="flex items-center gap-2 rounded border border-slate-600 bg-slate-800 px-2 py-1 cursor-pointer hover:bg-slate-700 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleLocationFilter('city', c)}
+                        className="rounded border-slate-500 bg-slate-900 text-amber-500 focus:ring-amber-500/50"
+                      />
+                      <span className="text-xs font-medium text-slate-300">{c}</span>
+                    </label>
+                  )
+                })
+              )}
+            </div>
           </div>
         </div>
         <p className="text-xs text-slate-500 flex items-start gap-1.5">
@@ -147,17 +208,64 @@ export function AdminBroadcastClient() {
           Leave location filters empty to send to everyone in the selected target groups. Customers are filtered based on the cities/countries of the businesses they ordered from.
         </p>
 
-        {/* Specific Numbers */}
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">Specific Phone Numbers (Optional)</label>
-          <textarea
-            value={specificNumbers}
-            onChange={e => setSpecificNumbers(e.target.value)}
-            rows={2}
-            placeholder="e.g. +972501234567, +970591234567 (comma separated)"
-            className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-          />
-          <p className="text-xs text-slate-500">Includes country code. Useful for testing or reaching specific individuals.</p>
+        {/* Specific Users */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-medium text-slate-300">Specific Users (Optional)</label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSpecificUsers([...specificUsers, { name: '', phone: '' }])}
+              className="h-8 border-slate-700 bg-slate-800/50 hover:bg-slate-700 text-slate-300 text-xs"
+            >
+              + Add User
+            </Button>
+          </div>
+          {specificUsers.length > 0 && (
+            <div className="space-y-2">
+              {specificUsers.map((u, i) => (
+                <div key={i} className="flex gap-2 items-start">
+                  <input
+                    type="text"
+                    value={u.name}
+                    onChange={e => {
+                      const newArr = [...specificUsers]
+                      newArr[i].name = e.target.value
+                      setSpecificUsers(newArr)
+                    }}
+                    placeholder="First Name"
+                    className="w-1/3 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                  />
+                  <input
+                    type="text"
+                    value={u.phone}
+                    onChange={e => {
+                      const newArr = [...specificUsers]
+                      newArr[i].phone = e.target.value
+                      setSpecificUsers(newArr)
+                    }}
+                    placeholder="Phone (e.g. +972...)"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                    dir="ltr"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newArr = [...specificUsers]
+                      newArr.splice(i, 1)
+                      setSpecificUsers(newArr)
+                    }}
+                    className="p-2 text-slate-500 hover:text-rose-400 transition-colors shrink-0"
+                    title="Remove user"
+                  >
+                    <XCircle className="size-5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-slate-500">Add individuals to receive the broadcast. Phone must include country code.</p>
         </div>
 
         {/* Message Content */}
@@ -204,7 +312,7 @@ export function AdminBroadcastClient() {
         {/* Submit */}
         <Button 
           type="submit" 
-          disabled={sending || (targets.length === 0 && !specificNumbers.trim()) || !message.trim()} 
+          disabled={sending || (targets.length === 0 && specificUsers.filter(u => u.name.trim() && u.phone.trim()).length === 0) || !message.trim()} 
           className="w-full sm:w-auto bg-amber-500 text-slate-950 hover:bg-amber-400 font-semibold"
         >
           {sending ? (

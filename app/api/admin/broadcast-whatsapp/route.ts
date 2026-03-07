@@ -17,10 +17,10 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    const { targets, country, city, specificNumbers, message } = body
+    const { targets, country, city, specificUsers, message } = body
 
-    if ((!targets || !Array.isArray(targets) || targets.length === 0) && !specificNumbers?.trim()) {
-      return NextResponse.json({ error: 'Targets array or specific numbers are required' }, { status: 400 })
+    if ((!targets || !Array.isArray(targets) || targets.length === 0) && (!specificUsers || !Array.isArray(specificUsers) || specificUsers.length === 0)) {
+      return NextResponse.json({ error: 'Targets array or specific users are required' }, { status: 400 })
     }
     if (!message || typeof message !== 'string' || message.trim() === '') {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
@@ -54,11 +54,11 @@ export async function POST(req: Request) {
     }
 
     if (targets?.includes('drivers')) {
-      const drivers = await client.fetch<{ name?: string, phoneNumber?: string, country?: string, city?: string }[]>(
-        `*[_type == "driver" && defined(phoneNumber)] { name, phoneNumber, country, city }`
+      const drivers = await client.fetch<{ name?: string, phoneNumber?: string, country?: string, city?: string, isVerifiedByAdmin?: boolean }[]>(
+        `*[_type == "driver" && isVerifiedByAdmin == true && defined(phoneNumber)] { name, phoneNumber, country, city, isVerifiedByAdmin }`
       )
       for (const d of drivers) {
-        if (matchLocation(d.country, d.city) && d.phoneNumber) {
+        if (matchLocation(d.country, d.city) && d.phoneNumber && d.isVerifiedByAdmin) {
           recipients.set(d.phoneNumber, d.name || 'كابتن')
         }
       }
@@ -101,11 +101,10 @@ export async function POST(req: Request) {
       }
     }
 
-    if (specificNumbers) {
-      const numbers = specificNumbers.split(',').map((n: string) => n.trim()).filter(Boolean)
-      for (const n of numbers) {
-        if (!recipients.has(n)) {
-          recipients.set(n, 'مستخدم') // Default name for specific numbers
+    if (specificUsers && Array.isArray(specificUsers)) {
+      for (const u of specificUsers) {
+        if (u.phone && u.name) {
+          recipients.set(u.phone, u.name)
         }
       }
     }
@@ -117,12 +116,36 @@ export async function POST(req: Request) {
     for (const [phone, name] of recipients.entries()) {
       // name is {{1}}, message is {{2}}
       const firstName = name.split(' ')[0] || 'User'
-      const result = await sendWhatsAppTemplateMessage(
+      let result = await sendWhatsAppTemplateMessage(
         phone,
         'broadcast_message',
         [firstName, message],
         'ar_EG'
       )
+
+      if (!result.success) {
+        let errorStr = ''
+        if (result.error) {
+          if (typeof result.error === 'string') {
+            errorStr = result.error
+          } else if (result.error.error?.error_data?.details) {
+            errorStr = result.error.error.error_data.details
+          } else if (result.error.error?.message) {
+            errorStr = result.error.error.message
+          } else {
+            errorStr = JSON.stringify(result.error)
+          }
+        }
+        
+        if (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar')) {
+          result = await sendWhatsAppTemplateMessage(
+            phone,
+            'broadcast_message',
+            [firstName, message],
+            'ar'
+          )
+        }
+      }
 
       if (result.success) {
         sentCount++
@@ -139,7 +162,7 @@ export async function POST(req: Request) {
       targets: targets || [],
       countries: country || '',
       cities: city || '',
-      specificNumbers: specificNumbers || '',
+      specificNumbers: specificUsers && Array.isArray(specificUsers) ? specificUsers.map((u: any) => `${u.name} (${u.phone})`).join(', ') : '',
       sentCount,
       failedCount,
       totalFound: recipients.size,
