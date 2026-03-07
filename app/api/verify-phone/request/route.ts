@@ -55,7 +55,7 @@ export async function POST(req: Request) {
     const locale = 'ar-EG'
 
     if (channel === 'meta_whatsapp') {
-      const code = Math.floor(100000 + Math.random() * 900000).toString()
+      const code = Math.floor(1000 + Math.random() * 9000).toString()
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 minutes
 
       await writeClient.create({
