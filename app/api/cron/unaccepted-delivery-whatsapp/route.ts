@@ -84,11 +84,10 @@ export async function GET(req: Request) {
           for (const driver of drivers) {
             const phone = driver.phoneNumber?.trim()
             if (phone) {
-              // We use the new_order template which accepts business name and URL
               const result = await sendWhatsAppTemplateMessage(
                 phone,
                 'new_order',
-                [businessName, driverUrl],
+                [businessName],
                 'ar'
               )
 

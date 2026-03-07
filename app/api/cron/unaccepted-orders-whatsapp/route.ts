@@ -58,15 +58,12 @@ export async function GET(req: Request) {
         if (phone) {
           const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
           
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bedi.delivery'
-          const base = baseUrl.replace(/\/$/, '')
-          const orderUrl = order.tenantSlug ? `${base}/t/${order.tenantSlug}/orders` : `${base}/orders`
-          
           const result = await sendWhatsAppTemplateMessage(
             phone,
             'new_order',
-            [businessName, orderUrl], // Provide the URL as the second variable
-            'ar'
+            [businessName],
+            'ar',
+            order.tenantSlug // Passes the slug to the Dynamic URL button
           )
 
           if (result.success) {
