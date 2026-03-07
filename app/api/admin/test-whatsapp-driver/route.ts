@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
     let result = await sendWhatsAppTemplateMessage(
       phone,
-      'new_deliver',
+      'new_delivery',
       [],
       'ar_EG'
     )
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     if (!result.success && (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar'))) {
       result = await sendWhatsAppTemplateMessage(
         phone,
-        'new_deliver',
+        'new_delivery',
         [],
         'ar'
       )

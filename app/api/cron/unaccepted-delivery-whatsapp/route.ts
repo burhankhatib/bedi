@@ -96,7 +96,7 @@ export async function GET(req: Request) {
             if (phone) {
               let result = await sendWhatsAppTemplateMessage(
                 phone,
-                'new_deliver',
+                'new_delivery',
                 [],
                 'ar_EG'
               )
@@ -118,7 +118,7 @@ export async function GET(req: Request) {
                 if (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar')) {
                   result = await sendWhatsAppTemplateMessage(
                     phone,
-                    'new_deliver',
+                    'new_delivery',
                     [],
                     'ar'
                   )
