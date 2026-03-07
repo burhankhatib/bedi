@@ -63,7 +63,7 @@ export async function GET(req: Request) {
             'new_order',
             [businessName],
             'ar',
-            order.tenantSlug // Passes the slug to the Dynamic URL button
+            `${order.tenantSlug}/orders` // Note: this must match your WhatsApp template exact configuration
           )
 
           if (result.success) {
