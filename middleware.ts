@@ -127,10 +127,10 @@ const clerkHandler = clerkMiddleware(async (auth, req) => {
 })
 
 /** Wrap Clerk handler so any thrown error (e.g. Clerk init or auth) for protected routes redirects to sign-in instead of 500. */
-export default async function proxy(req: NextRequest) {
+export default function middleware(req: NextRequest) {
   try {
     // Clerk's middleware expects (request, event); Next.js 16 proxy may call with (request) only — pass through.
-    return await (clerkHandler as (r: NextRequest) => Promise<Response>)(req)
+    return (clerkHandler as (r: NextRequest) => Promise<Response>)(req)
   } catch {
     const path = req.nextUrl.pathname
     if (

@@ -121,24 +121,7 @@ export function SubscriptionBanner({ slug, initialData = null }: { slug: string;
   }
 
   if (isTrialNoExpiry) {
-    return (
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-600/60 bg-slate-800/50 px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Calendar className="size-5 shrink-0 text-emerald-400" />
-          <div>
-            <p className="font-medium text-white">
-              {t('Trial', 'تجربة')}: <strong className="text-emerald-300">{daysLeft}</strong> {t('days left', 'أيام متبقية')} — {t('30-day trial from creation.', 'تجربة 30 يوماً من الإنشاء.')}
-            </p>
-            <p className="mt-0.5 text-sm text-slate-400">
-              {t('Choose a subscription so your site remains visible to customers.', 'اختر اشتراكاً ليبقى موقعك ظاهراً للعملاء.')}
-            </p>
-          </div>
-        </div>
-        <Button asChild size="sm" className="shrink-0 bg-amber-500 font-semibold text-slate-950 hover:bg-amber-400">
-          <Link href={billingHref}>{t('Choose subscription', 'اختر اشتراكاً')}</Link>
-        </Button>
-      </div>
-    )
+    return null
   }
 
   if (!expiresAt) {
@@ -173,24 +156,5 @@ export function SubscriptionBanner({ slug, initialData = null }: { slug: string;
     )
   }
 
-  return (
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-600/60 bg-slate-800/50 px-4 py-3">
-      <div className="flex items-center gap-3">
-        <Calendar className="size-5 shrink-0 text-emerald-400" />
-        <div>
-          <p className="font-medium text-white">
-            {t('Plan active', 'الخطة نشطة')}: <strong className="text-emerald-300">{daysLeft}</strong> {t('days left', 'أيام متبقية')}
-          </p>
-          <p className="mt-0.5 text-sm text-slate-400">
-            {t('Your business is visible until the end of your billing period.', 'متجرك ظاهر حتى نهاية فترة الفوترة.')}
-          </p>
-        </div>
-      </div>
-      <Button asChild size="sm" className="shrink-0 border border-slate-600 bg-slate-700 font-medium text-white hover:bg-slate-600 hover:text-white">
-        <Link href={billingHref}>
-          {isSubscribed ? t('View Subscription', 'عرض الاشتراك') : t('Subscribe', 'اشترك')}
-        </Link>
-      </Button>
-    </div>
-  )
+  return null
 }

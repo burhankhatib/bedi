@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
+import { sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,10 +21,10 @@ export async function GET(req: Request) {
   const now = new Date()
   const sevenDaysFromNow = new Date(now.getTime() + SEVEN_DAYS_MS).toISOString()
   const nowIso = now.toISOString()
-  const yesterdayIso = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+  const yesterdayIso = new Date(now.getTime() - 20 * 60 * 60 * 1000).toISOString()
 
   // Find active tenants where subscription is expiring in <= 7 days, 
-  // and we haven't reminded them in the last 24 hours.
+  // and we haven't reminded them in the last 20 hours.
   // Note: we also consider trials ending in <= 7 days by comparing businessCreatedAt + 30 days.
   
   // Sanity GROQ cannot easily do datetime math (e.g. businessCreatedAt + 30 days) on the fly for filtering.
@@ -41,7 +42,8 @@ export async function GET(req: Request) {
         subscriptionExpiresAt,
         businessCreatedAt,
         createdAt,
-        lastSubscriptionReminderAt
+        lastSubscriptionReminderAt,
+        ownerPhone
       }
     `)
 
@@ -87,6 +89,42 @@ export async function GET(req: Request) {
             url: `${process.env.NEXT_PUBLIC_APP_URL}/t/${tenant.slug}/manage/billing`,
             dir: 'rtl'
           })
+
+          if (tenant.ownerPhone) {
+            let waResult = await sendWhatsAppTemplateMessage(
+              tenant.ownerPhone,
+              'subscription_reminder',
+              [],
+              'ar_EG'
+            )
+            
+            if (!waResult.success) {
+              let errorStr = ''
+              if (waResult.error) {
+                if (typeof waResult.error === 'string') {
+                  errorStr = waResult.error
+                } else if (waResult.error.error?.error_data?.details) {
+                  errorStr = waResult.error.error.error_data.details
+                } else if (waResult.error.error?.message) {
+                  errorStr = waResult.error.error.message
+                } else {
+                  errorStr = JSON.stringify(waResult.error)
+                }
+              }
+              
+              if (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar')) {
+                waResult = await sendWhatsAppTemplateMessage(
+                  tenant.ownerPhone,
+                  'subscription_reminder',
+                  [],
+                  'ar'
+                )
+              }
+            }
+            if (!waResult.success) {
+              console.error(`Failed to send WhatsApp reminder to ${tenant.ownerPhone}:`, waResult.error)
+            }
+          }
 
           // Update last reminder
           await writeClient
