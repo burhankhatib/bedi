@@ -36,6 +36,12 @@ export function AdminDriversClient() {
   const [unassignMessage, setUnassignMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [testingWa, setTestingWa] = useState<string | null>(null)
 
+  // Filters
+  const [searchName, setSearchName] = useState('')
+  const [filterCountry, setFilterCountry] = useState('')
+  const [filterCity, setFilterCity] = useState('')
+  const [filterStatus, setFilterStatus] = useState('all') // 'all', 'online', 'offline'
+
   useEffect(() => {
     fetch('/api/admin/drivers', { credentials: 'include' })
       .then((r) => r.json())
@@ -118,34 +124,106 @@ export function AdminDriversClient() {
     )
   }
 
-  if (drivers.length === 0) {
-    return (
-      <div className="mt-8 rounded-2xl border border-slate-800/60 bg-slate-900/40 p-12 text-center">
-        <Truck className="mx-auto size-12 text-slate-600" />
-        <p className="mt-4 text-slate-400">No drivers yet.</p>
-      </div>
-    )
-  }
+  const uniqueCountries = Array.from(new Set(drivers.map(d => (d.country || '').trim()).filter(Boolean))).sort()
+  const uniqueCities = Array.from(new Set(drivers.map(d => (d.city || '').trim()).filter(Boolean))).sort()
+
+  const filteredDrivers = drivers
+    .filter((d) => {
+      // Name Search
+      if (searchName && !(d.name || '').toLowerCase().includes(searchName.toLowerCase())) return false
+      
+      // Country Filter
+      if (filterCountry && (d.country || '').trim() !== filterCountry) return false
+      
+      // City Filter
+      if (filterCity && (d.city || '').trim() !== filterCity) return false
+      
+      // Status Filter
+      if (filterStatus === 'online' && !d.isOnline) return false
+      if (filterStatus === 'offline' && d.isOnline) return false
+
+      return true
+    })
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
 
   return (
-    <div className="mt-6 overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/40">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-slate-800/60 text-slate-400">
-              <th className="px-4 py-3 font-medium md:px-6">Name</th>
-              <th className="px-4 py-3 font-medium md:px-6">Phone</th>
-              <th className="hidden px-4 py-3 font-medium md:px-6 md:table-cell">Location</th>
-              <th className="px-4 py-3 font-medium md:px-6">Vehicle</th>
-              <th className="px-4 py-3 font-medium md:px-6">Status</th>
-              <th className="px-4 py-3 font-medium md:px-6 text-center">Verified</th>
-              <th className="px-4 py-3 font-medium md:px-6 text-center">Block</th>
-              <th className="px-4 py-3 font-medium md:px-6 text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {drivers.map((d) => (
-              <tr key={d._id} className={`border-b border-slate-800/40 hover:bg-slate-800/30 ${d.blockedBySuperAdmin ? 'opacity-80' : ''}`}>
+    <div className="space-y-6 mt-6">
+      <div className="flex flex-col sm:flex-row gap-3 flex-wrap items-center bg-slate-900/40 p-4 rounded-2xl border border-slate-800/60">
+        <input 
+          type="text" 
+          placeholder="Search by name..." 
+          value={searchName}
+          onChange={(e) => setSearchName(e.target.value)}
+          className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50 flex-1 sm:min-w-[200px]"
+        />
+        
+        <select
+          value={filterCountry}
+          onChange={(e) => setFilterCountry(e.target.value)}
+          className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+        >
+          <option value="">All Countries</option>
+          {uniqueCountries.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+
+        <select
+          value={filterCity}
+          onChange={(e) => setFilterCity(e.target.value)}
+          className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+        >
+          <option value="">All Cities</option>
+          {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+        >
+          <option value="all">All Statuses</option>
+          <option value="online">Online</option>
+          <option value="offline">Offline</option>
+        </select>
+
+        {(searchName || filterCountry || filterCity || filterStatus !== 'all') && (
+          <button
+            onClick={() => {
+              setSearchName('')
+              setFilterCountry('')
+              setFilterCity('')
+              setFilterStatus('all')
+            }}
+            className="text-sm text-slate-400 hover:text-white px-2 py-1"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {filteredDrivers.length === 0 ? (
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/40 p-12 text-center">
+          <Truck className="mx-auto size-12 text-slate-600" />
+          <p className="mt-4 text-slate-400">No drivers found matching filters.</p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-2xl border border-slate-800/60 bg-slate-900/40">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-800/60 text-slate-400">
+                  <th className="px-4 py-3 font-medium md:px-6">Name</th>
+                  <th className="px-4 py-3 font-medium md:px-6">Phone</th>
+                  <th className="hidden px-4 py-3 font-medium md:px-6 md:table-cell">Location</th>
+                  <th className="px-4 py-3 font-medium md:px-6">Vehicle</th>
+                  <th className="px-4 py-3 font-medium md:px-6">Status</th>
+                  <th className="px-4 py-3 font-medium md:px-6 text-center">Verified</th>
+                  <th className="px-4 py-3 font-medium md:px-6 text-center">Block</th>
+                  <th className="px-4 py-3 font-medium md:px-6 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDrivers.map((d) => (
+                  <tr key={d._id} className={`border-b border-slate-800/40 hover:bg-slate-800/30 ${d.blockedBySuperAdmin ? 'opacity-80' : ''}`}>
                 <td className="px-4 py-3 md:px-6 font-medium">{d.name ?? '—'}</td>
                 <td className="px-4 py-3 md:px-6 font-mono text-slate-400">{d.phoneNumber ?? '—'}</td>
                 <td className="hidden px-4 py-3 md:px-6 text-slate-400 md:table-cell">
@@ -201,6 +279,8 @@ export function AdminDriversClient() {
           </tbody>
         </table>
       </div>
+      </div>
+      )}
 
       <Dialog open={!!driverToUnassign} onOpenChange={(open) => !open && setDriverToUnassign(null)}>
         <DialogContent>
