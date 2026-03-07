@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Truck, Loader2, Edit, UserMinus, MessageCircle } from 'lucide-react'
+import { Truck, Loader2, Edit, UserMinus, MessageCircle, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { BlockToggle } from '@/components/admin/BlockToggle'
 import { VerifyToggle } from '@/components/admin/VerifyToggle'
 import {
@@ -41,6 +41,10 @@ export function AdminDriversClient() {
   const [filterCountry, setFilterCountry] = useState('')
   const [filterCity, setFilterCity] = useState('')
   const [filterStatus, setFilterStatus] = useState('all') // 'all', 'online', 'offline'
+  
+  // Sorting
+  const [sortField, setSortField] = useState<string>('name')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
     fetch('/api/admin/drivers', { credentials: 'include' })
@@ -115,6 +119,24 @@ export function AdminDriversClient() {
     }
   }
 
+  const handleToggleStatus = async (id: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus
+    setDrivers((prev) => prev.map((x) => (x._id === id ? { ...x, isOnline: newStatus } : x)))
+    try {
+      const res = await fetch(`/api/admin/drivers/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ isOnline: newStatus }),
+      })
+      if (!res.ok) throw new Error('Failed to update status')
+    } catch {
+      // revert on error
+      setDrivers((prev) => prev.map((x) => (x._id === id ? { ...x, isOnline: currentStatus } : x)))
+      alert('Failed to update driver status')
+    }
+  }
+
   if (loading) {
     return (
       <div className="mt-8 flex items-center justify-center gap-2 text-slate-400">
@@ -126,6 +148,20 @@ export function AdminDriversClient() {
 
   const uniqueCountries = Array.from(new Set(drivers.map(d => (d.country || '').trim()).filter(Boolean))).sort()
   const uniqueCities = Array.from(new Set(drivers.map(d => (d.city || '').trim()).filter(Boolean))).sort()
+
+  const toggleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field) return <ArrowUpDown className="size-3 text-slate-600" />
+    return sortDirection === 'asc' ? <ArrowUp className="size-3 text-amber-500" /> : <ArrowDown className="size-3 text-amber-500" />
+  }
 
   const filteredDrivers = drivers
     .filter((d) => {
@@ -144,7 +180,43 @@ export function AdminDriversClient() {
 
       return true
     })
-    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .sort((a, b) => {
+      let valA: any = ''
+      let valB: any = ''
+
+      switch (sortField) {
+        case 'name':
+          valA = a.name || ''
+          valB = b.name || ''
+          break
+        case 'location':
+          valA = [a.city, a.country].filter(Boolean).join(', ') || ''
+          valB = [b.city, b.country].filter(Boolean).join(', ') || ''
+          break
+        case 'vehicle':
+          valA = a.vehicleType || ''
+          valB = b.vehicleType || ''
+          break
+        case 'status':
+          valA = a.isOnline ? 1 : 0
+          valB = b.isOnline ? 1 : 0
+          break
+        case 'verified':
+          valA = a.isVerifiedByAdmin ? 1 : 0
+          valB = b.isVerifiedByAdmin ? 1 : 0
+          break
+        case 'block':
+          valA = a.blockedBySuperAdmin ? 1 : 0
+          valB = b.blockedBySuperAdmin ? 1 : 0
+          break
+      }
+
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
+      } else {
+        return sortDirection === 'asc' ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1)
+      }
+    })
 
   return (
     <div className="space-y-6 mt-6">
@@ -211,13 +283,25 @@ export function AdminDriversClient() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-800/60 text-slate-400">
-                  <th className="px-4 py-3 font-medium md:px-6">Name</th>
+                  <th className="px-4 py-3 font-medium md:px-6">
+                    <button onClick={() => toggleSort('name')} className="flex items-center gap-1.5 hover:text-white transition-colors">Name <SortIcon field="name" /></button>
+                  </th>
                   <th className="px-4 py-3 font-medium md:px-6">Phone</th>
-                  <th className="hidden px-4 py-3 font-medium md:px-6 md:table-cell">Location</th>
-                  <th className="px-4 py-3 font-medium md:px-6">Vehicle</th>
-                  <th className="px-4 py-3 font-medium md:px-6">Status</th>
-                  <th className="px-4 py-3 font-medium md:px-6 text-center">Verified</th>
-                  <th className="px-4 py-3 font-medium md:px-6 text-center">Block</th>
+                  <th className="hidden px-4 py-3 font-medium md:px-6 md:table-cell">
+                    <button onClick={() => toggleSort('location')} className="flex items-center gap-1.5 hover:text-white transition-colors">Location <SortIcon field="location" /></button>
+                  </th>
+                  <th className="px-4 py-3 font-medium md:px-6">
+                    <button onClick={() => toggleSort('vehicle')} className="flex items-center gap-1.5 hover:text-white transition-colors">Vehicle <SortIcon field="vehicle" /></button>
+                  </th>
+                  <th className="px-4 py-3 font-medium md:px-6">
+                    <button onClick={() => toggleSort('status')} className="flex items-center gap-1.5 hover:text-white transition-colors">Status <SortIcon field="status" /></button>
+                  </th>
+                  <th className="px-4 py-3 font-medium md:px-6 text-center">
+                    <button onClick={() => toggleSort('verified')} className="flex items-center justify-center gap-1.5 w-full hover:text-white transition-colors">Verified <SortIcon field="verified" /></button>
+                  </th>
+                  <th className="px-4 py-3 font-medium md:px-6 text-center">
+                    <button onClick={() => toggleSort('block')} className="flex items-center justify-center gap-1.5 w-full hover:text-white transition-colors">Block <SortIcon field="block" /></button>
+                  </th>
                   <th className="px-4 py-3 font-medium md:px-6 text-center">Actions</th>
                 </tr>
               </thead>
@@ -231,9 +315,12 @@ export function AdminDriversClient() {
                 </td>
                 <td className="px-4 py-3 md:px-6 text-slate-400">{d.vehicleType ?? '—'}</td>
                 <td className="px-4 py-3 md:px-6">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${d.isOnline ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700/50 text-slate-400'}`}>
+                  <button 
+                    onClick={() => handleToggleStatus(d._id, !!d.isOnline)}
+                    className={`rounded-full px-2 py-0.5 text-xs transition-colors ${d.isOnline ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'bg-slate-700/50 text-slate-400 hover:bg-slate-700'}`}
+                  >
                     {d.isOnline ? 'Online' : 'Offline'}
-                  </span>
+                  </button>
                 </td>
                 <td className="px-4 py-3 md:px-6 text-center">
                   <VerifyToggle id={d._id} verified={!!d.isVerifiedByAdmin} onSuccess={() => setDrivers((prev) => prev.map((x) => (x._id === d._id ? { ...x, isVerifiedByAdmin: !x.isVerifiedByAdmin } : x)))} />

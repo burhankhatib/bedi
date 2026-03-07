@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, Fragment } from 'react'
-import { Users, Loader2, Search, MessageCircle, Filter, ChevronDown, ChevronRight, Store } from 'lucide-react'
+import { useState, useEffect, useCallback, Fragment, useMemo } from 'react'
+import { Users, Loader2, Search, MessageCircle, Filter, ChevronDown, ChevronRight, Store, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { BlockToggle } from '@/components/admin/BlockToggle'
@@ -130,6 +130,10 @@ export function AdminCustomersClient() {
     block: true,
   })
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  
+  // Sorting
+  const [sortField, setSortField] = useState<string>('name')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 300)
@@ -198,6 +202,72 @@ export function AdminCustomersClient() {
   }
 
   const hasActiveFilters = blockStatus !== 'all' || dateJoinedPreset !== 'all' || selectedCities.length > 0
+
+  const toggleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortField !== field) return <ArrowUpDown className="size-3 text-slate-600" />
+    return sortDirection === 'asc' ? <ArrowUp className="size-3 text-amber-500" /> : <ArrowDown className="size-3 text-amber-500" />
+  }
+
+  const sortedCustomers = useMemo(() => {
+    return [...customers].sort((a, b) => {
+      let valA: any = ''
+      let valB: any = ''
+
+      switch (sortField) {
+        case 'name':
+          valA = a.name || ''
+          valB = b.name || ''
+          break
+        case 'phone':
+          valA = a.primaryPhone || ''
+          valB = b.primaryPhone || ''
+          break
+        case 'email':
+          valA = a.email || ''
+          valB = b.email || ''
+          break
+        case 'orders':
+          valA = a.orderCount || 0
+          valB = b.orderCount || 0
+          break
+        case 'totalSpent':
+          valA = a.totalSpent || 0
+          valB = b.totalSpent || 0
+          break
+        case 'businesses':
+          valA = a.businesses?.length || 0
+          valB = b.businesses?.length || 0
+          break
+        case 'businessBreakdown':
+          valA = a.businessSpend?.length || 0
+          valB = b.businessSpend?.length || 0
+          break
+        case 'firstLastOrder':
+          valA = a.lastOrderAt || a.firstOrderAt || ''
+          valB = b.lastOrderAt || b.firstOrderAt || ''
+          break
+        case 'block':
+          valA = a.blockedBySuperAdmin ? 1 : 0
+          valB = b.blockedBySuperAdmin ? 1 : 0
+          break
+      }
+
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
+      } else {
+        return sortDirection === 'asc' ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1)
+      }
+    })
+  }, [customers, sortField, sortDirection])
 
   if (loading && customers.length === 0) {
     return (
@@ -355,7 +425,7 @@ export function AdminCustomersClient() {
       ) : (
         <>
           <div className="space-y-3 md:hidden">
-            {customers.map((c) => (
+            {sortedCustomers.map((c) => (
               <div
                 key={c._id}
                 role="button"
@@ -426,19 +496,55 @@ export function AdminCustomersClient() {
                 <thead>
                   <tr className="border-b border-slate-800/60 text-slate-400">
                     <th className="w-8 px-2 py-3" />
-                    {columnVisibility.name && <th className="px-4 py-3 font-medium md:px-6">Name</th>}
-                    {columnVisibility.phone && <th className="px-4 py-3 font-medium md:px-6">Phone</th>}
-                    {columnVisibility.email && <th className="px-4 py-3 font-medium md:px-6">Email</th>}
-                    {columnVisibility.orders && <th className="px-4 py-3 font-medium md:px-6">Orders</th>}
-                    {columnVisibility.totalSpent && <th className="px-4 py-3 font-medium md:px-6">Total spent</th>}
-                    {columnVisibility.businesses && <th className="px-4 py-3 font-medium md:px-6">Businesses</th>}
-                    {columnVisibility.businessBreakdown && <th className="px-4 py-3 font-medium md:px-6">Per-business</th>}
-                    {columnVisibility.firstLastOrder && <th className="px-4 py-3 font-medium md:px-6">First / Last order</th>}
-                    {columnVisibility.block && <th className="px-4 py-3 font-medium md:px-6 text-center">Block</th>}
+                    {columnVisibility.name && (
+                      <th className="px-4 py-3 font-medium md:px-6">
+                        <button onClick={() => toggleSort('name')} className="flex items-center gap-1.5 hover:text-white transition-colors">Name <SortIcon field="name" /></button>
+                      </th>
+                    )}
+                    {columnVisibility.phone && (
+                      <th className="px-4 py-3 font-medium md:px-6">
+                        <button onClick={() => toggleSort('phone')} className="flex items-center gap-1.5 hover:text-white transition-colors">Phone <SortIcon field="phone" /></button>
+                      </th>
+                    )}
+                    {columnVisibility.email && (
+                      <th className="px-4 py-3 font-medium md:px-6">
+                        <button onClick={() => toggleSort('email')} className="flex items-center gap-1.5 hover:text-white transition-colors">Email <SortIcon field="email" /></button>
+                      </th>
+                    )}
+                    {columnVisibility.orders && (
+                      <th className="px-4 py-3 font-medium md:px-6">
+                        <button onClick={() => toggleSort('orders')} className="flex items-center gap-1.5 hover:text-white transition-colors">Orders <SortIcon field="orders" /></button>
+                      </th>
+                    )}
+                    {columnVisibility.totalSpent && (
+                      <th className="px-4 py-3 font-medium md:px-6">
+                        <button onClick={() => toggleSort('totalSpent')} className="flex items-center gap-1.5 hover:text-white transition-colors">Total spent <SortIcon field="totalSpent" /></button>
+                      </th>
+                    )}
+                    {columnVisibility.businesses && (
+                      <th className="px-4 py-3 font-medium md:px-6">
+                        <button onClick={() => toggleSort('businesses')} className="flex items-center gap-1.5 hover:text-white transition-colors">Businesses <SortIcon field="businesses" /></button>
+                      </th>
+                    )}
+                    {columnVisibility.businessBreakdown && (
+                      <th className="px-4 py-3 font-medium md:px-6">
+                        <button onClick={() => toggleSort('businessBreakdown')} className="flex items-center gap-1.5 hover:text-white transition-colors">Per-business <SortIcon field="businessBreakdown" /></button>
+                      </th>
+                    )}
+                    {columnVisibility.firstLastOrder && (
+                      <th className="px-4 py-3 font-medium md:px-6">
+                        <button onClick={() => toggleSort('firstLastOrder')} className="flex items-center gap-1.5 hover:text-white transition-colors">First / Last order <SortIcon field="firstLastOrder" /></button>
+                      </th>
+                    )}
+                    {columnVisibility.block && (
+                      <th className="px-4 py-3 font-medium md:px-6 text-center">
+                        <button onClick={() => toggleSort('block')} className="flex items-center justify-center gap-1.5 w-full hover:text-white transition-colors">Block <SortIcon field="block" /></button>
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {customers.map((c) => (
+                  {sortedCustomers.map((c) => (
                     <Fragment key={c._id}>
                       <tr
                         key={c._id}
