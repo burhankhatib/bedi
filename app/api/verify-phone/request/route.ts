@@ -52,7 +52,7 @@ export async function POST(req: Request) {
 
     const isIsrael = phoneNumber.startsWith('+972')
     const isPalestine = phoneNumber.startsWith('+970')
-    const locale = isIsrael ? 'he-IL' : isPalestine ? 'ar-PS' : undefined
+    const locale = 'ar-EG'
 
     if (channel === 'meta_whatsapp') {
       const code = Math.floor(100000 + Math.random() * 900000).toString()
