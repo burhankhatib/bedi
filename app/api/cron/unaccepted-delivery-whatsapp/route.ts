@@ -101,13 +101,16 @@ export async function GET(req: Request) {
                 'ar_EG'
               )
 
-              if (!result.success && result.error?.includes('does not exist in ar_EG')) {
-                result = await sendWhatsAppTemplateMessage(
-                  phone,
-                  'new_deliver',
-                  [],
-                  'ar'
-                )
+              if (!result.success) {
+                const errorStr = typeof result.error === 'string' ? result.error : JSON.stringify(result.error || '')
+                if (errorStr.includes('does not exist in ar_EG')) {
+                  result = await sendWhatsAppTemplateMessage(
+                    phone,
+                    'new_deliver',
+                    [],
+                    'ar'
+                  )
+                }
               }
 
               if (result.success) {

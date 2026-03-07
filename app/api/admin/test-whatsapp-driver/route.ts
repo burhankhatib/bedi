@@ -27,7 +27,8 @@ export async function POST(req: Request) {
     )
 
     // Fallback if ar_EG fails due to template language mismatch
-    if (!result.success && result.error?.includes('does not exist in ar_EG')) {
+    const errorStr = typeof result.error === 'string' ? result.error : JSON.stringify(result.error || '')
+    if (!result.success && errorStr.includes('does not exist in ar_EG')) {
       result = await sendWhatsAppTemplateMessage(
         phone,
         'new_deliver',
