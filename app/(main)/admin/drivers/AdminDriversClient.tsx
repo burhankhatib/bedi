@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Truck, Loader2, Edit, UserMinus } from 'lucide-react'
+import { Truck, Loader2, Edit, UserMinus, MessageCircle } from 'lucide-react'
 import { BlockToggle } from '@/components/admin/BlockToggle'
 import { VerifyToggle } from '@/components/admin/VerifyToggle'
 import {
@@ -34,6 +34,7 @@ export function AdminDriversClient() {
   const [reassignToId, setReassignToId] = useState('')
   const [unassignLoading, setUnassignLoading] = useState(false)
   const [unassignMessage, setUnassignMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [testingWa, setTestingWa] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/drivers', { credentials: 'include' })
@@ -72,6 +73,39 @@ export function AdminDriversClient() {
       setUnassignMessage({ type: 'error', text: 'Request failed' })
     } finally {
       setUnassignLoading(false)
+    }
+  }
+
+  const handleTestWhatsApp = async (d: Driver) => {
+    let phoneToUse = d.phoneNumber
+    if (!phoneToUse) {
+      phoneToUse = prompt(`Enter phone number to test WhatsApp for ${d.name || 'this driver'}:`) || ''
+      if (!phoneToUse) return
+    } else {
+      if (!confirm(`Send test WhatsApp to ${d.name || 'this driver'} (${phoneToUse})?`)) return
+    }
+
+    setTestingWa(d._id)
+    try {
+      const res = await fetch('/api/admin/test-whatsapp-driver', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phoneToUse })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        alert('✅ WhatsApp message sent successfully!')
+      } else {
+        const errorDetails = data.details?.error?.message || data.details?.message || JSON.stringify(data.details || data)
+        const moreDetails = data.details?.error?.error_data?.details || ''
+        console.error('WhatsApp Test Error:', data.details || errorDetails)
+        alert(`❌ Failed to send:\n${errorDetails}\n${moreDetails}`)
+      }
+    } catch (err) {
+      console.error(err)
+      alert('❌ Error sending WhatsApp message')
+    } finally {
+      setTestingWa(null)
     }
   }
 
@@ -131,6 +165,15 @@ export function AdminDriversClient() {
                 </td>
                 <td className="px-4 py-3 md:px-6 text-center">
                   <div className="flex items-center justify-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleTestWhatsApp(d)}
+                      disabled={testingWa === d._id}
+                      className="inline-flex items-center justify-center p-2 text-slate-400 hover:text-blue-400 transition-colors disabled:opacity-50"
+                      title="Test WhatsApp Notification"
+                    >
+                      {testingWa === d._id ? <Loader2 className="size-4 animate-spin" /> : <MessageCircle className="size-4" />}
+                    </button>
                     <button
                       type="button"
                       onClick={() => {

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, Shield, FileWarning, Building2, Users, Truck, BarChart3, Layout, ArrowRightLeft, MapPin } from 'lucide-react'
+import { Menu, Shield, FileWarning, Building2, Users, Truck, BarChart3, Layout, ArrowRightLeft, MapPin, Megaphone } from 'lucide-react'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 
@@ -15,6 +15,7 @@ const nav = [
   { href: '/admin/drivers', label: 'Drivers', icon: Truck },
   { href: '/admin/customers', label: 'Customers', icon: Users },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/admin/broadcast', label: 'Broadcast', icon: Megaphone },
 ] as const
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
