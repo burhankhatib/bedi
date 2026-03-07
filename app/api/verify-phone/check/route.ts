@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { auth, clerkClient } from '@clerk/nextjs/server'
 import Prelude from "@prelude.so/sdk"
 import { client } from '@/sanity/lib/client'
+import { token } from '@/sanity/lib/token'
 
-const token = process.env.SANITY_API_WRITE_TOKEN
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
 export async function POST(req: Request) {

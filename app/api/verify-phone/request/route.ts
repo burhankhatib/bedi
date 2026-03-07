@@ -3,8 +3,8 @@ import { auth } from '@clerk/nextjs/server'
 import Prelude from "@prelude.so/sdk"
 import { sendWhatsAppAuthOTP } from '@/lib/meta-whatsapp'
 import { client } from '@/sanity/lib/client'
+import { token } from '@/sanity/lib/token'
 
-const token = process.env.SANITY_API_WRITE_TOKEN
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
 /** Normalize to E.164 for Israel (+972) and Palestine (+970). Mobile: 9 digits after country code. */
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
 
     const isIsrael = phoneNumber.startsWith('+972')
     const isPalestine = phoneNumber.startsWith('+970')
-    const locale = 'ar-EG'
+    const locale = 'ar-PS'
 
     if (channel === 'meta_whatsapp') {
       const code = Math.floor(1000 + Math.random() * 9000).toString()
