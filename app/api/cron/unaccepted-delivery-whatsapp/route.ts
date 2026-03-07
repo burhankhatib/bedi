@@ -93,7 +93,7 @@ export async function GET(req: Request) {
                 phone,
                 'new_order',
                 [businessName],
-                'ar'
+                'ar_EG'
               )
 
               if (result.success) {

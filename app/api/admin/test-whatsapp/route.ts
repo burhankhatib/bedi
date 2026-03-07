@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       phone,
       'new_order',
       [tenantName || 'Business'],
-      'ar'
+      'ar_EG'
     )
 
     if (result.success) {

@@ -67,7 +67,7 @@ export async function GET(req: Request) {
             phone,
             'new_order',
             [businessName],
-            'ar',
+            'ar_EG',
             `${order.tenantSlug}/orders` // Note: this must match your WhatsApp template exact configuration
           )
 
