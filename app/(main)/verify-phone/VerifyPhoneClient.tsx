@@ -11,7 +11,7 @@ import Link from 'next/link'
 
 type Step = 'add' | 'code' | 'done'
 type SupportedCountryCode = '+970' | '+972'
-type VerificationStrategy = 'meta_whatsapp' | 'prelude_sms' | 'clerk'
+type VerificationStrategy = 'meta_whatsapp' | 'prelude_whatsapp' | 'prelude_sms' | 'clerk'
 
 export default function VerifyPhoneClient() {
   const { user } = useUser()
@@ -180,6 +180,17 @@ export default function VerifyPhoneClient() {
     if (startingStrategy === 'meta_whatsapp') {
       success = await tryStrategy('meta_whatsapp')
       if (!success) {
+        success = await tryStrategy('prelude_whatsapp')
+      }
+      if (!success) {
+        success = await tryStrategy('prelude_sms')
+      }
+      if (!success) {
+        success = await tryStrategy('clerk')
+      }
+    } else if (startingStrategy === 'prelude_whatsapp') {
+      success = await tryStrategy('prelude_whatsapp')
+      if (!success) {
         success = await tryStrategy('prelude_sms')
       }
       if (!success) {
@@ -327,9 +338,11 @@ export default function VerifyPhoneClient() {
               <p className="text-xs text-slate-500 mt-1">
                 {strategy === 'meta_whatsapp' 
                   ? t('Sent via WhatsApp', 'تم الإرسال عبر واتساب')
-                  : strategy === 'prelude_sms'
-                    ? t('Sent via SMS', 'تم الإرسال عبر رسالة نصية قصيرة')
-                    : t('Sent via SMS (Alternate)', 'تم الإرسال عبر رسالة نصية (بديل)')}
+                  : strategy === 'prelude_whatsapp'
+                    ? t('Sent via WhatsApp (Alternate)', 'تم الإرسال عبر واتساب (بديل)')
+                    : strategy === 'prelude_sms'
+                      ? t('Sent via SMS', 'تم الإرسال عبر رسالة نصية قصيرة')
+                      : t('Sent via SMS (Alternate)', 'تم الإرسال عبر رسالة نصية (بديل)')}
               </p>
             </div>
             <Input
@@ -348,6 +361,11 @@ export default function VerifyPhoneClient() {
             
             <div className="mt-4 flex flex-col gap-2">
               {strategy === 'meta_whatsapp' && (
+                <Button variant="outline" size="sm" onClick={() => handleSendCode('prelude_whatsapp')} disabled={loading}>
+                  {t("Didn't receive a WhatsApp? Try Alternate Provider", 'لم يصلك الرمز على واتساب؟ جرب مزود بديل')}
+                </Button>
+              )}
+              {strategy === 'prelude_whatsapp' && (
                 <Button variant="outline" size="sm" onClick={() => handleSendCode('prelude_sms')} disabled={loading}>
                   {t("Didn't receive a WhatsApp? Resend via SMS", 'لم يصلك الرمز على واتساب؟ أرسل رسالة نصية')}
                 </Button>

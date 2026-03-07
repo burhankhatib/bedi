@@ -78,9 +78,9 @@ export async function POST(req: Request) {
     // Determine preferred channel based on client request and environment
     let preferredChannel: string | undefined = undefined
     
-    if (channel === 'whatsapp') {
+    if (channel === 'whatsapp' || channel === 'prelude_whatsapp') {
       preferredChannel = 'whatsapp'
-    } else if (channel === 'sms' || isIsrael) {
+    } else if (channel === 'sms' || channel === 'prelude_sms' || isIsrael) {
       preferredChannel = 'sms'
     }
 
