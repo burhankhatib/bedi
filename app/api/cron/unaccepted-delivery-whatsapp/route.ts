@@ -10,7 +10,12 @@ const writeClient = client.withConfig({ token: token || undefined, useCdn: false
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  
+  // Try to read secret from URL parameter as a fallback (for cron-job.org testing)
+  const url = new URL(req.url)
+  const secretParam = url.searchParams.get('secret')
+  
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}` && secretParam !== cronSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
