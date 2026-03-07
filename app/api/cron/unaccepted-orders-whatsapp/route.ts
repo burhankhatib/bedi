@@ -16,9 +16,9 @@ export async function GET(req: Request) {
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
   // Find orders that are 'new', haven't been notified yet, 
-  // and were created between 5 minutes and 2 hours ago.
+  // and were created between 3 minutes and 2 hours ago.
   const now = Date.now()
-  const cutoff5m = new Date(now - 5 * 60 * 1000).toISOString()
+  const cutoff3m = new Date(now - 3 * 60 * 1000).toISOString()
   const cutoff2h = new Date(now - 2 * 60 * 60 * 1000).toISOString()
 
   try {
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
         _type == "order" &&
         status == "new" &&
         !defined(businessWhatsappNotifiedAt) &&
-        createdAt <= $cutoff5m &&
+        createdAt <= $cutoff3m &&
         createdAt >= $cutoff2h
       ]{
         _id,
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
         "tenantNameAr": site->name_ar,
         "tenantSlug": site->slug.current
       }`,
-      { cutoff5m, cutoff2h }
+      { cutoff3m, cutoff2h }
     )
 
     if (!unacceptedOrders?.length) {

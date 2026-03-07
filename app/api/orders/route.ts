@@ -267,8 +267,27 @@ export async function POST(request: NextRequest) {
         
         // Trigger live UI refresh immediately
         await pusherServer.trigger(`tenant-${siteRef._ref}`, 'order-update', { orderId: result._id }).catch(() => {})
+
+        // Mark as sent and await the push notification
+        await writeClient.patch(result._id).set({ tenantNewOrderPushSent: true }).commit()
+
+        const tenantDoc = await writeClient.fetch<{ name?: string; slug?: { current?: string } } | null>(
+          `*[_type == "tenant" && _id == $id][0]{ name, slug }`,
+          { id: siteRef._ref }
+        )
+        
+        const businessName = tenantDoc?.name || tenantSlug || siteRef._ref
+        const pushPayload = {
+          title: `${businessName}: طلب جديد — #${num}`,
+          body: 'تم استلام طلب جديد. افتح التطبيق للمراجعة والقبول.',
+          url,
+          icon,
+          dir: 'rtl' as const,
+        }
+
+        await sendTenantAndStaffPush(siteRef._ref, pushPayload)
       } catch (e) {
-        console.error('[API] Tenant pusher trigger on new order failed:', e)
+        console.error('[API] Tenant pusher trigger or push notification on new order failed:', e)
       }
     }
 
