@@ -267,30 +267,8 @@ export async function POST(request: NextRequest) {
         
         // Trigger live UI refresh immediately
         await pusherServer.trigger(`tenant-${siteRef._ref}`, 'order-update', { orderId: result._id }).catch(() => {})
-
-        // Fetch business name for personalised Arabic notification
-        let businessName = tenantSlug
-        try {
-          const tenantDoc = await client.fetch<{ name?: string } | null>(
-            `*[_type == "tenant" && _id == $id][0]{ name }`,
-            { id: siteRef._ref }
-          )
-          if (tenantDoc?.name) businessName = tenantDoc.name
-        } catch (_) {}
-
-        const payload = {
-          title: `${businessName}: طلب جديد — #${num}`,
-          body: 'تم استلام طلب جديد. افتح التطبيق للمراجعة والقبول.',
-          url,
-          icon,
-          dir: 'rtl' as const,
-        }
-        const sent = await sendTenantAndStaffPush(siteRef._ref, payload)
-        if (!sent && process.env.NODE_ENV === 'development') {
-          console.warn('[API] Tenant push send returned false (check [Push]/FCM logs)')
-        }
       } catch (e) {
-        console.error('[API] Tenant push on new order failed:', e)
+        console.error('[API] Tenant pusher trigger on new order failed:', e)
       }
     }
 

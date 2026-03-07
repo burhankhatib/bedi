@@ -27,6 +27,7 @@ export async function GET(req: Request) {
       tenantPhone?: string
       tenantName?: string
       tenantNameAr?: string
+      tenantSlug?: string
     }[]>(
       `*[
         _type == "order" &&
@@ -38,7 +39,8 @@ export async function GET(req: Request) {
         _id,
         "tenantPhone": site->ownerPhone,
         "tenantName": site->name,
-        "tenantNameAr": site->name_ar
+        "tenantNameAr": site->name_ar,
+        "tenantSlug": site->slug.current
       }`,
       { cutoff5m, cutoff2h }
     )
@@ -56,10 +58,14 @@ export async function GET(req: Request) {
         if (phone) {
           const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
           
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bedi.delivery'
+          const base = baseUrl.replace(/\/$/, '')
+          const orderUrl = order.tenantSlug ? `${base}/t/${order.tenantSlug}/orders` : `${base}/orders`
+          
           const result = await sendWhatsAppTemplateMessage(
             phone,
             'new_order',
-            [businessName],
+            [businessName, orderUrl], // Provide the URL as the second variable
             'ar'
           )
 

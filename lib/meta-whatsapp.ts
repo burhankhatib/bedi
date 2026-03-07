@@ -12,7 +12,8 @@ export async function sendWhatsAppTemplateMessage(
   phone: string,
   templateName: string,
   variables: string[] = [],
-  languageCode: string = 'ar'
+  languageCode: string = 'ar',
+  buttonVariable?: string
 ) {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
@@ -48,16 +49,32 @@ export async function sendWhatsAppTemplateMessage(
     },
   }
 
-  if (variables.length > 0) {
-    payload.template.components = [
-      {
+  if (variables.length > 0 || buttonVariable) {
+    payload.template.components = []
+
+    if (variables.length > 0) {
+      payload.template.components.push({
         type: 'body',
         parameters: variables.map((text) => ({
           type: 'text',
           text: text || 'Business', // Fallback in case of empty string
         })),
-      },
-    ]
+      })
+    }
+
+    if (buttonVariable) {
+      payload.template.components.push({
+        type: 'button',
+        sub_type: 'url',
+        index: '0',
+        parameters: [
+          {
+            type: 'text',
+            text: buttonVariable,
+          },
+        ],
+      })
+    }
   }
 
   try {

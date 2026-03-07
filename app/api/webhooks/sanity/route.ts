@@ -5,6 +5,7 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
+import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
 
 import { getAdminVerifiedPushAr } from '@/lib/driver-push-messages'
 
@@ -50,6 +51,48 @@ export async function POST(req: NextRequest) {
       }
 
       await Promise.all(triggerPromises)
+
+      // Send FCM push to tenant if it's a new order and hasn't been sent yet
+      if (token && siteId) {
+        try {
+          const order = await writeClient.fetch<{ status?: string; tenantNewOrderPushSent?: boolean; orderNumber?: string }>(
+            `*[_type == "order" && _id == $id][0]`,
+            { id: _id }
+          )
+          
+          if (order?.status === 'new' && !order.tenantNewOrderPushSent) {
+            // Mark as sent immediately to avoid duplicates
+            await writeClient.patch(_id).set({ tenantNewOrderPushSent: true }).commit()
+
+            const tenantDoc = await writeClient.fetch<{ name?: string; slug?: { current?: string } } | null>(
+              `*[_type == "tenant" && _id == $id][0]{ name, slug }`,
+              { id: siteId }
+            )
+            
+            const tenantSlug = tenantDoc?.slug?.current
+            const businessName = tenantDoc?.name || tenantSlug || siteId
+            const num = order.orderNumber ?? _id.slice(-6)
+            
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+            const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
+            const path = tenantSlug ? `/t/${tenantSlug}/orders` : `/t/orders`
+            const url = `${base}${path}`
+            const icon = tenantSlug ? `${base}/t/${tenantSlug}/icon/192` : undefined
+
+            const pushPayload = {
+              title: `${businessName}: طلب جديد — #${num}`,
+              body: 'تم استلام طلب جديد. افتح التطبيق للمراجعة والقبول.',
+              url,
+              icon,
+              dir: 'rtl' as const,
+            }
+
+            await sendTenantAndStaffPush(siteId, pushPayload)
+          }
+        } catch (e) {
+          console.error('[Webhook] Failed to process new order FCM:', e)
+        }
+      }
     } else if (_type === 'driver') {
       // Check for welcome notification (only once per driver)
       if (token) {
