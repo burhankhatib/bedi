@@ -111,9 +111,9 @@ export async function sendWhatsAppAuthOTP(phone: string, code: string) {
     to,
     type: 'template',
     template: {
-      name: 'bedi_otp',
+      name: 'otp',
       language: {
-        code: 'ar',
+        code: 'ar_EG',
       },
       components: [
         {
