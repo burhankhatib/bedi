@@ -19,12 +19,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Phone is required' }, { status: 400 })
     }
 
-    const result = await sendWhatsAppTemplateMessage(
+    let result = await sendWhatsAppTemplateMessage(
       phone,
       'new_deliver',
       [],
       'ar_EG'
     )
+
+    // Fallback if ar_EG fails due to template language mismatch
+    if (!result.success && result.error?.includes('does not exist in ar_EG')) {
+      result = await sendWhatsAppTemplateMessage(
+        phone,
+        'new_deliver',
+        [],
+        'ar'
+      )
+    }
 
     if (result.success) {
       return NextResponse.json({ success: true })

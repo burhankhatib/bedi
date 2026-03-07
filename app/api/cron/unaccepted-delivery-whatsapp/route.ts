@@ -94,12 +94,21 @@ export async function GET(req: Request) {
           for (const driver of drivers) {
             const phone = driver.phoneNumber?.trim()
             if (phone) {
-              const result = await sendWhatsAppTemplateMessage(
+              let result = await sendWhatsAppTemplateMessage(
                 phone,
                 'new_deliver',
                 [],
                 'ar_EG'
               )
+
+              if (!result.success && result.error?.includes('does not exist in ar_EG')) {
+                result = await sendWhatsAppTemplateMessage(
+                  phone,
+                  'new_deliver',
+                  [],
+                  'ar'
+                )
+              }
 
               if (result.success) {
                 messagesSentForOrder++
