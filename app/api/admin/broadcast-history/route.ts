@@ -24,6 +24,8 @@ export async function GET(req: Request) {
         countries,
         cities,
         specificNumbers,
+        successfulNumbers,
+        failedNumbers,
         sentCount,
         failedCount,
         totalFound,

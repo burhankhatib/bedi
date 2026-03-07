@@ -10,8 +10,10 @@ type BroadcastHistory = {
   targets: string[]
   countries: string
   cities: string
-  specificNumbers: string
-  sentCount: number
+    specificNumbers: string
+    successfulNumbers?: string[]
+    failedNumbers?: string[]
+    sentCount: number
   failedCount: number
   totalFound: number
   createdAt: string
@@ -31,6 +33,16 @@ export function AdminBroadcastClient() {
 
   const [availableCountries, setAvailableCountries] = useState<string[]>([])
   const [availableCities, setAvailableCities] = useState<string[]>([])
+
+  // History filters
+  const [filterDate, setFilterDate] = useState('')
+  const [filterCountry, setFilterCountry] = useState('')
+  const [filterCity, setFilterCity] = useState('')
+  const [filterTarget, setFilterTarget] = useState('')
+  const [filterUser, setFilterUser] = useState('')
+
+  // Expand state
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const fetchHistory = () => {
     setLoadingHistory(true)
@@ -127,6 +139,25 @@ export function AdminBroadcastClient() {
       }
     }
   }
+
+  const filteredHistory = history.filter(item => {
+    let match = true
+    if (filterDate) {
+      const itemDate = new Date(item.createdAt).toISOString().split('T')[0]
+      if (itemDate !== filterDate) match = false
+    }
+    if (filterCountry) {
+      const cArr = (item.countries || '').split(',').map(s => s.trim().toLowerCase())
+      if (!cArr.includes(filterCountry.toLowerCase())) match = false
+    }
+    if (filterCity) {
+      const cArr = (item.cities || '').split(',').map(s => s.trim().toLowerCase())
+      if (!cArr.includes(filterCity.toLowerCase())) match = false
+    }
+    if (filterTarget && (!item.targets || !item.targets.includes(filterTarget))) match = false
+    if (filterUser && item.specificNumbers && !item.specificNumbers.toLowerCase().includes(filterUser.toLowerCase())) match = false
+    return match
+  })
 
   return (
     <div className="mt-6 rounded-2xl border border-slate-800/60 bg-slate-900/40 p-6">
@@ -331,18 +362,76 @@ export function AdminBroadcastClient() {
 
       {/* Broadcast History */}
       <div className="mt-12">
-        <h2 className="text-lg font-semibold text-white mb-4">Broadcast History</h2>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <h2 className="text-lg font-semibold text-white">Broadcast History</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              value={filterDate}
+              onChange={e => setFilterDate(e.target.value)}
+              className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+            />
+            <select
+              value={filterCountry}
+              onChange={e => setFilterCountry(e.target.value)}
+              className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+            >
+              <option value="">All Countries</option>
+              {availableCountries.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select
+              value={filterCity}
+              onChange={e => setFilterCity(e.target.value)}
+              className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+            >
+              <option value="">All Cities</option>
+              {availableCities.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select
+              value={filterTarget}
+              onChange={e => setFilterTarget(e.target.value)}
+              className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+            >
+              <option value="">All Categories</option>
+              <option value="businesses">Businesses</option>
+              <option value="drivers">Drivers</option>
+              <option value="customers">Customers</option>
+            </select>
+            <input
+              type="text"
+              placeholder="Search specific user..."
+              value={filterUser}
+              onChange={e => setFilterUser(e.target.value)}
+              className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+            />
+            {(filterDate || filterCountry || filterCity || filterTarget || filterUser) && (
+              <button
+                onClick={() => {
+                  setFilterDate('')
+                  setFilterCountry('')
+                  setFilterCity('')
+                  setFilterTarget('')
+                  setFilterUser('')
+                }}
+                className="text-xs text-slate-400 hover:text-white"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
         {loadingHistory ? (
           <div className="flex items-center gap-2 text-sm text-slate-400">
             <Loader2 className="size-4 animate-spin" />
             Loading history...
           </div>
-        ) : history.length === 0 ? (
-          <p className="text-sm text-slate-500">No broadcast history found.</p>
+        ) : filteredHistory.length === 0 ? (
+          <p className="text-sm text-slate-500">No broadcast history found matching filters.</p>
         ) : (
           <div className="space-y-4">
-            {history.map(item => (
-              <div key={item._id} className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4">
+            {filteredHistory.map(item => (
+              <div key={item._id} className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-4 transition-colors hover:bg-slate-800/40">
                 <div className="flex flex-col sm:flex-row justify-between gap-3 items-start mb-3">
                   <div className="space-y-1">
                     <p className="text-sm text-white line-clamp-2" dir="rtl">{item.message}</p>
@@ -352,23 +441,26 @@ export function AdminBroadcastClient() {
                         {new Date(item.createdAt).toLocaleString()}
                       </span>
                       {item.targets && item.targets.length > 0 && (
-                        <span className="bg-slate-700/50 px-2 py-0.5 rounded-full">
-                          Targets: {item.targets.join(', ')}
+                        <span className="bg-slate-700/50 px-2 py-0.5 rounded-full text-slate-300">
+                          Targets: <span className="font-medium text-amber-500/90">{item.targets.join(', ')}</span>
                         </span>
                       )}
                       {(item.countries || item.cities) && (
-                        <span className="bg-slate-700/50 px-2 py-0.5 rounded-full">
-                          Loc: {item.countries || 'All'} / {item.cities || 'All'}
+                        <span className="bg-slate-700/50 px-2 py-0.5 rounded-full text-slate-300">
+                          Loc: <span className="font-medium text-sky-400/90">{item.countries || 'All'} / {item.cities || 'All'}</span>
                         </span>
                       )}
                       {item.specificNumbers && (
-                        <span className="bg-slate-700/50 px-2 py-0.5 rounded-full max-w-[150px] truncate" title={item.specificNumbers}>
-                          Specific: {item.specificNumbers}
+                        <span className="bg-slate-700/50 px-2 py-0.5 rounded-full max-w-[150px] sm:max-w-[300px] truncate text-slate-300" title={item.specificNumbers}>
+                          Specific: <span className="font-medium text-emerald-400/90">{item.specificNumbers}</span>
                         </span>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0 bg-slate-900/50 px-3 py-2 rounded-lg text-sm border border-slate-700/50">
+                  <button 
+                    onClick={() => setExpandedId(expandedId === item._id ? null : item._id)}
+                    className="flex items-center gap-3 shrink-0 bg-slate-900/50 px-3 py-2 rounded-lg text-sm border border-slate-700/50 hover:bg-slate-800/80 transition-colors"
+                  >
                     <div className="flex items-center gap-1.5 text-emerald-400">
                       <CheckCircle2 className="size-4" />
                       <span className="font-medium">{item.sentCount || 0}</span>
@@ -379,8 +471,48 @@ export function AdminBroadcastClient() {
                         <span className="font-medium">{item.failedCount}</span>
                       </div>
                     )}
-                  </div>
+                  </button>
                 </div>
+
+                {/* Expanded Details */}
+                {expandedId === item._id && (
+                  <div className="mt-4 pt-4 border-t border-slate-700/50 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <h4 className="font-medium text-emerald-400 flex items-center gap-1.5 mb-2">
+                        <CheckCircle2 className="size-3.5" /> 
+                        Successfully Sent ({item.successfulNumbers?.length || 0})
+                      </h4>
+                      <div className="bg-slate-900/40 border border-emerald-900/30 rounded-lg p-2 max-h-40 overflow-y-auto">
+                        {item.successfulNumbers && item.successfulNumbers.length > 0 ? (
+                          <ul className="space-y-1">
+                            {item.successfulNumbers.map((num, i) => (
+                              <li key={i} className="text-slate-300 px-2 py-1 bg-slate-800/30 rounded">{num}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-slate-500 italic p-2">No data available.</p>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-rose-400 flex items-center gap-1.5 mb-2">
+                        <XCircle className="size-3.5" /> 
+                        Failed ({item.failedNumbers?.length || 0})
+                      </h4>
+                      <div className="bg-slate-900/40 border border-rose-900/30 rounded-lg p-2 max-h-40 overflow-y-auto">
+                        {item.failedNumbers && item.failedNumbers.length > 0 ? (
+                          <ul className="space-y-1">
+                            {item.failedNumbers.map((num, i) => (
+                              <li key={i} className="text-slate-300 px-2 py-1 bg-slate-800/30 rounded">{num}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-slate-500 italic p-2">No failed messages.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

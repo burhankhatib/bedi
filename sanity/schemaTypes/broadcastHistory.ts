@@ -43,6 +43,18 @@ export const broadcastHistoryType = defineType({
       type: 'number',
     }),
     defineField({
+      name: 'successfulNumbers',
+      title: 'Successful Numbers',
+      type: 'array',
+      of: [{ type: 'string' }],
+    }),
+    defineField({
+      name: 'failedNumbers',
+      title: 'Failed Numbers',
+      type: 'array',
+      of: [{ type: 'string' }],
+    }),
+    defineField({
       name: 'totalFound',
       title: 'Total Recipients Found',
       type: 'number',

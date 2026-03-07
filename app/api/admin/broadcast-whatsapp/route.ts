@@ -112,6 +112,8 @@ export async function POST(req: Request) {
     let sentCount = 0
     let failedCount = 0
     const errors: any[] = []
+    const successfulNumbers: string[] = []
+    const failedNumbers: string[] = []
 
     for (const [phone, name] of recipients.entries()) {
       // name is {{1}}, message is {{2}}
@@ -149,8 +151,10 @@ export async function POST(req: Request) {
 
       if (result.success) {
         sentCount++
+        successfulNumbers.push(`${name} (${phone})`)
       } else {
         failedCount++
+        failedNumbers.push(`${name} (${phone})`)
         errors.push({ phone, error: result.error })
       }
     }
@@ -163,6 +167,8 @@ export async function POST(req: Request) {
       countries: country || '',
       cities: city || '',
       specificNumbers: specificUsers && Array.isArray(specificUsers) ? specificUsers.map((u: any) => `${u.name} (${u.phone})`).join(', ') : '',
+      successfulNumbers,
+      failedNumbers,
       sentCount,
       failedCount,
       totalFound: recipients.size,
