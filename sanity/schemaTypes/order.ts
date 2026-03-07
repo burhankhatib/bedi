@@ -158,6 +158,14 @@ export const orderType = defineType({
       description: 'When the available drivers in the city were notified via WhatsApp about this unaccepted delivery.',
     }),
     defineField({
+      name: 'driversWhatsappNotifiedCount',
+      title: 'Drivers WhatsApp Notified Count',
+      type: 'number',
+      readOnly: true,
+      hidden: true,
+      description: 'Number of times drivers were notified via WhatsApp (max 3).',
+    }),
+    defineField({
       name: 'tenantNewOrderPushSent',
       title: 'Tenant New Order Push Sent',
       type: 'boolean',

@@ -132,10 +132,9 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       }
     }
 
-    // Send offline driver reminders (once per 4 hours, between 9AM–10PM KSA = UTC+3)
+    // Send offline driver reminders (once per 15 minutes)
     const nowMs = Date.now()
-    const ksaHour = new Date(nowMs + 3 * 60 * 60 * 1000).getUTCHours()
-    if (ksaHour >= 9 && ksaHour < 22 && order?.siteRef) {
+    if (order?.siteRef) {
       const site = await writeClient.fetch<{ country?: string; city?: string } | null>(
         `*[_type == "tenant" && _id == $id][0]{ country, city }`,
         { id: order.siteRef }
@@ -143,7 +142,7 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       if (site?.country && site?.city) {
         const siteCountryNorm = norm(site.country)
         const siteCityNorm = norm(site.city)
-        const fourHoursAgo = new Date(nowMs - 4 * 60 * 60 * 1000).toISOString()
+        const fifteenMinsAgo = new Date(nowMs - 15 * 60 * 1000).toISOString()
 
         type OfflineDriverRow = {
           _id: string
@@ -154,14 +153,14 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
           lastOfflineReminderAt?: string
         }
         const offlineDrivers = await writeClient.fetch<OfflineDriverRow[]>(
-          `*[_type == "driver" && isOnline != true && (defined(fcmToken) || defined(pushSubscription.endpoint)) && !defined(blockedBySuperAdmin) || blockedBySuperAdmin == false]{
+          `*[_type == "driver" && isVerifiedByAdmin == true && isOnline != true && (defined(fcmToken) || defined(pushSubscription.endpoint)) && (!defined(blockedBySuperAdmin) || blockedBySuperAdmin == false)]{
             _id, fcmToken, "pushSubscription": pushSubscription, country, city, lastOfflineReminderAt
           }`
         )
         const eligibleOffline = (offlineDrivers ?? []).filter(
           (d) =>
             (norm(d.country) === siteCountryNorm && norm(d.city) === siteCityNorm) &&
-            (!d.lastOfflineReminderAt || d.lastOfflineReminderAt < fourHoursAgo)
+            (!d.lastOfflineReminderAt || d.lastOfflineReminderAt < fifteenMinsAgo)
         )
         const reminderPayload = {
           title: '\u200Fتنبيه: طلبات توصيل متاحة',

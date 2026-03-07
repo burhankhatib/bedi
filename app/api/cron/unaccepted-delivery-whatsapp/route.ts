@@ -20,8 +20,9 @@ export async function GET(req: Request) {
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
-  // Find delivery orders that are waiting for a driver, haven't been notified to drivers yet, 
-  // and were created between 3 minutes and 2 hours ago.
+  // Find delivery orders that are waiting for a driver for > 3 minutes,
+  // haven't exceeded the 3 retry limit for WhatsApp driver notifications,
+  // and were requested within the last 2 hours.
   const now = Date.now()
   const cutoff3m = new Date(now - 3 * 60 * 1000).toISOString()
   const cutoff2h = new Date(now - 2 * 60 * 60 * 1000).toISOString()
@@ -32,20 +33,26 @@ export async function GET(req: Request) {
       city?: string
       tenantName?: string
       tenantNameAr?: string
+      driversWhatsappNotifiedCount?: number
     }[]>(
       `*[
         _type == "order" &&
         orderType == "delivery" &&
-        status in ["preparing", "waiting_for_delivery"] &&
+        defined(deliveryRequestedAt) &&
+        status in ["new", "preparing", "waiting_for_delivery"] &&
         !defined(assignedDriver) &&
-        !defined(driversWhatsappNotifiedAt) &&
-        createdAt <= $cutoff3m &&
-        createdAt >= $cutoff2h
+        (
+          (!defined(driversWhatsappNotifiedAt) && deliveryRequestedAt <= $cutoff3m) ||
+          (defined(driversWhatsappNotifiedAt) && driversWhatsappNotifiedAt <= $cutoff3m)
+        ) &&
+        (!defined(driversWhatsappNotifiedCount) || driversWhatsappNotifiedCount < 3) &&
+        deliveryRequestedAt >= $cutoff2h
       ]{
         _id,
         "city": site->city,
         "tenantName": site->name,
-        "tenantNameAr": site->name_ar
+        "tenantNameAr": site->name_ar,
+        driversWhatsappNotifiedCount
       }`,
       { cutoff3m, cutoff2h }
     )
@@ -62,7 +69,11 @@ export async function GET(req: Request) {
       try {
         if (!order.city) {
           // Mark as notified so we don't keep trying if there's no city
-          await writeClient.patch(order._id).set({ driversWhatsappNotifiedAt: nowIso }).commit()
+          const currentCount = order.driversWhatsappNotifiedCount || 0
+          await writeClient.patch(order._id)
+            .set({ driversWhatsappNotifiedAt: nowIso })
+            .set({ driversWhatsappNotifiedCount: currentCount + 1 })
+            .commit()
           continue
         }
 
@@ -78,12 +89,6 @@ export async function GET(req: Request) {
         )
 
         if (drivers && drivers.length > 0) {
-          const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
-          
-          const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://bedi.delivery'
-          const base = baseUrl.replace(/\/$/, '')
-          const driverUrl = `${base}/driver` // Link to driver portal
-
           let messagesSentForOrder = 0
 
           for (const driver of drivers) {
@@ -91,8 +96,8 @@ export async function GET(req: Request) {
             if (phone) {
               const result = await sendWhatsAppTemplateMessage(
                 phone,
-                'new_order',
-                [businessName],
+                'new_deliver',
+                [],
                 'ar_EG'
               )
 
@@ -110,8 +115,12 @@ export async function GET(req: Request) {
           }
         }
 
-        // Mark it as notified
-        await writeClient.patch(order._id).set({ driversWhatsappNotifiedAt: nowIso }).commit()
+        // Mark it as notified and increment count
+        const currentCount = order.driversWhatsappNotifiedCount || 0
+        await writeClient.patch(order._id)
+          .set({ driversWhatsappNotifiedAt: nowIso })
+          .set({ driversWhatsappNotifiedCount: currentCount + 1 })
+          .commit()
       } catch (e) {
         console.error('[cron/unaccepted-delivery-whatsapp] Failed processing order', order._id, e)
       }
