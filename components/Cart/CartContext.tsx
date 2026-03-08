@@ -20,6 +20,9 @@ export interface CartTenant {
   slug: string
   name: string
   logoRef?: string
+  openingHours?: any[] | null
+  customDateHours?: any[] | null
+  businessCountry?: string
 }
 
 /** Order-type flags for the current cart tenant (from menu page). Used to show/hide Dine-in, Receive in Person, Delivery in the order dialog. */

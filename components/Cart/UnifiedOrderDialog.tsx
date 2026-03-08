@@ -9,6 +9,8 @@ import { toEnglishDigits } from '@/lib/phone'
 import { Store, UtensilsCrossed, Truck, User, MapPin, Phone, Locate, Check, Loader2, Link } from 'lucide-react'
 import { OrderType } from './CartContext'
 import { parseCoordsFromGoogleMapsUrl } from '@/lib/maps-utils'
+import { useCart } from './CartContext'
+import { isWithinShift } from '@/lib/business-hours'
 
 interface Area {
   _id: string
@@ -66,6 +68,7 @@ export function UnifiedOrderDialog({
 }: UnifiedOrderDialogProps) {
   const isTableLocked = Boolean(lockedTableNumber)
   const { t, lang } = useLanguage()
+  const { cartTenant } = useCart()
   const [step, setStep] = useState<'name' | 'type' | 'details'>('name')
   const [orderType, setOrderType] = useState<OrderType | null>(null)
 
@@ -329,6 +332,91 @@ export function UnifiedOrderDialog({
     return nowLocal.toISOString().slice(0, 16)
   }
 
+  const validateScheduleTime = (dateTimeStr: string): string | null => {
+    if (!dateTimeStr || !cartTenant?.openingHours) return null;
+    
+    const selectedDate = new Date(dateTimeStr);
+    if (isNaN(selectedDate.getTime())) return null;
+
+    // Minimum is now + 45 minutes
+    const minTime = new Date();
+    minTime.setMinutes(minTime.getMinutes() + 45);
+    if (selectedDate < minTime) {
+      return t('Please select a time at least 45 minutes from now.', 'يرجى اختيار وقت بعد 45 دقيقة على الأقل من الآن.');
+    }
+
+    const dayIndex = selectedDate.getDay(); // 0 = Sunday, 6 = Saturday
+    const dayHours = cartTenant.openingHours[dayIndex];
+    
+    if (!dayHours) return null;
+
+    const selectedMins = selectedDate.getHours() * 60 + selectedDate.getMinutes();
+
+    // Helper to convert HH:mm to minutes
+    const toMins = (hm: string | undefined) => {
+      if (!hm || !/^\d{1,2}:\d{2}$/.test(hm)) return -1;
+      const [h, m] = hm.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    // Check if the business is completely closed on this day
+    const hasHours = (dayHours.open && dayHours.close) || (dayHours.shifts && dayHours.shifts.length > 0);
+    if (!hasHours) {
+      return t('Business is closed on this day.', 'المتجر مغلق في هذا اليوم.');
+    }
+
+    // Check against shifts or main hours
+    let isValid = false;
+    let availableTimesText = '';
+
+    const checkShift = (open?: string, close?: string) => {
+      const openMins = toMins(open);
+      const closeMins = toMins(close);
+      if (openMins < 0 || closeMins < 0) return;
+
+      // Add 45 min prep time to opening, subtract 45 min from closing
+      const minAllowed = openMins + 45;
+      const maxAllowed = closeMins > openMins ? closeMins - 45 : (closeMins + 24 * 60) - 45;
+
+      if (selectedMins >= minAllowed && selectedMins <= maxAllowed) {
+        isValid = true;
+      }
+
+      // Format for error message
+      const formatTime = (mins: number) => {
+        let h = Math.floor(mins / 60) % 24;
+        const m = mins % 60;
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      };
+      
+      if (availableTimesText) availableTimesText += ' / ';
+      availableTimesText += `${formatTime(minAllowed)} - ${formatTime(maxAllowed)}`;
+    };
+
+    if (dayHours.shifts && dayHours.shifts.length > 0) {
+      dayHours.shifts.forEach((s: any) => checkShift(s.open, s.close));
+    } else {
+      checkShift(dayHours.open, dayHours.close);
+    }
+
+    if (!isValid) {
+      return t(`Available ordering times for this day: ${availableTimesText}`, `أوقات الطلب المتاحة لهذا اليوم: ${availableTimesText}`);
+    }
+
+    return null;
+  }
+
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+
+  // Re-validate when time changes
+  useEffect(() => {
+    if (isScheduled && scheduledFor) {
+      setScheduleError(validateScheduleTime(scheduledFor));
+    } else {
+      setScheduleError(null);
+    }
+  }, [isScheduled, scheduledFor, cartTenant?.openingHours]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md w-[95%] rounded-[32px] p-8 border-none shadow-2xl max-h-[90vh] overflow-y-auto pb-[max(2rem,calc(env(safe-area-inset-bottom)+100px))]">
@@ -562,13 +650,16 @@ export function UnifiedOrderDialog({
                 >
                   {t('Back', 'رجوع')}
                 </Button>
-                <Button
-                  type="submit"
-                  className="flex-1 h-14 rounded-2xl font-black bg-black text-white shadow-xl shadow-black/10 active:scale-[0.98] transition-all"
-                  disabled={!phone.trim() || (isScheduled && !scheduledFor)}
-                >
-                  {t('Continue', 'متابعة')}
-                </Button>
+                <div className="flex-1 flex flex-col">
+                  <Button
+                    type="submit"
+                    className="w-full h-14 rounded-2xl font-black bg-black text-white shadow-xl shadow-black/10 active:scale-[0.98] transition-all"
+                    disabled={!phone.trim() || (isScheduled && (!scheduledFor || !!scheduleError))}
+                  >
+                    {t('Continue', 'متابعة')}
+                  </Button>
+                  {isScheduled && scheduleError && <p className="text-[10px] text-red-500 font-bold text-center leading-tight mt-1 px-1">{scheduleError}</p>}
+                </div>
               </div>
             </form>
           </>
@@ -894,13 +985,16 @@ export function UnifiedOrderDialog({
                 >
                   {t('Back', 'رجوع')}
                 </Button>
-                <Button
-                  type="submit"
-                  className="flex-1 h-14 rounded-2xl font-black bg-green-600 text-white shadow-xl shadow-green-600/10 hover:bg-green-700 active:scale-[0.98] transition-all"
-                  disabled={!phone.trim() || !areaId || deliveryLat == null || deliveryLng == null || (isScheduled && !scheduledFor)}
-                >
-                  {t('Continue', 'متابعة')}
-                </Button>
+                <div className="flex-1 flex flex-col">
+                  <Button
+                    type="submit"
+                    className="w-full h-14 rounded-2xl font-black bg-green-600 text-white shadow-xl shadow-green-600/10 hover:bg-green-700 active:scale-[0.98] transition-all"
+                    disabled={!phone.trim() || !areaId || deliveryLat == null || deliveryLng == null || (isScheduled && (!scheduledFor || !!scheduleError))}
+                  >
+                    {t('Continue', 'متابعة')}
+                  </Button>
+                  {isScheduled && scheduleError && <p className="text-[10px] text-red-500 font-bold text-center leading-tight mt-1 px-1">{scheduleError}</p>}
+                </div>
               </div>
             </form>
           </>

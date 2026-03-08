@@ -647,7 +647,14 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                 priority={index === 0 || index === 1}
                 restaurantLogo={restaurantInfo?.logo}
                 catalogOnly={catalogOnly}
-                tenantContext={tenantSlug ? { slug: tenantSlug, name: headerTitle, logoRef: restaurantInfo?.logo?.asset?._ref } : undefined}
+                tenantContext={tenantSlug ? { 
+                  slug: tenantSlug, 
+                  name: headerTitle, 
+                  logoRef: restaurantInfo?.logo?.asset?._ref,
+                  openingHours: restaurantInfo?.openingHours,
+                  customDateHours: restaurantInfo?.customDateHours,
+                  businessCountry: initialData.businessCountry ?? undefined
+                } : undefined}
                 orderTypeOptions={orderTypeOptions}
                 catalogHidePrices={catalogHidePrices}
               />
@@ -674,7 +681,14 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
             viewType={isHydrated ? viewType : 'thumbnail'}
             restaurantLogo={restaurantInfo?.logo}
             catalogOnly={catalogOnly}
-            tenantContext={tenantSlug ? { slug: tenantSlug, name: headerTitle, logoRef: restaurantInfo?.logo?.asset?._ref } : undefined}
+            tenantContext={tenantSlug ? { 
+                  slug: tenantSlug, 
+                  name: headerTitle, 
+                  logoRef: restaurantInfo?.logo?.asset?._ref,
+                  openingHours: restaurantInfo?.openingHours,
+                  customDateHours: restaurantInfo?.customDateHours,
+                  businessCountry: initialData.businessCountry ?? undefined
+                } : undefined}
             orderTypeOptions={orderTypeOptions}
             catalogHidePrices={catalogHidePrices}
           />
@@ -695,7 +709,14 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
         layoutPrefix={activeLayoutPrefix}
         restaurantLogo={restaurantInfo?.logo}
         catalogOnly={catalogOnly}
-        tenantContext={tenantSlug ? { slug: tenantSlug, name: headerTitle, logoRef: restaurantInfo?.logo?.asset?._ref } : undefined}
+        tenantContext={tenantSlug ? { 
+                  slug: tenantSlug, 
+                  name: headerTitle, 
+                  logoRef: restaurantInfo?.logo?.asset?._ref,
+                  openingHours: restaurantInfo?.openingHours,
+                  customDateHours: restaurantInfo?.customDateHours,
+                  businessCountry: initialData.businessCountry ?? undefined
+                } : undefined}
         orderTypeOptions={orderTypeOptions}
         catalogHidePrices={catalogHidePrices}
       />

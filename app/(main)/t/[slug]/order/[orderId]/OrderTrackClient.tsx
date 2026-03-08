@@ -57,7 +57,7 @@ type TrackData = {
 
 const STATUS_CONFIG: Record<string, { labelEn: string; labelAr: string; icon: typeof ChefHat; headerBg: string; color: string; bg: string }> = {
   new: { labelEn: 'Order received', labelAr: 'تم استلام الطلب', icon: Package, headerBg: 'from-blue-600 to-blue-700', color: 'text-blue-600', bg: 'bg-blue-500/15' },
-  preparing: { labelEn: 'Preparing', labelAr: 'قيد التحضير', icon: ChefHat, headerBg: 'from-amber-600 to-amber-700', color: 'text-amber-600', bg: 'bg-amber-500/15' },
+  preparing: { labelEn: 'Your order is being carefully prepared', labelAr: 'يتم تحضير طلبك بعناية', icon: ChefHat, headerBg: 'from-amber-600 to-amber-700', color: 'text-amber-600', bg: 'bg-amber-500/15' },
   waiting_for_delivery: { labelEn: 'Waiting for delivery', labelAr: 'في انتظار التوصيل', icon: Clock, headerBg: 'from-amber-600 to-amber-700', color: 'text-amber-600', bg: 'bg-amber-500/15' },
   driver_on_the_way: { labelEn: 'Driver on the way to the store', labelAr: 'السائق في الطريق إلى المتجر', icon: Truck, headerBg: 'from-blue-600 to-blue-700', color: 'text-blue-600', bg: 'bg-blue-500/15' },
   'out-for-delivery': { labelEn: 'Driver on the way to you', labelAr: 'السائق في الطريق إليك', icon: Truck, headerBg: 'from-purple-600 to-purple-700', color: 'text-purple-600', bg: 'bg-purple-500/15' },
@@ -170,11 +170,13 @@ export function OrderTrackClient({
   const restaurantName = businessName || t('Store', 'المتجر')
   const statusLabel =
     statusKey === 'driver_on_the_way'
-      ? businessName
+      ? data.driver?.name
         ? lang === 'ar'
-          ? `السائق في الطريق إلى ${businessName}`
-          : `Driver is on the way to ${businessName}`
-        : t('Driver is on the way to the store', 'السائق في الطريق إلى المتجر')
+          ? `السائق ${data.driver.name} في الطريق إلى ${restaurantName}`
+          : `Driver ${data.driver.name} is on the way to ${restaurantName}`
+        : lang === 'ar'
+          ? `السائق في الطريق إلى ${restaurantName}`
+          : `Driver is on the way to ${restaurantName}`
       : lang === 'ar'
         ? statusCfg.labelAr
         : statusCfg.labelEn

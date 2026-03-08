@@ -167,7 +167,7 @@ function CustomerLocationShare({ orderId, trackingToken }: { orderId: string; tr
 const STATUS_CONFIG: Record<string, { labelEn: string; labelAr: string; icon: typeof ChefHat; headerBg: string; headerFrom: string; headerTo: string }> = {
   new: { labelEn: 'Order received', labelAr: 'تم استلام الطلب', icon: Package, headerBg: 'from-blue-600 to-blue-700', headerFrom: 'from-blue-600', headerTo: 'to-blue-700' },
   acknowledged: { labelEn: 'Order scheduled', labelAr: 'تم جدولة الطلب', icon: Clock, headerBg: 'from-purple-600 to-purple-700', headerFrom: 'from-purple-600', headerTo: 'to-purple-700' },
-  preparing: { labelEn: 'Preparing', labelAr: 'قيد التحضير', icon: ChefHat, headerBg: 'from-amber-600 to-amber-700', headerFrom: 'from-amber-600', headerTo: 'to-amber-700' },
+  preparing: { labelEn: 'Your order is being carefully prepared', labelAr: 'يتم تحضير طلبك بعناية', icon: ChefHat, headerBg: 'from-amber-600 to-amber-700', headerFrom: 'from-amber-600', headerTo: 'to-amber-700' },
   waiting_for_delivery: { labelEn: 'Waiting for delivery', labelAr: 'في انتظار التوصيل', icon: Clock, headerBg: 'from-amber-600 to-amber-700', headerFrom: 'from-amber-600', headerTo: 'to-amber-700' },
   driver_on_the_way: { labelEn: 'Driver on the way to the store', labelAr: 'السائق في الطريق إلى المتجر', icon: Truck, headerBg: 'from-blue-600 to-blue-700', headerFrom: 'from-blue-600', headerTo: 'to-blue-700' },
   'out-for-delivery': { labelEn: 'Driver on the way to you', labelAr: 'السائق في الطريق إليك', icon: Truck, headerBg: 'from-purple-600 to-purple-700', headerFrom: 'from-purple-600', headerTo: 'to-purple-700' },
@@ -377,11 +377,13 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   const restaurantName = businessName || t('Store', 'المتجر')
   const statusLabel =
     statusKey === 'driver_on_the_way'
-      ? businessName
+      ? data.driver?.name
         ? lang === 'ar'
-          ? `السائق في الطريق إلى ${businessName}`
-          : `Driver is on the way to ${businessName}`
-        : t('Driver is on the way to the store', 'السائق في الطريق إلى المتجر')
+          ? `السائق ${data.driver.name} في الطريق إلى ${restaurantName}`
+          : `Driver ${data.driver.name} is on the way to ${restaurantName}`
+        : lang === 'ar'
+          ? `السائق في الطريق إلى ${restaurantName}`
+          : `Driver is on the way to ${restaurantName}`
       : lang === 'ar'
         ? statusCfg.labelAr
         : statusCfg.labelEn
@@ -488,7 +490,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                     <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                       <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
                       <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
-                        <p className="text-xs font-bold text-slate-800">{t('Order is ready', 'الطلب جاهز')}</p>
+                        <p className="text-xs font-bold text-slate-800">{t('Your order is being carefully prepared', 'يتم تحضير طلبك بعناية')}</p>
                         <p className="text-xs text-slate-500 mt-1">{fmt(data.order.preparedAt)}</p>
                       </div>
                     </div>
@@ -499,7 +501,15 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                     <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                       <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
                       <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
-                        <p className="text-xs font-bold text-slate-800">{t('Driver on the way to business', 'السائق في الطريق إلى المتجر')}</p>
+                        <p className="text-xs font-bold text-slate-800">
+                          {data.driver?.name
+                            ? lang === 'ar'
+                              ? `السائق ${data.driver.name} في الطريق إلى ${restaurantName}`
+                              : `Driver ${data.driver.name} is on the way to ${restaurantName}`
+                            : lang === 'ar'
+                              ? `السائق في الطريق إلى ${restaurantName}`
+                              : `Driver is on the way to ${restaurantName}`}
+                        </p>
                         <p className="text-xs text-slate-500 mt-1">{fmt(data.order.driverAcceptedAt)}</p>
                       </div>
                     </div>

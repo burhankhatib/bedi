@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, Truck, History, Store, User, MapPin, Navigation, Flag, Wallet, Receipt, Smartphone, CircleAlert } from 'lucide-react'
+import { Package, Truck, History, Store, User, MapPin, Navigation, Flag, Wallet, Receipt, Smartphone, CircleAlert, RefreshCw } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
 import { useDriverPush } from '../DriverPushContext'
@@ -106,6 +106,13 @@ function DriverOrdersContent() {
   const prevPendingCountRef = useRef(0)
   const declinedOrderIdsRef = useRef<Set<string>>(new Set())
   const acceptedAtRef = useRef<Map<string, number>>(new Map())
+
+  // Pull-to-refresh states
+  const [startY, setStartY] = useState<number | null>(null)
+  const [pullDistance, setPullDistance] = useState(0)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const MAX_PULL_DISTANCE = 120
+  const REFRESH_THRESHOLD = 80
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -576,8 +583,60 @@ function DriverOrdersContent() {
   const [dismissedRegistered, setDismissedRegistered] = useState(false)
   const showJustRegistered = justRegistered && !dismissedRegistered
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      setStartY(e.touches[0].clientY)
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (startY !== null && window.scrollY === 0) {
+      const currentY = e.touches[0].clientY
+      const distance = currentY - startY
+      if (distance > 0) {
+        setPullDistance(Math.min(distance * 0.5, MAX_PULL_DISTANCE))
+      }
+    }
+  }
+
+  const handleTouchEnd = async () => {
+    if (pullDistance > REFRESH_THRESHOLD && !isRefreshing) {
+      setIsRefreshing(true)
+      setPullDistance(REFRESH_THRESHOLD) // Hold at threshold while refreshing
+      await fetchOrders()
+      setIsRefreshing(false)
+    }
+    setPullDistance(0)
+    setStartY(null)
+  }
+
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div 
+      className="space-y-6 sm:space-y-8 relative touch-pan-y"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull to refresh indicator */}
+      <motion.div
+        className="absolute top-0 left-0 right-0 flex justify-center pointer-events-none z-50"
+        style={{ height: 0 }}
+        animate={{ 
+          y: isRefreshing ? REFRESH_THRESHOLD / 2 : pullDistance / 2,
+          opacity: (pullDistance > 10 || isRefreshing) ? 1 : 0
+        }}
+        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+      >
+        <div className="bg-slate-800 border border-slate-700 rounded-full p-2 shadow-lg flex items-center justify-center -mt-6">
+          <motion.div
+            animate={{ rotate: isRefreshing ? 360 : pullDistance * 2 }}
+            transition={isRefreshing ? { repeat: Infinity, duration: 1, ease: "linear" } : { type: "spring", stiffness: 200, damping: 20 }}
+          >
+            <RefreshCw className="w-5 h-5 text-emerald-400" />
+          </motion.div>
+        </div>
+      </motion.div>
+
       {showJustRegistered && (
         <div className="rounded-xl border-2 border-amber-600/50 bg-amber-950/30 p-5" role="region" aria-label={t('Next steps after registration', 'الخطوات التالية بعد التسجيل')}>
           <div className="flex items-start gap-4">

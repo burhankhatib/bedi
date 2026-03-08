@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Package, Truck, UtensilsCrossed, Store, Clock, CheckCircle2, XCircle, ChefHat, Search, ChevronDown, ChevronUp, Filter, LayoutGrid, List, Undo2, Settings, Phone, MessageCircle, UserMinus } from 'lucide-react'
+import { Package, Truck, UtensilsCrossed, Store, Clock, CheckCircle2, XCircle, ChefHat, Search, ChevronDown, ChevronUp, Filter, LayoutGrid, List, Undo2, Settings, Phone, MessageCircle, UserMinus, Bike } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { AdminProtection } from '@/components/Auth/AdminProtection'
 import { OrderDetailsModal } from '@/components/Orders/OrderDetailsModal'
@@ -121,6 +121,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
   const [statusModalOrder, setStatusModalOrder] = useState<Order | null>(null)
   const [driverModalOrder, setDriverModalOrder] = useState<Order | null>(null)
   const [assignDropdownOrder, setAssignDropdownOrder] = useState<string | null>(null) // holds orderId
+  const [showDeliveryToast, setShowDeliveryToast] = useState(false)
 
   const [pendingUpdate, setPendingUpdate] = useState<{
     orderId: string
@@ -414,9 +415,8 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
         body: JSON.stringify({ orderId })
       })
       if (res.ok) {
-        // Just show a small success indication or rely on UI
-        // You could use a toast if available, but for now we just alert or do nothing silently
-        alert('Delivery requested successfully! Online drivers have been notified.');
+        setShowDeliveryToast(true)
+        setTimeout(() => setShowDeliveryToast(false), 4000)
       } else {
         const errorData = await res.json().catch(() => ({}));
         alert(errorData.error || 'Failed to request delivery');
@@ -525,6 +525,38 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                     <Undo2 className="w-4 h-4" />
                     {t('UNDO', 'تراجع')}
                   </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Delivery Toast Notification */}
+          <AnimatePresence>
+            {showDeliveryToast && (
+              <motion.div
+                initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-blue-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 border border-blue-500 w-[90%] max-w-sm overflow-hidden"
+              >
+                <div className="absolute inset-0 opacity-20 pointer-events-none overflow-hidden flex items-center">
+                  <motion.div
+                    initial={{ x: '100%' }}
+                    animate={{ x: '-200%' }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                    className="w-full flex justify-end"
+                  >
+                    <Bike className="w-16 h-16" />
+                  </motion.div>
+                </div>
+                <div className="relative z-10 flex items-center gap-3">
+                  <div className="bg-white/20 p-2 rounded-full shrink-0">
+                    <CheckCircle2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm leading-tight">{t('Delivery requested!', 'تم طلب التوصيل!')}</p>
+                    <p className="text-xs text-blue-100 mt-0.5">{t('Driver is on the way.', 'السائق في الطريق.')}</p>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -840,19 +872,19 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                                 </button>
                               ) : (
                                 <>
-                                  <div className="flex items-stretch gap-[1px]">
+                                  <div className="flex items-center gap-2">
                                     <button
                                       onClick={(e) => { e.stopPropagation(); requestDelivery(order._id); }}
-                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-l-lg bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs font-bold transition-colors border-r border-blue-200/50 rtl:border-r-0 rtl:border-l rtl:rounded-l-none rtl:rounded-r-lg"
+                                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs font-bold transition-colors shadow-sm"
                                     >
                                       <Truck className="w-3.5 h-3.5" />
                                       {t('Request Delivery', 'طلب توصيل')}
                                     </button>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setAssignDropdownOrder(assignDropdownOrder === order._id ? null : order._id); }}
-                                      className="flex items-center px-2 py-1.5 rounded-r-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors rtl:rounded-r-none rtl:rounded-l-lg"
+                                      className="flex items-center justify-center px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm"
                                     >
-                                      <ChevronDown className="w-3 h-3 opacity-70" />
+                                      <ChevronDown className="w-4 h-4 opacity-70" />
                                     </button>
                                   </div>
                                   
@@ -1014,19 +1046,19 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                                     </button>
                                   ) : (
                                     <>
-                                      <div className="flex items-stretch gap-[1px]">
+                                      <div className="flex items-center gap-2">
                                         <button
                                           onClick={(e) => { e.stopPropagation(); requestDelivery(order._id); }}
-                                          className="flex items-center justify-center gap-1.5 px-3 py-2 w-full rounded-l-lg bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-bold transition-colors border-r border-blue-200/50 rtl:border-r-0 rtl:border-l rtl:rounded-l-none rtl:rounded-r-lg"
+                                          className="flex items-center justify-center gap-1.5 px-4 py-2 w-full rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-bold transition-colors shadow-sm"
                                         >
                                           <Truck className="w-4 h-4" />
                                           {t('Request Delivery', 'طلب توصيل')}
                                         </button>
                                         <button
                                           onClick={(e) => { e.stopPropagation(); setAssignDropdownOrder(assignDropdownOrder === order._id ? null : order._id); }}
-                                          className="flex items-center px-3 py-2 rounded-r-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors rtl:rounded-r-none rtl:rounded-l-lg"
+                                          className="flex items-center justify-center px-3 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors border border-slate-200 shadow-sm shrink-0"
                                         >
-                                          <ChevronDown className="w-4 h-4 opacity-70" />
+                                          <ChevronDown className="w-5 h-5 opacity-70" />
                                         </button>
                                       </div>
                                       

@@ -24,7 +24,7 @@ interface ProductModalProps {
   /** When true, product is view-only (catalog); hide Add to Cart. */
   catalogOnly?: boolean
   /** For single-business cart: pass when adding from menu page. */
-  tenantContext?: { slug: string; name: string; logoRef?: string }
+  tenantContext?: { slug: string; name: string; logoRef?: string; openingHours?: any; customDateHours?: any; businessCountry?: string }
   orderTypeOptions?: OrderTypeOptions | null
   catalogHidePrices?: boolean
 }

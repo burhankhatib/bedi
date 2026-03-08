@@ -13,7 +13,7 @@ const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
   new: { en: 'Order received', ar: 'تم استلام الطلب' },
   acknowledged: { en: 'Order received and scheduled', ar: 'تم استلام وجدولة الطلب' },
   schedule_updated: { en: 'Your scheduled order time has been updated', ar: 'تم تحديث وقت طلبك المجدول' },
-  preparing: { en: 'Preparing your order', ar: 'قيد التحضير' },
+  preparing: { en: 'Your order is being carefully prepared', ar: 'يتم تحضير طلبك بعناية' },
   waiting_for_delivery: { en: 'Waiting for delivery', ar: 'في انتظار التوصيل' },
   driver_on_the_way: { en: 'Driver on the way to the store', ar: 'السائق في الطريق إلى المتجر' },
   'out-for-delivery': { en: 'Driver on the way to you', ar: 'السائق في الطريق إليك' },
@@ -50,6 +50,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
     customerRef?: string
     customerFcmToken?: string
     customerPushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
+    assignedDriverName?: string
   } | null>(
     `*[_type == "order" && _id == $orderId][0]{
       customerName,
@@ -57,7 +58,8 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
       "siteRef": site._ref,
       "customerRef": customer._ref,
       customerFcmToken,
-      "customerPushSubscription": customerPushSubscription
+      "customerPushSubscription": customerPushSubscription,
+      "assignedDriverName": assignedDriver->name
     }`,
     { orderId }
   )
@@ -82,10 +84,24 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
   if (!slug) return false
 
   const customerName = (order.customerName ?? '').trim() || 'Customer'
-  const businessName = (restaurant?.name_en || restaurant?.name_ar || '').trim() || 'Store'
-  const label = statusLabel(newStatus, 'en')
-  const labelAr = statusLabel(newStatus, 'ar')
-  const title = `${customerName}, your order at ${businessName}`
+  const businessName = (restaurant?.name_ar || restaurant?.name_en || '').trim() || 'المتجر'
+  const businessNameEn = (restaurant?.name_en || restaurant?.name_ar || '').trim() || 'Store'
+  const driverName = order.assignedDriverName
+
+  let label = statusLabel(newStatus, 'en')
+  let labelAr = statusLabel(newStatus, 'ar')
+
+  if (newStatus === 'driver_on_the_way') {
+    if (driverName) {
+      label = `Driver ${driverName} is on the way to ${businessNameEn}`
+      labelAr = `السائق ${driverName} في الطريق إلى ${businessName}`
+    } else {
+      label = `Driver is on the way to ${businessNameEn}`
+      labelAr = `السائق في الطريق إلى ${businessName}`
+    }
+  }
+
+  const title = `${customerName}, your order at ${businessNameEn}`
   const titleAr = `${customerName}، طلبك من ${businessName}`
   const body = label
   const bodyAr = labelAr

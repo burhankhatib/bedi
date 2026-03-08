@@ -21,7 +21,7 @@ interface ProductCardProps {
   priority?: boolean
   restaurantLogo?: any
   catalogOnly?: boolean
-  tenantContext?: { slug: string; name: string; logoRef?: string }
+  tenantContext?: { slug: string; name: string; logoRef?: string; openingHours?: any; customDateHours?: any; businessCountry?: string }
   orderTypeOptions?: OrderTypeOptions | null
   catalogHidePrices?: boolean
 }
