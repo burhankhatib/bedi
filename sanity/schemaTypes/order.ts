@@ -293,6 +293,18 @@ export const orderType = defineType({
       description: 'When the restaurant acknowledged a scheduled order',
     }),
     defineField({
+      name: 'notifyAt',
+      title: 'Notify At',
+      type: 'datetime',
+      description: 'When the business should be reminded to start preparing this scheduled order',
+    }),
+    defineField({
+      name: 'reminderSent',
+      title: 'Reminder Sent',
+      type: 'boolean',
+      description: 'Whether the reminder notification has been successfully sent',
+    }),
+    defineField({
       name: 'preparedAt',
       title: 'Prepared At',
       type: 'datetime',

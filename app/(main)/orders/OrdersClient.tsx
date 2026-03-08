@@ -142,7 +142,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     setEndDate(todayString);
   }, []);
 
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+  const updateOrderStatus = async (orderId: string, newStatus: string, notifyAt?: string) => {
     isUpdatingStatusRef.current = true;
 
     try {
@@ -153,6 +153,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
             const updatedOrder = {
               ...order,
               status: newStatus as Order['status'],
+              ...(notifyAt && { notifyAt, reminderSent: false })
             };
             if (newStatus === 'completed') {
               updatedOrder.completedAt = new Date().toISOString();
@@ -163,10 +164,12 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
         });
       });
 
-      const payload: { orderId: string; status: string; completedAt?: string } = {
+      const payload: { orderId: string; status: string; completedAt?: string; notifyAt?: string } = {
         orderId,
         status: newStatus,
       };
+
+      if (notifyAt) payload.notifyAt = notifyAt;
 
       if (newStatus === 'completed') {
         payload.completedAt = new Date().toISOString();

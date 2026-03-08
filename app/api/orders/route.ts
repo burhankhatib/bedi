@@ -6,6 +6,7 @@ import { getTenantIdBySlug, getTenantBySlug } from '@/lib/tenant'
 import { toEnglishDigits } from '@/lib/phone'
 import { isVerifiedPhoneForUser } from '@/lib/order-auth'
 import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
+import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
 import { isPushConfigured } from '@/lib/push'
 import { isFCMConfigured } from '@/lib/fcm'
 import { pusherServer } from '@/lib/pusher'
@@ -258,36 +259,19 @@ export async function POST(request: NextRequest) {
     })
 
     const pushReady = isFCMConfigured() || isPushConfigured()
-    if (siteRef?._ref && tenantSlug && typeof tenantSlug === 'string' && pushReady) {
+    if (siteRef?._ref && pushReady) {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
-        const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
-        const path = `/t/${tenantSlug}/orders`
-        const url = `${base}${path}`
-        const icon = `${base}/t/${tenantSlug}/icon/192`
-        const num = result.orderNumber ?? result._id?.slice(-6)
-        
         // Trigger live UI refresh immediately
         await pusherServer.trigger(`tenant-${siteRef._ref}`, 'order-update', { orderId: result._id }).catch(() => {})
 
-        // Mark as sent and await the push notification
+        // Mark as sent
         await writeClient.patch(result._id).set({ tenantNewOrderPushSent: true }).commit()
 
-        const tenantDoc = await writeClient.fetch<{ name?: string; slug?: { current?: string } } | null>(
-          `*[_type == "tenant" && _id == $id][0]{ name, slug }`,
-          { id: siteRef._ref }
-        )
-        
-        const businessName = tenantDoc?.name || tenantSlug || siteRef._ref
-        const pushPayload = {
-          title: `${businessName}: طلب جديد — #${num}`,
-          body: 'تم استلام طلب جديد. افتح التطبيق للمراجعة والقبول.',
-          url,
-          icon,
-          dir: 'rtl' as const,
-        }
-
-        await sendTenantAndStaffPush(siteRef._ref, pushPayload)
+        await sendTenantOrderUpdatePush({
+          orderId: result._id,
+          status: 'new',
+          baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+        })
       } catch (e) {
         console.error('[API] Tenant pusher trigger or push notification on new order failed:', e)
       }

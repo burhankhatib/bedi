@@ -203,7 +203,7 @@ function formSnapshotFromData(d: BusinessData): FormState {
     deactivated: tenant?.deactivated ?? false,
     deactivateUntil: tenant?.deactivateUntil ?? '',
     defaultLanguage: tenant?.defaultLanguage ?? '',
-    catalogMode: (tenant?.supportsDineIn === false && tenant?.supportsReceiveInPerson === false),
+    catalogMode: (tenant?.supportsDineIn === false && tenant?.supportsReceiveInPerson === false && tenant?.supportsDelivery === false),
     catalogHidePrices: tenant?.catalogHidePrices ?? false,
     supportsDineIn: tenant?.supportsDineIn ?? true,
     supportsReceiveInPerson: tenant?.supportsReceiveInPerson ?? true,
@@ -319,7 +319,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           deactivated: d.tenant!.deactivated ?? false,
           deactivateUntil: d.tenant!.deactivateUntil || '',
           defaultLanguage: d.tenant!.defaultLanguage || '',
-          catalogMode: (d.tenant!.supportsDineIn === false && d.tenant!.supportsReceiveInPerson === false),
+          catalogMode: (d.tenant!.supportsDineIn === false && d.tenant!.supportsReceiveInPerson === false && d.tenant!.supportsDelivery === false),
           catalogHidePrices: d.tenant!.catalogHidePrices ?? false,
           supportsDineIn: d.tenant!.supportsDineIn ?? true,
           supportsReceiveInPerson: d.tenant!.supportsReceiveInPerson ?? true,
@@ -820,20 +820,36 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                             </motion.div>
                           ))}
                         </AnimatePresence>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="text-amber-500 hover:bg-amber-500/10 hover:text-amber-400 px-3 h-9 text-sm font-semibold rounded-lg"
-                          onClick={() => {
-                            const newShifts = [...shifts, { open: '', close: '' }]
-                            setForm(f => ({
-                              ...f,
-                              openingHours: f.openingHours.map((d, j) => j === i ? { ...d, open: newShifts[0]?.open || '', close: newShifts[0]?.close || '', shifts: newShifts } : d)
-                            }))
-                          }}
-                        >
-                          + {t('Add shift', 'إضافة فترة')}
-                        </Button>
+                        <div className="flex items-center justify-between mt-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="text-amber-500 hover:bg-amber-500/10 hover:text-amber-400 px-3 h-9 text-sm font-semibold rounded-lg"
+                            onClick={() => {
+                              const newShifts = [...shifts, { open: '', close: '' }]
+                              setForm(f => ({
+                                ...f,
+                                openingHours: f.openingHours.map((d, j) => j === i ? { ...d, open: newShifts[0]?.open || '', close: newShifts[0]?.close || '', shifts: newShifts } : d)
+                              }))
+                            }}
+                          >
+                            + {t('Add shift', 'إضافة فترة')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 px-3 h-9 text-sm font-semibold rounded-lg"
+                            onClick={() => {
+                              setForm(f => ({
+                                ...f,
+                                openingHours: f.openingHours.map(d => ({ ...d, open: shifts[0]?.open || '', close: shifts[0]?.close || '', shifts: JSON.parse(JSON.stringify(shifts)) }))
+                              }))
+                              showToast('Copied to all days', 'تم النسخ لكل الأيام', 'success')
+                            }}
+                          >
+                            {t('Copy to all days', 'نسخ لكل الأيام')}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>

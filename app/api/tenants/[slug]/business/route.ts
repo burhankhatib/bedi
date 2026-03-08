@@ -8,8 +8,8 @@ import { urlFor } from '@/sanity/lib/image'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
-type DayHours = { open?: string; close?: string }
-type CustomDateHours = { date?: string; open?: string; close?: string }
+type DayHours = { open?: string; close?: string; shifts?: { open?: string; close?: string }[] }
+type CustomDateHours = { date?: string; open?: string; close?: string; shifts?: { open?: string; close?: string }[] }
 type RestaurantInfoDoc = {
   name_en?: string
   name_ar?: string
@@ -49,6 +49,7 @@ export async function GET(
       supportsDineIn?: boolean
       supportsReceiveInPerson?: boolean
       supportsDelivery?: boolean
+      catalogHidePrices?: boolean
       ownerPhone?: string
       normalizedOwnerPhone?: string
     } | null>(
@@ -56,7 +57,7 @@ export async function GET(
         _id, name, country, city,
         businessType,
         "businessSubcategoryIds": businessSubcategories[]._ref,
-        deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery,
+        deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, catalogHidePrices,
         ownerPhone, normalizedOwnerPhone
       }`,
       { tenantId: auth.tenantId }
@@ -189,6 +190,9 @@ export async function PATCH(
   if (body.supportsDelivery !== undefined) {
     await writeClient.patch(auth.tenantId).set({ supportsDelivery: Boolean(body.supportsDelivery) }).commit()
   }
+  if (body.catalogHidePrices !== undefined) {
+    await writeClient.patch(auth.tenantId).set({ catalogHidePrices: Boolean(body.catalogHidePrices) }).commit()
+  }
   if (body.ownerPhone !== undefined) {
     const { normalizePhoneDigits } = await import('@/lib/order-auth')
     const raw = typeof body.ownerPhone === 'string' ? body.ownerPhone.trim() : ''
@@ -247,6 +251,7 @@ export async function PATCH(
           _type: 'object',
           open: d?.open ?? '',
           close: d?.close ?? '',
+          shifts: Array.isArray(d?.shifts) ? d.shifts.map((s, j) => ({ _key: `shift-${j}`, _type: 'object', open: s.open ?? '', close: s.close ?? '' })) : []
         }))
       : []
   }
@@ -258,6 +263,7 @@ export async function PATCH(
           date: d.date ?? '',
           open: d?.open ?? '',
           close: d?.close ?? '',
+          shifts: Array.isArray(d?.shifts) ? d.shifts.map((s, j) => ({ _key: `shift-${j}`, _type: 'object', open: s.open ?? '', close: s.close ?? '' })) : []
         }))
       : []
     restPatch.customDateHours = custom

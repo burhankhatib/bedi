@@ -37,7 +37,7 @@ export async function PATCH(
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
   const body = await req.json()
-  const { orderId, status, completedAt, acknowledgeTableRequest } = body
+  const { orderId, status, completedAt, acknowledgeTableRequest, notifyAt } = body
   if (!orderId) {
     return NextResponse.json({ error: 'orderId required' }, { status: 400 })
   }
@@ -69,6 +69,10 @@ export async function PATCH(
   if (completedAt != null) updateData.completedAt = completedAt
   if (status === 'acknowledged') {
     updateData.acknowledgedAt = new Date().toISOString()
+    if (notifyAt) {
+      updateData.notifyAt = notifyAt
+      updateData.reminderSent = false
+    }
   }
   if (status === 'preparing' || status === 'waiting_for_delivery') {
     updateData.preparedAt = new Date().toISOString()
@@ -89,13 +93,11 @@ export async function PATCH(
 
   await patch.set(updateData).commit()
 
-  if (status !== 'acknowledged') {
-    sendCustomerOrderStatusPush({
-      orderId,
-      newStatus: status,
-      baseUrl: process.env.NEXT_PUBLIC_APP_URL,
-    }).catch((e) => console.warn('[customer-order-push]', e))
-  }
+  sendCustomerOrderStatusPush({
+    orderId,
+    newStatus: status,
+    baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+  }).catch((e) => console.warn('[customer-order-push]', e))
 
   sendTenantOrderUpdatePush({
     orderId,
