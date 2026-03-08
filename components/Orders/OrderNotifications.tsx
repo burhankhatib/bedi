@@ -65,6 +65,40 @@ function NewOrderCard({ order, onAcknowledge }: { order: NewOrder, onAcknowledge
   const areaName = order.deliveryArea?.name_en || order.deliveryArea?.name_ar || null
   const isScheduled = !!order.scheduledFor
 
+  let scheduleBadgeText = ''
+  let scheduleBadgeColor = ''
+  let scheduledTimeStr = ''
+  let scheduledDateStr = ''
+  
+  if (isScheduled && order.scheduledFor) {
+    const scheduledDate = new Date(order.scheduledFor)
+    const today = new Date()
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    
+    const isToday = scheduledDate.getDate() === today.getDate() && 
+                    scheduledDate.getMonth() === today.getMonth() && 
+                    scheduledDate.getFullYear() === today.getFullYear()
+                    
+    const isTomorrow = scheduledDate.getDate() === tomorrow.getDate() && 
+                       scheduledDate.getMonth() === tomorrow.getMonth() && 
+                       scheduledDate.getFullYear() === tomorrow.getFullYear()
+                       
+    if (isToday) {
+      scheduleBadgeText = 'TODAY'
+      scheduleBadgeColor = 'bg-green-500 text-white'
+    } else if (isTomorrow) {
+      scheduleBadgeText = 'TOMORROW'
+      scheduleBadgeColor = 'bg-purple-600 text-white'
+    } else {
+      scheduleBadgeText = 'LATER'
+      scheduleBadgeColor = 'bg-slate-600 text-white'
+    }
+    
+    scheduledTimeStr = scheduledDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    scheduledDateStr = scheduledDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+  }
+
   // Per-type styles
   const cardStyle = isScheduled 
     ? 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-950/40'
@@ -112,14 +146,27 @@ function NewOrderCard({ order, onAcknowledge }: { order: NewOrder, onAcknowledge
   return (
     <div className={`rounded-2xl border-2 p-4 shadow-sm ${cardStyle}`}>
       {isScheduled && (
-        <div className="mb-4 bg-purple-600 text-white px-4 py-3 rounded-xl shadow-md text-sm font-bold flex items-center gap-2 relative overflow-hidden">
-          <div className="absolute top-0 right-0 -mr-4 -mt-4 opacity-10 pointer-events-none">
-            <Clock className="w-20 h-20" />
+        <div className="mb-6 flex flex-col items-center justify-center p-6 bg-white dark:bg-purple-900/20 rounded-2xl border-2 border-purple-200 dark:border-purple-800 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 -mr-6 -mt-6 opacity-5 pointer-events-none">
+            <Clock className="w-32 h-32 text-purple-600" />
           </div>
-          <Clock className="w-5 h-5 shrink-0 z-10" />
-          <span className="z-10">
-            Scheduled for: {new Date(order.scheduledFor!).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
-          </span>
+          
+          <div className="z-10 flex flex-col items-center text-center space-y-2">
+            <span className="text-sm font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest">
+              Scheduled For
+            </span>
+            <div className="text-5xl md:text-6xl font-black text-purple-900 dark:text-purple-50 tracking-tight">
+              {scheduledTimeStr}
+            </div>
+            <div className="text-base font-bold text-purple-700 dark:text-purple-300">
+              {scheduledDateStr}
+            </div>
+            <div className="pt-2">
+              <span className={`inline-flex items-center justify-center px-4 py-1.5 rounded-full text-sm font-black tracking-widest shadow-sm ${scheduleBadgeColor}`}>
+                {scheduleBadgeText}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
