@@ -53,6 +53,9 @@ export async function PATCH(request: Request) {
     if (completedAt) {
       updateData.completedAt = completedAt
     }
+    if (status === 'acknowledged') {
+      updateData.acknowledgedAt = new Date().toISOString()
+    }
     if (status === 'preparing' || status === 'waiting_for_delivery') {
       updateData.preparedAt = new Date().toISOString()
       if (existingOrder.assignedDriver) {
@@ -72,11 +75,13 @@ export async function PATCH(request: Request) {
     // Update the order
     const result = await patch.set(updateData).commit()
 
-    sendCustomerOrderStatusPush({
-      orderId,
-      newStatus: status,
-      baseUrl: process.env.NEXT_PUBLIC_APP_URL,
-    }).catch((e) => console.warn('[customer-order-push]', e))
+    if (status !== 'acknowledged') {
+      sendCustomerOrderStatusPush({
+        orderId,
+        newStatus: status,
+        baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+      }).catch((e) => console.warn('[customer-order-push]', e))
+    }
 
     sendTenantOrderUpdatePush({
       orderId,

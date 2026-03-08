@@ -21,9 +21,10 @@ interface ProductListItemProps {
   catalogOnly?: boolean
   tenantContext?: { slug: string; name: string; logoRef?: string }
   orderTypeOptions?: OrderTypeOptions | null
+  catalogHidePrices?: boolean
 }
 
-export function ProductListItem({ product, onClick, layoutPrefix = 'list', restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions }: ProductListItemProps) {
+export function ProductListItem({ product, onClick, layoutPrefix = 'list', restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions, catalogHidePrices = false }: ProductListItemProps) {
   const { lang, t } = useLanguage()
   const { addToCart } = useCart()
 
@@ -31,6 +32,7 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
     (!product.specialPriceExpires || new Date(product.specialPriceExpires) > new Date())
 
   const priceColor = hasSpecialPrice ? 'text-red-600' : 'text-slate-900'
+  const shouldHidePrice = catalogOnly && (catalogHidePrices || product.hidePrice)
 
   const displayImage = product.image || restaurantLogo
 
@@ -112,7 +114,7 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
         {/* Price and Add Button */}
         <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-50">
           <div className="flex items-center gap-2">
-            {product.variants && product.variants.length > 0 ? (
+            {shouldHidePrice ? null : product.variants && product.variants.length > 0 ? (
               <span className="text-sm font-bold text-slate-600">
                 {t('Choose your choice', 'اختر خيارك')}
               </span>

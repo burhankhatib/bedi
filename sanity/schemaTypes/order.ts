@@ -39,6 +39,7 @@ export const orderType = defineType({
       options: {
         list: [
           { title: '🆕 New', value: 'new' },
+          { title: '👍 Acknowledged', value: 'acknowledged' },
           { title: '👨‍🍳 Preparing', value: 'preparing' },
           { title: '⏳ Waiting for Delivery', value: 'waiting_for_delivery' },
           { title: '🚗 Driver is on the way to the restaurant', value: 'driver_on_the_way' },
@@ -278,6 +279,18 @@ export const orderType = defineType({
       type: 'datetime',
       initialValue: () => new Date().toISOString(),
       validation: (Rule) => Rule.required(),
+    }),
+    defineField({
+      name: 'scheduledFor',
+      title: 'Scheduled For',
+      type: 'datetime',
+      description: 'When set, this is an upfront/scheduled order to be prepared for this date/time.',
+    }),
+    defineField({
+      name: 'acknowledgedAt',
+      title: 'Acknowledged At',
+      type: 'datetime',
+      description: 'When the restaurant acknowledged a scheduled order',
     }),
     defineField({
       name: 'preparedAt',

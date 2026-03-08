@@ -19,7 +19,7 @@ import { CartToast } from '@/components/Cart/CartToast'
 import { TableChoiceModal } from '@/components/Menu/TableChoiceModal'
 import { motion, useScroll, useSpring } from 'framer-motion'
 import { Star, Facebook, Instagram, Globe, MessageCircle, ShoppingCart, MapPin, Clock, Package, ShieldAlert, Menu, LogOut, Home, ClipboardList } from 'lucide-react'
-import { getTodaysHours, isWithinHours, getNextOpening, formatCountdown, getTimeZoneForCountry, getNowInTimeZone } from '@/lib/business-hours'
+import { getTodaysHours, isWithinHours, getNextOpening, formatCountdown, getTimeZoneForCountry, getNowInTimeZone, getTodayActiveOrNextShift } from '@/lib/business-hours'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
 import { getSocialProfileUrl } from '@/lib/social-urls'
@@ -137,6 +137,7 @@ function ClosedBanner({
 export default function MenuLayout({ initialData, tenantSlug, initialTableNumber }: MenuLayoutProps) {
   const { categories, popularProducts, restaurantInfo, aboutUs, storeName, supportsDineIn, supportsReceiveInPerson, hasDelivery, isManuallyClosed, deactivateUntil } = initialData
   const catalogOnlyBySettings = supportsDineIn === false && supportsReceiveInPerson === false && hasDelivery === false
+  const catalogHidePrices = initialData.catalogHidePrices
   const orderTypeOptions = tenantSlug
     ? { supportsDineIn: supportsDineIn ?? true, supportsReceiveInPerson: supportsReceiveInPerson ?? true, hasDelivery: hasDelivery ?? false }
     : null
@@ -254,17 +255,18 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
       )
     : null
   const { nowMins } = getNowInTimeZone(businessTimeZone)
-  const openMins = todaysHours?.open ? toMinutes(todaysHours.open) : -1
-  const closeMins = todaysHours?.close ? toMinutes(todaysHours.close) : -1
+  const activeOrNextShift = getTodayActiveOrNextShift(todaysHours, nowMins)
+  const openMins = activeOrNextShift?.open ? toMinutes(activeOrNextShift.open) : -1
+  const closeMins = activeOrNextShift?.close ? toMinutes(activeOrNextShift.close) : -1
   const openingSoon = openMins >= 0 && nowMins < openMins && openMins - nowMins <= 30
   const closesSoon = closeMins >= 0 && nowMins < closeMins && closeMins - nowMins <= 30
   const hoursLabel =
     catalogOnlyBySettings && !effectiveClosed
       ? t('Open 24/7', 'مفتوح 24 ساعة')
-      : todaysHours?.open || todaysHours?.close
+      : activeOrNextShift?.open || activeOrNextShift?.close
         ? (() => {
-            const openF = formatTimeHM(todaysHours.open ?? '', lang)
-            const closeF = formatTimeHM(todaysHours.close ?? '', lang)
+            const openF = formatTimeHM(activeOrNextShift.open ?? '', lang)
+            const closeF = formatTimeHM(activeOrNextShift.close ?? '', lang)
             if (effectiveClosed) {
               if (isManuallyClosed) return t('Closed temporarily', 'مغلق مؤقتاً')
               if (nowMins < openMins) return `${t('Closed', 'مغلق')} · ${t('Opens', 'يفتح')} ${openF}`
@@ -647,6 +649,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                 catalogOnly={catalogOnly}
                 tenantContext={tenantSlug ? { slug: tenantSlug, name: headerTitle, logoRef: restaurantInfo?.logo?.asset?._ref } : undefined}
                 orderTypeOptions={orderTypeOptions}
+                catalogHidePrices={catalogHidePrices}
               />
             ))}
             <div className="shrink-0 w-4" aria-hidden />
@@ -673,6 +676,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
             catalogOnly={catalogOnly}
             tenantContext={tenantSlug ? { slug: tenantSlug, name: headerTitle, logoRef: restaurantInfo?.logo?.asset?._ref } : undefined}
             orderTypeOptions={orderTypeOptions}
+            catalogHidePrices={catalogHidePrices}
           />
         ) : (
           <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
@@ -693,6 +697,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
         catalogOnly={catalogOnly}
         tenantContext={tenantSlug ? { slug: tenantSlug, name: headerTitle, logoRef: restaurantInfo?.logo?.asset?._ref } : undefined}
         orderTypeOptions={orderTypeOptions}
+        catalogHidePrices={catalogHidePrices}
       />
 
       {/* About Us Section */}

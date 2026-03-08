@@ -6,7 +6,7 @@
  * All times are evaluated in the business timezone (from business country) when provided.
  */
 
-export type DayHours = { open?: string; close?: string }
+export type DayHours = { open?: string; close?: string; shifts?: { open?: string; close?: string }[] }
 
 /** Map country code (e.g. IL, PS) to IANA timezone for "current time at business" and countdown. */
 const COUNTRY_TIMEZONE: Record<string, string> = {
@@ -121,35 +121,63 @@ function toMinutes(hm: string): number {
   return h * 60 + m
 }
 
+export function getTodayActiveOrNextShift(todaysHours: DayHours | null, nowMins: number): { open: string; close: string } | null {
+  if (!todaysHours) return null
+  if (todaysHours.shifts && todaysHours.shifts.length > 0) {
+    const sortedShifts = [...todaysHours.shifts]
+      .filter(s => toMinutes(s.open ?? '') >= 0)
+      .sort((a, b) => toMinutes(a.open ?? '') - toMinutes(b.open ?? ''))
+    
+    // Find currently active shift
+    const activeShift = sortedShifts.find(s => isWithinShift(s.open, s.close, nowMins))
+    if (activeShift) return { open: activeShift.open ?? '', close: activeShift.close ?? '' }
+    
+    // Or next upcoming shift today
+    const nextShift = sortedShifts.find(s => toMinutes(s.open ?? '') > nowMins)
+    if (nextShift) return { open: nextShift.open ?? '', close: nextShift.close ?? '' }
+    return null
+  }
+  return { open: todaysHours.open ?? '', close: todaysHours.close ?? '' }
+}
+
+export function isWithinShift(open: string | undefined, close: string | undefined, nowMins: number): boolean {
+  if (!open && !close) return false
+  const openMins = toMinutes(open ?? '')
+  const closeMins = toMinutes(close ?? '')
+  if (openMins < 0) return false
+  if (closeMins < 0) return nowMins >= openMins
+  if (closeMins > openMins) return nowMins >= openMins && nowMins < closeMins
+  return nowMins >= openMins || nowMins < closeMins
+}
+
 /** Get today's hours from openingHours (index 0=Sun) and optional customDateHours (date string YYYY-MM-DD). Uses business timezone when provided. */
 export function getTodaysHours(
   openingHours: DayHours[] | null | undefined,
-  customDateHours: Array<{ date?: string; open?: string; close?: string }> | null | undefined,
+  customDateHours: Array<{ date?: string; open?: string; close?: string; shifts?: { open?: string; close?: string }[] }> | null | undefined,
   timeZone?: string
 ): DayHours | null {
   const { dayIndex, dateStr } = getNowInTimeZone(timeZone)
   const custom = customDateHours?.find((c) => c.date === dateStr)
-  if (custom && (custom.open || custom.close)) {
-    return { open: custom.open ?? '', close: custom.close ?? '' }
+  if (custom && (custom.open || custom.close || (custom.shifts && custom.shifts.length > 0))) {
+    return { open: custom.open ?? '', close: custom.close ?? '', shifts: custom.shifts }
   }
   const day = openingHours?.[dayIndex]
   if (!day) return null
   const hasHours = (typeof day.open === 'string' && /^\d{1,2}:\d{2}$/.test(day.open.trim())) ||
     (typeof day.close === 'string' && /^\d{1,2}:\d{2}$/.test(day.close.trim()))
-  if (!hasHours) return null
-  return { open: day.open ?? '', close: day.close ?? '' }
+  const hasShifts = Array.isArray(day.shifts) && day.shifts.length > 0
+  if (!hasHours && !hasShifts) return null
+  return { open: day.open ?? '', close: day.close ?? '', shifts: day.shifts }
 }
 
 /** True if current time is within today's open/close (in business timezone when provided). Handles close after midnight (e.g. close 02:00). */
 export function isWithinHours(todaysHours: DayHours | null, timeZone?: string): boolean {
-  if (!todaysHours?.open && !todaysHours?.close) return false
-  const openMins = toMinutes(todaysHours.open ?? '')
-  const closeMins = toMinutes(todaysHours.close ?? '')
-  if (openMins < 0) return false
+  if (!todaysHours) return false
   const { nowMins } = getNowInTimeZone(timeZone)
-  if (closeMins < 0) return nowMins >= openMins
-  if (closeMins > openMins) return nowMins >= openMins && nowMins < closeMins
-  return nowMins >= openMins || nowMins < closeMins
+  if (todaysHours.shifts && todaysHours.shifts.length > 0) {
+    return todaysHours.shifts.some(shift => isWithinShift(shift.open, shift.close, nowMins))
+  }
+  return isWithinShift(todaysHours.open, todaysHours.close, nowMins)
 }
 
 /** Find next day (starting from tomorrow) that has opening hours. Returns day index 0-6 and open time. */
@@ -162,7 +190,11 @@ function getNextOpenDay(
   for (let i = 1; i <= 7; i++) {
     const dayIndex = (fromDayIndex + i) % 7
     const day = openingHours[dayIndex]
-    if (day?.open) return { dayIndex, open: day.open }
+    if (day?.shifts && day.shifts.length > 0) {
+      const validShift = day.shifts.find(s => s.open && /^\d{1,2}:\d{2}$/.test(s.open))
+      if (validShift?.open) return { dayIndex, open: validShift.open }
+    }
+    if (day?.open && /^\d{1,2}:\d{2}$/.test(day.open)) return { dayIndex, open: day.open }
   }
   return null
 }
@@ -259,14 +291,24 @@ export function getNextOpening(
     }
   }
 
-  const openMins = toMinutes(todaysHours.open ?? '')
-  const closeMins = toMinutes(todaysHours.close ?? '')
-  const openF = formatTime(todaysHours.open ?? '')
-  const closeF = formatTime(todaysHours.close ?? '')
+  let nextOpenStr = ''
+  if (todaysHours?.shifts && todaysHours.shifts.length > 0) {
+    const sortedShifts = [...todaysHours.shifts]
+      .filter(s => toMinutes(s.open ?? '') >= 0)
+      .sort((a, b) => toMinutes(a.open ?? '') - toMinutes(b.open ?? ''))
+    const nextShift = sortedShifts.find(s => toMinutes(s.open ?? '') > nowMins)
+    if (nextShift) nextOpenStr = nextShift.open ?? ''
+  } else if (todaysHours?.open) {
+    const openMins = toMinutes(todaysHours.open)
+    if (openMins >= 0 && nowMins < openMins) {
+      nextOpenStr = todaysHours.open
+    }
+  }
 
-  if (openMins >= 0 && nowMins < openMins) {
+  if (nextOpenStr) {
+    const openF = formatTime(nextOpenStr)
     const [y, mo, d] = dateStr.split('-').map(Number)
-    const [h, m] = (todaysHours.open ?? '00:00').split(':').map(Number)
+    const [h, m] = nextOpenStr.split(':').map(Number)
     const nextOpenAt = dateInTimeZone(y, mo, d, h, m, timeZone)
     return {
       closedReason: 'before_open',
@@ -280,13 +322,14 @@ export function getNextOpening(
 
   const next = getNextOpenDay(openingHours, dayIndex, nowMins)
   if (!next) {
+    const fallbackOpenF = formatTime(todaysHours?.open || '')
     return {
       closedReason: 'after_close',
       nextOpenAt: null,
-      messageEn: `We're closed. We open again tomorrow at ${openF}.`,
-      messageAr: `نحن مغلقون. نفتح غداً الساعة ${openF}.`,
-      nextOpenLabelEn: `Opens tomorrow at ${openF}`,
-      nextOpenLabelAr: `يفتح غداً الساعة ${openF}`,
+      messageEn: `We're closed. We open again tomorrow${fallbackOpenF ? ` at ${fallbackOpenF}` : ''}.`,
+      messageAr: `نحن مغلقون. نفتح غداً${fallbackOpenF ? ` الساعة ${fallbackOpenF}` : ''}.`,
+      nextOpenLabelEn: `Opens tomorrow${fallbackOpenF ? ` at ${fallbackOpenF}` : ''}`,
+      nextOpenLabelAr: `يفتح غداً${fallbackOpenF ? ` الساعة ${fallbackOpenF}` : ''}`,
     }
   }
   let daysToAdd = (next.dayIndex - dayIndex + 7) % 7

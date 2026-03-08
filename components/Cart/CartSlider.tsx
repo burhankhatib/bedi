@@ -88,6 +88,8 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     clearDeliveryLocation,
     deliveryFee,
     setDeliveryFee,
+    scheduledFor,
+    setScheduledFor,
     tenantSlug,
     cartTenant,
     orderTypeOptions,
@@ -240,9 +242,10 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     setShowUnifiedDialog(true)
   }
 
-  const handleReceiveInPersonSubmit = (name: string, phone: string) => {
+  const handleReceiveInPersonSubmit = (name: string, phone: string, scheduleStr?: string) => {
     setCustomerName(name)
     setCustomerPhone(phone)
+    setScheduledFor(scheduleStr)
     setTableNumber('')
     setOrderType('receive-in-person')
     setIsReady(true)
@@ -252,16 +255,18 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     setCustomerName(name)
     setTableNumber(table)
     setCustomerPhone(phone)
+    setScheduledFor(undefined)
     setOrderType('dine-in')
     setIsReady(true)
   }
 
-  const handleDeliverySubmit = (name: string, phone: string, areaId: string, address: string, fee: number) => {
+  const handleDeliverySubmit = (name: string, phone: string, areaId: string, address: string, fee: number, scheduleStr?: string) => {
     setCustomerName(name)
     setCustomerPhone(phone)
     setDeliveryAreaId(areaId)
     setDeliveryAddress(address)
     setDeliveryFee(fee)
+    setScheduledFor(scheduleStr)
     setOrderType('delivery')
     setIsReady(true)
   }
@@ -337,6 +342,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         currency: items[0]?.currency || 'ILS',
       }
       if (tenantSlug) orderPayload.tenantSlug = tenantSlug
+      if (scheduledFor) orderPayload.scheduledFor = scheduledFor
 
       if (orderType === 'dine-in') {
         orderPayload.tableNumber = tableNumber

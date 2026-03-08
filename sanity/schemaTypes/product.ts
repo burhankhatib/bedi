@@ -56,6 +56,13 @@ export const productType = defineType({
       description: 'Base price. Use 0 for free items or when price is determined by variants.',
     }),
     defineField({
+      name: 'hidePrice',
+      title: 'Hide Price in Catalog Mode',
+      type: 'boolean',
+      initialValue: false,
+      description: 'Hide this specific product\'s price when the menu is in catalog mode.',
+    }),
+    defineField({
       name: 'specialPrice',
       title: 'Special Price',
       type: 'number',

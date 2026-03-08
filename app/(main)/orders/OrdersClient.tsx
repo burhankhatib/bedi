@@ -24,7 +24,7 @@ export interface Order {
   _id: string
   orderNumber: string
   orderType: 'receive-in-person' | 'dine-in' | 'delivery'
-  status: 'new' | 'preparing' | 'waiting_for_delivery' | 'driver_on_the_way' | 'out-for-delivery' | 'completed' | 'served' | 'cancelled' | 'refunded'
+  status: 'new' | 'acknowledged' | 'preparing' | 'waiting_for_delivery' | 'driver_on_the_way' | 'out-for-delivery' | 'completed' | 'served' | 'cancelled' | 'refunded'
   customerName: string
   tableNumber?: string
   customerPhone?: string
@@ -50,6 +50,8 @@ export interface Order {
   totalAmount: number
   currency: string
   createdAt: string
+  scheduledFor?: string
+  acknowledgedAt?: string
   preparedAt?: string
   driverAcceptedAt?: string
   driverPickedUpAt?: string
@@ -66,6 +68,7 @@ export interface Order {
 
 const STATUS_CONFIG = {
   new: { label: 'New', labelAr: 'جديد', icon: Package, color: 'bg-blue-500', textColor: 'text-blue-600' },
+  acknowledged: { label: 'Acknowledged', labelAr: 'تم الاستلام', icon: Package, color: 'bg-blue-400', textColor: 'text-blue-500' },
   preparing: { label: 'Preparing', labelAr: 'قيد التحضير', icon: ChefHat, color: 'bg-orange-500', textColor: 'text-orange-600' },
   waiting_for_delivery: { label: 'Waiting for Delivery', labelAr: 'في انتظار التوصيل', icon: Clock, color: 'bg-amber-500', textColor: 'text-amber-600' },
   driver_on_the_way: { label: 'Driver on the way to pick up', labelAr: 'السائق في الطريق لاستلام الطلب', icon: Truck, color: 'bg-blue-500', textColor: 'text-blue-600' },
@@ -94,6 +97,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
   const { t, lang } = useLanguage()
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [activeTab, setActiveTab] = useState<'live' | 'scheduled'>('live')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterType, setFilterType] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState<string>('')
@@ -220,8 +224,14 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
 
   // Client-side filtering
   const filteredOrders = (orders || []).filter(order => {
-    // Exclude "new" status orders (they're handled by notifications)
-    if (order.status === 'new') return false;
+    // Tab filtering
+    const isScheduled = !!order.scheduledFor;
+    if (activeTab === 'live' && isScheduled) return false;
+    if (activeTab === 'scheduled' && !isScheduled) return false;
+
+    // Exclude "new" status orders from live view (they're handled by notifications), unless they are scheduled or table requests
+    const hasTableRequest = order.orderType === 'dine-in' && order.customerRequestedAt && !order.customerRequestAcknowledgedAt;
+    if (activeTab === 'live' && order.status === 'new' && !hasTableRequest) return false;
 
     // Date filtering (only if dates are set, otherwise show all)
     if (startDate && endDate) {
@@ -406,6 +416,22 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
             </AnimatePresence>
           </div>
 
+          {/* Tabs for Live / Scheduled */}
+          <div className="flex border-b border-slate-200 mb-6">
+            <button
+              className={`py-3 px-6 font-bold text-sm border-b-2 transition-colors ${activeTab === 'live' ? 'border-orange-500 text-orange-500' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+              onClick={() => setActiveTab('live')}
+            >
+              {t('Live Orders', 'الطلبات المباشرة')}
+            </button>
+            <button
+              className={`py-3 px-6 font-bold text-sm border-b-2 transition-colors ${activeTab === 'scheduled' ? 'border-orange-500 text-orange-500' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+              onClick={() => setActiveTab('scheduled')}
+            >
+              {t('Scheduled Orders', 'الطلبات المجدولة')}
+            </button>
+          </div>
+
           {/* Orders Grid */}
           <div className="bg-white rounded-3xl shadow-lg p-6">
             {filteredOrders.length === 0 ? (
@@ -418,7 +444,8 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredOrders.map((order) => {
                   const hasTableRequest = order.orderType === 'dine-in' && order.customerRequestedAt && !order.customerRequestAcknowledgedAt
-                  if (order.status === 'new' && !hasTableRequest) return null;
+                  // Only skip 'new' status if we are in live tab and it's not a table request
+                  if (activeTab === 'live' && order.status === 'new' && !hasTableRequest) return null;
 
                   const deliveryOnlyStatuses = ['waiting_for_delivery', 'driver_on_the_way', 'out-for-delivery']
                   const isDeliveryOrder = order.orderType === 'delivery'
@@ -473,6 +500,15 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                           {order.totalAmount.toFixed(2)} {order.currency}
                         </p>
                       </div>
+
+                      {order.scheduledFor && (
+                        <div className="mb-4 bg-purple-100 text-purple-800 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+                          <Clock className="w-4 h-4" />
+                          <span>
+                            {t('Scheduled for:', 'مجدول ليوم:')} {new Date(order.scheduledFor).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
 
                       <div className="flex items-center justify-between text-xs text-slate-500">
                         <span>{order.items.length} item{order.items.length !== 1 ? 's' : ''}</span>

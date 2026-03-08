@@ -23,9 +23,9 @@ interface Area {
 interface UnifiedOrderDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onReceiveInPersonSubmit: (name: string, phone: string) => void
+  onReceiveInPersonSubmit: (name: string, phone: string, scheduledFor?: string) => void
   onDineInSubmit: (name: string, table: string, phone: string) => void
-  onDeliverySubmit: (name: string, phone: string, areaId: string, address: string, deliveryFee: number) => void
+  onDeliverySubmit: (name: string, phone: string, areaId: string, address: string, deliveryFee: number, scheduledFor?: string) => void
   initialName?: string
   /** Prefill phone from Clerk verified phone so user does not re-enter */
   initialPhone?: string
@@ -68,6 +68,10 @@ export function UnifiedOrderDialog({
   const { t, lang } = useLanguage()
   const [step, setStep] = useState<'name' | 'type' | 'details'>('name')
   const [orderType, setOrderType] = useState<OrderType | null>(null)
+
+  // Timing
+  const [isScheduled, setIsScheduled] = useState(false)
+  const [scheduledFor, setScheduledFor] = useState('')
 
   // Form fields
   const [name, setName] = useState('')
@@ -124,6 +128,8 @@ export function UnifiedOrderDialog({
       setAreaId('')
       setAddress('')
       setAreas([])
+      setIsScheduled(false)
+      setScheduledFor('')
       setLocationError(null)
       setMapsLinkInput('')
       setMapsLinkError(null)
@@ -268,10 +274,11 @@ export function UnifiedOrderDialog({
 
   const handleFinalSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    const finalScheduledFor = isScheduled && scheduledFor ? new Date(scheduledFor).toISOString() : undefined
 
     if (orderType === 'receive-in-person') {
       if (name.trim() && phone.trim()) {
-        onReceiveInPersonSubmit(name.trim(), phone.trim())
+        onReceiveInPersonSubmit(name.trim(), phone.trim(), finalScheduledFor)
         onOpenChange(false)
       }
     } else if (orderType === 'dine-in') {
@@ -295,7 +302,7 @@ export function UnifiedOrderDialog({
 
       if (name.trim() && phone.trim() && areaId) {
         const addressValue = address.trim() || (hasSharedLocation ? t('Location shared', 'تم مشاركة الموقع') : '')
-        onDeliverySubmit(name.trim(), phone.trim(), areaId, addressValue, deliveryFee)
+        onDeliverySubmit(name.trim(), phone.trim(), areaId, addressValue, deliveryFee, finalScheduledFor)
         onOpenChange(false)
       }
     }
@@ -315,6 +322,12 @@ export function UnifiedOrderDialog({
   }
 
   const selectedArea = areas.find(a => a._id === areaId)
+
+  const getMinDateTime = () => {
+    const nowLocal = new Date()
+    nowLocal.setMinutes(nowLocal.getMinutes() - nowLocal.getTimezoneOffset())
+    return nowLocal.toISOString().slice(0, 16)
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -499,6 +512,47 @@ export function UnifiedOrderDialog({
                 />
               </div>
 
+              {/* Timing */}
+              <div className="space-y-3 pt-4 border-t border-slate-100">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0 flex items-center gap-1">
+                  {t('Timing', 'التوقيت')}
+                </label>
+                <div className="flex flex-col gap-3">
+                  <label className="flex items-center gap-3 cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 transition-all">
+                    <input
+                      type="radio"
+                      name="timing"
+                      checked={!isScheduled}
+                      onChange={() => setIsScheduled(false)}
+                      className="size-5 accent-slate-900"
+                    />
+                    <span className="font-bold text-slate-800">{t('As soon as possible (ASAP)', 'في أسرع وقت ممكن')}</span>
+                  </label>
+                  <label className="flex flex-col gap-3 cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 transition-all">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="timing"
+                        checked={isScheduled}
+                        onChange={() => setIsScheduled(true)}
+                        className="size-5 accent-slate-900"
+                      />
+                      <span className="font-bold text-slate-800">{t('Schedule for later', 'جدولة لوقت لاحق')}</span>
+                    </div>
+                    {isScheduled && (
+                      <Input
+                        type="datetime-local"
+                        value={scheduledFor}
+                        onChange={(e) => setScheduledFor(e.target.value)}
+                        className="h-12 w-full mt-2"
+                        required={isScheduled}
+                        min={getMinDateTime()}
+                      />
+                    )}
+                  </label>
+                </div>
+              </div>
+
               <div className="flex gap-3">
                 <Button
                   type="button"
@@ -511,7 +565,7 @@ export function UnifiedOrderDialog({
                 <Button
                   type="submit"
                   className="flex-1 h-14 rounded-2xl font-black bg-black text-white shadow-xl shadow-black/10 active:scale-[0.98] transition-all"
-                  disabled={!phone.trim()}
+                  disabled={!phone.trim() || (isScheduled && !scheduledFor)}
                 >
                   {t('Continue', 'متابعة')}
                 </Button>
@@ -790,6 +844,47 @@ export function UnifiedOrderDialog({
                 </div>
               </div>
 
+              {/* Timing */}
+              <div className="space-y-3 pt-4 border-t border-slate-100">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0 flex items-center gap-1">
+                  {t('Timing', 'التوقيت')}
+                </label>
+                <div className="flex flex-col gap-3">
+                  <label className="flex items-center gap-3 cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 transition-all">
+                    <input
+                      type="radio"
+                      name="delivery_timing"
+                      checked={!isScheduled}
+                      onChange={() => setIsScheduled(false)}
+                      className="size-5 accent-slate-900"
+                    />
+                    <span className="font-bold text-slate-800">{t('As soon as possible (ASAP)', 'في أسرع وقت ممكن')}</span>
+                  </label>
+                  <label className="flex flex-col gap-3 cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 transition-all">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="delivery_timing"
+                        checked={isScheduled}
+                        onChange={() => setIsScheduled(true)}
+                        className="size-5 accent-slate-900"
+                      />
+                      <span className="font-bold text-slate-800">{t('Schedule for later', 'جدولة لوقت لاحق')}</span>
+                    </div>
+                    {isScheduled && (
+                      <Input
+                        type="datetime-local"
+                        value={scheduledFor}
+                        onChange={(e) => setScheduledFor(e.target.value)}
+                        className="h-12 w-full mt-2"
+                        required={isScheduled}
+                        min={getMinDateTime()}
+                      />
+                    )}
+                  </label>
+                </div>
+              </div>
+
               <div className="flex gap-3">
                 <Button
                   type="button"
@@ -802,7 +897,7 @@ export function UnifiedOrderDialog({
                 <Button
                   type="submit"
                   className="flex-1 h-14 rounded-2xl font-black bg-green-600 text-white shadow-xl shadow-green-600/10 hover:bg-green-700 active:scale-[0.98] transition-all"
-                  disabled={!phone.trim() || !areaId || deliveryLat == null || deliveryLng == null}
+                  disabled={!phone.trim() || !areaId || deliveryLat == null || deliveryLng == null || (isScheduled && !scheduledFor)}
                 >
                   {t('Continue', 'متابعة')}
                 </Button>

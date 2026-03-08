@@ -141,6 +141,7 @@ export default async function TenantMenuPage({
     isManuallyClosed,
     deactivateUntil: tenant.deactivateUntil ?? null,
     businessCountry: tenant.country ?? null,
+    catalogHidePrices: tenant.catalogHidePrices ?? false,
   }
 
   return (

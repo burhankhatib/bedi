@@ -22,6 +22,7 @@ interface PopularProductCardProps {
   catalogOnly?: boolean
   tenantContext?: { slug: string; name: string; logoRef?: string }
   orderTypeOptions?: OrderTypeOptions | null
+  catalogHidePrices?: boolean
 }
 
 export function PopularProductCard({
@@ -33,6 +34,7 @@ export function PopularProductCard({
   catalogOnly = false,
   tenantContext,
   orderTypeOptions,
+  catalogHidePrices = false,
 }: PopularProductCardProps) {
   const { lang, t } = useLanguage()
   const { addToCart } = useCart()
@@ -41,6 +43,7 @@ export function PopularProductCard({
   const hasSpecialPrice = product.specialPrice &&
     (!product.specialPriceExpires || new Date(product.specialPriceExpires) > new Date())
 
+  const shouldHidePrice = catalogOnly && (catalogHidePrices || product.hidePrice)
   const displayImage = product.image || restaurantLogo
 
   // Get the second image for hover effect
@@ -129,7 +132,7 @@ export function PopularProductCard({
             {t(product.title_en, product.title_ar)}
           </h3>
           <div className="flex items-center gap-2">
-            {product.variants && product.variants.length > 0 ? (
+            {shouldHidePrice ? null : product.variants && product.variants.length > 0 ? (
               <span className="text-white/90 text-sm font-bold">
                 {t('Choose your choice', 'اختر خيارك')}
               </span>

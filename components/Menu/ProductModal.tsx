@@ -26,9 +26,10 @@ interface ProductModalProps {
   /** For single-business cart: pass when adding from menu page. */
   tenantContext?: { slug: string; name: string; logoRef?: string }
   orderTypeOptions?: OrderTypeOptions | null
+  catalogHidePrices?: boolean
 }
 
-export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product', restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions }: ProductModalProps) {
+export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product', restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions, catalogHidePrices = false }: ProductModalProps) {
   const { t, lang } = useLanguage()
   const { addToCart } = useCart()
   /** Add-on key -> quantity (0 = not selected). Allows e.g. "Bread x3". */
@@ -93,6 +94,7 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
     })
   }
   const totalPrice = basePrice + addOnPrice + variantPrice
+  const shouldHidePrice = catalogOnly && (catalogHidePrices || product.hidePrice)
 
   const hasVariants = variantCount > 0
   const isGroupRequired = (group: ProductVariantGroup) => group.required === true
@@ -286,7 +288,7 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                                 whileTap={{ scale: 0.98 }}
                               >
                                 <span>{label}</span>
-                                {modifier !== 0 && (
+                                {!shouldHidePrice && modifier !== 0 && (
                                   <span className="opacity-90 text-xs">
                                     {hasVariantSpecial && regularModifier !== modifier && (
                                       <span className="line-through opacity-70 mr-0.5">
@@ -317,7 +319,7 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                       const addOnKey = addOn._key || `${addOn.name_en}-${addOn.price}`
                       const qty = addOnQuantities[addOnKey] ?? 0
                       const addOnName = lang === 'ar' ? addOn.name_ar : addOn.name_en
-                      const priceLabel = addOn.price === 0 ? t('Free', 'مجاني') : `+${addOn.price} ${formatCurrency(product.currency)}`
+                      const priceLabel = shouldHidePrice ? '' : (addOn.price === 0 ? t('Free', 'مجاني') : `+${addOn.price} ${formatCurrency(product.currency)}`)
                       return (
                         <div
                           key={addOnKey}

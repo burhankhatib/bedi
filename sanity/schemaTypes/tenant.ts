@@ -200,6 +200,13 @@ export const tenantType = defineType({
       description: 'Default language for your business dashboard (manage pages). Does not change the customer menu language.',
     }),
     defineField({
+      name: 'catalogHidePrices',
+      title: 'Hide Prices in Catalog Mode',
+      type: 'boolean',
+      initialValue: false,
+      description: 'When catalog mode is active (no delivery, no pickup, no dine-in), hide all product prices.',
+    }),
+    defineField({
       name: 'supportsDineIn',
       title: 'Accept Dine-in orders',
       type: 'boolean',

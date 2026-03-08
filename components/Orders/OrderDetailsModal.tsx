@@ -44,7 +44,7 @@ interface Order {
   _id: string
   orderNumber: string
   orderType: 'receive-in-person' | 'dine-in' | 'delivery'
-  status: 'new' | 'preparing' | 'waiting_for_delivery' | 'driver_on_the_way' | 'out-for-delivery' | 'completed' | 'served' | 'cancelled' | 'refunded'
+  status: 'new' | 'acknowledged' | 'preparing' | 'waiting_for_delivery' | 'driver_on_the_way' | 'out-for-delivery' | 'completed' | 'served' | 'cancelled' | 'refunded'
   customerName: string
   tableNumber?: string
   customerPhone?: string
@@ -74,6 +74,8 @@ interface Order {
   totalAmount: number
   currency: string
   createdAt: string
+  scheduledFor?: string
+  acknowledgedAt?: string
   preparedAt?: string
   driverAcceptedAt?: string
   driverPickedUpAt?: string
@@ -1374,7 +1376,10 @@ Please deliver this order to the customer.
             }
 
             if (isDelivery) {
-              const s1Active = currentStatus === 'new'
+              const s0Active = currentStatus === 'new' && !!localOrder.scheduledFor
+              const s0Done = ['acknowledged', 'preparing', 'waiting_for_delivery', 'driver_on_the_way', 'out-for-delivery', 'completed'].includes(currentStatus)
+
+              const s1Active = (currentStatus === 'new' && !localOrder.scheduledFor) || currentStatus === 'acknowledged'
               const s1Done = ['preparing', 'waiting_for_delivery', 'driver_on_the_way', 'out-for-delivery', 'completed'].includes(currentStatus)
               
               // "Order is Ready" is optional — tenant can skip directly to Request Delivery
@@ -1399,6 +1404,9 @@ Please deliver this order to the customer.
 
               return (
                 <div className="flex flex-col gap-3">
+                  {!!localOrder.scheduledFor && (
+                    <StepButton isActive={s0Active} isCompleted={s0Done} onClick={() => onStatusUpdate(localOrder._id, 'acknowledged')} icon={CheckCircle2} labelEn="Acknowledge Order" labelAr="استلام الطلب" colorClass="bg-blue-500" />
+                  )}
                   <StepButton isActive={s1Active} isCompleted={s1Done} onClick={() => onStatusUpdate(localOrder._id, 'preparing')} icon={ChefHat} labelEn="Start Preparing" labelAr="بدء التحضير" colorClass="bg-orange-500" />
                   
                   {/* Order is Ready — optional step, shown but bypassable */}
@@ -1520,7 +1528,10 @@ Please deliver this order to the customer.
             }
 
             // Dine-in / Receive in person
-            const s1Active = currentStatus === 'new'
+            const s0Active = currentStatus === 'new' && !!localOrder.scheduledFor
+            const s0Done = ['acknowledged', 'preparing', 'served', 'completed'].includes(currentStatus)
+
+            const s1Active = (currentStatus === 'new' && !localOrder.scheduledFor) || currentStatus === 'acknowledged'
             const s1Done = ['preparing', 'served', 'completed'].includes(currentStatus)
             
             const s2Active = currentStatus === 'preparing'
@@ -1528,6 +1539,9 @@ Please deliver this order to the customer.
 
             return (
               <div className="flex flex-col gap-3">
+                {!!localOrder.scheduledFor && (
+                  <StepButton isActive={s0Active} isCompleted={s0Done} onClick={() => onStatusUpdate(localOrder._id, 'acknowledged')} icon={CheckCircle2} labelEn="Acknowledge Order" labelAr="استلام الطلب" colorClass="bg-blue-500" />
+                )}
                 <StepButton isActive={s1Active} isCompleted={s1Done} onClick={() => onStatusUpdate(localOrder._id, 'preparing')} icon={ChefHat} labelEn="Start Preparing" labelAr="بدء التحضير" colorClass="bg-orange-500" />
                 
                 {isDineIn && (

@@ -53,6 +53,7 @@ export interface Product {
   ingredients_en?: string[]
   ingredients_ar?: string[]
   price: number
+  hidePrice?: boolean
   specialPrice?: number
   specialPriceExpires?: string
   currency: string
@@ -81,12 +82,14 @@ export interface Product {
 export interface DayHours {
   open?: string
   close?: string
+  shifts?: { open?: string; close?: string }[]
 }
 
 export interface CustomDateHours {
   date?: string // YYYY-MM-DD
   open?: string
   close?: string
+  shifts?: { open?: string; close?: string }[]
 }
 
 export interface RestaurantInfo {
@@ -145,4 +148,6 @@ export interface InitialData {
   deactivateUntil?: string | null
   /** Business country code (e.g. IL, PS) for timezone; open/closed and countdown use business local time. */
   businessCountry?: string | null
+  /** Whether to hide prices for products when in catalog mode */
+  catalogHidePrices?: boolean
 }

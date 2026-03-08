@@ -94,6 +94,21 @@ export const restaurantInfoType = defineType({
           fields: [
             { name: 'open', type: 'string', title: 'Open (e.g. 09:00)', validation: (Rule) => Rule.max(5) },
             { name: 'close', type: 'string', title: 'Close (e.g. 22:00)', validation: (Rule) => Rule.max(5) },
+            {
+              name: 'shifts',
+              title: 'Multiple Shifts',
+              type: 'array',
+              description: 'Optional: specify multiple opening periods for this day (e.g., 09:00-14:00, 18:00-23:00)',
+              of: [
+                {
+                  type: 'object',
+                  fields: [
+                    { name: 'open', type: 'string', title: 'Open (e.g. 09:00)' },
+                    { name: 'close', type: 'string', title: 'Close (e.g. 14:00)' },
+                  ],
+                },
+              ],
+            },
           ],
           preview: { select: { open: 'open', close: 'close' }, prepare: ({ open, close }) => ({ title: open && close ? `${open} – ${close}` : 'Closed' }) },
         },
@@ -113,6 +128,21 @@ export const restaurantInfoType = defineType({
             { name: 'date', type: 'string', title: 'Date (YYYY-MM-DD)' },
             { name: 'open', type: 'string', title: 'Open' },
             { name: 'close', type: 'string', title: 'Close' },
+            {
+              name: 'shifts',
+              title: 'Multiple Shifts',
+              type: 'array',
+              description: 'Optional: specify multiple opening periods for this date',
+              of: [
+                {
+                  type: 'object',
+                  fields: [
+                    { name: 'open', type: 'string', title: 'Open (e.g. 09:00)' },
+                    { name: 'close', type: 'string', title: 'Close (e.g. 14:00)' },
+                  ],
+                },
+              ],
+            },
           ],
         },
       ],

@@ -17,6 +17,7 @@ interface MenuGridProps {
   catalogOnly?: boolean
   tenantContext?: { slug: string; name: string; logoRef?: string }
   orderTypeOptions?: OrderTypeOptions | null
+  catalogHidePrices?: boolean
 }
 
 const container = {
@@ -34,7 +35,7 @@ const item = {
   show: { opacity: 1, y: 0 }
 }
 
-export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewType = 'thumbnail', restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions }: MenuGridProps) {
+export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewType = 'thumbnail', restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions, catalogHidePrices = false }: MenuGridProps) {
   const { t } = useLanguage()
 
   const renderProducts = (products: Product[], prefix: string) => {
@@ -52,6 +53,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
                 catalogOnly={catalogOnly}
                 tenantContext={tenantContext}
                 orderTypeOptions={orderTypeOptions}
+                catalogHidePrices={catalogHidePrices}
               />
             ))}
           </div>
@@ -74,6 +76,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
                   catalogOnly={catalogOnly}
                   tenantContext={tenantContext}
                   orderTypeOptions={orderTypeOptions}
+                  catalogHidePrices={catalogHidePrices}
                 />
               </div>
             ))}
@@ -99,6 +102,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
                   catalogOnly={catalogOnly}
                   tenantContext={tenantContext}
                   orderTypeOptions={orderTypeOptions}
+                  catalogHidePrices={catalogHidePrices}
                 />
               </motion.div>
             ))}
@@ -125,6 +129,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
                   catalogOnly={catalogOnly}
                   tenantContext={tenantContext}
                   orderTypeOptions={orderTypeOptions}
+                  catalogHidePrices={catalogHidePrices}
                 />
               </motion.div>
             ))}

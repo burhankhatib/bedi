@@ -23,9 +23,10 @@ interface ProductCardProps {
   catalogOnly?: boolean
   tenantContext?: { slug: string; name: string; logoRef?: string }
   orderTypeOptions?: OrderTypeOptions | null
+  catalogHidePrices?: boolean
 }
 
-export function ProductCard({ product, onClick, layoutPrefix = 'product', priority = false, restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions }: ProductCardProps) {
+export function ProductCard({ product, onClick, layoutPrefix = 'product', priority = false, restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions, catalogHidePrices = false }: ProductCardProps) {
   const { lang, t } = useLanguage()
   const { addToCart } = useCart()
   const [isHovered, setIsHovered] = useState(false)
@@ -34,6 +35,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
     (!product.specialPriceExpires || new Date(product.specialPriceExpires) > new Date())
 
   const priceColor = hasSpecialPrice ? 'text-red-600' : 'text-slate-900'
+  const shouldHidePrice = catalogOnly && (catalogHidePrices || product.hidePrice)
 
   // Get the second image for hover effect (first additional image)
   const hoverImage = product.additionalImages && product.additionalImages.length > 0
@@ -177,7 +179,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
             ))}
           </div>
           <div className="flex items-center gap-2 shrink-0 h-[44px]">
-            {product.variants && product.variants.length > 0 ? (
+            {shouldHidePrice ? null : product.variants && product.variants.length > 0 ? (
               <span className="text-sm font-bold text-slate-600">
                 {t('Choose your choice', 'اختر خيارك')}
               </span>

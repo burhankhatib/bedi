@@ -80,6 +80,8 @@ interface CartContextType {
   clearDeliveryLocation: () => void
   deliveryFee: number
   setDeliveryFee: (fee: number) => void
+  scheduledFor?: string
+  setScheduledFor: (dateStr?: string) => void
   toast: ToastMessage | null
   showToast: (message: string, productName: string) => void
   hideToast: () => void
@@ -127,6 +129,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [deliveryLat, setDeliveryLat] = useState<number | null>(null)
   const [deliveryLng, setDeliveryLng] = useState<number | null>(null)
   const [deliveryFee, setDeliveryFee] = useState<number>(0)
+  const [scheduledFor, setScheduledFor] = useState<string | undefined>(undefined)
   const setDeliveryLocation = useCallback((lat: number, lng: number) => {
     setDeliveryLat(lat)
     setDeliveryLng(lng)
@@ -173,6 +176,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setDeliveryLat(typeof info.deliveryLat === 'number' ? info.deliveryLat : null)
         setDeliveryLng(typeof info.deliveryLng === 'number' ? info.deliveryLng : null)
         setDeliveryFee(info.deliveryFee || 0)
+        setScheduledFor(info.scheduledFor)
       } catch (error) {
         console.error('Failed to load customer info from localStorage:', error)
       }
@@ -206,8 +210,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       deliveryLat: deliveryLat,
       deliveryLng: deliveryLng,
       deliveryFee: deliveryFee,
+      scheduledFor: scheduledFor,
     }))
-  }, [customerName, tableNumber, isReady, orderType, customerPhone, deliveryAreaId, deliveryAddress, deliveryLat, deliveryLng, deliveryFee])
+  }, [customerName, tableNumber, isReady, orderType, customerPhone, deliveryAreaId, deliveryAddress, deliveryLat, deliveryLng, deliveryFee, scheduledFor])
 
   const doAddItem = useCallback((
     product: Product,
@@ -424,6 +429,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         clearDeliveryLocation,
         deliveryFee,
         setDeliveryFee,
+        scheduledFor,
+        setScheduledFor,
         toast,
         showToast,
         hideToast,

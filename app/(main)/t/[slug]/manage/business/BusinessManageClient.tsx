@@ -27,6 +27,7 @@ type BusinessData = {
     deactivated?: boolean
     deactivateUntil?: string | null
     defaultLanguage?: string | null
+    catalogHidePrices?: boolean
     supportsDineIn?: boolean
     supportsReceiveInPerson?: boolean
     supportsDelivery?: boolean
@@ -42,8 +43,8 @@ type BusinessData = {
     mapEmbedUrl?: string
     logoUrl?: string | null
     notificationSound?: string
-    openingHours?: Array<{ open?: string; close?: string }> | null
-    customDateHours?: Array<{ date?: string; open?: string; close?: string }> | null
+    openingHours?: Array<{ open?: string; close?: string; shifts?: { open?: string; close?: string }[] }> | null
+    customDateHours?: Array<{ date?: string; open?: string; close?: string; shifts?: { open?: string; close?: string }[] }> | null
     socials?: {
       facebook?: string
       instagram?: string
@@ -165,11 +166,12 @@ type FormState = {
   deactivateUntil: string
   defaultLanguage: string
   catalogMode: boolean
+  catalogHidePrices: boolean
   supportsDineIn: boolean
   supportsReceiveInPerson: boolean
   supportsDelivery: boolean
-  openingHours: Array<{ open: string; close: string }>
-  customDateHours: Array<{ date: string; open: string; close: string }>
+  openingHours: Array<{ open: string; close: string; shifts: { open: string; close: string }[] }>
+  customDateHours: Array<{ date: string; open: string; close: string; shifts: { open: string; close: string }[] }>
 }
 
 function formSnapshotFromData(d: BusinessData): FormState {
@@ -202,14 +204,24 @@ function formSnapshotFromData(d: BusinessData): FormState {
     deactivateUntil: tenant?.deactivateUntil ?? '',
     defaultLanguage: tenant?.defaultLanguage ?? '',
     catalogMode: (tenant?.supportsDineIn === false && tenant?.supportsReceiveInPerson === false),
+    catalogHidePrices: tenant?.catalogHidePrices ?? false,
     supportsDineIn: tenant?.supportsDineIn ?? true,
     supportsReceiveInPerson: tenant?.supportsReceiveInPerson ?? true,
     supportsDelivery: tenant?.supportsDelivery ?? true,
     openingHours: Array.isArray(r?.openingHours) && r.openingHours.length > 0
-      ? Array.from({ length: 7 }, (_, i) => ({ open: r!.openingHours![i]?.open ?? '', close: r!.openingHours![i]?.close ?? '' }))
-      : Array.from({ length: 7 }, () => ({ open: '', close: '' })),
+      ? Array.from({ length: 7 }, (_, i) => ({ 
+          open: r!.openingHours![i]?.open ?? '', 
+          close: r!.openingHours![i]?.close ?? '', 
+          shifts: (r!.openingHours![i]?.shifts ?? []).map((s: any) => ({ open: s.open ?? '', close: s.close ?? '' })) 
+        }))
+      : Array.from({ length: 7 }, () => ({ open: '', close: '', shifts: [] })),
     customDateHours: Array.isArray(r?.customDateHours)
-      ? r.customDateHours.filter((x: { date?: string }) => x?.date).map((x: { date?: string; open?: string; close?: string }) => ({ date: x.date ?? '', open: x.open ?? '', close: x.close ?? '' }))
+      ? r.customDateHours.filter((x: { date?: string }) => x?.date).map((x: { date?: string; open?: string; close?: string; shifts?: any[] }) => ({ 
+          date: x.date ?? '', 
+          open: x.open ?? '', 
+          close: x.close ?? '', 
+          shifts: (x.shifts ?? []).map((s: any) => ({ open: s.open ?? '', close: s.close ?? '' })) 
+        }))
       : [],
   }
 }
@@ -251,11 +263,12 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     defaultLanguage: '' as string,
     /** When true, menu is catalog-only (no orders). Dine-in, In Person, and Delivery are off. */
     catalogMode: false as boolean,
+    catalogHidePrices: false as boolean,
     supportsDineIn: true as boolean,
     supportsReceiveInPerson: true as boolean,
     supportsDelivery: true as boolean,
-    openingHours: Array.from({ length: 7 }, () => ({ open: '', close: '' })),
-    customDateHours: [] as Array<{ date: string; open: string; close: string }>,
+    openingHours: Array.from({ length: 7 }, () => ({ open: '', close: '', shifts: [] as { open: string; close: string }[] })),
+    customDateHours: [] as Array<{ date: string; open: string; close: string; shifts?: { open: string; close: string }[] }>,
   })
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -307,6 +320,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           deactivateUntil: d.tenant!.deactivateUntil || '',
           defaultLanguage: d.tenant!.defaultLanguage || '',
           catalogMode: (d.tenant!.supportsDineIn === false && d.tenant!.supportsReceiveInPerson === false),
+          catalogHidePrices: d.tenant!.catalogHidePrices ?? false,
           supportsDineIn: d.tenant!.supportsDineIn ?? true,
           supportsReceiveInPerson: d.tenant!.supportsReceiveInPerson ?? true,
           supportsDelivery: d.tenant!.supportsDelivery ?? true,
@@ -334,10 +348,19 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           website: r.socials?.website || '',
           notificationSound: r.notificationSound || '1.wav',
           openingHours: Array.isArray(r.openingHours) && r.openingHours.length > 0
-            ? Array.from({ length: 7 }, (_, i) => ({ open: r.openingHours![i]?.open ?? '', close: r.openingHours![i]?.close ?? '' }))
-            : Array.from({ length: 7 }, () => ({ open: '', close: '' })),
+            ? Array.from({ length: 7 }, (_, i) => ({ 
+                open: r.openingHours![i]?.open ?? '', 
+                close: r.openingHours![i]?.close ?? '', 
+                shifts: (r.openingHours![i]?.shifts ?? []).map((s: any) => ({ open: s.open ?? '', close: s.close ?? '' })) 
+              }))
+            : Array.from({ length: 7 }, () => ({ open: '', close: '', shifts: [] })),
           customDateHours: Array.isArray(r.customDateHours)
-            ? r.customDateHours.filter((x: { date?: string }) => x?.date).map((x: { date?: string; open?: string; close?: string }) => ({ date: x.date ?? '', open: x.open ?? '', close: x.close ?? '' }))
+            ? r.customDateHours.filter((x: { date?: string }) => x?.date).map((x: { date?: string; open?: string; close?: string; shifts?: any[] }) => ({ 
+                date: x.date ?? '', 
+                open: x.open ?? '', 
+                close: x.close ?? '', 
+                shifts: (x.shifts ?? []).map((s: any) => ({ open: s.open ?? '', close: s.close ?? '' })) 
+              }))
             : [],
         }))
         setLogoPreviewUrl(r.logoUrl || null)
@@ -531,6 +554,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           supportsDineIn: form.catalogMode ? false : form.supportsDineIn,
           supportsReceiveInPerson: form.catalogMode ? false : form.supportsReceiveInPerson,
           supportsDelivery: form.catalogMode ? false : form.supportsDelivery,
+          catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false,
           openingHours: form.openingHours,
           customDateHours: form.customDateHours,
           socials: {
@@ -547,7 +571,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
         showToast('Business saved successfully.', 'تم حفظ البيانات بنجاح.', 'success')
         lastSavedRef.current = JSON.parse(JSON.stringify(form))
         skipNextApplyRef.current = true
-        setData((prev) => prev ? { ...prev, tenant: { ...prev.tenant, name: form.name, businessType: form.businessType, businessSubcategoryIds: form.businessSubcategoryIds, country: form.country, city: form.city, ownerPhone: form.ownerPhone } } : null)
+        setData((prev) => prev ? { ...prev, tenant: { ...prev.tenant, name: form.name, businessType: form.businessType, businessSubcategoryIds: form.businessSubcategoryIds, country: form.country, city: form.city, ownerPhone: form.ownerPhone, catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false } } : null)
         businessContext.refetch()
       } else {
         showToast('Failed to save. Please try again.', 'فشل الحفظ. يرجى المحاولة مرة أخرى.', 'error')
@@ -711,7 +735,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                   type="button"
                   variant="secondary"
                   className="h-12 rounded-xl px-5 font-semibold bg-slate-700 text-white hover:bg-slate-600"
-                  onClick={() => setForm((f) => ({ ...f, openingHours: Array(7).fill(null).map(() => ({ open: setAllOpen, close: setAllClose })) }))}
+                  onClick={() => setForm((f) => ({ ...f, openingHours: Array(7).fill(null).map(() => ({ open: setAllOpen, close: setAllClose, shifts: setAllOpen || setAllClose ? [{ open: setAllOpen, close: setAllClose }] : [] })) }))}
                 >
                   {t('Apply to all days', 'تطبيق على كل الأيام')}
                 </Button>
@@ -722,62 +746,99 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                 type="button"
                 variant="outline"
                 className="h-11 rounded-xl border-slate-600 bg-slate-900 text-slate-300 hover:text-white"
-                onClick={() => setForm((f) => ({ ...f, openingHours: Array(7).fill(null).map(() => ({ open: '', close: '' })) }))}
+                onClick={() => setForm((f) => ({ ...f, openingHours: Array(7).fill(null).map(() => ({ open: '', close: '', shifts: [] })) }))}
               >
                 {t('Clear all hours', 'مسح كل الساعات')}
               </Button>
             </div>
-            <div className="overflow-x-auto pb-2 -mx-2 px-2 hidden-scrollbar">
-              <table className="w-full min-w-[340px] text-sm border-separate border-spacing-y-2">
-                <thead>
-                  <tr className="text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    <th className="pb-2 px-2">{t('Day', 'اليوم')}</th>
-                    <th className="pb-2 px-2">{t('Open', 'فتح')}</th>
-                    <th className="pb-2 px-2">{t('Close', 'إغلاق')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    t('Sunday', 'الأحد'),
-                    t('Monday', 'الاثنين'),
-                    t('Tuesday', 'الثلاثاء'),
-                    t('Wednesday', 'الأربعاء'),
-                    t('Thursday', 'الخميس'),
-                    t('Friday', 'الجمعة'),
-                    t('Saturday', 'السبت'),
-                  ].map((dayLabel, i) => (
-                    <tr key={i} className="bg-slate-800/30 rounded-xl overflow-hidden transition-colors hover:bg-slate-800/50">
-                      <td className="py-3 px-3 font-semibold text-slate-200 rounded-l-xl rtl:rounded-l-none rtl:rounded-r-xl">{dayLabel}</td>
-                      <td className="py-2 px-2">
-                        <Input
-                          type="time"
-                          className="h-11 w-32 rounded-xl bg-slate-900 border-slate-700 focus:border-amber-500 text-white"
-                          value={form.openingHours[i]?.open ?? ''}
-                          onChange={(e) =>
-                            setForm((f) => ({
+            
+            <div className="space-y-3">
+              {[
+                t('Sunday', 'الأحد'),
+                t('Monday', 'الاثنين'),
+                t('Tuesday', 'الثلاثاء'),
+                t('Wednesday', 'الأربعاء'),
+                t('Thursday', 'الخميس'),
+                t('Friday', 'الجمعة'),
+                t('Saturday', 'السبت'),
+              ].map((dayLabel, i) => {
+                const dayData = form.openingHours[i]
+                const shifts = dayData.shifts?.length ? dayData.shifts : (dayData.open || dayData.close ? [{ open: dayData.open, close: dayData.close }] : [])
+                
+                return (
+                  <div key={i} className="bg-slate-800/30 rounded-xl p-3 sm:p-4 border border-slate-700/50">
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                      <div className="w-full sm:w-28 pt-2">
+                        <span className="font-semibold text-slate-200">{dayLabel}</span>
+                      </div>
+                      <div className="flex-1 space-y-3">
+                        <AnimatePresence>
+                          {shifts.map((shift, shiftIdx) => (
+                            <motion.div key={shiftIdx} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 overflow-hidden">
+                              <Input
+                                type="time"
+                                className="w-28 sm:w-32 h-11 rounded-xl bg-slate-900 border-slate-700 focus:border-amber-500 text-white"
+                                value={shift.open}
+                                onChange={(e) => {
+                                  const newShifts = [...shifts]
+                                  newShifts[shiftIdx] = { ...newShifts[shiftIdx], open: e.target.value }
+                                  setForm(f => ({
+                                    ...f,
+                                    openingHours: f.openingHours.map((d, j) => j === i ? { ...d, open: newShifts[0]?.open || '', close: newShifts[0]?.close || '', shifts: newShifts } : d)
+                                  }))
+                                }}
+                              />
+                              <span className="text-slate-500">-</span>
+                              <Input
+                                type="time"
+                                className="w-28 sm:w-32 h-11 rounded-xl bg-slate-900 border-slate-700 focus:border-amber-500 text-white"
+                                value={shift.close}
+                                onChange={(e) => {
+                                  const newShifts = [...shifts]
+                                  newShifts[shiftIdx] = { ...newShifts[shiftIdx], close: e.target.value }
+                                  setForm(f => ({
+                                    ...f,
+                                    openingHours: f.openingHours.map((d, j) => j === i ? { ...d, open: newShifts[0]?.open || '', close: newShifts[0]?.close || '', shifts: newShifts } : d)
+                                  }))
+                                }}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-11 w-11 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 shrink-0"
+                                onClick={() => {
+                                  const newShifts = shifts.filter((_, idx) => idx !== shiftIdx)
+                                  setForm(f => ({
+                                    ...f,
+                                    openingHours: f.openingHours.map((d, j) => j === i ? { ...d, open: newShifts[0]?.open || '', close: newShifts[0]?.close || '', shifts: newShifts } : d)
+                                  }))
+                                }}
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </motion.div>
+                          ))}
+                        </AnimatePresence>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="text-amber-500 hover:bg-amber-500/10 hover:text-amber-400 px-3 h-9 text-sm font-semibold rounded-lg"
+                          onClick={() => {
+                            const newShifts = [...shifts, { open: '', close: '' }]
+                            setForm(f => ({
                               ...f,
-                              openingHours: f.openingHours.map((d, j) => (j === i ? { ...d, open: e.target.value } : d)),
+                              openingHours: f.openingHours.map((d, j) => j === i ? { ...d, open: newShifts[0]?.open || '', close: newShifts[0]?.close || '', shifts: newShifts } : d)
                             }))
-                          }
-                        />
-                      </td>
-                      <td className="py-2 px-2 rounded-r-xl rtl:rounded-r-none rtl:rounded-l-xl">
-                        <Input
-                          type="time"
-                          className="h-11 w-32 rounded-xl bg-slate-900 border-slate-700 focus:border-amber-500 text-white"
-                          value={form.openingHours[i]?.close ?? ''}
-                          onChange={(e) =>
-                            setForm((f) => ({
-                              ...f,
-                              openingHours: f.openingHours.map((d, j) => (j === i ? { ...d, close: e.target.value } : d)),
-                            }))
-                          }
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          }}
+                        >
+                          + {t('Add shift', 'إضافة فترة')}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
             <div>
               <p className="mb-3 text-sm font-semibold text-slate-300">{t('Custom dates (e.g. holidays)', 'تواريخ مخصصة (مثلاً العطل)')}</p>
@@ -885,6 +946,35 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                   <span className="text-sm font-bold text-white">{t('No — accept orders', 'لا — قبول الطلبات')}</span>
                 </label>
               </div>
+
+              <AnimatePresence>
+                {form.catalogMode && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-4 overflow-hidden"
+                  >
+                    <label className="flex items-start sm:items-center gap-3 cursor-pointer rounded-xl border border-slate-700/80 bg-slate-900 px-5 py-4 has-[:checked]:border-amber-500/60 has-[:checked]:bg-amber-500/10 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={form.catalogHidePrices}
+                        onChange={(e) => setForm(f => ({ ...f, catalogHidePrices: e.target.checked }))}
+                        className="mt-0.5 sm:mt-0 size-5 rounded border-slate-600 bg-slate-800 accent-amber-500 shrink-0"
+                      />
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-bold text-white leading-none">
+                          {t('Hide prices from customers', 'إخفاء الأسعار عن العملاء')}
+                        </span>
+                        <span className="text-xs text-slate-400">
+                          {t('When checked, all product prices will be hidden in catalog mode.', 'عند التفعيل، سيتم إخفاء جميع أسعار المنتجات في وضع الكتالوج.')}
+                        </span>
+                      </div>
+                    </label>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {form.catalogMode ? (
                 <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-4">
                   <p className="text-sm text-sky-200">

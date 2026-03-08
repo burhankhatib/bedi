@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       totalAmount,
       currency,
       tenantSlug,
+      scheduledFor,
     } = body
 
     const customerPhone = customerPhoneRaw != null ? toEnglishDigits(String(customerPhoneRaw)) : ''
@@ -166,6 +167,7 @@ export async function POST(request: NextRequest) {
       totalAmount,
       currency: currency || 'ILS',
       createdAt: new Date().toISOString(),
+      ...(scheduledFor && { scheduledFor: new Date(scheduledFor).toISOString() }),
     }
 
     // Add type-specific fields (customerPhone for contact on all non-delivery types too)
