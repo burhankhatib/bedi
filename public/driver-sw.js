@@ -61,19 +61,36 @@ self.addEventListener('push', function (event) {
 self.addEventListener('notificationclick', function (event) {
   event.notification.close()
   const path = event.notification.data?.url || '/driver/orders'
-  let fullUrl = path.startsWith('http') ? path : self.location.origin + (path.startsWith('/') ? path : '/' + path)
+  
+  let fullUrl = path
+  try {
+    fullUrl = new URL(path, self.location.origin).href
+  } catch (e) {
+    fullUrl = self.location.origin + (path.startsWith('/') ? path : '/' + path)
+  }
+
+  // Ensure ?goOnline=1 is added if routing to orders
   if (fullUrl.includes('/driver/orders') && !fullUrl.includes('goOnline=1')) {
     fullUrl += (fullUrl.includes('?') ? '&' : '?') + 'goOnline=1'
   }
+
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      // 1. Exact match
       for (const client of clientList) {
-        if (client.url.indexOf(self.location.origin) !== -1 && client.url.indexOf('/driver') !== -1 && 'focus' in client) {
+        if (client.url === fullUrl && 'focus' in client) {
+          return client.focus()
+        }
+      }
+      // 2. Any driver tab
+      for (const client of clientList) {
+        if (client.url.includes('/driver') && 'focus' in client) {
           client.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
           if ('navigate' in client && client.url !== fullUrl) client.navigate(fullUrl)
           return client.focus()
         }
       }
+      // 3. Fallback
       if (self.clients.openWindow) return self.clients.openWindow(fullUrl)
     })
   )

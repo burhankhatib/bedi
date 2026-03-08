@@ -58,16 +58,32 @@ self.addEventListener('push', function (event) {
 self.addEventListener('notificationclick', function (event) {
   event.notification.close()
   const path = event.notification.data?.url || '/'
-  const fullUrl = path.startsWith('http') ? path : self.location.origin + (path.startsWith('/') ? path : '/' + path)
+  
+  let fullUrl = path
+  try {
+    // If path is a relative URL, this correctly appends it to origin without double slashes
+    fullUrl = new URL(path, self.location.origin).href
+  } catch (e) {
+    fullUrl = self.location.origin + (path.startsWith('/') ? path : '/' + path)
+  }
+
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      // 1. Try to find a client exactly on the target URL
       for (const client of clientList) {
-        if (client.url.indexOf(self.location.origin) !== -1 && 'focus' in client) {
+        if (client.url === fullUrl && 'focus' in client) {
+          return client.focus()
+        }
+      }
+      // 2. Try to find any client open to the tenant dashboard (/t/.../orders or /t/.../manage)
+      for (const client of clientList) {
+        if (client.url.includes('/t/') && (client.url.includes('/orders') || client.url.includes('/manage')) && 'focus' in client) {
           client.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
           if ('navigate' in client && client.url !== fullUrl) client.navigate(fullUrl)
           return client.focus()
         }
       }
+      // 3. Fallback: open a new window
       if (self.clients.openWindow) return self.clients.openWindow(fullUrl)
     })
   )
