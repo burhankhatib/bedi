@@ -257,8 +257,8 @@ export async function POST(request: NextRequest) {
     if (siteRef?._ref) {
       try {
         // Fetch tenant to get the proper name for the notification
-        const tenantDoc = await writeClient.fetch<{ name?: string; name_ar?: string; slug?: { current?: string }, ownerPhone?: string } | null>(
-          `*[_type == "tenant" && _id == $id][0]{ name, name_ar, slug, ownerPhone }`,
+        const tenantDoc = await writeClient.fetch<{ name?: string; name_ar?: string; slug?: { current?: string }, ownerPhone?: string, prioritizeWhatsapp?: boolean } | null>(
+          `*[_type == "tenant" && _id == $id][0]{ name, name_ar, slug, ownerPhone, prioritizeWhatsapp }`,
           { id: siteRef._ref }
         )
         
@@ -272,7 +272,8 @@ export async function POST(request: NextRequest) {
           tenantSlug: resolvedSlug || '',
           tenantName: tenantDoc?.name,
           tenantNameAr: tenantDoc?.name_ar,
-          tenantPhone: tenantDoc?.ownerPhone
+          tenantPhone: tenantDoc?.ownerPhone,
+          prioritizeWhatsapp: tenantDoc?.prioritizeWhatsapp
         })
       } catch (e) {
         console.error('[API] Tenant pusher trigger or push notification on new order failed:', e)

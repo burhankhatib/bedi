@@ -96,9 +96,15 @@ export async function sendFCMToTokenDetailed(
     const message = {
       token,
       data,
+      notification: {
+        title,
+        body,
+      },
       android: {
         priority: 'high' as const,
         notification: {
+          title,
+          body,
           channelId: 'high_importance_channel',
           priority: 'max' as const,
           defaultSound: true,

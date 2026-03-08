@@ -26,8 +26,9 @@ export const NotificationService = {
     tenantName?: string
     tenantNameAr?: string
     tenantPhone?: string
+    prioritizeWhatsapp?: boolean
   }) {
-    const { orderId, orderNumber, tenantId, tenantSlug, tenantName, tenantNameAr, tenantPhone } = params
+    const { orderId, orderNumber, tenantId, tenantSlug, tenantName, tenantNameAr, tenantPhone, prioritizeWhatsapp } = params
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
     const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
     const path = tenantSlug ? `/t/${tenantSlug}/orders` : '/orders'
@@ -67,20 +68,53 @@ export const NotificationService = {
       }
     }
 
-    // 3. WhatsApp Notification for Business Owner
-    if (tenantPhone) {
+    // 3. WhatsApp Notification for Business Owner (Backup by default, instant if prioritizeWhatsapp)
+    if (tenantPhone && prioritizeWhatsapp) {
       try {
         const phone = tenantPhone.trim()
         if (phone) {
+          // Fetch order details for enhanced template
+          const orderDoc = await writeClient.fetch<{
+            customerName?: string
+            customerPhone?: string
+            orderType?: string
+            deliveryAddress?: string
+            totalAmount?: number
+            currency?: string
+            items?: Array<{ productName: string; quantity: number; price: number; total: number }>
+          }>(
+            `*[_type == "order" && _id == $orderId][0]{
+              customerName,
+              customerPhone,
+              orderType,
+              deliveryAddress,
+              totalAmount,
+              currency,
+              items[]{ productName, quantity, price, total }
+            }`,
+            { orderId }
+          )
+
+          // Format items list
+          const itemsList = orderDoc?.items?.map(i => `- ${i.quantity}x ${i.productName} (${i.total} ${orderDoc.currency})`).join('\n') || 'لا توجد منتجات'
+          
+          // Format customer details
+          const customerDetails = `الاسم: ${orderDoc?.customerName || 'غير معروف'}
+رقم الهاتف: ${orderDoc?.customerPhone || 'غير متوفر'}
+نوع الطلب: ${orderDoc?.orderType === 'delivery' ? 'توصيل' : orderDoc?.orderType === 'dine-in' ? 'محلي' : 'استلام'}
+${orderDoc?.deliveryAddress ? `العنوان: ${orderDoc.deliveryAddress}` : ''}`
+
+          // Format full order summary
+          const orderSummary = `*تفاصيل الطلب:*\n${itemsList}\n\n*الإجمالي:* ${orderDoc?.totalAmount || 0} ${orderDoc?.currency || 'ILS'}\n\n*بيانات العميل:*\n${customerDetails}`
+
           // Send WhatsApp template
-          // We use the tenantSlug/orders as the parameter if required by your template
-          // Adjust parameter format to match what's expected in your Meta setup
+          // Assuming template 'new_order' uses {{1}} for businessName and {{2}} for order details
           const targetUrl = tenantSlug ? `${tenantSlug}/orders` : 'orders'
           
           const waResult = await sendWhatsAppTemplateMessage(
             phone,
             'new_order',
-            [businessName], // Note: Template uses {{1}} for businessName
+            [businessName, orderSummary], 
             'ar_EG',
             targetUrl
           )

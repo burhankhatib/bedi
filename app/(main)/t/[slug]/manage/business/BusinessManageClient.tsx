@@ -31,6 +31,7 @@ type BusinessData = {
     supportsDineIn?: boolean
     supportsReceiveInPerson?: boolean
     supportsDelivery?: boolean
+    prioritizeWhatsapp?: boolean
   }
   restaurantInfo: {
     name_en?: string
@@ -170,6 +171,7 @@ type FormState = {
   supportsDineIn: boolean
   supportsReceiveInPerson: boolean
   supportsDelivery: boolean
+  prioritizeWhatsapp: boolean
   openingHours: Array<{ open: string; close: string; shifts: { open: string; close: string }[] }>
   customDateHours: Array<{ date: string; open: string; close: string; shifts: { open: string; close: string }[] }>
 }
@@ -208,6 +210,7 @@ function formSnapshotFromData(d: BusinessData): FormState {
     supportsDineIn: tenant?.supportsDineIn ?? true,
     supportsReceiveInPerson: tenant?.supportsReceiveInPerson ?? true,
     supportsDelivery: tenant?.supportsDelivery ?? true,
+    prioritizeWhatsapp: tenant?.prioritizeWhatsapp ?? false,
     openingHours: Array.isArray(r?.openingHours) && r.openingHours.length > 0
       ? Array.from({ length: 7 }, (_, i) => ({ 
           open: r!.openingHours![i]?.open ?? '', 
@@ -267,6 +270,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     supportsDineIn: true as boolean,
     supportsReceiveInPerson: true as boolean,
     supportsDelivery: true as boolean,
+    prioritizeWhatsapp: false as boolean,
     openingHours: Array.from({ length: 7 }, () => ({ open: '', close: '', shifts: [] as { open: string; close: string }[] })),
     customDateHours: [] as Array<{ date: string; open: string; close: string; shifts?: { open: string; close: string }[] }>,
   })
@@ -324,6 +328,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           supportsDineIn: d.tenant!.supportsDineIn ?? true,
           supportsReceiveInPerson: d.tenant!.supportsReceiveInPerson ?? true,
           supportsDelivery: d.tenant!.supportsDelivery ?? true,
+          prioritizeWhatsapp: d.tenant!.prioritizeWhatsapp ?? false,
         }))
       } else if (geo?.countryCode) {
         setForm((f) => ({ ...f, country: geo.countryCode ?? '' }))
@@ -555,6 +560,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           supportsReceiveInPerson: form.catalogMode ? false : form.supportsReceiveInPerson,
           supportsDelivery: form.catalogMode ? false : form.supportsDelivery,
           catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false,
+          prioritizeWhatsapp: form.prioritizeWhatsapp,
           openingHours: form.openingHours,
           customDateHours: form.customDateHours,
           socials: {
@@ -1368,6 +1374,27 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
             )}
           </p>
           <div className="space-y-3 rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
+            <h3 className="text-sm font-semibold text-white mb-2">{t('WhatsApp Notifications', 'إشعارات واتساب')}</h3>
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3.5 transition-colors hover:bg-slate-800">
+              <input
+                type="checkbox"
+                checked={form.prioritizeWhatsapp}
+                onChange={(e) => setForm((f) => ({ ...f, prioritizeWhatsapp: e.target.checked }))}
+                className="size-5 rounded border-slate-600 bg-slate-800 accent-amber-500"
+              />
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-white">
+                  {t('Send WhatsApp instantly', 'إرسال واتساب فوراً')}
+                </span>
+                <span className="text-xs text-slate-400 mt-0.5">
+                  {t('Remove the 3-minute delay. Send WhatsApp immediately alongside FCM.', 'إزالة تأخير الـ 3 دقائق. إرسال إشعار واتساب فوراً مع الإشعارات.')}
+                </span>
+              </div>
+            </label>
+          </div>
+
+          <div className="space-y-3 rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5 mt-4">
+            <h3 className="text-sm font-semibold text-white mb-2">{t('Notification Sound', 'صوت الإشعار')}</h3>
             {NOTIFICATION_SOUNDS.map((opt) => (
               <div
                 key={opt.value}

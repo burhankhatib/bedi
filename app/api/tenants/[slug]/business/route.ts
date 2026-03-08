@@ -50,6 +50,7 @@ export async function GET(
       supportsReceiveInPerson?: boolean
       supportsDelivery?: boolean
       catalogHidePrices?: boolean
+      prioritizeWhatsapp?: boolean
       ownerPhone?: string
       normalizedOwnerPhone?: string
     } | null>(
@@ -57,7 +58,7 @@ export async function GET(
         _id, name, country, city,
         businessType,
         "businessSubcategoryIds": businessSubcategories[]._ref,
-        deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, catalogHidePrices,
+        deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, catalogHidePrices, prioritizeWhatsapp,
         ownerPhone, normalizedOwnerPhone
       }`,
       { tenantId: auth.tenantId }
@@ -192,6 +193,9 @@ export async function PATCH(
   }
   if (body.catalogHidePrices !== undefined) {
     await writeClient.patch(auth.tenantId).set({ catalogHidePrices: Boolean(body.catalogHidePrices) }).commit()
+  }
+  if (body.prioritizeWhatsapp !== undefined) {
+    await writeClient.patch(auth.tenantId).set({ prioritizeWhatsapp: Boolean(body.prioritizeWhatsapp) }).commit()
   }
   if (body.ownerPhone !== undefined) {
     const { normalizePhoneDigits } = await import('@/lib/order-auth')

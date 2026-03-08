@@ -36,6 +36,13 @@ export async function GET(req: Request) {
       tenantName?: string
       tenantNameAr?: string
       tenantSlug?: string
+      customerName?: string
+      customerPhone?: string
+      orderType?: string
+      deliveryAddress?: string
+      totalAmount?: number
+      currency?: string
+      items?: Array<{ productName: string; quantity: number; price: number; total: number }>
     }[]>(
       `*[
         _type == "order" &&
@@ -50,7 +57,14 @@ export async function GET(req: Request) {
         "tenantPhone": site->ownerPhone,
         "tenantName": site->name,
         "tenantNameAr": site->name_ar,
-        "tenantSlug": site->slug.current
+        "tenantSlug": site->slug.current,
+        customerName,
+        customerPhone,
+        orderType,
+        deliveryAddress,
+        totalAmount,
+        currency,
+        items[]{ productName, quantity, price, total }
       }`,
       { cutoff3m, cutoff2h }
     )
@@ -68,10 +82,22 @@ export async function GET(req: Request) {
         if (phone) {
           const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
           
+          // Format items list
+          const itemsList = order.items?.map(i => `- ${i.quantity}x ${i.productName} (${i.total} ${order.currency})`).join('\n') || 'لا توجد منتجات'
+          
+          // Format customer details
+          const customerDetails = `الاسم: ${order.customerName || 'غير معروف'}
+رقم الهاتف: ${order.customerPhone || 'غير متوفر'}
+نوع الطلب: ${order.orderType === 'delivery' ? 'توصيل' : order.orderType === 'dine-in' ? 'محلي' : 'استلام'}
+${order.deliveryAddress ? `العنوان: ${order.deliveryAddress}` : ''}`
+
+          // Format full order summary
+          const orderSummary = `*تفاصيل الطلب:*\n${itemsList}\n\n*الإجمالي:* ${order.totalAmount || 0} ${order.currency || 'ILS'}\n\n*بيانات العميل:*\n${customerDetails}`
+
           const result = await sendWhatsAppTemplateMessage(
             phone,
             'new_order',
-            [businessName],
+            [businessName, orderSummary],
             'ar_EG',
             `${order.tenantSlug}/orders` // Note: this must match your WhatsApp template exact configuration
           )

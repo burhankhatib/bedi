@@ -89,6 +89,13 @@ export const tenantType = defineType({
       description: 'Optional. A business can have multiple specialties (e.g. Burgers, Sandwiches, Pizza). Only sub-categories for the selected Business Type are shown.',
     }),
     defineField({
+      name: 'prioritizeWhatsapp',
+      title: 'Prioritize WhatsApp',
+      type: 'boolean',
+      initialValue: false,
+      description: 'If enabled, WhatsApp notifications will be sent instantly for new orders instead of waiting 3 minutes.',
+    }),
+    defineField({
       name: 'clerkUserId',
       title: 'Clerk User ID',
       type: 'string',
