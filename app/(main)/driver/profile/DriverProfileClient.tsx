@@ -42,6 +42,7 @@ export function DriverProfileClient() {
     vehicleNumber: '',
     gender: '',
     rulesAcknowledged: false,
+    receiveOfflineWhatsapp: true,
   })
   const [pictureAssetId, setPictureAssetId] = useState('')
   const [picturePreviewUrl, setPicturePreviewUrl] = useState<string | null>(null)
@@ -105,6 +106,7 @@ export function DriverProfileClient() {
             vehicleNumber: data.vehicleNumber ?? '',
             gender: data.gender ?? '',
             rulesAcknowledged: data.rulesAcknowledged ?? true,
+            receiveOfflineWhatsapp: data.receiveOfflineWhatsapp ?? true,
           })
           setRecommendations({
             recommendedBy: data.recommendedBy,
@@ -192,6 +194,7 @@ export function DriverProfileClient() {
           gender: form.gender || undefined,
           pictureAssetId: pictureAssetId || undefined,
           rulesAcknowledged: form.rulesAcknowledged,
+          receiveOfflineWhatsapp: form.receiveOfflineWhatsapp,
           recommendedByCode: searchParams?.get('ref') || undefined,
         }),
       })
@@ -450,6 +453,24 @@ export function DriverProfileClient() {
             placeholder={t('e.g. license plate', 'مثلاً لوحة الترخيص')}
             className="min-h-[48px] bg-slate-800 border-slate-600 text-base text-white"
           />
+        </div>
+        <div className="rounded-xl border border-slate-800/60 bg-slate-900/50 p-4 mb-4">
+          <label className="flex cursor-pointer items-start gap-4">
+            <input
+              type="checkbox"
+              checked={form.receiveOfflineWhatsapp}
+              onChange={(e) => setForm((f) => ({ ...f, receiveOfflineWhatsapp: e.target.checked }))}
+              className="mt-1 size-5 shrink-0 cursor-pointer rounded border-slate-600 bg-slate-800 text-amber-500 accent-amber-500 focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-slate-900"
+            />
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-slate-200">
+                {t('Receive WhatsApp notifications when offline', 'تلقي إشعارات واتساب عند عدم الاتصال')}
+              </span>
+              <span className="text-xs text-slate-400 leading-relaxed">
+                {t('Get notified about unassigned orders in your city even when you are offline. (Max once every 3 hours)', 'احصل على إشعارات حول الطلبات غير المعينة في مدينتك حتى عند عدم اتصالك. (مرة واحدة كل 3 ساعات كحد أقصى)')}
+              </span>
+            </div>
+          </label>
         </div>
         <Button
           type="submit"

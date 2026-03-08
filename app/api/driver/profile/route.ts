@@ -59,13 +59,14 @@ export async function GET() {
     country?: string
     city?: string
     rulesAcknowledged?: boolean
+    receiveOfflineWhatsapp?: boolean
     blockedBySuperAdmin?: boolean
     referralCode?: string
     recommendedBy?: { name: string; phoneNumber: string }
     recommendedDrivers?: Array<{ name: string; phoneNumber: string; createdAt: string }>
   } | null>(
     `*[_type == "driver" && clerkUserId == $userId][0]{
-      _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city, rulesAcknowledged, blockedBySuperAdmin, referralCode,
+      _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city, rulesAcknowledged, receiveOfflineWhatsapp, blockedBySuperAdmin, referralCode,
       "recommendedBy": recommendedBy->{name, phoneNumber},
       "recommendedDrivers": *[_type == "driver" && recommendedBy._ref == ^._id]{ name, phoneNumber, "createdAt": _createdAt }
     }`,
@@ -127,6 +128,7 @@ function readBody(body: Record<string, unknown>) {
   const gender = body.gender != null ? String(body.gender) : undefined
   const vehicleNumber = body.vehicleNumber != null ? String(body.vehicleNumber).trim() || undefined : undefined
   const rulesAcknowledged = body.rulesAcknowledged === true
+  const receiveOfflineWhatsapp = body.receiveOfflineWhatsapp !== false // Defaults to true if not explicitly false
   const recommendedByCode = body.recommendedByCode != null ? String(body.recommendedByCode).trim() : undefined
   return {
     name,
@@ -140,6 +142,7 @@ function readBody(body: Record<string, unknown>) {
     gender,
     vehicleNumber,
     rulesAcknowledged,
+    receiveOfflineWhatsapp,
     recommendedByCode,
   }
 }
@@ -227,6 +230,7 @@ export async function PATCH(req: NextRequest) {
     gender,
     vehicleNumber,
     rulesAcknowledged,
+    receiveOfflineWhatsapp,
     recommendedByCode,
   } = readBody(body)
 
@@ -273,6 +277,7 @@ export async function PATCH(req: NextRequest) {
       age,
       gender,
       vehicleNumber,
+      receiveOfflineWhatsapp,
     }
     if (!existingByClerk.referralCode) {
       set.referralCode = Math.random().toString(36).substring(2, 10).toUpperCase()
@@ -285,7 +290,7 @@ export async function PATCH(req: NextRequest) {
     await writeClient.patch(existingByClerk._id).set(set).commit()
     await upsertPlatformUserDriver(userId)
     const updated = await client.fetch(
-      `*[_type == "driver" && _id == $id][0]{ _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city, referralCode, recommendedBy }`,
+      `*[_type == "driver" && _id == $id][0]{ _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city, referralCode, recommendedBy, receiveOfflineWhatsapp }`,
       { id: existingByClerk._id }
     )
     return NextResponse.json(updated)
@@ -319,6 +324,7 @@ export async function PATCH(req: NextRequest) {
       gender,
       vehicleNumber,
       rulesAcknowledged: true,
+      receiveOfflineWhatsapp,
     }
     if (!placeholderByPhone.referralCode) {
       set.referralCode = Math.random().toString(36).substring(2, 10).toUpperCase()
@@ -330,7 +336,7 @@ export async function PATCH(req: NextRequest) {
     await writeClient.patch(placeholderByPhone._id).set(set).commit()
     await upsertPlatformUserDriver(userId)
     const taken = await client.fetch(
-      `*[_type == "driver" && _id == $id][0]{ _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city, referralCode, recommendedBy }`,
+      `*[_type == "driver" && _id == $id][0]{ _id, name, nickname, age, picture, gender, phoneNumber, vehicleType, vehicleNumber, country, city, referralCode, recommendedBy, receiveOfflineWhatsapp }`,
       { id: placeholderByPhone._id }
     )
     
@@ -360,6 +366,7 @@ export async function PATCH(req: NextRequest) {
     city: city ?? '',
     isActive: true,
     rulesAcknowledged: true,
+    receiveOfflineWhatsapp,
     referralCode: Math.random().toString(36).substring(2, 10).toUpperCase(),
     ...(recommendedByRef && { recommendedBy: recommendedByRef }),
     ...(vehicleType && { vehicleType }),

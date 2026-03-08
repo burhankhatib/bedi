@@ -161,6 +161,21 @@ export const driverType = defineType({
       description: 'Driver must be online to receive delivery requests. Visible to tenants in same country/city.',
     }),
     defineField({
+      name: 'receiveOfflineWhatsapp',
+      title: 'Receive Offline WhatsApp Reminders',
+      type: 'boolean',
+      initialValue: true,
+      description: 'If true, driver receives WhatsApp alerts for unassigned orders while offline.',
+    }),
+    defineField({
+      name: 'lastOfflineWhatsappAt',
+      title: 'Last Offline WhatsApp Sent At',
+      type: 'datetime',
+      readOnly: true,
+      hidden: true,
+      description: 'Tracks when the last offline WhatsApp reminder was sent.',
+    }),
+    defineField({
       name: 'lastSeenAt',
       title: 'Last seen at',
       type: 'datetime',

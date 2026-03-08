@@ -26,6 +26,7 @@ export async function GET(req: Request) {
   const now = Date.now()
   const cutoff3m = new Date(now - 3 * 60 * 1000).toISOString()
   const cutoff2h = new Date(now - 2 * 60 * 60 * 1000).toISOString()
+  const cutoff3h = new Date(now - 3 * 60 * 60 * 1000).toISOString()
 
   try {
     const unacceptedOrders = await writeClient.fetch<{
@@ -78,14 +79,22 @@ export async function GET(req: Request) {
         }
 
         // Fetch verified drivers in this city
-        const drivers = await writeClient.fetch<{ phoneNumber: string }[]>(
+        const drivers = await writeClient.fetch<{ _id: string; phoneNumber: string; isOnline: boolean }[]>(
           `*[
             _type == "driver" && 
             isVerifiedByAdmin == true &&
             city == $city &&
-            defined(phoneNumber)
-          ]{ phoneNumber }`,
-          { city: order.city }
+            defined(phoneNumber) &&
+            (
+              isOnline == true || 
+              (
+                isOnline != true && 
+                receiveOfflineWhatsapp != false && 
+                (!defined(lastOfflineWhatsappAt) || lastOfflineWhatsappAt <= $cutoff3h)
+              )
+            )
+          ]{ _id, phoneNumber, isOnline }`,
+          { city: order.city, cutoff3h }
         )
 
         if (drivers && drivers.length > 0) {
@@ -128,6 +137,13 @@ export async function GET(req: Request) {
               if (result.success) {
                 messagesSentForOrder++
                 totalMessagesSent++
+                if (!driver.isOnline) {
+                  try {
+                    await writeClient.patch(driver._id).set({ lastOfflineWhatsappAt: nowIso }).commit()
+                  } catch (patchErr) {
+                    console.error(`[cron/unaccepted-delivery-whatsapp] Failed to update lastOfflineWhatsappAt for driver ${driver._id}`, patchErr)
+                  }
+                }
               } else {
                 console.error(`[cron/unaccepted-delivery-whatsapp] Failed to send to ${phone} for order ${order._id}`, result.error)
               }
