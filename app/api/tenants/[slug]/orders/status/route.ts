@@ -45,8 +45,8 @@ export async function PATCH(
   const check = await checkOrderOwnership(slug, orderId)
   if (!check.ok) return NextResponse.json({ error: 'Forbidden' }, { status: check.status })
 
-  const orderBefore = await writeClient.fetch<{ assignedDriver?: any } | null>(
-    `*[_type == "order" && _id == $orderId][0]{ assignedDriver }`,
+  const orderBefore = await writeClient.fetch<{ assignedDriver?: any, scheduledFor?: string } | null>(
+    `*[_type == "order" && _id == $orderId][0]{ assignedDriver, scheduledFor }`,
     { orderId }
   )
 
@@ -67,8 +67,19 @@ export async function PATCH(
   const patch = writeClient.patch(orderId)
   const updateData: Record<string, unknown> = { status }
   if (completedAt != null) updateData.completedAt = completedAt
-  if (newScheduledFor) {
+  if (newScheduledFor && newScheduledFor !== orderBefore?.scheduledFor) {
     updateData.scheduledFor = newScheduledFor
+    
+    // Handle edit history
+    if (orderBefore?.scheduledFor) {
+      const historyEntry = {
+        _key: `history-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        previousScheduledFor: orderBefore.scheduledFor,
+        changedAt: new Date().toISOString()
+      }
+      patch.setIfMissing({ scheduleEditHistory: [] })
+           .insert('after', 'scheduleEditHistory[-1]', [historyEntry])
+    }
   }
   if (status === 'acknowledged') {
     updateData.acknowledgedAt = new Date().toISOString()

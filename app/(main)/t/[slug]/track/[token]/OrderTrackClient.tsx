@@ -72,6 +72,10 @@ type TrackData = {
     customerRequestedAt?: string | null
     customerRequestAcknowledgedAt?: string | null
     scheduledFor?: string | null
+    scheduleEditHistory?: Array<{
+      previousScheduledFor: string
+      changedAt: string
+    }>
   }
   restaurant: { name_en?: string; name_ar?: string; whatsapp?: string } | null
   driver: { _id: string; name: string; phoneNumber: string } | null
@@ -459,6 +463,25 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                       {data.order.createdAt && <p className="text-xs text-slate-500 mt-1">{fmt(data.order.createdAt)}</p>}
                     </div>
                   </div>
+
+                  {/* Schedule Edits (if any) */}
+                  {(data.order.scheduleEditHistory || []).map((edit, idx) => (
+                    <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                      <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-purple-300 bg-purple-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                      <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-purple-50/50 shadow-sm border border-purple-100 flex flex-col">
+                        <p className="text-xs font-bold text-purple-800 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
+                          {t('Scheduled time updated', 'تم تحديث وقت الجدولة')}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {t('Previously:', 'سابقاً:')} {fmt(edit.previousScheduledFor)}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 border-t border-purple-100 pt-0.5">
+                          {fmt(edit.changedAt)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
 
                   {/* 2. Order ready (optional) */}
                   {data.order.preparedAt && (

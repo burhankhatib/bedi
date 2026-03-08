@@ -58,6 +58,11 @@ export interface Order {
   completedAt?: string
   cancelledAt?: string
   driverCancelledAt?: string
+  scheduleEditHistory?: Array<{
+    _key?: string
+    previousScheduledFor: string
+    changedAt: string
+  }>
   customerRequestType?: 'call_waiter' | 'request_check'
   customerRequestPaymentMethod?: 'cash' | 'card'
   customerRequestedAt?: string
@@ -111,6 +116,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     orderId: string
     newStatus: string
     notifyAt?: string
+    newScheduledFor?: string
     oldOrder: Order
     timeoutId: NodeJS.Timeout
     startTime: number
@@ -189,14 +195,15 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     setEndDate(todayString);
   }, []);
 
-  const executeStatusUpdate = async (orderId: string, newStatus: string, notifyAt?: string, oldOrder?: Order) => {
+  const executeStatusUpdate = async (orderId: string, newStatus: string, notifyAt?: string, oldOrder?: Order, newScheduledFor?: string) => {
     try {
-      const payload: { orderId: string; status: string; completedAt?: string; notifyAt?: string } = {
+      const payload: { orderId: string; status: string; completedAt?: string; notifyAt?: string; newScheduledFor?: string } = {
         orderId,
         status: newStatus,
       };
 
       if (notifyAt) payload.notifyAt = notifyAt;
+      if (newScheduledFor) payload.newScheduledFor = newScheduledFor;
 
       if (newStatus === 'completed') {
         payload.completedAt = new Date().toISOString();
@@ -245,12 +252,12 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     }
   }
 
-  const updateOrderStatus = (orderId: string, newStatus: string, notifyAt?: string) => {
+  const updateOrderStatus = (orderId: string, newStatus: string, notifyAt?: string, newScheduledFor?: string) => {
     // Clear any existing pending update
     if (pendingUpdate) {
       clearTimeout(pendingUpdate.timeoutId)
       // Execute the pending update immediately if a new one is started
-      executeStatusUpdate(pendingUpdate.orderId, pendingUpdate.newStatus, pendingUpdate.notifyAt, pendingUpdate.oldOrder)
+      executeStatusUpdate(pendingUpdate.orderId, pendingUpdate.newStatus, pendingUpdate.notifyAt, pendingUpdate.oldOrder, pendingUpdate.newScheduledFor)
       setPendingUpdate(null)
     }
 
@@ -269,9 +276,25 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
             status: newStatus as Order['status'],
             ...(notifyAt && { notifyAt, reminderSent: false })
           };
+          
           if (newStatus === 'completed') {
             updatedOrder.completedAt = new Date().toISOString();
           }
+          
+          if (newScheduledFor && newScheduledFor !== order.scheduledFor) {
+            updatedOrder.scheduledFor = newScheduledFor;
+            if (order.scheduledFor) {
+              updatedOrder.scheduleEditHistory = [
+                ...(order.scheduleEditHistory || []),
+                {
+                  _key: `history-${Date.now()}`,
+                  previousScheduledFor: order.scheduledFor,
+                  changedAt: new Date().toISOString()
+                }
+              ];
+            }
+          }
+          
           return updatedOrder;
         }
         return order;
@@ -283,13 +306,14 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     // Set up the undo timeout
     const timeoutId = setTimeout(() => {
       setPendingUpdate(null)
-      executeStatusUpdate(orderId, newStatus, notifyAt, oldOrder)
+      executeStatusUpdate(orderId, newStatus, notifyAt, oldOrder, newScheduledFor)
     }, undoTimeout * 1000)
 
     setPendingUpdate({
       orderId,
       newStatus,
       notifyAt,
+      newScheduledFor,
       oldOrder,
       timeoutId,
       startTime: Date.now()

@@ -84,6 +84,11 @@ interface Order {
   completedAt?: string
   cancelledAt?: string
   driverCancelledAt?: string
+  scheduleEditHistory?: Array<{
+    _key?: string
+    previousScheduledFor: string
+    changedAt: string
+  }>
 }
 
 interface OrderDetailsModalProps {
@@ -794,11 +799,27 @@ Please deliver this order to the customer.
                 <div className="relative z-10">
                   <h4 className="font-bold text-purple-900 mb-2 flex items-center gap-2">
                     <Clock className="w-4 h-4 text-purple-600" />
-                    {localOrder.scheduledFor ? t('Reschedule Order', 'إعادة جدولة الطلب') : t('Schedule Order', 'جدولة الطلب')}
+                                {localOrder.scheduledFor ? t('Reschedule Order', 'إعادة جدولة الطلب') : t('Schedule Order', 'جدولة الطلب')}
                   </h4>
                   <p className="text-xs font-medium text-purple-700 mb-3 bg-purple-100/50 p-2 rounded-lg border border-purple-200/50">
                     ℹ️ {t('Customer will be notified of this change via push notification.', 'سيتم إشعار العميل بهذا التغيير عبر إشعار نصي.')}
                   </p>
+                  
+                  {/* Schedule Edit History */}
+                  {localOrder.scheduleEditHistory && localOrder.scheduleEditHistory.length > 0 && (
+                    <div className="mb-4 space-y-1.5">
+                      <p className="text-xs font-bold text-purple-800">{t('Schedule History:', 'سجل الجدولة:')}</p>
+                      <div className="space-y-1">
+                        {localOrder.scheduleEditHistory.map((edit, idx) => (
+                          <div key={idx} className="flex flex-col text-[11px] text-purple-700 bg-white/50 rounded-lg p-2 border border-purple-100">
+                            <span>{t('Changed on', 'تم التغيير في')} {new Date(edit.changedAt).toLocaleString('en-US')}</span>
+                            <span className="font-semibold">{t('Previously:', 'سابقاً:')} {new Date(edit.previousScheduledFor).toLocaleString('en-US')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex flex-col sm:flex-row gap-3">
                     <input
                       type="datetime-local"
@@ -810,9 +831,22 @@ Please deliver this order to the customer.
                       onClick={async () => {
                         if (newScheduleDate) {
                           // Determine the status: if it was a live order (new without scheduledFor), move to acknowledged
-                          // If it was already scheduled, keep its current status (or move to acknowledged if preferred, but usually keep current)
+                          // If it was already scheduled, keep its current status
                           const targetStatus = (!localOrder.scheduledFor && localOrder.status === 'new') ? 'acknowledged' : localOrder.status;
-                          await onStatusUpdate(localOrder._id, targetStatus, undefined, new Date(newScheduleDate).toISOString());
+                          
+                          // Calculate new notifyAt based on the same relative difference, or default to 1 hour before
+                          let newNotifyAt: string | undefined;
+                          if (localOrder.scheduledFor && localOrder.notifyAt) {
+                            const oldScheduleTime = new Date(localOrder.scheduledFor).getTime();
+                            const oldNotifyTime = new Date(localOrder.notifyAt).getTime();
+                            const diffMs = oldScheduleTime - oldNotifyTime;
+                            newNotifyAt = new Date(new Date(newScheduleDate).getTime() - diffMs).toISOString();
+                          } else {
+                            // Default to 1 hour before
+                            newNotifyAt = new Date(new Date(newScheduleDate).getTime() - 60 * 60 * 1000).toISOString();
+                          }
+
+                          await onStatusUpdate(localOrder._id, targetStatus, newNotifyAt, new Date(newScheduleDate).toISOString());
                           setIsEditingSchedule(false);
                         }
                       }}

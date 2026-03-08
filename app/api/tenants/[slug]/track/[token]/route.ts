@@ -48,6 +48,10 @@ export async function GET(
     customerRequestedAt?: string | null
     customerRequestAcknowledgedAt?: string | null
     scheduledFor?: string | null
+    scheduleEditHistory?: Array<{
+      previousScheduledFor: string
+      changedAt: string
+    }>
     site?: { _ref?: string }
     assignedDriver?: { _ref?: string } | null
   } | null>(
@@ -77,6 +81,7 @@ export async function GET(
       customerRequestedAt,
       customerRequestAcknowledgedAt,
       scheduledFor,
+      scheduleEditHistory,
       "site": site,
       "assignedDriver": assignedDriver
     }`,
@@ -137,6 +142,7 @@ export async function GET(
       customerRequestedAt: order.customerRequestedAt ?? null,
       customerRequestAcknowledgedAt: order.customerRequestAcknowledgedAt ?? null,
       scheduledFor: order.scheduledFor ?? null,
+      scheduleEditHistory: order.scheduleEditHistory ?? [],
     },
     restaurant: restaurantInfo
       ? {

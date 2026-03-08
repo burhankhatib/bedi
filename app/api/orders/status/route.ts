@@ -53,8 +53,19 @@ export async function PATCH(request: Request) {
     if (completedAt) {
       updateData.completedAt = completedAt
     }
-    if (newScheduledFor) {
+    if (newScheduledFor && newScheduledFor !== existingOrder.scheduledFor) {
       updateData.scheduledFor = newScheduledFor
+      
+      // Handle edit history
+      if (existingOrder.scheduledFor) {
+        const historyEntry = {
+          _key: `history-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          previousScheduledFor: existingOrder.scheduledFor,
+          changedAt: new Date().toISOString()
+        }
+        patch.setIfMissing({ scheduleEditHistory: [] })
+             .insert('after', 'scheduleEditHistory[-1]', [historyEntry])
+      }
     }
     if (status === 'acknowledged') {
       updateData.acknowledgedAt = new Date().toISOString()

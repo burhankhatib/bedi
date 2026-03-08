@@ -287,6 +287,23 @@ export const orderType = defineType({
       description: 'When set, this is an upfront/scheduled order to be prepared for this date/time.',
     }),
     defineField({
+      name: 'scheduleEditHistory',
+      title: 'Schedule Edit History',
+      type: 'array',
+      of: [
+        {
+          type: 'object',
+          name: 'scheduleEdit',
+          fields: [
+            { name: 'previousScheduledFor', type: 'datetime', title: 'Previous Scheduled For' },
+            { name: 'changedAt', type: 'datetime', title: 'Changed At' }
+          ]
+        }
+      ],
+      description: 'History of changes to the scheduled time',
+      readOnly: true,
+    }),
+    defineField({
       name: 'acknowledgedAt',
       title: 'Acknowledged At',
       type: 'datetime',
