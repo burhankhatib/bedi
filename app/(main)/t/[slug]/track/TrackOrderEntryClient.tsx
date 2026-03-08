@@ -112,7 +112,7 @@ export function TrackOrderEntryClient({ slug }: { slug: string }) {
                     </span>
                     <span className="text-sm text-slate-500">
                       {o.createdAt
-                        ? new Date(o.createdAt).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', {
+                        ? new Date(o.createdAt).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',

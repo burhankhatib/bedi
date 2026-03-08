@@ -14,7 +14,7 @@ export default function TermsPage() {
       <p className="text-sm text-slate-500">
         {t(
           'Last updated: ' + new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
-          'آخر تحديث: ' + new Date().toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' })
+          'Last Updated: ' + new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
         )}
       </p>
 

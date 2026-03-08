@@ -191,7 +191,7 @@ function OrderCard({
           {order.scheduledFor && (
             <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-2 py-1 text-xs font-semibold text-purple-700 border border-purple-200">
               <Clock className="h-3.5 w-3.5" />
-              {new Date(order.scheduledFor).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+              {new Date(order.scheduledFor).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
             </div>
           )}
           <p className="text-sm font-medium text-slate-700 mt-1">

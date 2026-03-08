@@ -518,7 +518,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                           <div className="flex items-center gap-2 z-10">
                             <Clock className="w-5 h-5 shrink-0" />
                             <span>
-                              {t('Scheduled for:', 'مجدول ليوم:')} {new Date(order.scheduledFor).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                              {t('Scheduled for:', 'مجدول ليوم:')} {new Date(order.scheduledFor).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
                             </span>
                           </div>
                           {order.status === 'acknowledged' && (

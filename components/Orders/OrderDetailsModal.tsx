@@ -232,7 +232,7 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
   const [loadingBusinessLocation, setLoadingBusinessLocation] = useState(false)
   const [reportTarget, setReportTarget] = useState<'driver' | 'customer' | null>(null)
 
-  const orderTime = new Date(localOrder.createdAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', {
+  const orderTime = new Date(localOrder.createdAt).toLocaleString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -1476,11 +1476,16 @@ Please deliver this order to the customer.
                       <div className={`p-4 rounded-3xl bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 ${['completed', 'cancelled', 'refunded'].includes(currentStatus) ? 'opacity-30' : ''}`}>
                         <h4 className="font-bold text-purple-900 mb-2 flex justify-between items-center">
                           {t('Scheduled Order', 'طلب مجدول')}
-                          <Button variant="ghost" size="sm" onClick={() => {
+                          <Button variant="default" size="sm" onClick={() => {
                             setNewScheduleDate(localOrder.scheduledFor ? new Date(new Date(localOrder.scheduledFor).getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16) : '')
                             setIsEditingSchedule(!isEditingSchedule)
-                          }} className="text-purple-700 hover:text-purple-900 hover:bg-purple-200 h-8 px-2 rounded-lg">
-                            {isEditingSchedule ? t('Cancel', 'إلغاء') : t('Edit Time', 'تعديل الوقت')}
+                          }} className="bg-purple-600 hover:bg-purple-700 text-white shadow-sm h-9 px-3 rounded-xl font-bold flex items-center gap-2">
+                            {isEditingSchedule ? t('Cancel', 'إلغاء') : (
+                              <>
+                                <Edit2 className="w-4 h-4" />
+                                {t('Edit Time', 'تعديل الوقت')}
+                              </>
+                            )}
                           </Button>
                         </h4>
                         
@@ -1688,11 +1693,16 @@ Please deliver this order to the customer.
                       <div className={`p-4 rounded-3xl bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 ${['completed', 'cancelled', 'refunded'].includes(currentStatus) ? 'opacity-30' : ''}`}>
                         <h4 className="font-bold text-purple-900 mb-2 flex justify-between items-center">
                           {t('Scheduled Order', 'طلب مجدول')}
-                          <Button variant="ghost" size="sm" onClick={() => {
+                          <Button variant="default" size="sm" onClick={() => {
                             setNewScheduleDate(localOrder.scheduledFor ? new Date(new Date(localOrder.scheduledFor).getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16) : '')
                             setIsEditingSchedule(!isEditingSchedule)
-                          }} className="text-purple-700 hover:text-purple-900 hover:bg-purple-200 h-8 px-2 rounded-lg">
-                            {isEditingSchedule ? t('Cancel', 'إلغاء') : t('Edit Time', 'تعديل الوقت')}
+                          }} className="bg-purple-600 hover:bg-purple-700 text-white shadow-sm h-9 px-3 rounded-xl font-bold flex items-center gap-2">
+                            {isEditingSchedule ? t('Cancel', 'إلغاء') : (
+                              <>
+                                <Edit2 className="w-4 h-4" />
+                                {t('Edit Time', 'تعديل الوقت')}
+                              </>
+                            )}
                           </Button>
                         </h4>
                         

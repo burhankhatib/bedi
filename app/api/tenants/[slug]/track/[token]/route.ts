@@ -37,6 +37,11 @@ export async function GET(
     totalAmount?: number
     currency?: string
     createdAt?: string
+    preparedAt?: string | null
+    driverAcceptedAt?: string | null
+    driverPickedUpAt?: string | null
+    cancelledAt?: string | null
+    driverCancelledAt?: string | null
     completedAt?: string | null
     tipPercent?: number
     tipAmount?: number
@@ -61,6 +66,11 @@ export async function GET(
       totalAmount,
       currency,
       createdAt,
+      preparedAt,
+      driverAcceptedAt,
+      driverPickedUpAt,
+      cancelledAt,
+      driverCancelledAt,
       completedAt,
       tipPercent,
       tipAmount,
@@ -116,6 +126,11 @@ export async function GET(
       totalAmount: order.totalAmount,
       currency: order.currency,
       createdAt: order.createdAt,
+      preparedAt: order.preparedAt ?? null,
+      driverAcceptedAt: order.driverAcceptedAt ?? null,
+      driverPickedUpAt: order.driverPickedUpAt ?? null,
+      cancelledAt: order.cancelledAt ?? null,
+      driverCancelledAt: order.driverCancelledAt ?? null,
       completedAt: order.completedAt,
       tipPercent: order.tipPercent,
       tipAmount: order.tipAmount,
