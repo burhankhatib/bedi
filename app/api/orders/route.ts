@@ -5,11 +5,7 @@ import { token } from '@/sanity/lib/token'
 import { getTenantIdBySlug, getTenantBySlug } from '@/lib/tenant'
 import { toEnglishDigits } from '@/lib/phone'
 import { isVerifiedPhoneForUser } from '@/lib/order-auth'
-import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
-import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
-import { isPushConfigured } from '@/lib/push'
-import { isFCMConfigured } from '@/lib/fcm'
-import { pusherServer } from '@/lib/pusher'
+import { NotificationService } from '@/lib/notifications/NotificationService'
 
 function isTenantDeactivated(tenant: { deactivated?: boolean; deactivateUntil?: string | null }): boolean {
   if (!tenant?.deactivated) return false
@@ -258,47 +254,26 @@ export async function POST(request: NextRequest) {
       status: result.status,
     })
 
-    const pushReady = isFCMConfigured() || isPushConfigured()
-    if (siteRef?._ref && pushReady) {
+    if (siteRef?._ref) {
       try {
-        // Trigger live UI refresh immediately (not blocking)
-        pusherServer.trigger(`tenant-${siteRef._ref}`, 'order-update', { orderId: result._id }).catch((e) => {
-          console.error('[API] Pusher trigger failed:', e)
-        })
-
         // Fetch tenant to get the proper name for the notification
-        const tenantDoc = await writeClient.fetch<{ name?: string; name_ar?: string; slug?: { current?: string } } | null>(
-          `*[_type == "tenant" && _id == $id][0]{ name, name_ar, slug }`,
+        const tenantDoc = await writeClient.fetch<{ name?: string; name_ar?: string; slug?: { current?: string }, ownerPhone?: string } | null>(
+          `*[_type == "tenant" && _id == $id][0]{ name, name_ar, slug, ownerPhone }`,
           { id: siteRef._ref }
         )
         
         const resolvedSlug = tenantDoc?.slug?.current || (typeof tenantSlug === 'string' ? tenantSlug : null)
-        const businessName = tenantDoc?.name_ar || tenantDoc?.name || resolvedSlug || siteRef._ref
         
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
-        const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
-        const path = resolvedSlug ? `/t/${resolvedSlug}/orders` : '/orders'
-        const url = `${base}${path}`
-        const icon = resolvedSlug ? `${base}/t/${resolvedSlug}/icon/192` : `${base}/adminslogo.webp`
-        const num = result.orderNumber ?? result._id?.slice(-6)
-        
-        const pushPayload = {
-          title: `${businessName}: طلب جديد — #${num}`,
-          body: 'تم استلام طلب جديد. افتح التطبيق للمراجعة والقبول.',
-          url,
-          icon,
-          dir: 'rtl' as const,
-        }
-
-        // MUST await push notification, otherwise Vercel serverless function terminates and aborts the request
-        const sent = await sendTenantAndStaffPush(siteRef._ref, pushPayload)
-        
-        if (sent) {
-          // Mark as sent
-          await writeClient.patch(result._id).set({ tenantNewOrderPushSent: true }).commit()
-        } else {
-          console.error('[API] sendTenantAndStaffPush returned false (not sent).')
-        }
+        // Fire centralized notification service (handles Pusher, FCM, and WhatsApp)
+        await NotificationService.onNewOrder({
+          orderId: result._id,
+          orderNumber: result.orderNumber,
+          tenantId: siteRef._ref,
+          tenantSlug: resolvedSlug || '',
+          tenantName: tenantDoc?.name,
+          tenantNameAr: tenantDoc?.name_ar,
+          tenantPhone: tenantDoc?.ownerPhone
+        })
       } catch (e) {
         console.error('[API] Tenant pusher trigger or push notification on new order failed:', e)
       }

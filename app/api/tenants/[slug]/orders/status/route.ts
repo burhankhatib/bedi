@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
-import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
-import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
+import { NotificationService } from '@/lib/notifications/NotificationService'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -109,17 +108,11 @@ export async function PATCH(
 
   await patch.set(updateData).commit()
 
-  sendCustomerOrderStatusPush({
+  await NotificationService.onOrderStatusUpdated({
     orderId,
-    newStatus: newScheduledFor ? 'schedule_updated' : status,
-    baseUrl: process.env.NEXT_PUBLIC_APP_URL,
-  }).catch((e) => console.warn('[customer-order-push]', e))
-
-  sendTenantOrderUpdatePush({
-    orderId,
-    status: status as import('@/lib/tenant-order-push').TenantOrderPushStatus,
-    baseUrl: process.env.NEXT_PUBLIC_APP_URL,
-  }).catch((e) => console.warn('[tenant-order-push]', e))
+    status,
+    isScheduleUpdate: !!newScheduledFor && newScheduledFor !== orderBefore?.scheduledFor
+  })
 
   return NextResponse.json({ success: true, orderId, status })
 }
