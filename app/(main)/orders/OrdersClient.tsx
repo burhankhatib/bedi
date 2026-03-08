@@ -234,6 +234,9 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
 
       setTimeout(() => {
         isUpdatingStatusRef.current = false;
+        if (newScheduledFor) {
+          window.location.reload();
+        }
       }, 1000);
       
     } catch (error) {
@@ -864,8 +867,8 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
           <OrderDetailsModal
             order={selectedOrder as Omit<Order, 'status'> & { status: Order['status'] }}
             onClose={() => setSelectedOrder(null)}
-            onStatusUpdate={async (orderId, status) => {
-              await updateOrderStatus(orderId, status);
+            onStatusUpdate={async (orderId, status, notifyAt, newScheduledFor) => {
+              await updateOrderStatus(orderId, status, notifyAt, newScheduledFor);
               setSelectedOrder(null);
             }}
             onRefresh={() => { }}

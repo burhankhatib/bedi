@@ -55,6 +55,8 @@ export async function PATCH(request: Request) {
     }
     if (newScheduledFor && newScheduledFor !== existingOrder.scheduledFor) {
       updateData.scheduledFor = newScheduledFor
+      updateData.reminderSent = false
+      patch.unset(['businessWhatsappNotifiedAt'])
       
       // Handle edit history
       if (existingOrder.scheduledFor) {

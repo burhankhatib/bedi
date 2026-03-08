@@ -233,6 +233,7 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
   const [loadingProducts, setLoadingProducts] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmAction, setConfirmAction] = useState<'cancelled' | 'refunded' | null>(null)
+  const [preparePrompt, setPreparePrompt] = useState<{ newScheduleDate: string } | null>(null)
   const [businessLocation, setBusinessLocation] = useState<{ country?: string; city?: string; mapsLink?: string } | null>(null)
   const [loadingBusinessLocation, setLoadingBusinessLocation] = useState(false)
   const [reportTarget, setReportTarget] = useState<'driver' | 'customer' | null>(null)
@@ -830,6 +831,15 @@ Please deliver this order to the customer.
                     <Button 
                       onClick={async () => {
                         if (newScheduleDate) {
+                          const now = new Date().getTime();
+                          const newTime = new Date(newScheduleDate).getTime();
+                          
+                          // Check if the scheduled time is less than 1 hour away
+                          if (newTime - now < 60 * 60 * 1000 && newTime > now) {
+                            setPreparePrompt({ newScheduleDate });
+                            return;
+                          }
+
                           // Determine the status: if it was a live order (new without scheduledFor), move to acknowledged
                           // If it was already scheduled, keep its current status
                           const targetStatus = (!localOrder.scheduledFor && localOrder.status === 'new') ? 'acknowledged' : localOrder.status;
@@ -857,6 +867,47 @@ Please deliver this order to the customer.
                       {t('Save Schedule', 'حفظ الجدولة')}
                     </Button>
                   </div>
+                  {preparePrompt && (
+                    <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                      <p className="text-sm font-bold text-orange-900 mb-2">
+                        {t('The scheduled time is less than 1 hour away. Would you like to start preparing the order now?', 'الوقت المجدول أقل من ساعة. هل تود البدء في تحضير الطلب الآن؟')}
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <Button
+                          onClick={async () => {
+                            await onStatusUpdate(localOrder._id, 'preparing', undefined, new Date(preparePrompt.newScheduleDate).toISOString());
+                            setPreparePrompt(null);
+                            setIsEditingSchedule(false);
+                          }}
+                          className="bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold flex-1 shadow-sm"
+                        >
+                          <ChefHat className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                          {t('Start Preparing', 'بدء التحضير')}
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            const targetStatus = (!localOrder.scheduledFor && localOrder.status === 'new') ? 'acknowledged' : localOrder.status;
+                            let newNotifyAt: string | undefined;
+                            if (localOrder.scheduledFor && localOrder.notifyAt) {
+                              const oldScheduleTime = new Date(localOrder.scheduledFor).getTime();
+                              const oldNotifyTime = new Date(localOrder.notifyAt).getTime();
+                              const diffMs = oldScheduleTime - oldNotifyTime;
+                              newNotifyAt = new Date(new Date(preparePrompt.newScheduleDate).getTime() - diffMs).toISOString();
+                            } else {
+                              newNotifyAt = new Date(new Date(preparePrompt.newScheduleDate).getTime() - 60 * 60 * 1000).toISOString();
+                            }
+                            await onStatusUpdate(localOrder._id, targetStatus, newNotifyAt, new Date(preparePrompt.newScheduleDate).toISOString());
+                            setPreparePrompt(null);
+                            setIsEditingSchedule(false);
+                          }}
+                          variant="outline"
+                          className="border-orange-300 text-orange-800 hover:bg-orange-100 rounded-xl font-bold flex-1"
+                        >
+                          {t('Keep as Scheduled', 'إبقاء كمجدول')}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1331,6 +1382,25 @@ Please deliver this order to the customer.
                       <p className="text-xs text-slate-500 mt-1">{fmt(localOrder.createdAt)}</p>
                     </div>
                   </div>
+
+                  {/* Schedule Edits (if any) */}
+                  {(localOrder.scheduleEditHistory || []).map((edit, idx) => (
+                    <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                      <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-purple-300 bg-purple-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                      <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-purple-50/50 shadow-sm border border-purple-100 flex flex-col">
+                        <p className="text-xs font-bold text-purple-800 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
+                          {t('Scheduled time updated', 'تم تحديث وقت الجدولة')}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {t('Previously:', 'سابقاً:')} {fmt(edit.previousScheduledFor)}
+                        </p>
+                        <p className="text-[10px] text-slate-400 mt-0.5 border-t border-purple-100 pt-0.5">
+                          {fmt(edit.changedAt)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
 
                   {/* 2. Order ready (optional) */}
                   {localOrder.preparedAt && (
