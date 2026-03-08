@@ -406,6 +406,27 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     }
   }
 
+  const requestDelivery = async (orderId: string) => {
+    try {
+      const res = await fetch(`/api/tenants/${tenantSlug}/orders/request-driver`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId })
+      })
+      if (res.ok) {
+        // Just show a small success indication or rely on UI
+        // You could use a toast if available, but for now we just alert or do nothing silently
+        alert('Delivery requested successfully! Online drivers have been notified.');
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(errorData.error || 'Failed to request delivery');
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Error requesting delivery')
+    }
+  }
+
   // Client-side filtering
   const filteredOrders = (orders || []).filter(order => {
     // Tab filtering
@@ -762,75 +783,89 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                   return (
                     <div 
                       key={order._id} 
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow"
+                      className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden group"
+                      onClick={() => setSelectedOrder(order)}
                     >
-                      <div className="flex items-center gap-3">
-                        {/* Order Number (clickable) */}
-                        <button 
-                          onClick={() => setSelectedOrder(order)}
-                          className="font-black text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-sm transition-colors"
-                        >
-                          #{order.orderNumber.slice(-4)}
-                        </button>
-                        
-                        {/* Time */}
-                        <span className="text-xs font-medium text-slate-400">{orderTime}</span>
-                        
-                        <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4">
+                        <div className="flex flex-wrap items-center gap-3">
+                          {/* Order Number (clickable) */}
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setSelectedOrder(order); }}
+                            className="font-black text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-sm transition-colors"
+                          >
+                            #{order.orderNumber.slice(-4)}
+                          </button>
+                          
+                          {/* Time */}
+                          <span className="text-xs font-medium text-slate-400">{orderTime}</span>
+                          
+                          <div className="h-4 w-px bg-slate-200 hidden sm:block" />
 
-                        {/* Customer Name (clickable) */}
-                        <button 
-                          onClick={() => setCustomerModalOrder(order)}
-                          className="font-bold text-slate-700 hover:text-blue-600 truncate max-w-[150px] transition-colors"
-                          title={order.customerName}
-                        >
-                          {order.customerName}
-                        </button>
-                      </div>
+                          {/* Customer Name (clickable) */}
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setCustomerModalOrder(order); }}
+                            className="flex flex-col items-start bg-slate-50 hover:bg-slate-100 rounded-xl px-3 py-1.5 transition-colors border border-slate-100"
+                          >
+                            <span className="font-bold text-slate-700 truncate max-w-[150px]" title={order.customerName}>
+                              {order.customerName}
+                            </span>
+                            {order.customerPhone && (
+                              <span className="text-xs text-slate-500 font-mono" dir="ltr">{order.customerPhone}</span>
+                            )}
+                          </button>
+                        </div>
 
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                        {/* Status Button (clickable) */}
-                        <button 
-                          onClick={() => setStatusModalOrder(order)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-transform hover:scale-105 active:scale-95 ${statusConfig.color}`}
-                        >
-                          <statusConfig.icon className="w-3.5 h-3.5" />
-                          {lang === 'ar' ? statusConfig.labelAr : statusConfig.label}
-                          <ChevronDown className="w-3 h-3 ml-0.5 opacity-70" />
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                          {/* Status Button (clickable) */}
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setStatusModalOrder(order); }}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-transform hover:scale-105 active:scale-95 ${statusConfig.color}`}
+                          >
+                            <statusConfig.icon className="w-3.5 h-3.5" />
+                            {lang === 'ar' ? statusConfig.labelAr : statusConfig.label}
+                            <ChevronDown className="w-3 h-3 ml-0.5 opacity-70" />
+                          </button>
 
-                        {/* Delivery Action */}
-                        {isDeliveryOrder && (
-                          <div className="relative">
-                            {order.assignedDriver ? (
-                              <button
-                                onClick={() => setDriverModalOrder(order)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 text-xs font-bold transition-colors"
-                              >
-                                <Truck className="w-3.5 h-3.5" />
-                                {order.assignedDriver.name.split(' ')[0]}
-                                <ChevronDown className="w-3 h-3 opacity-70" />
-                              </button>
-                            ) : (
-                              <>
+                          {/* Delivery Action */}
+                          {isDeliveryOrder && !['cancelled', 'refunded'].includes(order.status) && (
+                            <div className="relative">
+                              {order.assignedDriver ? (
                                 <button
-                                  onClick={() => setAssignDropdownOrder(assignDropdownOrder === order._id ? null : order._id)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs font-bold transition-colors"
+                                  onClick={(e) => { e.stopPropagation(); setDriverModalOrder(order); }}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 text-xs font-bold transition-colors"
                                 >
                                   <Truck className="w-3.5 h-3.5" />
-                                  {t('Request Delivery', 'طلب توصيل')}
+                                  {order.assignedDriver.name.split(' ')[0]}
                                   <ChevronDown className="w-3 h-3 opacity-70" />
                                 </button>
-                                
-                                {/* Assign Driver Dropdown */}
-                                <AnimatePresence>
-                                  {assignDropdownOrder === order._id && (
-                                    <motion.div
-                                      initial={{ opacity: 0, y: -10 }}
-                                      animate={{ opacity: 1, y: 0 }}
-                                      exit={{ opacity: 0, y: -10 }}
-                                      className="absolute right-0 sm:left-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 z-40 overflow-hidden"
+                              ) : (
+                                <>
+                                  <div className="flex items-stretch gap-[1px]">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); requestDelivery(order._id); }}
+                                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-l-lg bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs font-bold transition-colors border-r border-blue-200/50 rtl:border-r-0 rtl:border-l rtl:rounded-l-none rtl:rounded-r-lg"
                                     >
+                                      <Truck className="w-3.5 h-3.5" />
+                                      {t('Request Delivery', 'طلب توصيل')}
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setAssignDropdownOrder(assignDropdownOrder === order._id ? null : order._id); }}
+                                      className="flex items-center px-2 py-1.5 rounded-r-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors rtl:rounded-r-none rtl:rounded-l-lg"
+                                    >
+                                      <ChevronDown className="w-3 h-3 opacity-70" />
+                                    </button>
+                                  </div>
+                                  
+                                  {/* Assign Driver Dropdown */}
+                                  <AnimatePresence>
+                                    {assignDropdownOrder === order._id && (
+                                      <motion.div
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -10 }}
+                                        className="absolute right-0 sm:left-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 z-40 overflow-hidden"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
                                       <div className="p-3 border-b border-slate-100 bg-slate-50">
                                         <label className="flex items-center gap-2 cursor-pointer">
                                           <input 
@@ -885,8 +920,13 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                         )}
                       </div>
                     </div>
-                  );
-                })}
+                    {/* Table View Card Footer */}
+                    <div className="bg-slate-50 border-t border-slate-100 text-center py-2 text-xs font-bold text-slate-500 group-hover:bg-slate-100 transition-colors">
+                      {t('Open Full Card', 'فتح البطاقة كاملة')}
+                    </div>
+                  </div>
+                );
+              })}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -910,168 +950,185 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ duration: 0.2 }}
                       key={order._id}
-                      className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow border-2 border-transparent hover:border-slate-400 text-slate-900 flex flex-col"
+                      className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow border border-slate-200 text-slate-900 flex flex-col cursor-pointer overflow-hidden group"
+                      onClick={() => setSelectedOrder(order)}
                     >
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
+                      <div className="p-6 flex flex-col flex-1">
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); setSelectedOrder(order); }}
+                              className="text-xl font-black mb-1 text-slate-900 text-left hover:text-blue-600 transition-colors"
+                            >
+                              Order #{order.orderNumber.slice(-4)}
+                            </button>
+                            <p className="text-sm text-slate-500">{orderTime}</p>
+                          </div>
                           <button 
-                            onClick={() => setSelectedOrder(order)}
-                            className="text-xl font-black mb-1 text-slate-900 text-left hover:text-blue-600 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); setStatusModalOrder(order); }}
+                            className={`${statusConfig.color} text-white px-3 py-1.5 rounded-lg flex items-center gap-1 transition-transform hover:scale-105 active:scale-95`}
                           >
-                            Order #{order.orderNumber.slice(-4)}
+                            <StatusIcon className="w-4 h-4" />
+                            <span className="font-bold text-sm">{lang === 'ar' ? statusConfig.labelAr : statusConfig.label}</span>
+                            <ChevronDown className="w-3 h-3 ml-0.5 opacity-70" />
                           </button>
-                          <p className="text-sm text-slate-500">{orderTime}</p>
                         </div>
-                        <button 
-                          onClick={() => setStatusModalOrder(order)}
-                          className={`${statusConfig.color} text-white px-3 py-1.5 rounded-lg flex items-center gap-1 transition-transform hover:scale-105 active:scale-95`}
-                        >
-                          <StatusIcon className="w-4 h-4" />
-                          <span className="font-bold text-sm">{lang === 'ar' ? statusConfig.labelAr : statusConfig.label}</span>
-                          <ChevronDown className="w-3 h-3 ml-0.5 opacity-70" />
-                        </button>
-                      </div>
 
-                      <div className="space-y-2 mb-4 flex-1">
-                        <button 
-                          onClick={() => setCustomerModalOrder(order)}
-                          className="font-semibold text-slate-900 text-left hover:text-blue-600 transition-colors block"
-                        >
-                          {order.customerName}
-                        </button>
-                        {order.orderType === 'dine-in' && order.tableNumber && (
-                          <p className="text-sm text-slate-600">{t('Table', 'طاولة')}: {order.tableNumber}</p>
-                        )}
-                        {order.orderType === 'dine-in' && order.customerRequestedAt && !order.customerRequestAcknowledgedAt && (
-                          <p className="text-sm font-semibold text-amber-600">
-                            {order.customerRequestType === 'request_check'
-                              ? t('Wants to pay', 'يريد الدفع') + (order.customerRequestPaymentMethod === 'cash' ? ` (${t('Cash', 'نقداً')})` : ` (${t('Card', 'بطاقة')})`)
-                              : t('Needs help', 'يحتاج مساعدة')}
-                          </p>
-                        )}
-                        {isDeliveryOrder && (
-                          <>
+                        <div className="space-y-4 mb-4 flex-1">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setCustomerModalOrder(order); }}
+                            className="flex flex-col items-center justify-center w-full bg-slate-50 hover:bg-slate-100 rounded-xl px-4 py-3 transition-colors border border-slate-100"
+                          >
+                            <span className="font-bold text-slate-800 text-base">{order.customerName}</span>
                             {order.customerPhone && (
-                              <p className="text-sm text-slate-600 font-mono" dir="ltr">{order.customerPhone}</p>
+                              <span className="text-sm text-slate-500 font-mono mt-0.5" dir="ltr">{order.customerPhone}</span>
                             )}
-                            {order.deliveryArea && (
-                              <p className="text-sm text-slate-600">Area: {order.deliveryArea.name_en}</p>
-                            )}
-                            
-                            <div className="mt-3 relative">
-                              {order.assignedDriver ? (
-                                <button
-                                  onClick={() => setDriverModalOrder(order)}
-                                  className="flex items-center gap-1.5 px-3 py-2 w-full justify-center rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 text-sm font-bold transition-colors"
-                                >
-                                  <Truck className="w-4 h-4" />
-                                  {order.assignedDriver.name}
-                                  <ChevronDown className="w-4 h-4 opacity-70 ml-1" />
-                                </button>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={() => setAssignDropdownOrder(assignDropdownOrder === order._id ? null : order._id)}
-                                    className="flex items-center gap-1.5 px-3 py-2 w-full justify-center rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-bold transition-colors"
-                                  >
-                                    <Truck className="w-4 h-4" />
-                                    {t('Request Delivery', 'طلب توصيل')}
-                                    <ChevronDown className="w-4 h-4 opacity-70 ml-1" />
-                                  </button>
-                                  
-                                  <AnimatePresence>
-                                    {assignDropdownOrder === order._id && (
-                                      <motion.div
-                                        initial={{ opacity: 0, y: -10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -10 }}
-                                        className="absolute left-0 right-0 top-full mt-2 bg-white rounded-xl shadow-xl border border-slate-200 z-40 overflow-hidden"
-                                      >
-                                        <div className="p-3 border-b border-slate-100 bg-slate-50">
-                                          <label className="flex items-center gap-2 cursor-pointer">
-                                            <input 
-                                              type="checkbox" 
-                                              checked={showOfflineDrivers}
-                                              onChange={(e) => setShowOfflineDrivers(e.target.checked)}
-                                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <span className="text-xs font-medium text-slate-600">
-                                              {t('Show offline drivers', 'إظهار السائقين غير المتصلين')}
-                                            </span>
-                                          </label>
-                                        </div>
-                                        <div className="max-h-60 overflow-y-auto">
-                                          {loadingDrivers ? (
-                                            <p className="p-4 text-center text-xs text-slate-400">Loading...</p>
-                                          ) : drivers.filter(d => showOfflineDrivers || d.isOnline).length === 0 ? (
-                                            <p className="p-4 text-center text-xs text-slate-400">
-                                              {t('No drivers available.', 'لا يوجد سائقين متاحين.')}
-                                            </p>
-                                          ) : (
-                                            drivers.filter(d => showOfflineDrivers || d.isOnline).map(driver => {
-                                              const canServe = !order.deliveryArea || !driver.deliveryAreas?.length || driver.deliveryAreas.some((a: any) => a._id === order.deliveryArea?._id);
-                                              return (
-                                                <button
-                                                  key={driver._id}
-                                                  onClick={() => assignDriver(order._id, driver._id)}
-                                                  className={`w-full text-left rtl:text-right px-4 py-3 border-b border-slate-50 hover:bg-slate-50 flex items-center justify-between ${!canServe ? 'opacity-50 grayscale' : ''}`}
-                                                >
-                                                  <div>
-                                                    <p className="text-sm font-bold text-slate-800">{driver.name}</p>
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                      <span className={`w-2 h-2 rounded-full ${driver.isOnline ? 'bg-green-500' : 'bg-slate-300'}`} />
-                                                      <span className="text-xs text-slate-500">{driver.isOnline ? 'Online' : 'Offline'}</span>
-                                                    </div>
-                                                  </div>
-                                                  <div className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
-                                                    {t('Assign', 'تعيين')}
-                                                  </div>
-                                                </button>
-                                              )
-                                            })
-                                          )}
-                                        </div>
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
-                                </>
-                              )}
-                            </div>
-                          </>
-                        )}
-                        <p className="text-lg font-black text-slate-900 mt-2">
-                          {order.totalAmount.toFixed(2)} {order.currency}
-                        </p>
-                      </div>
+                          </button>
 
-                      {order.scheduledFor && (
-                        <div className={`mb-4 bg-purple-600 text-white px-4 py-3 rounded-xl shadow-md text-sm font-bold flex items-center justify-between gap-3 relative overflow-hidden ${['completed', 'cancelled', 'refunded'].includes(order.status) ? 'opacity-30' : ''}`}>
-                          <div className="absolute top-0 right-0 -mr-4 -mt-4 opacity-10 pointer-events-none">
-                            <Clock className="w-20 h-20" />
-                          </div>
-                          <div className="flex items-center gap-2 z-10">
-                            <Clock className="w-5 h-5 shrink-0" />
-                            <span>
-                              {t('Scheduled for:', 'مجدول ليوم:')} {new Date(order.scheduledFor).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
-                            </span>
-                          </div>
-                          {order.status === 'acknowledged' && (
-                            <span className="z-10 bg-white/20 px-2 py-1 rounded-md text-xs whitespace-nowrap">
-                              {t('Accepted', 'مقبول')}
-                            </span>
+                          {order.orderType === 'dine-in' && order.tableNumber && (
+                            <p className="text-sm text-slate-600">{t('Table', 'طاولة')}: {order.tableNumber}</p>
                           )}
+                          {order.orderType === 'dine-in' && order.customerRequestedAt && !order.customerRequestAcknowledgedAt && (
+                            <p className="text-sm font-semibold text-amber-600">
+                              {order.customerRequestType === 'request_check'
+                                ? t('Wants to pay', 'يريد الدفع') + (order.customerRequestPaymentMethod === 'cash' ? ` (${t('Cash', 'نقداً')})` : ` (${t('Card', 'بطاقة')})`)
+                                : t('Needs help', 'يحتاج مساعدة')}
+                            </p>
+                          )}
+                          {isDeliveryOrder && (
+                            <>
+                              {order.deliveryArea && (
+                                <p className="text-sm text-slate-600">Area: {order.deliveryArea.name_en}</p>
+                              )}
+                              
+                              {!['cancelled', 'refunded'].includes(order.status) && (
+                                <div className="relative">
+                                  {order.assignedDriver ? (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setDriverModalOrder(order); }}
+                                      className="flex items-center gap-1.5 px-3 py-2 w-full justify-center rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 text-sm font-bold transition-colors"
+                                    >
+                                      <Truck className="w-4 h-4" />
+                                      {order.assignedDriver.name}
+                                      <ChevronDown className="w-4 h-4 opacity-70 ml-1" />
+                                    </button>
+                                  ) : (
+                                    <>
+                                      <div className="flex items-stretch gap-[1px]">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); requestDelivery(order._id); }}
+                                          className="flex items-center justify-center gap-1.5 px-3 py-2 w-full rounded-l-lg bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-bold transition-colors border-r border-blue-200/50 rtl:border-r-0 rtl:border-l rtl:rounded-l-none rtl:rounded-r-lg"
+                                        >
+                                          <Truck className="w-4 h-4" />
+                                          {t('Request Delivery', 'طلب توصيل')}
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setAssignDropdownOrder(assignDropdownOrder === order._id ? null : order._id); }}
+                                          className="flex items-center px-3 py-2 rounded-r-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors rtl:rounded-r-none rtl:rounded-l-lg"
+                                        >
+                                          <ChevronDown className="w-4 h-4 opacity-70" />
+                                        </button>
+                                      </div>
+                                      
+                                      <AnimatePresence>
+                                        {assignDropdownOrder === order._id && (
+                                          <motion.div
+                                            initial={{ opacity: 0, y: -10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -10 }}
+                                            className="absolute left-0 right-0 top-full mt-2 bg-white rounded-xl shadow-xl border border-slate-200 z-40 overflow-hidden"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <div className="p-3 border-b border-slate-100 bg-slate-50">
+                                              <label className="flex items-center gap-2 cursor-pointer">
+                                                <input 
+                                                  type="checkbox" 
+                                                  checked={showOfflineDrivers}
+                                                  onChange={(e) => setShowOfflineDrivers(e.target.checked)}
+                                                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                <span className="text-xs font-medium text-slate-600">
+                                                  {t('Show offline drivers', 'إظهار السائقين غير المتصلين')}
+                                                </span>
+                                              </label>
+                                            </div>
+                                            <div className="max-h-60 overflow-y-auto">
+                                              {loadingDrivers ? (
+                                                <p className="p-4 text-center text-xs text-slate-400">Loading...</p>
+                                              ) : drivers.filter(d => showOfflineDrivers || d.isOnline).length === 0 ? (
+                                                <p className="p-4 text-center text-xs text-slate-400">
+                                                  {t('No drivers available.', 'لا يوجد سائقين متاحين.')}
+                                                </p>
+                                              ) : (
+                                                drivers.filter(d => showOfflineDrivers || d.isOnline).map(driver => {
+                                                  const canServe = !order.deliveryArea || !driver.deliveryAreas?.length || driver.deliveryAreas.some((a: any) => a._id === order.deliveryArea?._id);
+                                                  return (
+                                                    <button
+                                                      key={driver._id}
+                                                      onClick={() => assignDriver(order._id, driver._id)}
+                                                      className={`w-full text-left rtl:text-right px-4 py-3 border-b border-slate-50 hover:bg-slate-50 flex items-center justify-between ${!canServe ? 'opacity-50 grayscale' : ''}`}
+                                                    >
+                                                      <div>
+                                                        <p className="text-sm font-bold text-slate-800">{driver.name}</p>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                          <span className={`w-2 h-2 rounded-full ${driver.isOnline ? 'bg-green-500' : 'bg-slate-300'}`} />
+                                                          <span className="text-xs text-slate-500">{driver.isOnline ? 'Online' : 'Offline'}</span>
+                                                        </div>
+                                                      </div>
+                                                      <div className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+                                                        {t('Assign', 'تعيين')}
+                                                      </div>
+                                                    </button>
+                                                  )
+                                                })
+                                              )}
+                                            </div>
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          )}
+                          <p className="text-lg font-black text-slate-900 mt-2">
+                            {order.totalAmount.toFixed(2)} {order.currency}
+                          </p>
                         </div>
-                      )}
 
-                      <div className="flex items-center justify-between text-xs text-slate-500 mt-auto pt-4 border-t border-slate-100">
-                        <span>{order.items.length} item{order.items.length !== 1 ? 's' : ''}</span>
-                        <span className={order.orderType === 'delivery' ? 'text-red-600 font-medium' : ''}>
-                          {order.orderType === 'receive-in-person'
-                            ? t('Receive in Person', 'استلام شخصي')
-                            : order.orderType === 'dine-in'
-                              ? '🍽️ ' + t('Dine-in', 'تناول هنا')
-                              : '🚗 ' + t('Delivery', 'توصيل')}
-                        </span>
+                        {order.scheduledFor && (
+                          <div className={`mb-4 bg-purple-600 text-white px-4 py-3 rounded-xl shadow-md text-sm font-bold flex items-center justify-between gap-3 relative overflow-hidden ${['completed', 'cancelled', 'refunded'].includes(order.status) ? 'opacity-30' : ''}`}>
+                            <div className="absolute top-0 right-0 -mr-4 -mt-4 opacity-10 pointer-events-none">
+                              <Clock className="w-20 h-20" />
+                            </div>
+                            <div className="flex items-center gap-2 z-10">
+                              <Clock className="w-5 h-5 shrink-0" />
+                              <span>
+                                {t('Scheduled for:', 'مجدول ليوم:')} {new Date(order.scheduledFor).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                              </span>
+                            </div>
+                            {order.status === 'acknowledged' && (
+                              <span className="z-10 bg-white/20 px-2 py-1 rounded-md text-xs whitespace-nowrap">
+                                {t('Accepted', 'مقبول')}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between text-xs text-slate-500 mt-auto pt-4 border-t border-slate-100">
+                          <span>{order.items.length} item{order.items.length !== 1 ? 's' : ''}</span>
+                          <span className={order.orderType === 'delivery' ? 'text-red-600 font-medium' : ''}>
+                            {order.orderType === 'receive-in-person'
+                              ? t('Receive in Person', 'استلام شخصي')
+                              : order.orderType === 'dine-in'
+                                ? '🍽️ ' + t('Dine-in', 'تناول هنا')
+                                : '🚗 ' + t('Delivery', 'توصيل')}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="bg-slate-50 border-t border-slate-100 text-center py-2.5 text-xs font-bold text-slate-500 group-hover:bg-slate-100 transition-colors w-full">
+                        {t('Open Full Card', 'فتح البطاقة كاملة')}
                       </div>
                     </motion.div>
                   );
