@@ -511,7 +511,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                       </div>
 
                       {order.scheduledFor && (
-                        <div className="mb-4 bg-purple-600 text-white px-4 py-3 rounded-xl shadow-md text-sm font-bold flex items-center justify-between gap-3 relative overflow-hidden">
+                        <div className={`mb-4 bg-purple-600 text-white px-4 py-3 rounded-xl shadow-md text-sm font-bold flex items-center justify-between gap-3 relative overflow-hidden ${['completed', 'cancelled', 'refunded'].includes(order.status) ? 'opacity-30' : ''}`}>
                           <div className="absolute top-0 right-0 -mr-4 -mt-4 opacity-10 pointer-events-none">
                             <Clock className="w-20 h-20" />
                           </div>

@@ -26,6 +26,7 @@ export default async function MyOrdersPage() {
           currency,
           createdAt,
           completedAt,
+          scheduledFor,
           trackingToken,
           "siteSlug": site->slug.current,
           "siteName": site->name

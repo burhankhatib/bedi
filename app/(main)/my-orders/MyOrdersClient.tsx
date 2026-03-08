@@ -18,12 +18,14 @@ export type MyOrderRow = {
   trackingToken?: string
   siteSlug?: string
   siteName?: string
+  scheduledFor?: string
 }
 
-const ACTIVE_STATUSES = new Set(['new', 'preparing', 'waiting_for_delivery', 'driver_on_the_way', 'out-for-delivery'])
+const ACTIVE_STATUSES = new Set(['new', 'acknowledged', 'preparing', 'waiting_for_delivery', 'driver_on_the_way', 'out-for-delivery'])
 
 const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
   new: { en: 'Received', ar: 'مستلم' },
+  acknowledged: { en: 'Scheduled', ar: 'مجدول' },
   preparing: { en: 'Preparing', ar: 'قيد التحضير' },
   waiting_for_delivery: { en: 'Waiting for delivery', ar: 'في انتظار التوصيل' },
   driver_on_the_way: { en: 'Driver on the way', ar: 'السائق في الطريق' },
@@ -186,6 +188,12 @@ function OrderCard({
           <p className="text-sm text-slate-500 mt-0.5">
             {statusLabel(order.status)} · {fmtDate(order.createdAt)}
           </p>
+          {order.scheduledFor && (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-2 py-1 text-xs font-semibold text-purple-700 border border-purple-200">
+              <Clock className="h-3.5 w-3.5" />
+              {new Date(order.scheduledFor).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+            </div>
+          )}
           <p className="text-sm font-medium text-slate-700 mt-1">
             {fmtAmount(order.totalAmount, order.currency)}
           </p>

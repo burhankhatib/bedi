@@ -42,6 +42,7 @@ export async function GET(
     tipAmount?: number
     customerRequestedAt?: string | null
     customerRequestAcknowledgedAt?: string | null
+    scheduledFor?: string | null
     site?: { _ref?: string }
     assignedDriver?: { _ref?: string } | null
   } | null>(
@@ -65,6 +66,7 @@ export async function GET(
       tipAmount,
       customerRequestedAt,
       customerRequestAcknowledgedAt,
+      scheduledFor,
       "site": site,
       "assignedDriver": assignedDriver
     }`,
@@ -119,6 +121,7 @@ export async function GET(
       tipAmount: order.tipAmount,
       customerRequestedAt: order.customerRequestedAt ?? null,
       customerRequestAcknowledgedAt: order.customerRequestAcknowledgedAt ?? null,
+      scheduledFor: order.scheduledFor ?? null,
     },
     restaurant: restaurantInfo
       ? {

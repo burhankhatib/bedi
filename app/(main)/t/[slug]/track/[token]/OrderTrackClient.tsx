@@ -66,6 +66,7 @@ type TrackData = {
     tipAmount?: number
     customerRequestedAt?: string | null
     customerRequestAcknowledgedAt?: string | null
+    scheduledFor?: string | null
   }
   restaurant: { name_en?: string; name_ar?: string; whatsapp?: string } | null
   driver: { _id: string; name: string; phoneNumber: string } | null
@@ -156,6 +157,7 @@ function CustomerLocationShare({ orderId, trackingToken }: { orderId: string; tr
 
 const STATUS_CONFIG: Record<string, { labelEn: string; labelAr: string; icon: typeof ChefHat; headerBg: string; headerFrom: string; headerTo: string }> = {
   new: { labelEn: 'Order received', labelAr: 'تم استلام الطلب', icon: Package, headerBg: 'from-blue-600 to-blue-700', headerFrom: 'from-blue-600', headerTo: 'to-blue-700' },
+  acknowledged: { labelEn: 'Order scheduled', labelAr: 'تم جدولة الطلب', icon: Clock, headerBg: 'from-purple-600 to-purple-700', headerFrom: 'from-purple-600', headerTo: 'to-purple-700' },
   preparing: { labelEn: 'Preparing', labelAr: 'قيد التحضير', icon: ChefHat, headerBg: 'from-amber-600 to-amber-700', headerFrom: 'from-amber-600', headerTo: 'to-amber-700' },
   waiting_for_delivery: { labelEn: 'Waiting for delivery', labelAr: 'في انتظار التوصيل', icon: Clock, headerBg: 'from-amber-600 to-amber-700', headerFrom: 'from-amber-600', headerTo: 'to-amber-700' },
   driver_on_the_way: { labelEn: 'Driver on the way to the store', labelAr: 'السائق في الطريق إلى المتجر', icon: Truck, headerBg: 'from-blue-600 to-blue-700', headerFrom: 'from-blue-600', headerTo: 'to-blue-700' },
@@ -400,6 +402,27 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
           {t('Order', 'الطلب')} #{data.order.orderNumber ?? data.order._id?.slice(-6)}
         </p>
       </div>
+
+      {data.order.scheduledFor && data.order.status !== 'completed' && data.order.status !== 'cancelled' && data.order.status !== 'refunded' && (
+        <div className="mt-6 px-4">
+          <div className="rounded-3xl border border-purple-200 bg-purple-50 p-5 shadow-sm relative overflow-hidden">
+            <div className="absolute -right-6 -top-6 text-purple-200/50 pointer-events-none">
+              <Clock className="w-32 h-32" />
+            </div>
+            <div className="flex items-center gap-3 mb-2 relative z-10">
+              <div className="bg-purple-600 p-2 rounded-xl text-white">
+                <Clock className="w-5 h-5" />
+              </div>
+              <h2 className="text-lg font-black text-purple-900">
+                {t('Scheduled Order', 'طلب مجدول')}
+              </h2>
+            </div>
+            <p className="text-purple-800 font-medium relative z-10">
+              {t('Scheduled for:', 'مجدول ليوم:')} {new Date(data.order.scheduledFor).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'full', timeStyle: 'short' })}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Order details */}
       <div className="mt-6 px-4">

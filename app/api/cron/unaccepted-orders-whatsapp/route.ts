@@ -20,8 +20,11 @@ export async function GET(req: Request) {
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
-  // Find orders that are 'new', haven't been notified yet, 
-  // and were created between 3 minutes and 2 hours ago.
+  // Find orders that are 'new', haven't been notified yet.
+  // We check for two conditions to trigger the 3-minute warning:
+  // 1. Regular orders: created between 3 minutes and 2 hours ago.
+  // 2. Scheduled orders (which revert to 'new' when their notification time arrives):
+  //    notifyAt is between 3 minutes and 2 hours ago.
   const now = Date.now()
   const cutoff3m = new Date(now - 3 * 60 * 1000).toISOString()
   const cutoff2h = new Date(now - 2 * 60 * 60 * 1000).toISOString()
@@ -38,8 +41,10 @@ export async function GET(req: Request) {
         _type == "order" &&
         status == "new" &&
         !defined(businessWhatsappNotifiedAt) &&
-        createdAt <= $cutoff3m &&
-        createdAt >= $cutoff2h
+        (
+          (!defined(scheduledFor) && createdAt <= $cutoff3m && createdAt >= $cutoff2h) ||
+          (defined(scheduledFor) && defined(notifyAt) && notifyAt <= $cutoff3m && notifyAt >= $cutoff2h)
+        )
       ]{
         _id,
         "tenantPhone": site->ownerPhone,
