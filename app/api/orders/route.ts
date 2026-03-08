@@ -260,21 +260,27 @@ export async function POST(request: NextRequest) {
 
     const pushReady = isFCMConfigured() || isPushConfigured()
     if (siteRef?._ref && pushReady) {
-      try {
-        // Trigger live UI refresh immediately
-        await pusherServer.trigger(`tenant-${siteRef._ref}`, 'order-update', { orderId: result._id }).catch(() => {})
+      // Trigger live UI refresh immediately
+      pusherServer.trigger(`tenant-${siteRef._ref}`, 'order-update', { orderId: result._id }).catch((e) => {
+        console.error('[API] Pusher trigger failed:', e)
+      })
 
-        // Mark as sent
-        await writeClient.patch(result._id).set({ tenantNewOrderPushSent: true }).commit()
-
-        await sendTenantOrderUpdatePush({
-          orderId: result._id,
-          status: 'new',
-          baseUrl: process.env.NEXT_PUBLIC_APP_URL,
-        })
-      } catch (e) {
-        console.error('[API] Tenant pusher trigger or push notification on new order failed:', e)
-      }
+      // Send push notification without awaiting the patch so it isn't blocked
+      sendTenantOrderUpdatePush({
+        orderId: result._id,
+        status: 'new',
+        baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+      }).then(async (sent) => {
+        if (sent) {
+          await writeClient.patch(result._id).set({ tenantNewOrderPushSent: true }).commit().catch(e => {
+            console.error('[API] Failed to mark tenantNewOrderPushSent:', e)
+          })
+        } else {
+          console.error('[API] sendTenantOrderUpdatePush returned false (not sent).')
+        }
+      }).catch(e => {
+        console.error('[API] sendTenantOrderUpdatePush threw an error:', e)
+      })
     }
 
     return NextResponse.json({

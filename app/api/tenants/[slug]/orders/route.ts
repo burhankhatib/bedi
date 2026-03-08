@@ -39,7 +39,11 @@ const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc
   customerRequestedAt,
   customerRequestAcknowledgedAt,
   tipPercent,
-  tipAmount
+  tipAmount,
+  scheduledFor,
+  acknowledgedAt,
+  notifyAt,
+  reminderSent
 }`
 const NEW_ORDERS_GROQ = `*[_type == "order" && ${siteFilter} && status == "new"] | order(createdAt desc) {
   _id,
@@ -54,7 +58,9 @@ const NEW_ORDERS_GROQ = `*[_type == "order" && ${siteFilter} && status == "new"]
   deliveryLat,
   deliveryLng,
   totalAmount,
-  currency
+  currency,
+  scheduledFor,
+  notifyAt
 }`
 const NEW_TABLE_REQUESTS_GROQ = `*[_type == "order" && ${siteFilter} && orderType == "dine-in" && status != "completed" && defined(customerRequestedAt) && !defined(customerRequestAcknowledgedAt)] | order(customerRequestedAt desc) {
   _id,

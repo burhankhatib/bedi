@@ -17,6 +17,8 @@ interface NewOrder {
   deliveryLng?: number
   totalAmount?: number
   currency?: string
+  scheduledFor?: string
+  notifyAt?: string
 }
 
 export interface TableRequest {
@@ -70,12 +72,18 @@ export function OrderNotificationsWrapper({
     ? `/api/tenants/${tenantSlug}/orders/status`
     : '/api/orders/status'
 
-  const handleAcknowledge = useCallback(async (orderId: string) => {
+  const handleAcknowledge = useCallback(async (orderId: string, statusOverride?: string, notifyAt?: string) => {
     try {
+      const body: Record<string, string> = { 
+        orderId, 
+        status: statusOverride || 'preparing' 
+      }
+      if (notifyAt) body.notifyAt = notifyAt
+      
       const response = await fetch(statusUrl, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, status: 'preparing' }),
+        body: JSON.stringify(body),
       })
       if (!response.ok) throw new Error('Failed to acknowledge order')
       onAcknowledged?.(orderId)

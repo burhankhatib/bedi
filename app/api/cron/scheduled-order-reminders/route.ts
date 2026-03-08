@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
+import { pusherServer } from '@/lib/pusher'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,8 +51,14 @@ export async function GET(request: Request) {
           baseUrl: process.env.NEXT_PUBLIC_APP_URL,
         })
 
-        // Mark the reminder as sent
-        await writeClient.patch(order._id).set({ reminderSent: true }).commit()
+        // Mark the reminder as sent and change status back to new so it pops up in dashboard
+        await writeClient.patch(order._id).set({ reminderSent: true, status: 'new' }).commit()
+
+        if (order.siteRef) {
+          pusherServer.trigger(`tenant-${order.siteRef}`, 'order-update', { orderId: order._id }).catch((e) => {
+            console.error('[cron/scheduled-order-reminders] Pusher trigger failed:', e)
+          })
+        }
 
         results.push({ orderId: order._id, success: true })
       } catch (err) {

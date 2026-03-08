@@ -166,6 +166,8 @@ export async function sendTenantAndStaffPush(
     ).catch(() => [])
   }
 
+  console.log(`[tenant-push] Resolving central subs for tenant ${tenantId}. found: ${centralSubs.length}. clerkUserIds: ${clerkUserIds.join(', ')}`)
+
   let sent = false
   const staleCentralIds: string[] = []
   // Track tokens already sent via central so we don't double-send via legacy
@@ -175,6 +177,7 @@ export async function sendTenantAndStaffPush(
   for (const sub of centralSubs) {
     let fcmSent = false
     if (sub.fcmToken) {
+      console.log(`[tenant-push] Sending to central FCM token: ${sub.fcmToken.substring(0, 10)}...`)
       const { sent: ok, permanent } = await sendCentralFcm(sub, payload)
       if (ok) {
         sent = true
@@ -187,6 +190,7 @@ export async function sendTenantAndStaffPush(
     if (!fcmSent) {
       const wp = sub.webPush
       if (wp?.endpoint && wp?.p256dh && wp?.auth && isPushConfigured()) {
+        console.log(`[tenant-push] Sending to central WebPush endpoint: ${wp.endpoint.substring(0, 20)}...`)
         const ok = await sendPushNotification(
           { endpoint: wp.endpoint, keys: { p256dh: wp.p256dh, auth: wp.auth } },
           payload
@@ -200,9 +204,12 @@ export async function sendTenantAndStaffPush(
   const allLegacy: Array<{ doc: LegacyDoc; docType: 'tenant' | 'tenantStaff' }> = []
   if (tenantDoc) allLegacy.push({ doc: tenantDoc, docType: 'tenant' })
   for (const staff of staffList ?? []) allLegacy.push({ doc: staff, docType: 'tenantStaff' })
+  
+  console.log(`[tenant-push] Resolving legacy docs. Found: ${allLegacy.length}`)
 
   const allStaleTokens: StaleToken[] = []
   for (const { doc, docType } of allLegacy) {
+    console.log(`[tenant-push] Sending to legacy doc: ${doc._id} (${docType})`)
     const { sent: ok, staleTokens } = await sendToLegacyDoc(doc, docType, payload, sentTokens)
     if (ok) sent = true
     allStaleTokens.push(...staleTokens)

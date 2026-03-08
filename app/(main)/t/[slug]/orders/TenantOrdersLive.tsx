@@ -26,6 +26,8 @@ type NewOrder = {
   deliveryLng?: number
   totalAmount?: number
   currency?: string
+  scheduledFor?: string
+  notifyAt?: string
 }
 export type TableRequest = {
   _id: string
