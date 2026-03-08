@@ -198,26 +198,32 @@ export function AdminReportsClient() {
     <div className="mt-6 space-y-4">
       <div className="flex items-center gap-2">
         <Button
-          variant={filter === 'new' ? 'default' : 'outline'}
+          variant="outline"
           size="sm"
           onClick={() => setFilter('new')}
-          className={filter === 'new' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : 'border-slate-700 text-slate-300'}
+          className={filter === 'new'
+            ? 'bg-amber-500 text-slate-950 hover:bg-amber-400 hover:text-slate-950 border-amber-500'
+            : 'bg-slate-800 text-slate-200 border-slate-600 hover:bg-slate-700 hover:text-white'}
         >
           New
         </Button>
         <Button
-          variant={filter === 'read' ? 'default' : 'outline'}
+          variant="outline"
           size="sm"
           onClick={() => setFilter('read')}
-          className={filter === 'read' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : 'border-slate-700 text-slate-300'}
+          className={filter === 'read'
+            ? 'bg-amber-500 text-slate-950 hover:bg-amber-400 hover:text-slate-950 border-amber-500'
+            : 'bg-slate-800 text-slate-200 border-slate-600 hover:bg-slate-700 hover:text-white'}
         >
           Read
         </Button>
         <Button
-          variant={filter === 'archived' ? 'default' : 'outline'}
+          variant="outline"
           size="sm"
           onClick={() => setFilter('archived')}
-          className={filter === 'archived' ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : 'border-slate-700 text-slate-300'}
+          className={filter === 'archived'
+            ? 'bg-amber-500 text-slate-950 hover:bg-amber-400 hover:text-slate-950 border-amber-500'
+            : 'bg-slate-800 text-slate-200 border-slate-600 hover:bg-slate-700 hover:text-white'}
         >
           Archived
         </Button>

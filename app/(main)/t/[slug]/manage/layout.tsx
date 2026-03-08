@@ -66,7 +66,7 @@ export default async function ManageLayout({
   const permissions = auth.ok ? auth.permissions : []
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-white">
+    <div className="dark min-h-screen flex flex-col bg-slate-950 text-white">
       <AppNav variant="dashboard" />
 
       <TenantManagePushWrapper slug={slug}>

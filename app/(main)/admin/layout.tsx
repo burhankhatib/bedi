@@ -19,7 +19,7 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-950 text-white">
+    <div className="dark min-h-screen overflow-x-hidden bg-slate-950 text-white">
       <AppNav variant="dashboard" showAdmin />
 
       <div className="mx-auto flex max-w-[100vw] flex-col sm:container md:flex-row">

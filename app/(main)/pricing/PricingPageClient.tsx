@@ -24,7 +24,7 @@ export function PricingPageClient() {
   const isRtl = lang === 'ar'
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white" dir={isRtl ? 'rtl' : 'ltr'} lang={lang === 'ar' ? 'ar' : 'en'}>
+    <div className="dark min-h-screen bg-slate-950 text-white" dir={isRtl ? 'rtl' : 'ltr'} lang={lang === 'ar' ? 'ar' : 'en'}>
       <AppNav
         variant="landing"
         signInLabel={t('Sign in', 'تسجيل الدخول')}

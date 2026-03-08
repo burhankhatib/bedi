@@ -32,7 +32,7 @@ export function DashboardClient({
   }, [])
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-slate-950 text-white">
+    <div className="dark min-h-screen overflow-x-hidden bg-slate-950 text-white">
       <AppNav variant="dashboard" showAdmin={showAdmin} hasDriver={hasDriver} />
 
       <main className="mx-auto max-w-[100vw] px-4 py-6 sm:container sm:py-8 md:py-12">
