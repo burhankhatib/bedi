@@ -12,6 +12,7 @@ import { getActiveSubscriptionsForUser, markSubscriptionInactive } from '@/lib/u
 const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
   new: { en: 'Order received', ar: 'تم استلام الطلب' },
   acknowledged: { en: 'Order received and scheduled', ar: 'تم استلام وجدولة الطلب' },
+  schedule_updated: { en: 'Your scheduled order time has been updated', ar: 'تم تحديث وقت طلبك المجدول' },
   preparing: { en: 'Preparing your order', ar: 'قيد التحضير' },
   waiting_for_delivery: { en: 'Waiting for delivery', ar: 'في انتظار التوصيل' },
   driver_on_the_way: { en: 'Driver on the way to the store', ar: 'السائق في الطريق إلى المتجر' },

@@ -6,9 +6,9 @@ import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
 
 export async function PATCH(request: Request) {
   try {
-    const { orderId, status, completedAt, notifyAt } = await request.json()
+    const { orderId, status, completedAt, notifyAt, newScheduledFor } = await request.json()
 
-    console.log('Status update request:', { orderId, status, completedAt, notifyAt })
+    console.log('Status update request:', { orderId, status, completedAt, notifyAt, newScheduledFor })
 
     if (!orderId || !status) {
       console.error('Missing required fields:', { orderId, status })
@@ -53,6 +53,9 @@ export async function PATCH(request: Request) {
     if (completedAt) {
       updateData.completedAt = completedAt
     }
+    if (newScheduledFor) {
+      updateData.scheduledFor = newScheduledFor
+    }
     if (status === 'acknowledged') {
       updateData.acknowledgedAt = new Date().toISOString()
       if (notifyAt) {
@@ -81,7 +84,7 @@ export async function PATCH(request: Request) {
 
     sendCustomerOrderStatusPush({
       orderId,
-      newStatus: status,
+      newStatus: newScheduledFor ? 'schedule_updated' : status,
       baseUrl: process.env.NEXT_PUBLIC_APP_URL,
     }).catch((e) => console.warn('[customer-order-push]', e))
 

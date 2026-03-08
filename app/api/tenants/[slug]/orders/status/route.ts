@@ -37,7 +37,7 @@ export async function PATCH(
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
   const body = await req.json()
-  const { orderId, status, completedAt, acknowledgeTableRequest, notifyAt } = body
+  const { orderId, status, completedAt, acknowledgeTableRequest, notifyAt, newScheduledFor } = body
   if (!orderId) {
     return NextResponse.json({ error: 'orderId required' }, { status: 400 })
   }
@@ -67,6 +67,9 @@ export async function PATCH(
   const patch = writeClient.patch(orderId)
   const updateData: Record<string, unknown> = { status }
   if (completedAt != null) updateData.completedAt = completedAt
+  if (newScheduledFor) {
+    updateData.scheduledFor = newScheduledFor
+  }
   if (status === 'acknowledged') {
     updateData.acknowledgedAt = new Date().toISOString()
     if (notifyAt) {
@@ -95,7 +98,7 @@ export async function PATCH(
 
   sendCustomerOrderStatusPush({
     orderId,
-    newStatus: status,
+    newStatus: newScheduledFor ? 'schedule_updated' : status,
     baseUrl: process.env.NEXT_PUBLIC_APP_URL,
   }).catch((e) => console.warn('[customer-order-push]', e))
 

@@ -229,8 +229,14 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
   const filteredOrders = (orders || []).filter(order => {
     // Tab filtering
     const isScheduled = !!order.scheduledFor;
-    if (activeTab === 'live' && isScheduled) return false;
-    if (activeTab === 'scheduled' && !isScheduled) return false;
+    const isScheduledButLive = isScheduled && !['new', 'acknowledged'].includes(order.status);
+
+    if (activeTab === 'live') {
+      if (isScheduled && !isScheduledButLive) return false;
+    }
+    if (activeTab === 'scheduled') {
+      if (!isScheduled || isScheduledButLive) return false;
+    }
 
     // Exclude "new" status orders from live view (they're handled by notifications), unless they are scheduled or table requests
     const hasTableRequest = order.orderType === 'dine-in' && order.customerRequestedAt && !order.customerRequestAcknowledgedAt;
@@ -505,11 +511,21 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                       </div>
 
                       {order.scheduledFor && (
-                        <div className="mb-4 bg-purple-100 text-purple-800 px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-                          <Clock className="w-4 h-4" />
-                          <span>
-                            {t('Scheduled for:', 'مجدول ليوم:')} {new Date(order.scheduledFor).toLocaleString()}
-                          </span>
+                        <div className="mb-4 bg-purple-600 text-white px-4 py-3 rounded-xl shadow-md text-sm font-bold flex items-center justify-between gap-3 relative overflow-hidden">
+                          <div className="absolute top-0 right-0 -mr-4 -mt-4 opacity-10 pointer-events-none">
+                            <Clock className="w-20 h-20" />
+                          </div>
+                          <div className="flex items-center gap-2 z-10">
+                            <Clock className="w-5 h-5 shrink-0" />
+                            <span>
+                              {t('Scheduled for:', 'مجدول ليوم:')} {new Date(order.scheduledFor).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </span>
+                          </div>
+                          {order.status === 'acknowledged' && (
+                            <span className="z-10 bg-white/20 px-2 py-1 rounded-md text-xs whitespace-nowrap">
+                              {t('Accepted', 'مقبول')}
+                            </span>
+                          )}
                         </div>
                       )}
 

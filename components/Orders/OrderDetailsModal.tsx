@@ -89,7 +89,7 @@ interface Order {
 interface OrderDetailsModalProps {
   order: Order
   onClose: () => void
-  onStatusUpdate: (orderId: string, status: string, notifyAt?: string) => void | Promise<void>
+  onStatusUpdate: (orderId: string, status: string, notifyAt?: string, newScheduledFor?: string) => void | Promise<void>
   onRefresh: () => void
   /** Called after order items are saved so parent can update its order list and selected order. Prevents revert when parent refetches. */
   onOrderUpdated?: (updatedOrder: Order) => void
@@ -205,6 +205,8 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
   const { t, lang } = useLanguage()
   const { showToast } = useToast()
   const [reminderMinutes, setReminderMinutes] = useState(60)
+  const [isEditingSchedule, setIsEditingSchedule] = useState(false)
+  const [newScheduleDate, setNewScheduleDate] = useState('')
   const [showDriverSelector, setShowDriverSelector] = useState(false)
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loadingDrivers, setLoadingDrivers] = useState(false)
@@ -1410,40 +1412,78 @@ Please deliver this order to the customer.
                   {!!localOrder.scheduledFor && (
                     s0Active ? (
                       <div className="p-4 rounded-3xl bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200">
-                        <h4 className="font-bold text-purple-900 mb-2">{t('Scheduled Order', 'طلب مجدول')}</h4>
-                        <div className="mb-4">
-                          <label className="text-sm font-medium text-purple-800 block mb-1">
-                            {t('Remind me to start preparing:', 'ذكرني ببدء التحضير:')}
-                          </label>
-                          <select 
-                            value={reminderMinutes} 
-                            onChange={(e) => setReminderMinutes(Number(e.target.value))}
-                            className="w-full p-2 rounded-xl border-purple-200 bg-white text-purple-900"
-                          >
-                            <option value={15}>{t('15 mins before', 'قبل 15 دقيقة')}</option>
-                            <option value={30}>{t('30 mins before', 'قبل 30 دقيقة')}</option>
-                            <option value={60}>{t('1 hour before', 'قبل ساعة')}</option>
-                            <option value={120}>{t('2 hours before', 'قبل ساعتين')}</option>
-                          </select>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <Button 
-                            onClick={() => {
-                              const notifyAt = new Date(new Date(localOrder.scheduledFor!).getTime() - reminderMinutes * 60000).toISOString()
-                              onStatusUpdate(localOrder._id, 'acknowledged', notifyAt)
-                            }}
-                            className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold h-12 shadow-sm"
-                          >
-                            {t('Keep in Scheduled Orders', 'حفظ في الطلبات المجدولة')}
+                        <h4 className="font-bold text-purple-900 mb-2 flex justify-between items-center">
+                          {t('Scheduled Order', 'طلب مجدول')}
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            setNewScheduleDate(localOrder.scheduledFor ? new Date(new Date(localOrder.scheduledFor).getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16) : '')
+                            setIsEditingSchedule(!isEditingSchedule)
+                          }} className="text-purple-700 hover:text-purple-900 hover:bg-purple-200 h-8 px-2 rounded-lg">
+                            {isEditingSchedule ? t('Cancel', 'إلغاء') : t('Edit Time', 'تعديل الوقت')}
                           </Button>
-                          <Button 
-                            onClick={() => onStatusUpdate(localOrder._id, 'preparing')}
-                            variant="outline"
-                            className="w-full border-purple-300 text-purple-700 hover:bg-purple-50 rounded-xl font-bold h-12"
-                          >
-                            {t('Start Preparing Now', 'البدء في التحضير الآن')}
-                          </Button>
-                        </div>
+                        </h4>
+                        
+                        {isEditingSchedule ? (
+                          <div className="mb-4 p-3 bg-white/60 rounded-2xl border border-purple-200">
+                            <label className="text-sm font-medium text-purple-800 block mb-2">
+                              {t('New Date & Time:', 'تاريخ ووقت جديد:')}
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={newScheduleDate}
+                              onChange={(e) => setNewScheduleDate(e.target.value)}
+                              className="w-full p-2 rounded-xl border-purple-200 bg-white text-purple-900 mb-3"
+                            />
+                            <Button
+                              onClick={() => {
+                                if (newScheduleDate) {
+                                  const notifyAt = new Date(new Date(newScheduleDate).getTime() - reminderMinutes * 60000).toISOString()
+                                  onStatusUpdate(localOrder._id, 'acknowledged', notifyAt, new Date(newScheduleDate).toISOString())
+                                  setIsEditingSchedule(false)
+                                }
+                              }}
+                              className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold shadow-sm"
+                            >
+                              <Save className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                              {t('Save Changes', 'حفظ التغييرات')}
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="mb-4">
+                              <label className="text-sm font-medium text-purple-800 block mb-1">
+                                {t('Remind me to start preparing:', 'ذكرني ببدء التحضير:')}
+                              </label>
+                              <select 
+                                value={reminderMinutes} 
+                                onChange={(e) => setReminderMinutes(Number(e.target.value))}
+                                className="w-full p-2 rounded-xl border-purple-200 bg-white text-purple-900"
+                              >
+                                <option value={15}>{t('15 mins before', 'قبل 15 دقيقة')}</option>
+                                <option value={30}>{t('30 mins before', 'قبل 30 دقيقة')}</option>
+                                <option value={60}>{t('1 hour before', 'قبل ساعة')}</option>
+                                <option value={120}>{t('2 hours before', 'قبل ساعتين')}</option>
+                              </select>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Button 
+                                onClick={() => {
+                                  const notifyAt = new Date(new Date(localOrder.scheduledFor!).getTime() - reminderMinutes * 60000).toISOString()
+                                  onStatusUpdate(localOrder._id, 'acknowledged', notifyAt)
+                                }}
+                                className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold h-12 shadow-sm"
+                              >
+                                {t('Keep in Scheduled Orders', 'حفظ في الطلبات المجدولة')}
+                              </Button>
+                              <Button 
+                                onClick={() => onStatusUpdate(localOrder._id, 'preparing')}
+                                variant="outline"
+                                className="w-full border-purple-300 text-purple-700 hover:bg-purple-50 rounded-xl font-bold h-12"
+                              >
+                                {t('Start Preparing Now', 'البدء في التحضير الآن')}
+                              </Button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     ) : (
                       <StepButton isActive={false} isCompleted={s0Done} onClick={currentStatus === 'preparing' ? () => onStatusUpdate(localOrder._id, 'acknowledged') : undefined} icon={CheckCircle2} labelEn="Scheduled Order Acknowledged" labelAr="تم استلام الطلب المجدول" colorClass="bg-purple-500" />
@@ -1584,40 +1624,78 @@ Please deliver this order to the customer.
                   {!!localOrder.scheduledFor && (
                     s0Active ? (
                       <div className="p-4 rounded-3xl bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200">
-                        <h4 className="font-bold text-purple-900 mb-2">{t('Scheduled Order', 'طلب مجدول')}</h4>
-                        <div className="mb-4">
-                          <label className="text-sm font-medium text-purple-800 block mb-1">
-                            {t('Remind me to start preparing:', 'ذكرني ببدء التحضير:')}
-                          </label>
-                          <select 
-                            value={reminderMinutes} 
-                            onChange={(e) => setReminderMinutes(Number(e.target.value))}
-                            className="w-full p-2 rounded-xl border-purple-200 bg-white text-purple-900"
-                          >
-                            <option value={15}>{t('15 mins before', 'قبل 15 دقيقة')}</option>
-                            <option value={30}>{t('30 mins before', 'قبل 30 دقيقة')}</option>
-                            <option value={60}>{t('1 hour before', 'قبل ساعة')}</option>
-                            <option value={120}>{t('2 hours before', 'قبل ساعتين')}</option>
-                          </select>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <Button 
-                            onClick={() => {
-                              const notifyAt = new Date(new Date(localOrder.scheduledFor!).getTime() - reminderMinutes * 60000).toISOString()
-                              onStatusUpdate(localOrder._id, 'acknowledged', notifyAt)
-                            }}
-                            className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold h-12 shadow-sm"
-                          >
-                            {t('Keep in Scheduled Orders', 'حفظ في الطلبات المجدولة')}
+                        <h4 className="font-bold text-purple-900 mb-2 flex justify-between items-center">
+                          {t('Scheduled Order', 'طلب مجدول')}
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            setNewScheduleDate(localOrder.scheduledFor ? new Date(new Date(localOrder.scheduledFor).getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16) : '')
+                            setIsEditingSchedule(!isEditingSchedule)
+                          }} className="text-purple-700 hover:text-purple-900 hover:bg-purple-200 h-8 px-2 rounded-lg">
+                            {isEditingSchedule ? t('Cancel', 'إلغاء') : t('Edit Time', 'تعديل الوقت')}
                           </Button>
-                          <Button 
-                            onClick={() => onStatusUpdate(localOrder._id, 'preparing')}
-                            variant="outline"
-                            className="w-full border-purple-300 text-purple-700 hover:bg-purple-50 rounded-xl font-bold h-12"
-                          >
-                            {t('Start Preparing Now', 'البدء في التحضير الآن')}
-                          </Button>
-                        </div>
+                        </h4>
+                        
+                        {isEditingSchedule ? (
+                          <div className="mb-4 p-3 bg-white/60 rounded-2xl border border-purple-200">
+                            <label className="text-sm font-medium text-purple-800 block mb-2">
+                              {t('New Date & Time:', 'تاريخ ووقت جديد:')}
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={newScheduleDate}
+                              onChange={(e) => setNewScheduleDate(e.target.value)}
+                              className="w-full p-2 rounded-xl border-purple-200 bg-white text-purple-900 mb-3"
+                            />
+                            <Button
+                              onClick={() => {
+                                if (newScheduleDate) {
+                                  const notifyAt = new Date(new Date(newScheduleDate).getTime() - reminderMinutes * 60000).toISOString()
+                                  onStatusUpdate(localOrder._id, 'acknowledged', notifyAt, new Date(newScheduleDate).toISOString())
+                                  setIsEditingSchedule(false)
+                                }
+                              }}
+                              className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold shadow-sm"
+                            >
+                              <Save className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                              {t('Save Changes', 'حفظ التغييرات')}
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="mb-4">
+                              <label className="text-sm font-medium text-purple-800 block mb-1">
+                                {t('Remind me to start preparing:', 'ذكرني ببدء التحضير:')}
+                              </label>
+                              <select 
+                                value={reminderMinutes} 
+                                onChange={(e) => setReminderMinutes(Number(e.target.value))}
+                                className="w-full p-2 rounded-xl border-purple-200 bg-white text-purple-900"
+                              >
+                                <option value={15}>{t('15 mins before', 'قبل 15 دقيقة')}</option>
+                                <option value={30}>{t('30 mins before', 'قبل 30 دقيقة')}</option>
+                                <option value={60}>{t('1 hour before', 'قبل ساعة')}</option>
+                                <option value={120}>{t('2 hours before', 'قبل ساعتين')}</option>
+                              </select>
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <Button 
+                                onClick={() => {
+                                  const notifyAt = new Date(new Date(localOrder.scheduledFor!).getTime() - reminderMinutes * 60000).toISOString()
+                                  onStatusUpdate(localOrder._id, 'acknowledged', notifyAt)
+                                }}
+                                className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold h-12 shadow-sm"
+                              >
+                                {t('Keep in Scheduled Orders', 'حفظ في الطلبات المجدولة')}
+                              </Button>
+                              <Button 
+                                onClick={() => onStatusUpdate(localOrder._id, 'preparing')}
+                                variant="outline"
+                                className="w-full border-purple-300 text-purple-700 hover:bg-purple-50 rounded-xl font-bold h-12"
+                              >
+                                {t('Start Preparing Now', 'البدء في التحضير الآن')}
+                              </Button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     ) : (
                       <StepButton isActive={false} isCompleted={s0Done} onClick={currentStatus === 'preparing' ? () => onStatusUpdate(localOrder._id, 'acknowledged') : undefined} icon={CheckCircle2} labelEn="Scheduled Order Acknowledged" labelAr="تم استلام الطلب المجدول" colorClass="bg-purple-500" />
