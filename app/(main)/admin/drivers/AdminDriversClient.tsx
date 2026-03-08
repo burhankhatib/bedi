@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Truck, Loader2, Edit, UserMinus, MessageCircle, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { Truck, Loader2, Edit, UserMinus, MessageCircle, ArrowUp, ArrowDown, ArrowUpDown, Trash2, AlertTriangle } from 'lucide-react'
 import { BlockToggle } from '@/components/admin/BlockToggle'
 import { VerifyToggle } from '@/components/admin/VerifyToggle'
 import {
@@ -35,6 +35,9 @@ export function AdminDriversClient() {
   const [unassignLoading, setUnassignLoading] = useState(false)
   const [unassignMessage, setUnassignMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [testingWa, setTestingWa] = useState<string | null>(null)
+  const [driverToDelete, setDriverToDelete] = useState<Driver | null>(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteMessage, setDeleteMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Filters
   const [searchName, setSearchName] = useState('')
@@ -116,6 +119,36 @@ export function AdminDriversClient() {
       alert('❌ Error sending WhatsApp message')
     } finally {
       setTestingWa(null)
+    }
+  }
+
+  const handleDeleteSubmit = async () => {
+    if (!driverToDelete) return
+    setDeleteLoading(true)
+    setDeleteMessage(null)
+    try {
+      const res = await fetch(`/api/admin/drivers/${driverToDelete._id}/delete`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setDeleteMessage({ type: 'error', text: data?.error || 'Failed to delete' })
+        return
+      }
+      setDeleteMessage({
+        type: 'success',
+        text: data?.message ?? 'Driver deleted successfully.',
+      })
+      setDrivers(prev => prev.filter(d => d._id !== driverToDelete._id))
+      setTimeout(() => {
+        setDriverToDelete(null)
+        setDeleteMessage(null)
+      }, 2000)
+    } catch {
+      setDeleteMessage({ type: 'error', text: 'Request failed' })
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -347,7 +380,7 @@ export function AdminDriversClient() {
                         setUnassignMessage(null)
                       }}
                       className="inline-flex items-center justify-center p-2 text-slate-400 hover:text-amber-400 transition-colors"
-                      title="Unassign from all orders (then delete in Studio)"
+                      title="Unassign from all orders"
                     >
                       <UserMinus className="size-4" />
                     </button>
@@ -359,6 +392,17 @@ export function AdminDriversClient() {
                     >
                       <Edit className="size-4" />
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDriverToDelete(d)
+                        setDeleteMessage(null)
+                      }}
+                      className="inline-flex items-center justify-center p-2 text-slate-400 hover:text-rose-500 transition-colors"
+                      title="Delete Driver Permanently"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -414,6 +458,45 @@ export function AdminDriversClient() {
                 'Unassign and reassign'
               ) : (
                 'Unassign from all orders'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!driverToDelete} onOpenChange={(open) => !open && setDriverToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-rose-500 flex items-center gap-2">
+              <AlertTriangle className="size-5" />
+              Delete {driverToDelete?.name ?? 'driver'}?
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              This will permanently delete this driver's profile from the system. 
+              Any active or past orders assigned to them will be automatically reassigned to a "Default Driver" to prevent broken records.
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteMessage && (
+            <p className={`text-sm ${deleteMessage.type === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {deleteMessage.text}
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDriverToDelete(null)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleDeleteSubmit} 
+              disabled={deleteLoading}
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {deleteLoading ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Deleting…
+                </>
+              ) : (
+                'Yes, delete permanently'
               )}
             </Button>
           </DialogFooter>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Package, Truck, UtensilsCrossed, Store, Clock, CheckCircle2, XCircle, ChefHat, Search, ChevronDown, ChevronUp, Filter, LayoutGrid, List, Undo2, Settings } from 'lucide-react'
+import { Package, Truck, UtensilsCrossed, Store, Clock, CheckCircle2, XCircle, ChefHat, Search, ChevronDown, ChevronUp, Filter, LayoutGrid, List, Undo2, Settings, Phone, MessageCircle, UserMinus } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { AdminProtection } from '@/components/Auth/AdminProtection'
 import { OrderDetailsModal } from '@/components/Orders/OrderDetailsModal'
@@ -112,6 +112,16 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   const isUpdatingStatusRef = useRef(false)
   const [undoTimeout, setUndoTimeout] = useState<number>(5)
+  const [drivers, setDrivers] = useState<any[]>([])
+  const [loadingDrivers, setLoadingDrivers] = useState(false)
+  const [showOfflineDrivers, setShowOfflineDrivers] = useState(false)
+  
+  // Modals for quick actions
+  const [customerModalOrder, setCustomerModalOrder] = useState<Order | null>(null)
+  const [statusModalOrder, setStatusModalOrder] = useState<Order | null>(null)
+  const [driverModalOrder, setDriverModalOrder] = useState<Order | null>(null)
+  const [assignDropdownOrder, setAssignDropdownOrder] = useState<string | null>(null) // holds orderId
+
   const [pendingUpdate, setPendingUpdate] = useState<{
     orderId: string
     newStatus: string
@@ -143,6 +153,21 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
       console.error('Failed to load local storage preferences', e)
     }
   }, [])
+
+  useEffect(() => {
+    if (tenantSlug) {
+      setLoadingDrivers(true)
+      fetch(`/api/tenants/${tenantSlug}/drivers`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setDrivers(data)
+          }
+        })
+        .catch(console.error)
+        .finally(() => setLoadingDrivers(false))
+    }
+  }, [tenantSlug])
 
   const toggleHiddenStatus = (status: string) => {
     setHiddenStatuses(prev => {
@@ -340,6 +365,45 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     
     setPendingUpdate(null)
     isUpdatingStatusRef.current = false
+  }
+
+  const assignDriver = async (orderId: string, driverId: string) => {
+    try {
+      const res = await fetch(`/api/tenants/${tenantSlug}/orders/assign-driver`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, driverId })
+      })
+      if (res.ok) {
+        const driver = drivers.find(d => d._id === driverId)
+        setOrders(prev => prev.map(o => o._id === orderId ? { ...o, assignedDriver: driver } : o))
+        setAssignDropdownOrder(null)
+      } else {
+        alert('Failed to assign driver')
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Error assigning driver')
+    }
+  }
+
+  const unassignDriver = async (orderId: string) => {
+    try {
+      const res = await fetch(`/api/tenants/${tenantSlug}/orders/unassign-driver`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId })
+      })
+      if (res.ok) {
+        setOrders(prev => prev.map(o => o._id === orderId ? { ...o, assignedDriver: undefined } : o))
+        setDriverModalOrder(null)
+      } else {
+        alert('Failed to unassign driver')
+      }
+    } catch (e) {
+      console.error(e)
+      alert('Error unassigning driver')
+    }
   }
 
   // Client-side filtering
@@ -687,78 +751,142 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                 <p className="text-slate-400">{t('Try adjusting your filters', 'جرّب تعديل الفلاتر')}</p>
               </div>
             ) : viewMode === 'table' ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left rtl:text-right border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-sm font-semibold text-slate-500">
-                      <th className="py-3 px-4">{t('Order #', 'الطلب #')}</th>
-                      <th className="py-3 px-4">{t('Time', 'الوقت')}</th>
-                      <th className="py-3 px-4">{t('Customer', 'العميل')}</th>
-                      <th className="py-3 px-4">{t('Type', 'النوع')}</th>
-                      <th className="py-3 px-4">{t('Status', 'الحالة')}</th>
-                      <th className="py-3 px-4">{t('Total', 'المجموع')}</th>
-                      <th className="py-3 px-4"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredOrders.map((order) => {
-                      const deliveryOnlyStatuses = ['waiting_for_delivery', 'driver_on_the_way', 'out-for-delivery']
-                      const isDeliveryOrder = order.orderType === 'delivery'
-                      const effectiveStatus = (!isDeliveryOrder && deliveryOnlyStatuses.includes(order.status)) ? 'preparing' : order.status
-                      const statusConfig = STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.new;
-                      const StatusIcon = statusConfig.icon;
-                      const orderTime = new Date(order.createdAt).toLocaleString();
+              <div className="flex flex-col gap-3">
+                {filteredOrders.map((order) => {
+                  const deliveryOnlyStatuses = ['waiting_for_delivery', 'driver_on_the_way', 'out-for-delivery']
+                  const isDeliveryOrder = order.orderType === 'delivery'
+                  const effectiveStatus = (!isDeliveryOrder && deliveryOnlyStatuses.includes(order.status)) ? 'preparing' : order.status
+                  const statusConfig = STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.new;
+                  const orderTime = new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-                      return (
-                        <tr 
-                          key={order._id} 
-                          className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
+                  return (
+                    <div 
+                      key={order._id} 
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* Order Number (clickable) */}
+                        <button 
                           onClick={() => setSelectedOrder(order)}
+                          className="font-black text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-sm transition-colors"
                         >
-                          <td className="py-4 px-4 font-black text-slate-900">#{order.orderNumber}</td>
-                          <td className="py-4 px-4 text-sm text-slate-500">
-                            {orderTime}
-                            {order.scheduledFor && (
-                              <div className="text-xs font-bold text-purple-600 mt-1">
-                                {t('Scheduled:', 'مجدول:')} {new Date(order.scheduledFor).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                              </div>
+                          #{order.orderNumber.slice(-4)}
+                        </button>
+                        
+                        {/* Time */}
+                        <span className="text-xs font-medium text-slate-400">{orderTime}</span>
+                        
+                        <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+                        {/* Customer Name (clickable) */}
+                        <button 
+                          onClick={() => setCustomerModalOrder(order)}
+                          className="font-bold text-slate-700 hover:text-blue-600 truncate max-w-[150px] transition-colors"
+                          title={order.customerName}
+                        >
+                          {order.customerName}
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        {/* Status Button (clickable) */}
+                        <button 
+                          onClick={() => setStatusModalOrder(order)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition-transform hover:scale-105 active:scale-95 ${statusConfig.color}`}
+                        >
+                          <statusConfig.icon className="w-3.5 h-3.5" />
+                          {lang === 'ar' ? statusConfig.labelAr : statusConfig.label}
+                          <ChevronDown className="w-3 h-3 ml-0.5 opacity-70" />
+                        </button>
+
+                        {/* Delivery Action */}
+                        {isDeliveryOrder && (
+                          <div className="relative">
+                            {order.assignedDriver ? (
+                              <button
+                                onClick={() => setDriverModalOrder(order)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 text-xs font-bold transition-colors"
+                              >
+                                <Truck className="w-3.5 h-3.5" />
+                                {order.assignedDriver.name.split(' ')[0]}
+                                <ChevronDown className="w-3 h-3 opacity-70" />
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => setAssignDropdownOrder(assignDropdownOrder === order._id ? null : order._id)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs font-bold transition-colors"
+                                >
+                                  <Truck className="w-3.5 h-3.5" />
+                                  {t('Request Delivery', 'طلب توصيل')}
+                                  <ChevronDown className="w-3 h-3 opacity-70" />
+                                </button>
+                                
+                                {/* Assign Driver Dropdown */}
+                                <AnimatePresence>
+                                  {assignDropdownOrder === order._id && (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0, y: -10 }}
+                                      className="absolute right-0 sm:left-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 z-40 overflow-hidden"
+                                    >
+                                      <div className="p-3 border-b border-slate-100 bg-slate-50">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                          <input 
+                                            type="checkbox" 
+                                            checked={showOfflineDrivers}
+                                            onChange={(e) => setShowOfflineDrivers(e.target.checked)}
+                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                          />
+                                          <span className="text-xs font-medium text-slate-600">
+                                            {t('Show offline drivers', 'إظهار السائقين غير المتصلين')}
+                                          </span>
+                                        </label>
+                                      </div>
+                                      <div className="max-h-60 overflow-y-auto">
+                                        {loadingDrivers ? (
+                                          <p className="p-4 text-center text-xs text-slate-400">Loading...</p>
+                                        ) : drivers.filter(d => showOfflineDrivers || d.isOnline).length === 0 ? (
+                                          <p className="p-4 text-center text-xs text-slate-400">
+                                            {t('No drivers available.', 'لا يوجد سائقين متاحين.')}
+                                          </p>
+                                        ) : (
+                                          drivers.filter(d => showOfflineDrivers || d.isOnline).map(driver => {
+                                            // Check area compatibility
+                                            const canServe = !order.deliveryArea || !driver.deliveryAreas?.length || driver.deliveryAreas.some((a: any) => a._id === order.deliveryArea?._id);
+                                            return (
+                                              <button
+                                                key={driver._id}
+                                                onClick={() => assignDriver(order._id, driver._id)}
+                                                className={`w-full text-left rtl:text-right px-4 py-3 border-b border-slate-50 hover:bg-slate-50 flex items-center justify-between ${!canServe ? 'opacity-50 grayscale' : ''}`}
+                                              >
+                                                <div>
+                                                  <p className="text-sm font-bold text-slate-800">{driver.name}</p>
+                                                  <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className={`w-2 h-2 rounded-full ${driver.isOnline ? 'bg-green-500' : 'bg-slate-300'}`} />
+                                                    <span className="text-xs text-slate-500">{driver.isOnline ? 'Online' : 'Offline'}</span>
+                                                  </div>
+                                                </div>
+                                                <div className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+                                                  {t('Assign', 'تعيين')}
+                                                </div>
+                                              </button>
+                                            )
+                                          })
+                                        )}
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </>
                             )}
-                          </td>
-                          <td className="py-4 px-4">
-                            <p className="font-semibold text-slate-900">{order.customerName}</p>
-                            {order.customerPhone && <p className="text-xs text-slate-500">{order.customerPhone}</p>}
-                          </td>
-                          <td className="py-4 px-4">
-                            <span className="text-sm text-slate-600">
-                              {order.orderType === 'receive-in-person'
-                                ? t('Receive in Person', 'استلام شخصي')
-                                : order.orderType === 'dine-in'
-                                  ? t('Dine-in', 'تناول هنا')
-                                  : t('Delivery', 'توصيل')}
-                            </span>
-                            {order.orderType === 'dine-in' && order.tableNumber && (
-                              <span className="block text-xs font-bold text-slate-500 mt-1">T: {order.tableNumber}</span>
-                            )}
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-white shadow-sm ${statusConfig.color}`}>
-                              <StatusIcon className="w-3.5 h-3.5" />
-                              {lang === 'ar' ? statusConfig.labelAr : statusConfig.label}
-                            </div>
-                          </td>
-                          <td className="py-4 px-4 font-black text-slate-900">
-                            {order.totalAmount.toFixed(2)} <span className="text-xs text-slate-500">{order.currency}</span>
-                          </td>
-                          <td className="py-4 px-4 text-right">
-                            <Button variant="ghost" size="sm" className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 font-semibold">
-                              {t('View', 'عرض')}
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -782,22 +910,35 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ duration: 0.2 }}
                       key={order._id}
-                      className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-slate-400 text-slate-900"
-                      onClick={() => setSelectedOrder(order)}
+                      className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow border-2 border-transparent hover:border-slate-400 text-slate-900 flex flex-col"
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div>
-                          <h3 className="text-xl font-black mb-1 text-slate-900">Order #{order.orderNumber}</h3>
+                          <button 
+                            onClick={() => setSelectedOrder(order)}
+                            className="text-xl font-black mb-1 text-slate-900 text-left hover:text-blue-600 transition-colors"
+                          >
+                            Order #{order.orderNumber.slice(-4)}
+                          </button>
                           <p className="text-sm text-slate-500">{orderTime}</p>
                         </div>
-                        <div className={`${statusConfig.color} text-white px-3 py-1 rounded-lg flex items-center gap-1`}>
+                        <button 
+                          onClick={() => setStatusModalOrder(order)}
+                          className={`${statusConfig.color} text-white px-3 py-1.5 rounded-lg flex items-center gap-1 transition-transform hover:scale-105 active:scale-95`}
+                        >
                           <StatusIcon className="w-4 h-4" />
                           <span className="font-bold text-sm">{lang === 'ar' ? statusConfig.labelAr : statusConfig.label}</span>
-                        </div>
+                          <ChevronDown className="w-3 h-3 ml-0.5 opacity-70" />
+                        </button>
                       </div>
 
-                      <div className="space-y-2 mb-4">
-                        <p className="font-semibold text-slate-900">{order.customerName}</p>
+                      <div className="space-y-2 mb-4 flex-1">
+                        <button 
+                          onClick={() => setCustomerModalOrder(order)}
+                          className="font-semibold text-slate-900 text-left hover:text-blue-600 transition-colors block"
+                        >
+                          {order.customerName}
+                        </button>
                         {order.orderType === 'dine-in' && order.tableNumber && (
                           <p className="text-sm text-slate-600">{t('Table', 'طاولة')}: {order.tableNumber}</p>
                         )}
@@ -808,20 +949,97 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                               : t('Needs help', 'يحتاج مساعدة')}
                           </p>
                         )}
-                        {order.orderType === 'delivery' && (
+                        {isDeliveryOrder && (
                           <>
                             {order.customerPhone && (
-                              <p className="text-sm text-slate-600">Phone: {order.customerPhone}</p>
+                              <p className="text-sm text-slate-600 font-mono" dir="ltr">{order.customerPhone}</p>
                             )}
                             {order.deliveryArea && (
                               <p className="text-sm text-slate-600">Area: {order.deliveryArea.name_en}</p>
                             )}
-                            {order.assignedDriver && (
-                              <p className="text-sm text-orange-600 font-semibold">Driver: {order.assignedDriver.name}</p>
-                            )}
+                            
+                            <div className="mt-3 relative">
+                              {order.assignedDriver ? (
+                                <button
+                                  onClick={() => setDriverModalOrder(order)}
+                                  className="flex items-center gap-1.5 px-3 py-2 w-full justify-center rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 text-sm font-bold transition-colors"
+                                >
+                                  <Truck className="w-4 h-4" />
+                                  {order.assignedDriver.name}
+                                  <ChevronDown className="w-4 h-4 opacity-70 ml-1" />
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => setAssignDropdownOrder(assignDropdownOrder === order._id ? null : order._id)}
+                                    className="flex items-center gap-1.5 px-3 py-2 w-full justify-center rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-bold transition-colors"
+                                  >
+                                    <Truck className="w-4 h-4" />
+                                    {t('Request Delivery', 'طلب توصيل')}
+                                    <ChevronDown className="w-4 h-4 opacity-70 ml-1" />
+                                  </button>
+                                  
+                                  <AnimatePresence>
+                                    {assignDropdownOrder === order._id && (
+                                      <motion.div
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -10 }}
+                                        className="absolute left-0 right-0 top-full mt-2 bg-white rounded-xl shadow-xl border border-slate-200 z-40 overflow-hidden"
+                                      >
+                                        <div className="p-3 border-b border-slate-100 bg-slate-50">
+                                          <label className="flex items-center gap-2 cursor-pointer">
+                                            <input 
+                                              type="checkbox" 
+                                              checked={showOfflineDrivers}
+                                              onChange={(e) => setShowOfflineDrivers(e.target.checked)}
+                                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="text-xs font-medium text-slate-600">
+                                              {t('Show offline drivers', 'إظهار السائقين غير المتصلين')}
+                                            </span>
+                                          </label>
+                                        </div>
+                                        <div className="max-h-60 overflow-y-auto">
+                                          {loadingDrivers ? (
+                                            <p className="p-4 text-center text-xs text-slate-400">Loading...</p>
+                                          ) : drivers.filter(d => showOfflineDrivers || d.isOnline).length === 0 ? (
+                                            <p className="p-4 text-center text-xs text-slate-400">
+                                              {t('No drivers available.', 'لا يوجد سائقين متاحين.')}
+                                            </p>
+                                          ) : (
+                                            drivers.filter(d => showOfflineDrivers || d.isOnline).map(driver => {
+                                              const canServe = !order.deliveryArea || !driver.deliveryAreas?.length || driver.deliveryAreas.some((a: any) => a._id === order.deliveryArea?._id);
+                                              return (
+                                                <button
+                                                  key={driver._id}
+                                                  onClick={() => assignDriver(order._id, driver._id)}
+                                                  className={`w-full text-left rtl:text-right px-4 py-3 border-b border-slate-50 hover:bg-slate-50 flex items-center justify-between ${!canServe ? 'opacity-50 grayscale' : ''}`}
+                                                >
+                                                  <div>
+                                                    <p className="text-sm font-bold text-slate-800">{driver.name}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                      <span className={`w-2 h-2 rounded-full ${driver.isOnline ? 'bg-green-500' : 'bg-slate-300'}`} />
+                                                      <span className="text-xs text-slate-500">{driver.isOnline ? 'Online' : 'Offline'}</span>
+                                                    </div>
+                                                  </div>
+                                                  <div className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+                                                    {t('Assign', 'تعيين')}
+                                                  </div>
+                                                </button>
+                                              )
+                                            })
+                                          )}
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </>
+                              )}
+                            </div>
                           </>
                         )}
-                        <p className="text-lg font-black text-slate-900">
+                        <p className="text-lg font-black text-slate-900 mt-2">
                           {order.totalAmount.toFixed(2)} {order.currency}
                         </p>
                       </div>
@@ -845,7 +1063,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                         </div>
                       )}
 
-                      <div className="flex items-center justify-between text-xs text-slate-500">
+                      <div className="flex items-center justify-between text-xs text-slate-500 mt-auto pt-4 border-t border-slate-100">
                         <span>{order.items.length} item{order.items.length !== 1 ? 's' : ''}</span>
                         <span className={order.orderType === 'delivery' ? 'text-red-600 font-medium' : ''}>
                           {order.orderType === 'receive-in-person'
@@ -880,6 +1098,152 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
             onAcknowledgeTableRequest={onAcknowledgeTableRequest}
           />
         )}
+
+        {/* Customer Info Modal */}
+        <AnimatePresence>
+          {customerModalOrder && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+              onClick={() => setCustomerModalOrder(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl"
+              >
+                <div className="p-6 text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                    <UserMinus className="h-8 w-8" style={{ display: 'none' }} /> {/* Re-using icon just for structure, will replace */}
+                    <div className="text-2xl font-black">{customerModalOrder.customerName.charAt(0).toUpperCase()}</div>
+                  </div>
+                  <h3 className="mb-1 text-2xl font-black text-slate-900">{customerModalOrder.customerName}</h3>
+                  {customerModalOrder.customerPhone && <p className="mb-6 text-slate-500 font-mono" dir="ltr">{customerModalOrder.customerPhone}</p>}
+                  
+                  <div className="flex flex-col gap-3">
+                    {customerModalOrder.customerPhone && (
+                      <>
+                        <a href={`tel:${customerModalOrder.customerPhone}`} className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 font-bold text-white transition-colors hover:bg-blue-700">
+                          <Phone className="h-5 w-5" />
+                          {t('Call Customer', 'اتصال بالعميل')}
+                        </a>
+                        <a href={`https://wa.me/${customerModalOrder.customerPhone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3.5 font-bold text-white transition-colors hover:bg-[#20bd5a]">
+                          <MessageCircle className="h-5 w-5" />
+                          {t('WhatsApp Customer', 'واتساب العميل')}
+                        </a>
+                      </>
+                    )}
+                    <button onClick={() => setCustomerModalOrder(null)} className="mt-2 w-full rounded-xl py-3 font-bold text-slate-500 hover:bg-slate-100">
+                      {t('Close', 'إغلاق')}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Quick Status Modal */}
+        <AnimatePresence>
+          {statusModalOrder && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4 backdrop-blur-sm sm:p-0"
+              onClick={() => setStatusModalOrder(null)}
+            >
+              <motion.div
+                initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-sm overflow-hidden rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl pb-safe"
+              >
+                <div className="p-6">
+                  <h3 className="mb-4 text-xl font-black text-slate-900 text-center">{t('Update Status', 'تحديث الحالة')}</h3>
+                  <div className="flex flex-col gap-2">
+                    {Object.entries(STATUS_CONFIG).map(([statusKey, config]) => {
+                      if (statusKey === 'new') return null; // Usually don't revert to new manually
+                      const isCurrent = statusModalOrder.status === statusKey;
+                      const Icon = config.icon;
+                      return (
+                        <button
+                          key={statusKey}
+                          onClick={() => {
+                            if (!isCurrent) updateOrderStatus(statusModalOrder._id, statusKey);
+                            setStatusModalOrder(null);
+                          }}
+                          className={`flex items-center gap-3 rounded-xl p-4 transition-colors ${
+                            isCurrent ? `${config.color} text-white` : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          <Icon className="h-5 w-5" />
+                          <span className="font-bold text-sm flex-1 text-left rtl:text-right">
+                            {lang === 'ar' ? config.labelAr : config.label}
+                          </span>
+                          {isCurrent && <CheckCircle2 className="h-5 w-5 opacity-50" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button onClick={() => setStatusModalOrder(null)} className="mt-4 w-full rounded-xl py-3 font-bold text-slate-500 hover:bg-slate-100">
+                    {t('Cancel', 'إلغاء')}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Driver Action Modal */}
+        <AnimatePresence>
+          {driverModalOrder && driverModalOrder.assignedDriver && (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+              onClick={() => setDriverModalOrder(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl"
+              >
+                <div className="p-6 text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-orange-600">
+                    <Truck className="h-8 w-8" />
+                  </div>
+                  <h3 className="mb-1 text-2xl font-black text-slate-900">{driverModalOrder.assignedDriver.name}</h3>
+                  {driverModalOrder.assignedDriver.phoneNumber && <p className="mb-6 text-slate-500 font-mono" dir="ltr">{driverModalOrder.assignedDriver.phoneNumber}</p>}
+                  
+                  <div className="flex flex-col gap-3">
+                    {driverModalOrder.assignedDriver.phoneNumber && (
+                      <>
+                        <a href={`tel:${driverModalOrder.assignedDriver.phoneNumber}`} className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3.5 font-bold text-white transition-colors hover:bg-orange-600">
+                          <Phone className="h-5 w-5" />
+                          {t('Call Driver', 'اتصال بالسائق')}
+                        </a>
+                        <a href={`https://wa.me/${driverModalOrder.assignedDriver.phoneNumber.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] py-3.5 font-bold text-white transition-colors hover:bg-[#20bd5a]">
+                          <MessageCircle className="h-5 w-5" />
+                          {t('WhatsApp Driver', 'واتساب السائق')}
+                        </a>
+                      </>
+                    )}
+                    <div className="h-px w-full bg-slate-100 my-2" />
+                    <button 
+                      onClick={() => unassignDriver(driverModalOrder._id)} 
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 py-3.5 font-bold text-red-600 transition-colors hover:bg-red-100"
+                    >
+                      <UserMinus className="h-5 w-5" />
+                      {t('Unassign Driver', 'إلغاء تعيين السائق')}
+                    </button>
+                    <button onClick={() => setDriverModalOrder(null)} className="mt-2 w-full rounded-xl py-3 font-bold text-slate-500 hover:bg-slate-100">
+                      {t('Close', 'إغلاق')}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
       </div>
     </>
   )
