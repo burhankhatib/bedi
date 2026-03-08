@@ -762,13 +762,19 @@ Please deliver this order to the customer.
                         setNewScheduleDate(localOrder.scheduledFor ? new Date(new Date(localOrder.scheduledFor).getTime() - (new Date().getTimezoneOffset() * 60000)).toISOString().slice(0, 16) : '')
                         setIsEditingSchedule(!isEditingSchedule)
                       }}
-                      className={`h-8 text-xs font-bold rounded-lg px-3 ${localOrder.scheduledFor ? 'text-purple-700 hover:text-purple-800 hover:bg-purple-100' : 'text-slate-600 hover:text-slate-800 hover:bg-slate-100 border border-slate-200'}`}
+                      className={`h-9 px-3 rounded-xl font-bold shadow-sm flex items-center gap-2 ${localOrder.scheduledFor ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'}`}
                     >
-                      <Clock className="w-3.5 h-3.5 mr-1.5 rtl:ml-1.5 rtl:mr-0" />
-                      {localOrder.scheduledFor 
-                        ? (isEditingSchedule ? t('Cancel Reschedule', 'إلغاء الجدولة') : t('Edit Schedule Time', 'تعديل وقت الجدولة'))
-                        : t('Set as Scheduled Order', 'تعيين كطلب مجدول')
-                      }
+                      {localOrder.scheduledFor ? (
+                        <>
+                          <Edit2 className="w-4 h-4" />
+                          {isEditingSchedule ? t('Cancel Reschedule', 'إلغاء الجدولة') : t('Edit Schedule Time', 'تعديل وقت الجدولة')}
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="w-4 h-4" />
+                          {t('Set as Scheduled Order', 'تعيين كطلب مجدول')}
+                        </>
+                      )}
                     </Button>
                   )}
                 </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Package, Truck, UtensilsCrossed, Store, Clock, CheckCircle2, XCircle, ChefHat, Search, ChevronDown, ChevronUp, Filter } from 'lucide-react'
+import { Package, Truck, UtensilsCrossed, Store, Clock, CheckCircle2, XCircle, ChefHat, Search, ChevronDown, ChevronUp, Filter, LayoutGrid, List, Undo2, Settings } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { AdminProtection } from '@/components/Auth/AdminProtection'
 import { OrderDetailsModal } from '@/components/Orders/OrderDetailsModal'
@@ -98,13 +98,60 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [activeTab, setActiveTab] = useState<'live' | 'scheduled'>('live')
-  const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterType, setFilterType] = useState<string>('all')
+  const [hiddenStatuses, setHiddenStatuses] = useState<string[]>([])
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   const isUpdatingStatusRef = useRef(false)
+  const [undoTimeout, setUndoTimeout] = useState<number>(5)
+  const [pendingUpdate, setPendingUpdate] = useState<{
+    orderId: string
+    newStatus: string
+    notifyAt?: string
+    oldOrder: Order
+    timeoutId: NodeJS.Timeout
+    startTime: number
+  } | null>(null)
+
+  // Initialize from localStorage on mount
+  useEffect(() => {
+    try {
+      const storedStatuses = localStorage.getItem('orders_hidden_statuses')
+      if (storedStatuses) {
+        setHiddenStatuses(JSON.parse(storedStatuses))
+      }
+      
+      const storedView = localStorage.getItem('orders_view_mode')
+      if (storedView === 'grid' || storedView === 'table') {
+        setViewMode(storedView)
+      }
+
+      const storedTimeout = localStorage.getItem('orders_undo_timeout')
+      if (storedTimeout) {
+        setUndoTimeout(Number(storedTimeout))
+      }
+    } catch (e) {
+      console.error('Failed to load local storage preferences', e)
+    }
+  }, [])
+
+  const toggleHiddenStatus = (status: string) => {
+    setHiddenStatuses(prev => {
+      const next = prev.includes(status) 
+        ? prev.filter(s => s !== status)
+        : [...prev, status]
+      localStorage.setItem('orders_hidden_statuses', JSON.stringify(next))
+      return next
+    })
+  }
+
+  const handleViewModeChange = (mode: 'grid' | 'table') => {
+    setViewMode(mode)
+    localStorage.setItem('orders_view_mode', mode)
+  }
 
   // Update orders when initialOrders changes (from SanityLive)
   useEffect(() => {
@@ -142,28 +189,8 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     setEndDate(todayString);
   }, []);
 
-  const updateOrderStatus = async (orderId: string, newStatus: string, notifyAt?: string) => {
-    isUpdatingStatusRef.current = true;
-
+  const executeStatusUpdate = async (orderId: string, newStatus: string, notifyAt?: string, oldOrder?: Order) => {
     try {
-      // Optimistically update the order in local state immediately
-      setOrders(prevOrders => {
-        return prevOrders.map(order => {
-          if (order._id === orderId) {
-            const updatedOrder = {
-              ...order,
-              status: newStatus as Order['status'],
-              ...(notifyAt && { notifyAt, reminderSent: false })
-            };
-            if (newStatus === 'completed') {
-              updatedOrder.completedAt = new Date().toISOString();
-            }
-            return updatedOrder;
-          }
-          return order;
-        });
-      });
-
       const payload: { orderId: string; status: string; completedAt?: string; notifyAt?: string } = {
         orderId,
         status: newStatus,
@@ -191,39 +218,102 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
       const responseData = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        console.error('API error response:', {
-          status: response.status,
-          statusText: response.statusText,
-          data: responseData
-        });
         throw new Error(responseData.error || `Failed to update order status: ${response.status} ${response.statusText}`);
       }
-
-      console.log('Order status updated successfully:', responseData);
 
       if (!responseData.success) {
         throw new Error('Update did not return success');
       }
 
-      // Clear flag after a delay to allow SanityLive to update
       setTimeout(() => {
         isUpdatingStatusRef.current = false;
       }, 1000);
-
-      setSelectedOrder(null);
+      
     } catch (error) {
       console.error('Failed to update order status:', error);
       isUpdatingStatusRef.current = false;
 
+      // Revert optimistic update
+      if (oldOrder) {
+        setOrders(prev => prev.map(o => o._id === orderId ? oldOrder : o));
+      } else {
+        setOrders(initialOrders);
+      }
+
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Full error details:', error);
-
-      // Revert optimistic update by using initialOrders
-      setOrders(initialOrders);
-
       alert(`Failed to update order status:\n\n${errorMessage}\n\nPlease check the browser console for more details.`);
     }
+  }
+
+  const updateOrderStatus = (orderId: string, newStatus: string, notifyAt?: string) => {
+    // Clear any existing pending update
+    if (pendingUpdate) {
+      clearTimeout(pendingUpdate.timeoutId)
+      // Execute the pending update immediately if a new one is started
+      executeStatusUpdate(pendingUpdate.orderId, pendingUpdate.newStatus, pendingUpdate.notifyAt, pendingUpdate.oldOrder)
+      setPendingUpdate(null)
+    }
+
+    isUpdatingStatusRef.current = true;
+    
+    // Find the old order for potential revert
+    const oldOrder = orders.find(o => o._id === orderId)
+    if (!oldOrder) return
+
+    // Optimistically update the order in local state immediately
+    setOrders(prevOrders => {
+      return prevOrders.map(order => {
+        if (order._id === orderId) {
+          const updatedOrder = {
+            ...order,
+            status: newStatus as Order['status'],
+            ...(notifyAt && { notifyAt, reminderSent: false })
+          };
+          if (newStatus === 'completed') {
+            updatedOrder.completedAt = new Date().toISOString();
+          }
+          return updatedOrder;
+        }
+        return order;
+      });
+    });
+
+    setSelectedOrder(null);
+
+    // Set up the undo timeout
+    const timeoutId = setTimeout(() => {
+      setPendingUpdate(null)
+      executeStatusUpdate(orderId, newStatus, notifyAt, oldOrder)
+    }, undoTimeout * 1000)
+
+    setPendingUpdate({
+      orderId,
+      newStatus,
+      notifyAt,
+      oldOrder,
+      timeoutId,
+      startTime: Date.now()
+    })
   };
+
+  const undoStatusUpdate = () => {
+    if (!pendingUpdate) return
+    
+    clearTimeout(pendingUpdate.timeoutId)
+    
+    // Revert local state
+    setOrders(prevOrders => {
+      return prevOrders.map(order => {
+        if (order._id === pendingUpdate.orderId) {
+          return pendingUpdate.oldOrder
+        }
+        return order
+      })
+    })
+    
+    setPendingUpdate(null)
+    isUpdatingStatusRef.current = false
+  }
 
   // Client-side filtering
   const filteredOrders = (orders || []).filter(order => {
@@ -252,7 +342,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     }
 
     // Status filter
-    if (filterStatus !== 'all' && order.status !== filterStatus) return false;
+    if (hiddenStatuses.includes(order.status)) return false;
 
     // Type filter
     if (filterType !== 'all' && order.orderType !== filterType) return false;
@@ -279,7 +369,55 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
       {/* OrderNotifications is now handled by OrderNotificationsWrapper */}
 
       <div className="min-h-screen bg-slate-50 p-4 md:p-8 text-slate-900">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto relative">
+          
+          {/* Undo Toast Notification */}
+          <AnimatePresence>
+            {pendingUpdate && (
+              <motion.div
+                initial={{ opacity: 0, y: 50, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 border border-slate-700 w-[90%] max-w-md"
+              >
+                <div className="flex-1">
+                  <p className="font-bold text-sm mb-1">{t('Order Status Changed', 'تم تغيير حالة الطلب')}</p>
+                  <p className="text-xs text-slate-300">
+                    Order #{orders.find(o => o._id === pendingUpdate.orderId)?.orderNumber} to {
+                      STATUS_CONFIG[pendingUpdate.newStatus as keyof typeof STATUS_CONFIG]?.label || pendingUpdate.newStatus
+                    }
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="relative w-8 h-8 flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90">
+                      <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="3" fill="transparent" className="text-slate-700" />
+                      <motion.circle 
+                        cx="16" cy="16" r="14" 
+                        stroke="currentColor" 
+                        strokeWidth="3" 
+                        fill="transparent" 
+                        className="text-orange-500"
+                        strokeDasharray={2 * Math.PI * 14}
+                        initial={{ strokeDashoffset: 0 }}
+                        animate={{ strokeDashoffset: 2 * Math.PI * 14 }}
+                        transition={{ duration: undoTimeout, ease: 'linear' }}
+                      />
+                    </svg>
+                  </div>
+                  <Button 
+                    onClick={undoStatusUpdate}
+                    variant="ghost" 
+                    className="bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl flex items-center gap-2"
+                  >
+                    <Undo2 className="w-4 h-4" />
+                    {t('UNDO', 'تراجع')}
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="bg-white rounded-3xl shadow-lg p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -316,6 +454,26 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                   className="overflow-hidden mb-4"
                 >
                   <div className="space-y-4 pb-4">
+                    {/* Undo Settings */}
+                    <div className="flex justify-end mb-2">
+                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-2 rounded-xl">
+                        <Settings className="w-4 h-4 text-slate-500" />
+                        <span className="text-sm font-medium text-slate-600">Undo Time:</span>
+                        <select 
+                          className="bg-white border border-slate-300 text-sm rounded-lg px-2 py-1 outline-none"
+                          value={undoTimeout}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setUndoTimeout(val);
+                            localStorage.setItem('orders_undo_timeout', String(val));
+                          }}
+                        >
+                          <option value={5}>5s</option>
+                          <option value={10}>10s</option>
+                          <option value={15}>15s</option>
+                        </select>
+                      </div>
+                    </div>
                     {/* Search and Date Filters */}
                     <div className="flex flex-col md:flex-row gap-3">
                       <div className="relative flex-1">
@@ -348,30 +506,41 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                     <div className="space-y-3">
                       {/* Status Filters */}
                       <div>
-                        <span className="text-sm font-semibold text-slate-600 mb-2 block">Status:</span>
-                        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar -mx-2 px-2">
-                          <div className="flex gap-2 min-w-max">
-                            <Button
-                              onClick={() => setFilterStatus('all')}
-                              variant={filterStatus === 'all' ? 'default' : 'outline'}
-                              size="sm"
-                              className="rounded-lg shrink-0"
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-semibold text-slate-600">Status (Uncheck to hide):</span>
+                          {hiddenStatuses.length > 0 && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700"
+                              onClick={() => {
+                                setHiddenStatuses([]);
+                                localStorage.setItem('orders_hidden_statuses', JSON.stringify([]));
+                              }}
                             >
-                              All Status
+                              Show All
                             </Button>
-                            {Object.entries(STATUS_CONFIG).map(([status, config]) => (
-                              <Button
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(STATUS_CONFIG).map(([status, config]) => {
+                            const isHidden = hiddenStatuses.includes(status);
+                            return (
+                              <button
                                 key={status}
-                                onClick={() => setFilterStatus(status)}
-                                variant={filterStatus === status ? 'default' : 'outline'}
-                                size="sm"
-                                className="rounded-lg shrink-0"
+                                onClick={() => toggleHiddenStatus(status)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                                  isHidden 
+                                    ? 'border-slate-200 bg-white text-slate-400 opacity-60' 
+                                    : `border-transparent ${config.color} text-white shadow-sm`
+                                }`}
                               >
-                                <config.icon className="w-4 h-4 mr-1" />
+                                {isHidden ? <div className="w-3.5 h-3.5 rounded-sm border-2 border-slate-300" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                <config.icon className="w-3.5 h-3.5" />
                                 {lang === 'ar' ? config.labelAr : config.label}
-                              </Button>
-                            ))}
-                          </div>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
 
@@ -425,29 +594,144 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
             </AnimatePresence>
           </div>
 
-          {/* Tabs for Live / Scheduled */}
-          <div className="flex border-b border-slate-200 mb-6">
-            <button
-              className={`py-3 px-6 font-bold text-sm border-b-2 transition-colors ${activeTab === 'live' ? 'border-orange-500 text-orange-500' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-              onClick={() => setActiveTab('live')}
-            >
-              {t('Live Orders', 'الطلبات المباشرة')}
-            </button>
-            <button
-              className={`py-3 px-6 font-bold text-sm border-b-2 transition-colors ${activeTab === 'scheduled' ? 'border-orange-500 text-orange-500' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-              onClick={() => setActiveTab('scheduled')}
-            >
-              {t('Scheduled Orders', 'الطلبات المجدولة')}
-            </button>
+          {/* Tabs and Views Toggle */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 mb-6 gap-4 sm:gap-0 pb-0">
+            <div className="flex">
+              <button
+                className={`py-3 px-6 font-bold text-sm border-b-2 transition-colors ${activeTab === 'live' ? 'border-orange-500 text-orange-500' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                onClick={() => setActiveTab('live')}
+              >
+                {t('Live Orders', 'الطلبات المباشرة')}
+              </button>
+              <button
+                className={`py-3 px-6 font-bold text-sm border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'scheduled' ? 'border-orange-500 text-orange-500' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                onClick={() => setActiveTab('scheduled')}
+              >
+                {t('Scheduled Orders', 'الطلبات المجدولة')}
+                {(() => {
+                  const count = (orders || []).filter(o => {
+                    const isSched = !!o.scheduledFor;
+                    const isScheduledButLive = isSched && !['new', 'acknowledged'].includes(o.status);
+                    return isSched && !isScheduledButLive && o.status !== 'completed' && o.status !== 'cancelled' && o.status !== 'refunded';
+                  }).length;
+                  
+                  if (count === 0) return null;
+                  
+                  return (
+                    <motion.span
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className="flex h-5 items-center justify-center rounded-full bg-purple-100 px-2 text-xs font-black text-purple-700 dark:bg-purple-900/60 dark:text-purple-300"
+                    >
+                      {count}
+                    </motion.span>
+                  );
+                })()}
+              </button>
+            </div>
+            
+            <div className="flex items-center gap-2 pb-3 sm:pb-0">
+              <span className="text-sm font-semibold text-slate-500 mr-2">{t('View:', 'العرض:')}</span>
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                <button
+                  onClick={() => handleViewModeChange('grid')}
+                  className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-white shadow-sm text-orange-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  title={t('Grid View', 'عرض شبكي')}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => handleViewModeChange('table')}
+                  className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-white shadow-sm text-orange-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  title={t('Table View', 'عرض جدول')}
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Orders Grid */}
+          {/* Orders Display */}
           <div className="bg-white rounded-3xl shadow-lg p-6">
             {filteredOrders.length === 0 ? (
               <div className="bg-white rounded-3xl shadow-lg p-8 md:p-12 text-center">
                 <Package className="w-16 h-16 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-slate-400 mb-2">{t('No orders found', 'لا توجد طلبات')}</h3>
                 <p className="text-slate-400">{t('Try adjusting your filters', 'جرّب تعديل الفلاتر')}</p>
+              </div>
+            ) : viewMode === 'table' ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left rtl:text-right border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-sm font-semibold text-slate-500">
+                      <th className="py-3 px-4">{t('Order #', 'الطلب #')}</th>
+                      <th className="py-3 px-4">{t('Time', 'الوقت')}</th>
+                      <th className="py-3 px-4">{t('Customer', 'العميل')}</th>
+                      <th className="py-3 px-4">{t('Type', 'النوع')}</th>
+                      <th className="py-3 px-4">{t('Status', 'الحالة')}</th>
+                      <th className="py-3 px-4">{t('Total', 'المجموع')}</th>
+                      <th className="py-3 px-4"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredOrders.map((order) => {
+                      const deliveryOnlyStatuses = ['waiting_for_delivery', 'driver_on_the_way', 'out-for-delivery']
+                      const isDeliveryOrder = order.orderType === 'delivery'
+                      const effectiveStatus = (!isDeliveryOrder && deliveryOnlyStatuses.includes(order.status)) ? 'preparing' : order.status
+                      const statusConfig = STATUS_CONFIG[effectiveStatus as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.new;
+                      const StatusIcon = statusConfig.icon;
+                      const orderTime = new Date(order.createdAt).toLocaleString();
+
+                      return (
+                        <tr 
+                          key={order._id} 
+                          className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
+                          onClick={() => setSelectedOrder(order)}
+                        >
+                          <td className="py-4 px-4 font-black text-slate-900">#{order.orderNumber}</td>
+                          <td className="py-4 px-4 text-sm text-slate-500">
+                            {orderTime}
+                            {order.scheduledFor && (
+                              <div className="text-xs font-bold text-purple-600 mt-1">
+                                {t('Scheduled:', 'مجدول:')} {new Date(order.scheduledFor).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-4 px-4">
+                            <p className="font-semibold text-slate-900">{order.customerName}</p>
+                            {order.customerPhone && <p className="text-xs text-slate-500">{order.customerPhone}</p>}
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="text-sm text-slate-600">
+                              {order.orderType === 'receive-in-person'
+                                ? t('Receive in Person', 'استلام شخصي')
+                                : order.orderType === 'dine-in'
+                                  ? t('Dine-in', 'تناول هنا')
+                                  : t('Delivery', 'توصيل')}
+                            </span>
+                            {order.orderType === 'dine-in' && order.tableNumber && (
+                              <span className="block text-xs font-bold text-slate-500 mt-1">T: {order.tableNumber}</span>
+                            )}
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold text-white shadow-sm ${statusConfig.color}`}>
+                              <StatusIcon className="w-3.5 h-3.5" />
+                              {lang === 'ar' ? statusConfig.labelAr : statusConfig.label}
+                            </div>
+                          </td>
+                          <td className="py-4 px-4 font-black text-slate-900">
+                            {order.totalAmount.toFixed(2)} <span className="text-xs text-slate-500">{order.currency}</span>
+                          </td>
+                          <td className="py-4 px-4 text-right">
+                            <Button variant="ghost" size="sm" className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 font-semibold">
+                              {t('View', 'عرض')}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -464,7 +748,12 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                   const orderTime = new Date(order.createdAt).toLocaleString();
 
                   return (
-                    <div
+                    <motion.div
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
                       key={order._id}
                       className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-slate-400 text-slate-900"
                       onClick={() => setSelectedOrder(order)}
@@ -539,7 +828,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                               : '🚗 ' + t('Delivery', 'توصيل')}
                         </span>
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
               </div>
