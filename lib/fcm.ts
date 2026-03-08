@@ -102,6 +102,9 @@ export async function sendFCMToTokenDetailed(
           channelId: 'high_importance_channel',
           priority: 'max' as const,
           defaultSound: true,
+          sound: 'default',
+          defaultVibrateTimings: true,
+          visibility: 'public' as const,
         },
       },
       apns: {

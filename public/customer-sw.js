@@ -54,8 +54,8 @@ self.addEventListener('push', function (event) {
     data: { url: path },
     tag: 'bedi-customer',
     renotify: true,
-    requireInteraction: false,
-    vibrate: [200, 100, 200],
+    requireInteraction: true,
+    vibrate: [200, 100, 200, 100, 200],
     silent: false,
   }
   event.waitUntil(self.registration.showNotification(data.title || 'Bedi', options))
