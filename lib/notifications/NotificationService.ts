@@ -105,13 +105,13 @@ export const NotificationService = {
           )
 
           // Format items list
-          const itemsList = orderDoc?.items?.map(i => `${i.quantity}x ${i.productName} (${i.total} ${orderDoc.currency})`).join('، ') || 'لا توجد منتجات'
+          const itemsList = orderDoc?.items?.map(i => `▪️ *${i.quantity}x* _${i.productName}_ (${i.total} ${orderDoc.currency})`).join('\r') || 'لا توجد منتجات'
           
           // Format customer details
-          const customerDetails = `الاسم: ${orderDoc?.customerName || 'غير معروف'}، رقم الهاتف: ${orderDoc?.customerPhone || 'غير متوفر'}، نوع الطلب: ${orderDoc?.orderType === 'delivery' ? 'توصيل' : orderDoc?.orderType === 'dine-in' ? 'محلي' : 'استلام'}${orderDoc?.deliveryAddress ? `، العنوان: ${orderDoc.deliveryAddress}` : ''}`
+          const customerDetails = `👤 *الاسم:* ${orderDoc?.customerName || 'غير معروف'}\r📞 *الهاتف:* ${orderDoc?.customerPhone || 'غير متوفر'}\r🚚 *نوع الطلب:* *${orderDoc?.orderType === 'delivery' ? 'توصيل' : orderDoc?.orderType === 'dine-in' ? 'محلي' : 'استلام'}*${orderDoc?.deliveryAddress ? `\r📍 *العنوان:* _${orderDoc.deliveryAddress}_` : ''}`
 
           // Format full order summary
-          const orderSummary = `تفاصيل الطلب: ${itemsList} - الإجمالي: ${orderDoc?.totalAmount || 0} ${orderDoc?.currency || 'ILS'} - بيانات العميل: ${customerDetails}`
+          const orderSummary = `🛒 *تفاصيل الطلب:*\r${itemsList}\r\r➖➖➖➖➖➖➖➖\r💰 *الإجمالي:* *${orderDoc?.totalAmount || 0} ${orderDoc?.currency || 'ILS'}*\r➖➖➖➖➖➖➖➖\r\r📋 *بيانات العميل:*\r${customerDetails}`
 
           // Send WhatsApp template
           // Assuming template 'new_order' uses {{1}} for businessName and {{2}} for order details

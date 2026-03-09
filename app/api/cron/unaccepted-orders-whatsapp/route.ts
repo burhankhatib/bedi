@@ -83,13 +83,13 @@ export async function GET(req: Request) {
           const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
           
           // Format items list
-          const itemsList = order.items?.map(i => `${i.quantity}x ${i.productName} (${i.total} ${order.currency})`).join('، ') || 'لا توجد منتجات'
+          const itemsList = order.items?.map(i => `▪️ *${i.quantity}x* _${i.productName}_ (${i.total} ${order.currency})`).join('\r') || 'لا توجد منتجات'
           
           // Format customer details
-          const customerDetails = `الاسم: ${order.customerName || 'غير معروف'}، رقم الهاتف: ${order.customerPhone || 'غير متوفر'}، نوع الطلب: ${order.orderType === 'delivery' ? 'توصيل' : order.orderType === 'dine-in' ? 'محلي' : 'استلام'}${order.deliveryAddress ? `، العنوان: ${order.deliveryAddress}` : ''}`
+          const customerDetails = `👤 *الاسم:* ${order.customerName || 'غير معروف'}\r📞 *الهاتف:* ${order.customerPhone || 'غير متوفر'}\r🚚 *نوع الطلب:* *${order.orderType === 'delivery' ? 'توصيل' : order.orderType === 'dine-in' ? 'محلي' : 'استلام'}*${order.deliveryAddress ? `\r📍 *العنوان:* _${order.deliveryAddress}_` : ''}`
 
           // Format full order summary
-          const orderSummary = `تفاصيل الطلب: ${itemsList} - الإجمالي: ${order.totalAmount || 0} ${order.currency || 'ILS'} - بيانات العميل: ${customerDetails}`
+          const orderSummary = `🛒 *تفاصيل الطلب:*\r${itemsList}\r\r➖➖➖➖➖➖➖➖\r💰 *الإجمالي:* *${order.totalAmount || 0} ${order.currency || 'ILS'}*\r➖➖➖➖➖➖➖➖\r\r📋 *بيانات العميل:*\r${customerDetails}`
 
           const result = await sendWhatsAppTemplateMessage(
             phone,
