@@ -34,15 +34,31 @@ export async function GET(
     { lat: customerLat, lng: customerLng }
   )
 
-  const minFee = tenant.deliveryFeeMin ?? Number(process.env.DEFAULT_DELIVERY_FEE_MIN || 10)
+  const minFee = Math.max(10, tenant.deliveryFeeMin ?? Number(process.env.DEFAULT_DELIVERY_FEE_MIN || 10)) // Minimum base fee is always 10
   const maxFee = tenant.deliveryFeeMax ?? Number(process.env.DEFAULT_DELIVERY_FEE_MAX || 25)
-  const maxDistanceKm = tenant.deliveryMaxDistanceKm ?? 15
 
-  // Linear formula: fee = minFee + (dist / maxDist) * (maxFee - minFee)
+  // Smart City-based pricing
+  const city = (tenant.city || '').toLowerCase().trim()
+  
+  const smallCities = ['bethany', 'al-eizariya', 'العيزرية', 'jericho', 'اريحا', 'أريحا']
+  const largeCities = ['jerusalem', 'القدس', 'ramallah', 'رام الله', 'nablus', 'نابلس', 'bethlehem', 'بيت لحم', 'hebron', 'الخليل']
+  
+  let baseDistance = 1.5 // default
+  let extraKmRate = 5    // default
+
+  if (smallCities.includes(city)) {
+    baseDistance = 1.0
+    extraKmRate = 10
+  } else if (largeCities.includes(city)) {
+    baseDistance = 2.0
+    extraKmRate = 4
+  }
+
+  // Base + Extra formula
   let rawFee = minFee
-  if (distKm > 0) {
-    const fraction = Math.min(distKm / maxDistanceKm, 1.0)
-    rawFee = minFee + fraction * (maxFee - minFee)
+  if (distKm > baseDistance) {
+    const extraDistance = distKm - baseDistance
+    rawFee = minFee + (extraDistance * extraKmRate)
   }
 
   // Round to nearest 5 (10, 15, 20, 25, 30)
