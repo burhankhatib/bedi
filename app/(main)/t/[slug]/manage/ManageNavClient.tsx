@@ -26,8 +26,9 @@ const NAV_GROUPS = [
     items: [
       { path: '/menu', labelEn: 'Menu', labelAr: 'القائمة', icon: Menu, permission: 'settings_menu' },
       { path: '/tables', labelEn: 'Tables', labelAr: 'الطاولات', icon: Table, permission: 'settings_tables' },
-      { path: '/areas', labelEn: 'Delivery areas', labelAr: 'مناطق التوصيل', icon: MapPin, permission: 'settings_areas' },
-      { path: '/drivers', labelEn: 'Drivers', labelAr: 'السائقون', icon: Truck, permission: 'settings_drivers' },
+      // Delivery Areas and Drivers hidden: auto distance-based pricing in use; drivers managed centrally
+      // { path: '/areas', labelEn: 'Delivery areas', labelAr: 'مناطق التوصيل', icon: MapPin, permission: 'settings_areas' },
+      // { path: '/drivers', labelEn: 'Drivers', labelAr: 'السائقون', icon: Truck, permission: 'settings_drivers' },
     ]
   },
   {

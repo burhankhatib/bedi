@@ -35,31 +35,34 @@ export async function GET(
   )
 
   const minFee = Math.max(10, tenant.deliveryFeeMin ?? Number(process.env.DEFAULT_DELIVERY_FEE_MIN || 10)) // Minimum base fee is always 10
-  const maxFee = tenant.deliveryFeeMax ?? Number(process.env.DEFAULT_DELIVERY_FEE_MAX || 25)
 
   // Smart City-based pricing
   const city = (tenant.city || '').toLowerCase().trim()
-  
   const smallCities = ['bethany', 'al-eizariya', 'العيزرية', 'jericho', 'اريحا', 'أريحا']
   const largeCities = ['jerusalem', 'القدس', 'ramallah', 'رام الله', 'nablus', 'نابلس', 'bethlehem', 'بيت لحم', 'hebron', 'الخليل']
+  // Big cities: default max 35 ILS; small cities: 30 ILS; others: 25
+  const maxFee = tenant.deliveryFeeMax ?? (
+    largeCities.includes(city) ? 35 :
+    smallCities.includes(city) ? 30 :
+    Number(process.env.DEFAULT_DELIVERY_FEE_MAX || 25)
+  )
   
   let rawFee: number
 
   if (largeCities.includes(city)) {
-    // Big cities: 10 ILS for first 1.5 km, then 5 ILS per 0.5 km
+    // Big cities: 10 ILS for first 1.5 km, then 5 ILS per 0.75 km (max 35 ILS)
     const d = distKm
     if (d <= 1.5) rawFee = 10
-    else rawFee = 10 + Math.ceil((d - 1.5) / 0.5) * 5
+    else rawFee = 10 + Math.ceil((d - 1.5) / 0.75) * 5
+  } else if (smallCities.includes(city)) {
+    // Small cities (Bethany, Jericho): first 1 km = 10 ILS, every extra 0.5 km = 5 ILS (max 30 ILS)
+    const d = distKm
+    if (d <= 1) rawFee = 10
+    else rawFee = 10 + Math.ceil((d - 1) / 0.5) * 5
   } else {
-    // Small cities and default: base distance + extra per km
-    let baseDistance = 1.5
-    let extraKmRate = 5
-
-    if (smallCities.includes(city)) {
-      baseDistance = 1.0
-      extraKmRate = 10
-    }
-
+    // Default: base distance + extra per km
+    const baseDistance = 1.5
+    const extraKmRate = 5
     rawFee = minFee
     if (distKm > baseDistance) {
       const extraDistance = distKm - baseDistance
