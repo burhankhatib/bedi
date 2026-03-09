@@ -100,9 +100,9 @@ export function UnifiedOrderDialog({
   const [mapsLinkInput, setMapsLinkInput] = useState('')
   const [mapsLinkError, setMapsLinkError] = useState<string | null>(null)
 
-  const showDeliveryOption = hasDelivery === true || (hasDelivery == null && tenantSlug && (loading || areas.length > 0 || cartTenant?.deliveryPricingMode === 'distance'))
-
   const isDistanceMode = cartTenant?.deliveryPricingMode === 'distance'
+  
+  const showDeliveryOption = hasDelivery === true || (hasDelivery == null && tenantSlug && (loading || areas.length > 0 || isDistanceMode))
 
   const nameInputRef = useRef<HTMLInputElement>(null)
   const prevOpenRef = useRef(false)
