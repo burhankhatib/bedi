@@ -780,7 +780,11 @@ function DriverOrdersContent() {
               <Package className="h-6 w-6 shrink-0 text-slate-400" />
               {t('Available orders', 'طلبات متاحة')}
             </h2>
-            {pending.length === 0 ? (
+            {myDeliveries.length > 0 ? (
+              <p className="text-slate-500 text-base bg-slate-900/40 rounded-3xl p-6 text-center border border-slate-800/60 border-dashed">
+                {t('Complete or cancel your current delivery to see new orders.', 'أكمِل أو ألغِ توصيلتك الحالية لرؤية الطلبات الجديدة.')}
+              </p>
+            ) : pending.length === 0 ? (
               <p className="text-slate-500 text-base bg-slate-900/40 rounded-3xl p-6 text-center border border-slate-800/60 border-dashed">
                 {t('No orders right now. Stay online to receive new orders.', 'لا توجد طلبات الآن. ابقَ متصلًا لاستقبال طلبات جديدة.')}
               </p>

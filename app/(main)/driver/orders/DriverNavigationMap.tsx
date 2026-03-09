@@ -120,7 +120,10 @@ export default function DriverNavigationMap({
 
   if (!driverLat || !driverLng) {
     return (
-      <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center text-white">
+      <div 
+        className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center text-white"
+        style={{ paddingTop: 'max(16px, calc(env(safe-area-inset-top, 0px) + 12px))' }}
+      >
         <Loader2 className="w-10 h-10 animate-spin mb-4 text-emerald-500" />
         <p className="font-bold">{t('Locating driver...', 'جاري تحديد موقع السائق...')}</p>
         <Button onClick={onMinimize} variant="ghost" className="mt-6 text-slate-400">
@@ -135,7 +138,10 @@ export default function DriverNavigationMap({
   return (
     <div className="fixed inset-0 z-[100] bg-slate-100 flex flex-col">
       {/* Header Bar */}
-      <div className="bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between safe-top absolute top-0 left-0 right-0 z-[9999] shadow-sm">
+      <div 
+        className="bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-4 flex items-center justify-between absolute top-0 left-0 right-0 z-[9999] shadow-sm"
+        style={{ paddingTop: 'max(16px, calc(env(safe-area-inset-top, 0px) + 12px))' }}
+      >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
             <Navigation className="w-5 h-5" />
