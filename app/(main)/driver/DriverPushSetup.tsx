@@ -14,7 +14,6 @@ export function DriverPushSetup() {
   const [isStandalone, setIsStandalone] = useState(true)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
     const timer = setTimeout(() => {
       try {
         const standalone = window.matchMedia('(display-mode: standalone)').matches

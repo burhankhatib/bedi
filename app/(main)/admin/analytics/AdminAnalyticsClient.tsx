@@ -129,21 +129,22 @@ export function AdminAnalyticsClient() {
   const [customTo, setCustomTo] = useState('')
 
   const dateRange = getDateRangeForPreset(datePreset, customFrom, customTo)
-  const fromDate = dateRange?.from
-  const toDate = dateRange?.to
 
   const fetchStats = useCallback(() => {
     setLoading(true)
     const params = new URLSearchParams()
-    if (fromDate) params.set('from', fromDate)
-    if (toDate) params.set('to', toDate)
+    if (dateRange) {
+      if (dateRange.from) params.set('from', dateRange.from)
+      if (dateRange.to) params.set('to', dateRange.to)
+    }
     const url = `/api/admin/stats${params.toString() ? `?${params}` : ''}`
     fetch(url, { credentials: 'include' })
       .then((r) => r.json())
       .then(setStats)
       .catch(() => setStats(null))
       .finally(() => setLoading(false))
-  }, [fromDate, toDate])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange?.from, dateRange?.to])
 
   useEffect(() => {
     const timer = setTimeout(() => {

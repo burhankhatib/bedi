@@ -13,7 +13,6 @@ export function DriverPWARecommendBanner() {
   const [deferredPrompt, setDeferredPrompt] = useState<{ prompt: () => Promise<{ outcome: string }> } | null>(null)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
     const timer = setTimeout(() => {
       setMounted(true)
       try {

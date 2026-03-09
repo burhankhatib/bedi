@@ -14,7 +14,6 @@ export function DriverPWAInstall() {
   const [isStandalone, setIsStandalone] = useState(false)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
     const timer = setTimeout(() => {
       try {
         const standalone = window.matchMedia('(display-mode: standalone)').matches

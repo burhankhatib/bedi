@@ -28,7 +28,6 @@ export function DriverOrdersGate({ children }: { children: React.ReactNode }) {
   const [isStandalone, setIsStandalone] = useState(true)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
     const timer = setTimeout(() => {
       try {
         setSkipped(sessionStorage.getItem(GATE_SKIP_KEY) === '1')
