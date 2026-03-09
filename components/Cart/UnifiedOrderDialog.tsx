@@ -100,7 +100,8 @@ export function UnifiedOrderDialog({
   const [mapsLinkInput, setMapsLinkInput] = useState('')
   const [mapsLinkError, setMapsLinkError] = useState<string | null>(null)
 
-  const isDistanceMode = cartTenant?.deliveryPricingMode === 'distance'
+  // If deliveryPricingMode is undefined (e.g. old cart in localStorage), default to 'distance' for this test phase
+  const isDistanceMode = cartTenant?.deliveryPricingMode === 'distance' || cartTenant?.deliveryPricingMode === undefined
   
   const showDeliveryOption = hasDelivery === true || (hasDelivery == null && tenantSlug && (loading || areas.length > 0 || isDistanceMode))
 
