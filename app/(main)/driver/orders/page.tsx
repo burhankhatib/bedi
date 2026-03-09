@@ -123,7 +123,7 @@ function DriverOrdersContent() {
       }
       const data = await res.json()
       if (res.ok && data) {
-        let nextPending = (Array.isArray(data.pending) ? data.pending : []).filter(
+        const nextPending = (Array.isArray(data.pending) ? data.pending : []).filter(
           (o: DriverOrder) => !declinedOrderIdsRef.current.has(o.orderId)
         )
         const nextMy = Array.isArray(data.myDeliveries) ? data.myDeliveries : []

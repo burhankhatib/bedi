@@ -29,31 +29,36 @@ export function DriverOrdersGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    try {
-      setSkipped(sessionStorage.getItem(GATE_SKIP_KEY) === '1')
-      const standalone = window.matchMedia('(display-mode: standalone)').matches
-        || (window.navigator as unknown as { standalone?: boolean }).standalone === true
-      setIsStandalone(standalone)
-    } catch {
-      setSkipped(false)
-    }
+    const timer = setTimeout(() => {
+      try {
+        setSkipped(sessionStorage.getItem(GATE_SKIP_KEY) === '1')
+        const standalone = window.matchMedia('(display-mode: standalone)').matches
+          || (window.navigator as unknown as { standalone?: boolean }).standalone === true
+        setIsStandalone(standalone)
+      } catch {
+        setSkipped(false)
+      }
+    }, 0)
+    return () => clearTimeout(timer)
   }, [])
 
   useEffect(() => {
     if (hasPush) {
-      try {
-        sessionStorage.removeItem(GATE_SKIP_KEY)
-      } catch {
-        // ignore
-      }
-      setSkipped(false)
+      const timer = setTimeout(() => {
+        try {
+          sessionStorage.removeItem(GATE_SKIP_KEY)
+        } catch {
+          // ignore
+        }
+        setSkipped(false)
+      }, 0)
+      return () => clearTimeout(timer)
     }
   }, [hasPush])
 
   const isDriverPage = pathname?.startsWith('/driver') === true
   const isProfilePage = pathname === '/driver/profile'
   const isReadOnlyPage = pathname === '/driver/history' || pathname === '/driver/analytics'
-  const showGate = isDriverPage && !isProfilePage && !isReadOnlyPage && checked && !hasPush && !skipped
 
   const handleContinueToOrders = () => {
     try {

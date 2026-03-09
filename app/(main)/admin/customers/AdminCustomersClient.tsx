@@ -182,7 +182,8 @@ export function AdminCustomersClient() {
   }, [buildQuery])
 
   useEffect(() => {
-    fetchCustomers()
+    const timer = setTimeout(() => fetchCustomers(), 0)
+    return () => clearTimeout(timer)
   }, [fetchCustomers])
 
   const toggleCity = (city: string) => {
@@ -212,7 +213,7 @@ export function AdminCustomersClient() {
     }
   }
 
-  const SortIcon = ({ field }: { field: string }) => {
+  const renderSortIcon = (field: string) => {
     if (sortField !== field) return <ArrowUpDown className="size-3 text-slate-600" />
     return sortDirection === 'asc' ? <ArrowUp className="size-3 text-amber-500" /> : <ArrowDown className="size-3 text-amber-500" />
   }
@@ -498,47 +499,47 @@ export function AdminCustomersClient() {
                     <th className="w-8 px-2 py-3" />
                     {columnVisibility.name && (
                       <th className="px-4 py-3 font-medium md:px-6">
-                        <button onClick={() => toggleSort('name')} className="flex items-center gap-1.5 hover:text-white transition-colors">Name <SortIcon field="name" /></button>
+                        <button onClick={() => toggleSort('name')} className="flex items-center gap-1.5 hover:text-white transition-colors">Name {renderSortIcon('name')}</button>
                       </th>
                     )}
                     {columnVisibility.phone && (
                       <th className="px-4 py-3 font-medium md:px-6">
-                        <button onClick={() => toggleSort('phone')} className="flex items-center gap-1.5 hover:text-white transition-colors">Phone <SortIcon field="phone" /></button>
+                        <button onClick={() => toggleSort('phone')} className="flex items-center gap-1.5 hover:text-white transition-colors">Phone {renderSortIcon('phone')}</button>
                       </th>
                     )}
                     {columnVisibility.email && (
                       <th className="px-4 py-3 font-medium md:px-6">
-                        <button onClick={() => toggleSort('email')} className="flex items-center gap-1.5 hover:text-white transition-colors">Email <SortIcon field="email" /></button>
+                        <button onClick={() => toggleSort('email')} className="flex items-center gap-1.5 hover:text-white transition-colors">Email {renderSortIcon('email')}</button>
                       </th>
                     )}
                     {columnVisibility.orders && (
                       <th className="px-4 py-3 font-medium md:px-6">
-                        <button onClick={() => toggleSort('orders')} className="flex items-center gap-1.5 hover:text-white transition-colors">Orders <SortIcon field="orders" /></button>
+                        <button onClick={() => toggleSort('orders')} className="flex items-center gap-1.5 hover:text-white transition-colors">Orders {renderSortIcon('orders')}</button>
                       </th>
                     )}
                     {columnVisibility.totalSpent && (
                       <th className="px-4 py-3 font-medium md:px-6">
-                        <button onClick={() => toggleSort('totalSpent')} className="flex items-center gap-1.5 hover:text-white transition-colors">Total spent <SortIcon field="totalSpent" /></button>
+                        <button onClick={() => toggleSort('totalSpent')} className="flex items-center gap-1.5 hover:text-white transition-colors">Total spent {renderSortIcon('totalSpent')}</button>
                       </th>
                     )}
                     {columnVisibility.businesses && (
                       <th className="px-4 py-3 font-medium md:px-6">
-                        <button onClick={() => toggleSort('businesses')} className="flex items-center gap-1.5 hover:text-white transition-colors">Businesses <SortIcon field="businesses" /></button>
+                        <button onClick={() => toggleSort('businesses')} className="flex items-center gap-1.5 hover:text-white transition-colors">Businesses {renderSortIcon('businesses')}</button>
                       </th>
                     )}
                     {columnVisibility.businessBreakdown && (
                       <th className="px-4 py-3 font-medium md:px-6">
-                        <button onClick={() => toggleSort('businessBreakdown')} className="flex items-center gap-1.5 hover:text-white transition-colors">Per-business <SortIcon field="businessBreakdown" /></button>
+                        <button onClick={() => toggleSort('businessBreakdown')} className="flex items-center gap-1.5 hover:text-white transition-colors">Per-business {renderSortIcon('businessBreakdown')}</button>
                       </th>
                     )}
                     {columnVisibility.firstLastOrder && (
                       <th className="px-4 py-3 font-medium md:px-6">
-                        <button onClick={() => toggleSort('firstLastOrder')} className="flex items-center gap-1.5 hover:text-white transition-colors">First / Last order <SortIcon field="firstLastOrder" /></button>
+                        <button onClick={() => toggleSort('firstLastOrder')} className="flex items-center gap-1.5 hover:text-white transition-colors">First / Last order {renderSortIcon('firstLastOrder')}</button>
                       </th>
                     )}
                     {columnVisibility.block && (
                       <th className="px-4 py-3 font-medium md:px-6 text-center">
-                        <button onClick={() => toggleSort('block')} className="flex items-center justify-center gap-1.5 w-full hover:text-white transition-colors">Block <SortIcon field="block" /></button>
+                        <button onClick={() => toggleSort('block')} className="flex items-center justify-center gap-1.5 w-full hover:text-white transition-colors">Block {renderSortIcon('block')}</button>
                       </th>
                     )}
                   </tr>

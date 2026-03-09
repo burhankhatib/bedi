@@ -29,18 +29,21 @@ export function CreateBusinessForm() {
   const [rulesAcknowledged, setRulesAcknowledged] = useState(false)
 
   useEffect(() => {
-    if (!businessType) {
-      setSubcategories([])
+    const timer = setTimeout(() => {
+      if (!businessType) {
+        setSubcategories([])
+        setBusinessSubcategoryIds([])
+        return
+      }
+      setSubcategoriesLoading(true)
       setBusinessSubcategoryIds([])
-      return
-    }
-    setSubcategoriesLoading(true)
-    setBusinessSubcategoryIds([])
-    fetch(`/api/business-subcategories?businessType=${encodeURIComponent(businessType)}`)
-      .then((r) => r.json())
-      .then((data) => setSubcategories(Array.isArray(data) ? data : []))
-      .catch(() => setSubcategories([]))
-      .finally(() => setSubcategoriesLoading(false))
+      fetch(`/api/business-subcategories?businessType=${encodeURIComponent(businessType)}`)
+        .then((r) => r.json())
+        .then((data) => setSubcategories(Array.isArray(data) ? data : []))
+        .catch(() => setSubcategories([]))
+        .finally(() => setSubcategoriesLoading(false))
+    }, 0)
+    return () => clearTimeout(timer)
   }, [businessType])
 
   const handleNameChange = (value: string) => {

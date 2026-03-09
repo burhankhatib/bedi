@@ -20,7 +20,9 @@ export function usePusherStream(
   options?: UsePusherStreamOptions
 ) {
   const onUpdateRef = useRef(onUpdate)
-  onUpdateRef.current = onUpdate
+  useEffect(() => {
+    onUpdateRef.current = onUpdate
+  }, [onUpdate])
   const debounceMs = options?.debounceMs ?? 0
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 

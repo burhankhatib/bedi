@@ -15,13 +15,16 @@ export function DriverPushSetup() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    try {
-      const standalone = window.matchMedia('(display-mode: standalone)').matches
-        || (window.navigator as unknown as { standalone?: boolean }).standalone === true
-      setIsStandalone(standalone)
-    } catch {
-      setIsStandalone(true)
-    }
+    const timer = setTimeout(() => {
+      try {
+        const standalone = window.matchMedia('(display-mode: standalone)').matches
+          || (window.navigator as unknown as { standalone?: boolean }).standalone === true
+        setIsStandalone(standalone)
+      } catch {
+        setIsStandalone(true)
+      }
+    }, 0)
+    return () => clearTimeout(timer)
   }, [])
 
   if (!checked || !isStandalone) return null

@@ -68,7 +68,7 @@ export async function POST(
   }
 
   let imageRef: string | null = (imageAssetId && typeof imageAssetId === 'string') ? imageAssetId : null
-  let additionalRefs: string[] = Array.isArray(additionalImageAssetIds)
+  const additionalRefs: string[] = Array.isArray(additionalImageAssetIds)
     ? additionalImageAssetIds.filter((id): id is string => typeof id === 'string')
     : []
   if (!imageRef && imageUrl && typeof imageUrl === 'string') {

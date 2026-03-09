@@ -129,29 +129,32 @@ export function AdminAnalyticsClient() {
   const [customTo, setCustomTo] = useState('')
 
   const dateRange = getDateRangeForPreset(datePreset, customFrom, customTo)
+  const fromDate = dateRange?.from
+  const toDate = dateRange?.to
 
   const fetchStats = useCallback(() => {
     setLoading(true)
     const params = new URLSearchParams()
-    if (dateRange) {
-      params.set('from', dateRange.from)
-      params.set('to', dateRange.to)
-    }
+    if (fromDate) params.set('from', fromDate)
+    if (toDate) params.set('to', toDate)
     const url = `/api/admin/stats${params.toString() ? `?${params}` : ''}`
     fetch(url, { credentials: 'include' })
       .then((r) => r.json())
       .then(setStats)
       .catch(() => setStats(null))
       .finally(() => setLoading(false))
-  }, [dateRange?.from, dateRange?.to])
+  }, [fromDate, toDate])
 
   useEffect(() => {
-    if (datePreset === 'custom' && (!customFrom || !customTo)) {
-      setLoading(false)
-      setStats((prev) => prev ?? null)
-      return
-    }
-    fetchStats()
+    const timer = setTimeout(() => {
+      if (datePreset === 'custom' && (!customFrom || !customTo)) {
+        setLoading(false)
+        setStats((prev) => prev ?? null)
+        return
+      }
+      fetchStats()
+    }, 0)
+    return () => clearTimeout(timer)
   }, [datePreset, customFrom, customTo, fetchStats])
 
   if (loading && !stats) {

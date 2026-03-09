@@ -14,13 +14,19 @@ export function DriverPWARecommendBanner() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    setMounted(true)
+    const timer = setTimeout(() => {
+      setMounted(true)
+      try {
+        const standalone =
+          window.matchMedia('(display-mode: standalone)').matches ||
+          (navigator as unknown as { standalone?: boolean }).standalone === true
+        setIsStandalone(standalone)
+        setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent))
+      } catch {
+        // ignore
+      }
+    }, 0)
     try {
-      const standalone =
-        window.matchMedia('(display-mode: standalone)').matches ||
-        (navigator as unknown as { standalone?: boolean }).standalone === true
-      setIsStandalone(standalone)
-      setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent))
       const handler = (e: Event) => {
         try {
           setDeferredPrompt(e as unknown as { prompt: () => Promise<{ outcome: string }> })
@@ -29,9 +35,12 @@ export function DriverPWARecommendBanner() {
         }
       }
       window.addEventListener('beforeinstallprompt', handler)
-      return () => window.removeEventListener('beforeinstallprompt', handler)
+      return () => {
+        clearTimeout(timer)
+        window.removeEventListener('beforeinstallprompt', handler)
+      }
     } catch {
-      return undefined
+      return () => clearTimeout(timer)
     }
   }, [])
 

@@ -218,7 +218,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
     }, 0)
     return () => clearTimeout(timer)
     // Reading from localStorage in useEffect is a standard pattern - necessary here
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [])
 
   // Save view preference to localStorage when it changes

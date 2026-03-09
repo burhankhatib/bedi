@@ -313,7 +313,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
       setData(d ?? null)
       if (d?.tenant) {
         let country = d.tenant.country || ''
-        let city = d.tenant.city || ''
+        const city = d.tenant.city || ''
         if (!country && geo?.countryCode) country = geo.countryCode
         setForm((f) => ({
           ...f,

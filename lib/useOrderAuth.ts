@@ -14,22 +14,25 @@ export function useOrderAuth() {
   const [orderPhone, setOrderPhone] = useState<{ hasVerifiedPhone: boolean; verifiedPhoneValue: string } | null>(null)
 
   useEffect(() => {
-    if (!isSignedIn || !user) {
-      setOrderPhone(null)
-      return
-    }
-    let cancelled = false
-    fetch('/api/me/order-phone', { credentials: 'include', cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled && data && typeof data.hasVerifiedPhone === 'boolean')
-          setOrderPhone({ hasVerifiedPhone: data.hasVerifiedPhone, verifiedPhoneValue: data.verifiedPhoneValue ?? '' })
-      })
-      .catch(() => {
-        if (!cancelled) setOrderPhone(null)
-      })
-    return () => { cancelled = true }
-  }, [isSignedIn, user?.id])
+    const timer = setTimeout(() => {
+      if (!isSignedIn || !user) {
+        setOrderPhone(null)
+        return
+      }
+      let cancelled = false
+      fetch('/api/me/order-phone', { credentials: 'include', cache: 'no-store' })
+        .then((r) => r.json())
+        .then((data) => {
+          if (!cancelled && data && typeof data.hasVerifiedPhone === 'boolean')
+            setOrderPhone({ hasVerifiedPhone: data.hasVerifiedPhone, verifiedPhoneValue: data.verifiedPhoneValue ?? '' })
+        })
+        .catch(() => {
+          if (!cancelled) setOrderPhone(null)
+        })
+      return () => { cancelled = true }
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [isSignedIn, user, user?.id])
 
   const isLoaded = authLoaded && userLoaded
   const fromClerk = Boolean(

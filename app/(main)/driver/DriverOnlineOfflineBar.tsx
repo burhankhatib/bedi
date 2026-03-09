@@ -44,13 +44,14 @@ export function DriverOnlineOfflineBar() {
 
   // When status or isOnline changes, show expanded for 5s then shrink
   useEffect(() => {
-    setExpanded(true)
+    const t = setTimeout(() => setExpanded(true), 0)
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
     timeoutRef.current = setTimeout(() => {
       setExpanded(false)
       timeoutRef.current = null
     }, EXPANDED_DURATION_MS)
     return () => {
+      clearTimeout(t)
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
     }
   }, [isOnline, duration])

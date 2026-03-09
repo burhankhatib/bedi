@@ -422,7 +422,7 @@ export function UnifiedOrderDialog({
 
       // Format for error message
       const formatTime = (mins: number) => {
-        let h = Math.floor(mins / 60) % 24;
+        const h = Math.floor(mins / 60) % 24;
         const m = mins % 60;
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
       };

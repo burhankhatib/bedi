@@ -29,7 +29,7 @@ export default function VerifyPhoneClient() {
   const [strategy, setStrategy] = useState<VerificationStrategy>('meta_whatsapp')
 
   // Normalize returnTo: If driver, redirect to profile to avoid React Error #310 from orders page hydration.
-  let rawReturnTo = searchParams.get('returnTo') || '/'
+  const rawReturnTo = searchParams.get('returnTo') || '/'
   const normalizedReturnTo = rawReturnTo === '/driver' || rawReturnTo.startsWith('/driver/') 
     ? '/driver/profile' 
     : rawReturnTo
@@ -43,7 +43,7 @@ export default function VerifyPhoneClient() {
     if (prefilled) return
 
     let digits = ''
-    let codeParam = searchParams.get('countryCode')?.trim()
+    const codeParam = searchParams.get('countryCode')?.trim()
     const phoneParam = searchParams.get('phone')?.trim()
     
     if (phoneParam) {

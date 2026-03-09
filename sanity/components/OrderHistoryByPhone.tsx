@@ -28,27 +28,30 @@ export const OrderHistoryByPhone: UserViewComponent = (props) => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!phone?.trim()) {
-      setOrders([])
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    client
-      .fetch<OrderRow[]>(
-        `*[_type == "order" && customerPhone == $phone] | order(createdAt desc) [0...50] {
-        _id,
-        orderNumber,
-        status,
-        customerName,
-        createdAt,
-        "siteName": site->name
-      }`,
-        { phone: phone.trim() }
-      )
-      .then((data) => setOrders(Array.isArray(data) ? data : []))
-      .catch(() => setOrders([]))
-      .finally(() => setLoading(false))
+    const timer = setTimeout(() => {
+      if (!phone?.trim()) {
+        setOrders([])
+        setLoading(false)
+        return
+      }
+      setLoading(true)
+      client
+        .fetch<OrderRow[]>(
+          `*[_type == "order" && customerPhone == $phone] | order(createdAt desc) [0...50] {
+          _id,
+          orderNumber,
+          status,
+          customerName,
+          createdAt,
+          "siteName": site->name
+        }`,
+          { phone: phone.trim() }
+        )
+        .then((data) => setOrders(Array.isArray(data) ? data : []))
+        .catch(() => setOrders([]))
+        .finally(() => setLoading(false))
+    }, 0)
+    return () => clearTimeout(timer)
   }, [phone])
 
   if (!phone?.trim()) {

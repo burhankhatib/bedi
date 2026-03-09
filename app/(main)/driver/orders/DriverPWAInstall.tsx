@@ -15,13 +15,19 @@ export function DriverPWAInstall() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    const timer = setTimeout(() => {
+      try {
+        const standalone = window.matchMedia('(display-mode: standalone)').matches
+          || (window.navigator as unknown as { standalone?: boolean }).standalone === true
+        setIsStandalone(standalone)
+        const ua = window.navigator.userAgent
+        const ios = /iPad|iPhone|iPod/.test(ua) && !(window as unknown as { MSStream?: boolean }).MSStream
+        setIsIOS(ios)
+      } catch {
+        // ignore
+      }
+    }, 0)
     try {
-      const standalone = window.matchMedia('(display-mode: standalone)').matches
-        || (window.navigator as unknown as { standalone?: boolean }).standalone === true
-      setIsStandalone(standalone)
-      const ua = window.navigator.userAgent
-      const ios = /iPad|iPhone|iPod/.test(ua) && !(window as unknown as { MSStream?: boolean }).MSStream
-      setIsIOS(ios)
       const handler = (e: Event) => {
         try {
           setDeferredPrompt(e as unknown as { prompt: () => Promise<unknown> })
@@ -32,13 +38,14 @@ export function DriverPWAInstall() {
       window.addEventListener('beforeinstallprompt', handler)
       // On Android: show install card on visit after short delay (same as customer PWA)
       const delayMs = 1500
-      const timer = setTimeout(() => setShowOnVisit(true), delayMs)
+      const delayTimer = setTimeout(() => setShowOnVisit(true), delayMs)
       return () => {
         clearTimeout(timer)
+        clearTimeout(delayTimer)
         window.removeEventListener('beforeinstallprompt', handler)
       }
     } catch {
-      return undefined
+      return () => clearTimeout(timer)
     }
   }, [])
 
