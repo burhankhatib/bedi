@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Package, Truck, History, Store, User, MapPin, Navigation, Flag, Wallet, Receipt, Smartphone, CircleAlert, RefreshCw } from 'lucide-react'
+import { Package, Truck, History, Store, User, MapPin, Navigation, Flag, Wallet, Receipt, Smartphone, CircleAlert, RefreshCw, ArrowDown } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
 import { useDriverPush } from '../DriverPushContext'
@@ -174,6 +174,15 @@ function DriverOrdersContent() {
   useEffect(() => {
     fetchOrders()
   }, [fetchOrders])
+
+  // Refetch orders when driver toggles to Online
+  const prevIsOnlineRef = useRef(isOnline)
+  useEffect(() => {
+    if (isOnline && !prevIsOnlineRef.current) {
+      fetchOrders()
+    }
+    prevIsOnlineRef.current = isOnline
+  }, [isOnline, fetchOrders])
 
   // Always refetch when user opens the app or returns to this tab so new orders appear even if SSE missed or FCM was backgrounded.
   useEffect(() => {
@@ -403,9 +412,12 @@ function DriverOrdersContent() {
     const navSecondary = 'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all'
     return (
     <>
-      {mapState === 'minimized' && activeMapOrderId === o.orderId && (
+      {mapState !== 'maximized' && isGreen && o.status !== 'completed' && (
         <button
-          onClick={() => setMapState('maximized')}
+          onClick={() => {
+            setActiveMapOrderId(o.orderId)
+            setMapState('maximized')
+          }}
           className="w-full flex items-center justify-center gap-2 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-4 mb-4 shadow-lg shadow-blue-500/20"
         >
           <Navigation className="w-5 h-5 animate-pulse" />
@@ -642,13 +654,13 @@ function DriverOrdersContent() {
   const showJustRegistered = justRegistered && !dismissedRegistered
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (window.scrollY === 0) {
+    if (window.scrollY <= 0) {
       setStartY(e.touches[0].clientY)
     }
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (startY !== null && window.scrollY === 0) {
+    if (startY !== null && window.scrollY <= 0) {
       const currentY = e.touches[0].clientY
       const distance = currentY - startY
       if (distance > 0) {
@@ -685,13 +697,29 @@ function DriverOrdersContent() {
         }}
         transition={{ type: "spring", stiffness: 300, damping: 20 }}
       >
-        <div className="bg-slate-800 border border-slate-700 rounded-full p-2 shadow-lg flex items-center justify-center -mt-6">
+        <div className="bg-slate-800 border border-slate-700 rounded-full px-4 py-2 shadow-lg flex items-center justify-center -mt-6 gap-2">
           <motion.div
-            animate={{ rotate: isRefreshing ? 360 : pullDistance * 2 }}
+            animate={{ 
+              rotate: isRefreshing ? 360 : (pullDistance > REFRESH_THRESHOLD ? 180 : 0) 
+            }}
             transition={isRefreshing ? { repeat: Infinity, duration: 1, ease: "linear" } : { type: "spring", stiffness: 200, damping: 20 }}
           >
-            <RefreshCw className="w-5 h-5 text-emerald-400" />
+            {isRefreshing ? (
+              <RefreshCw className="w-5 h-5 text-emerald-400" />
+            ) : (
+              <ArrowDown className={`w-5 h-5 ${pullDistance > REFRESH_THRESHOLD ? 'text-emerald-400' : 'text-slate-400'}`} />
+            )}
           </motion.div>
+          {!isRefreshing && pullDistance > 0 && (
+            <span className={`text-sm font-bold ${pullDistance > REFRESH_THRESHOLD ? 'text-emerald-400' : 'text-slate-400'}`}>
+              {pullDistance > REFRESH_THRESHOLD ? t('Release to refresh', 'أفلت للتحديث') : t('Pull to refresh', 'اسحب للتحديث')}
+            </span>
+          )}
+          {isRefreshing && (
+            <span className="text-sm font-bold text-emerald-400">
+              {t('Refreshing...', 'جاري التحديث...')}
+            </span>
+          )}
         </div>
       </motion.div>
 
@@ -886,6 +914,7 @@ function DriverOrdersContent() {
             destLat={destLat ?? null}
             destLng={destLng ?? null}
             onMinimize={() => setMapState('minimized')}
+            onClose={() => setMapState('hidden')}
             destinationLabel={destinationLabel}
           />
         )

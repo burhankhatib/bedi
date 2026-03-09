@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Minimize2, Navigation, Loader2 } from 'lucide-react'
+import { Minimize2, Navigation, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/components/LanguageContext'
 
@@ -62,6 +62,7 @@ interface DriverNavigationMapProps {
   destLat: number | null
   destLng: number | null
   onMinimize: () => void
+  onClose: () => void
   destinationLabel?: string
 }
 
@@ -71,6 +72,7 @@ export default function DriverNavigationMap({
   destLat,
   destLng,
   onMinimize,
+  onClose,
   destinationLabel
 }: DriverNavigationMapProps) {
   const { t } = useLanguage()
@@ -133,7 +135,7 @@ export default function DriverNavigationMap({
   return (
     <div className="fixed inset-0 z-[100] bg-slate-100 flex flex-col">
       {/* Header Bar */}
-      <div className="bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between safe-top absolute top-0 left-0 right-0 z-[110] shadow-sm">
+      <div className="bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between safe-top absolute top-0 left-0 right-0 z-[9999] shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
             <Navigation className="w-5 h-5" />
@@ -154,14 +156,24 @@ export default function DriverNavigationMap({
             )}
           </div>
         </div>
-        <Button 
-          onClick={onMinimize} 
-          variant="outline" 
-          size="icon" 
-          className="rounded-full w-10 h-10 border-slate-200 text-slate-600 hover:bg-slate-100 shadow-sm"
-        >
-          <Minimize2 className="w-5 h-5" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            onClick={onMinimize} 
+            variant="outline" 
+            size="icon" 
+            className="rounded-full w-10 h-10 border-slate-200 text-slate-600 hover:bg-slate-100 shadow-sm"
+          >
+            <Minimize2 className="w-5 h-5" />
+          </Button>
+          <Button 
+            onClick={onClose} 
+            variant="outline" 
+            size="icon" 
+            className="rounded-full w-10 h-10 border-slate-200 text-slate-600 hover:bg-slate-100 shadow-sm"
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
       </div>
 
       {/* Map */}
