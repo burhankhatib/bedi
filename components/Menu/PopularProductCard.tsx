@@ -126,64 +126,69 @@ export function PopularProductCard({
       </div>
 
       {/* Content Overlay */}
-      <div className="absolute inset-x-0 bottom-0 p-6 flex items-end justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <h3 className="text-white font-black text-xl md:text-2xl leading-tight mb-1 drop-shadow-sm truncate">
-            {t(product.title_en, product.title_ar)}
-          </h3>
-          <div className="flex items-center gap-2">
-            {shouldHidePrice ? null : product.variants && product.variants.length > 0 ? (
-              <span className="text-white/90 text-sm font-bold">
-                {t('Choose your choice', 'اختر خيارك')}
-              </span>
-            ) : (
-              <>
-                {hasSpecialPrice && (
-                  <span className="text-white/50 text-sm line-through font-bold">
-                    {product.price}
+      <div className="absolute inset-x-0 bottom-0 p-6 flex flex-col justify-end gap-2">
+        <h3 className="text-white font-black text-xl md:text-2xl leading-tight drop-shadow-sm truncate">
+          {t(product.title_en, product.title_ar)}
+        </h3>
+        
+        <div className="flex items-center justify-between gap-4 mt-1 min-h-[48px]">
+          <div className="flex-1 min-w-0">
+            {!shouldHidePrice && (
+              <div className="flex items-center gap-2">
+                {product.variants && product.variants.length > 0 ? (
+                  <span className="text-white/90 text-sm font-bold">
+                    {t('Choose your choice', 'اختر خيارك')}
                   </span>
+                ) : (
+                  <>
+                    {hasSpecialPrice && (
+                      <span className="text-white/50 text-sm line-through font-bold">
+                        {product.price}
+                      </span>
+                    )}
+                    <div className="flex items-baseline gap-1">
+                      <span className={cn(
+                        "text-2xl md:text-3xl font-black tracking-tighter drop-shadow-md",
+                        hasSpecialPrice ? "text-red-400" : "text-white"
+                      )}>
+                        {hasSpecialPrice ? product.specialPrice : product.price}
+                      </span>
+                      <span className="text-sm md:text-base font-bold text-white/70">
+                        {formatCurrency(product.currency)}
+                      </span>
+                    </div>
+                  </>
                 )}
-                <div className="flex items-baseline gap-1">
-                  <span className={cn(
-                    "text-2xl md:text-3xl font-black tracking-tighter drop-shadow-md",
-                    hasSpecialPrice ? "text-red-400" : "text-white"
-                  )}>
-                    {hasSpecialPrice ? product.specialPrice : product.price}
-                  </span>
-                  <span className="text-sm md:text-base font-bold text-white/70">
-                    {formatCurrency(product.currency)}
-                  </span>
-                </div>
-              </>
+              </div>
             )}
           </div>
-        </div>
 
-        {/* Floating Add to Cart Button - hidden when closed */}
-        {!catalogOnly && (
-        <motion.button
-          onClick={handleAddToCart}
-          className="relative bg-black shadow-2xl rounded-2xl h-12 w-12 flex items-center justify-center cursor-pointer pointer-events-auto shrink-0"
-          whileHover={{
-            backgroundColor: '#1e293b'
-          }}
-          whileTap={{
-            scale: 0.95,
-            backgroundColor: '#334155'
-          }}
-          transition={{
-            duration: 0.3,
-            ease: [0.4, 0, 0.2, 1]
-          }}
-        >
-          <motion.div
-            whileHover={{ rotate: 180 }}
-            transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+          {/* Floating Add to Cart Button - hidden when closed */}
+          {!catalogOnly && (
+          <motion.button
+            onClick={handleAddToCart}
+            className="relative bg-black shadow-2xl rounded-2xl h-12 w-12 flex items-center justify-center cursor-pointer pointer-events-auto shrink-0"
+            whileHover={{
+              backgroundColor: '#1e293b'
+            }}
+            whileTap={{
+              scale: 0.95,
+              backgroundColor: '#334155'
+            }}
+            transition={{
+              duration: 0.3,
+              ease: [0.4, 0, 0.2, 1]
+            }}
           >
-            <Plus className="w-6 h-6 text-white shrink-0" />
-          </motion.div>
-        </motion.button>
-        )}
+            <motion.div
+              whileHover={{ rotate: 180 }}
+              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+            >
+              <Plus className="w-6 h-6 text-white shrink-0" />
+            </motion.div>
+          </motion.button>
+          )}
+        </div>
       </div>
     </motion.div>
   )

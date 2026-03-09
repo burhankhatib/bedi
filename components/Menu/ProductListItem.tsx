@@ -94,14 +94,16 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
             {t(product.title_en, product.title_ar)}
           </h3>
 
-          {/* Description */}
-          <p className="text-sm text-slate-500 line-clamp-2 mb-2">
-            {t(product.description_en || '', product.description_ar || '')}
-          </p>
+          {/* Description - Optional */}
+          {(product.description_en || product.description_ar) && (
+            <p className="text-sm text-slate-500 line-clamp-2 mb-2">
+              {t(product.description_en || '', product.description_ar || '')}
+            </p>
+          )}
 
           {/* Dietary Tags */}
           {product.dietaryTags && product.dietaryTags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
+            <div className="flex flex-wrap gap-1.5 mb-2 mt-2">
               {product.dietaryTags.slice(0, 3).map((tag) => (
                 <Badge key={tag} variant="secondary" className="text-[9px] px-2 py-0.5 bg-slate-100/50 text-slate-500 border-none font-bold uppercase tracking-wider">
                   {tag}
@@ -112,41 +114,43 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
         </div>
 
         {/* Price and Add Button */}
-        <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-50">
-          <div className="flex items-center gap-2">
-            {shouldHidePrice ? null : product.variants && product.variants.length > 0 ? (
-              <span className="text-sm font-bold text-slate-600">
-                {t('Choose your choice', 'اختر خيارك')}
-              </span>
-            ) : (
-              <>
-                {hasSpecialPrice && (
-                  <span className="text-xs text-slate-400 line-through leading-none">
-                    {product.price}
-                  </span>
-                )}
-                <div className={`flex items-baseline gap-1 ${priceColor}`}>
-                  <span className="text-2xl md:text-3xl font-black tracking-tighter leading-none">
-                    {hasSpecialPrice ? product.specialPrice : product.price}
-                  </span>
-                  <span className="text-base md:text-lg font-bold opacity-70 leading-none">
-                    {formatCurrency(product.currency)}
-                  </span>
-                </div>
-              </>
+        {!shouldHidePrice && (
+          <div className="flex items-center justify-between gap-3 pt-2 mt-auto border-t border-slate-50 min-h-[44px]">
+            <div className="flex items-center gap-2 h-[36px]">
+              {product.variants && product.variants.length > 0 ? (
+                <span className="text-sm font-bold text-slate-600">
+                  {t('Choose your choice', 'اختر خيارك')}
+                </span>
+              ) : (
+                <>
+                  {hasSpecialPrice && (
+                    <span className="text-xs text-slate-400 line-through leading-none">
+                      {product.price}
+                    </span>
+                  )}
+                  <div className={`flex items-baseline gap-1 ${priceColor}`}>
+                    <span className="text-2xl md:text-3xl font-black tracking-tighter leading-none">
+                      {hasSpecialPrice ? product.specialPrice : product.price}
+                    </span>
+                    <span className="text-base md:text-lg font-bold opacity-70 leading-none">
+                      {formatCurrency(product.currency)}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+            {!catalogOnly && (
+            <Button
+              size="sm"
+              onClick={handleAddToCart}
+              className="rounded-full h-9 px-4 bg-black hover:bg-slate-800 shrink-0"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              {t('Add', 'إضافة')}
+            </Button>
             )}
           </div>
-          {!catalogOnly && (
-          <Button
-            size="sm"
-            onClick={handleAddToCart}
-            className="rounded-full h-9 px-4 bg-black hover:bg-slate-800 shrink-0"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            {t('Add', 'إضافة')}
-          </Button>
-          )}
-        </div>
+        )}
       </div>
     </motion.div>
   )

@@ -85,6 +85,16 @@ export function CartDrawer() {
       setCustomerPhone(orderAuth.verifiedPhoneValue)
     }
   }, [orderAuth.hasVerifiedPhone, orderAuth.verifiedPhoneValue, customerPhone, setCustomerPhone])
+
+  // Prefill name from Clerk user data when available and cart name is empty
+  useEffect(() => {
+    if (orderAuth.clerkUser?.fullName && !customerName) {
+      setCustomerName(orderAuth.clerkUser.fullName)
+    } else if (orderAuth.clerkUser?.firstName && !customerName) {
+      setCustomerName(orderAuth.clerkUser.firstName)
+    }
+  }, [orderAuth.clerkUser, customerName, setCustomerName])
+
   const [showQRCode, setShowQRCode] = useState(false)
   const [orderData, setOrderData] = useState<string>('')
   const [showUnifiedDialog, setShowUnifiedDialog] = useState(false)

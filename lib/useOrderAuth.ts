@@ -48,5 +48,6 @@ export function useOrderAuth() {
     verifiedPhoneValue,
     needsSignIn: isLoaded && !isSignedIn,
     needsPhoneVerification: isLoaded && !!isSignedIn && !hasVerifiedPhone,
+    clerkUser: user,
   }
 }

@@ -161,47 +161,58 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
         )}
       </div>
 
-      <div className="p-5 flex flex-col grow min-h-0">
-        <h3 className="font-black text-xl leading-tight mb-2 tracking-tight group-hover:text-primary transition-colors line-clamp-2 min-h-[2.75rem]">
-          {t(product.title_en, product.title_ar)}
-        </h3>
+      <div className="p-5 flex flex-col grow min-h-0 justify-between">
+        <div>
+          <h3 className="font-black text-xl leading-tight mb-2 tracking-tight group-hover:text-primary transition-colors line-clamp-2 min-h-[2.75rem]">
+            {t(product.title_en, product.title_ar)}
+          </h3>
 
-        <p className="text-sm text-slate-500 line-clamp-2 mb-4 leading-relaxed grow min-h-[2.5rem]">
-          {t(product.description_en || '', product.description_ar || '')}
-        </p>
+          {/* Description - Optional, show only if it exists */}
+          {(product.description_en || product.description_ar) && (
+            <p className="text-sm text-slate-500 line-clamp-2 mb-4 leading-relaxed grow min-h-[2.5rem]">
+              {t(product.description_en || '', product.description_ar || '')}
+            </p>
+          )}
 
-        <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-50 min-h-[44px]">
-          <div className="flex flex-wrap gap-1.5">
-            {product.dietaryTags?.slice(0, 3).map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-[9px] px-2 py-0.5 bg-slate-100/50 text-slate-500 border-none font-bold uppercase tracking-wider">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 shrink-0 h-[44px]">
-            {shouldHidePrice ? null : product.variants && product.variants.length > 0 ? (
-              <span className="text-sm font-bold text-slate-600">
-                {t('Choose your choice', 'اختر خيارك')}
-              </span>
-            ) : (
-              <>
-                {hasSpecialPrice && (
-                  <span className="text-xs text-slate-400 line-through leading-none">
-                    {product.price}
-                  </span>
-                )}
-                <div className={`flex items-baseline gap-1 ${priceColor}`}>
-                  <span className="text-3xl md:text-4xl font-black tracking-tighter leading-none">
-                    {hasSpecialPrice ? product.specialPrice : product.price}
-                  </span>
-                  <span className="text-base md:text-lg font-bold opacity-70 leading-none">
-                    {formatCurrency(product.currency)}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
+          {/* Dietary Tags */}
+          {product.dietaryTags && product.dietaryTags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3 mt-auto">
+              {product.dietaryTags?.slice(0, 3).map((tag) => (
+                <Badge key={tag} variant="secondary" className="text-[9px] px-2 py-0.5 bg-slate-100/50 text-slate-500 border-none font-bold uppercase tracking-wider">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
+
+        {!shouldHidePrice && (
+          <div className="flex items-center justify-between gap-3 pt-3 mt-auto border-t border-slate-50 min-h-[44px]">
+            <div className="flex items-center gap-2 shrink-0 h-[44px]">
+              {product.variants && product.variants.length > 0 ? (
+                <span className="text-sm font-bold text-slate-600">
+                  {t('Choose your choice', 'اختر خيارك')}
+                </span>
+              ) : (
+                <>
+                  {hasSpecialPrice && (
+                    <span className="text-xs text-slate-400 line-through leading-none">
+                      {product.price}
+                    </span>
+                  )}
+                  <div className={`flex items-baseline gap-1 ${priceColor}`}>
+                    <span className="text-3xl md:text-4xl font-black tracking-tighter leading-none">
+                      {hasSpecialPrice ? product.specialPrice : product.price}
+                    </span>
+                    <span className="text-base md:text-lg font-bold opacity-70 leading-none">
+                      {formatCurrency(product.currency)}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </motion.div>
   )

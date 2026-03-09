@@ -150,8 +150,11 @@ export function UnifiedOrderDialog({
       setShowMapModal(false)
       setShowNotes(false)
       clearDeliveryLocation?.()
+    } else if (open && !isEditingName && initialName && name === t('Guest', 'ضيف')) {
+      // If the modal is already open but the initialName just loaded from Clerk, update it
+      setName(initialName)
     }
-  }, [open, initialName, initialPhone, clearDeliveryLocation, lockedTableNumber, t])
+  }, [open, initialName, initialPhone, clearDeliveryLocation, lockedTableNumber, t, isEditingName, name])
 
   const handleNameNext = (e: React.FormEvent) => {
     e.preventDefault()
