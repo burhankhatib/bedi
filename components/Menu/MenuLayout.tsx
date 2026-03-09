@@ -653,7 +653,10 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   logoRef: restaurantInfo?.logo?.asset?._ref,
                   openingHours: restaurantInfo?.openingHours,
                   customDateHours: restaurantInfo?.customDateHours,
-                  businessCountry: initialData.businessCountry ?? undefined
+                  businessCountry: initialData.businessCountry ?? undefined,
+                  deliveryPricingMode: initialData.deliveryPricingMode,
+                  deliveryFeeMin: initialData.deliveryFeeMin,
+                  deliveryFeeMax: initialData.deliveryFeeMax
                 } : undefined}
                 orderTypeOptions={orderTypeOptions}
                 catalogHidePrices={catalogHidePrices}
@@ -681,13 +684,16 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
             viewType={isHydrated ? viewType : 'thumbnail'}
             restaurantLogo={restaurantInfo?.logo}
             catalogOnly={catalogOnly}
-            tenantContext={tenantSlug ? { 
+                tenantContext={tenantSlug ? { 
                   slug: tenantSlug, 
                   name: headerTitle, 
                   logoRef: restaurantInfo?.logo?.asset?._ref,
                   openingHours: restaurantInfo?.openingHours,
                   customDateHours: restaurantInfo?.customDateHours,
-                  businessCountry: initialData.businessCountry ?? undefined
+                  businessCountry: initialData.businessCountry ?? undefined,
+                  deliveryPricingMode: initialData.deliveryPricingMode,
+                  deliveryFeeMin: initialData.deliveryFeeMin,
+                  deliveryFeeMax: initialData.deliveryFeeMax
                 } : undefined}
             orderTypeOptions={orderTypeOptions}
             catalogHidePrices={catalogHidePrices}
@@ -709,13 +715,16 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
         layoutPrefix={activeLayoutPrefix}
         restaurantLogo={restaurantInfo?.logo}
         catalogOnly={catalogOnly}
-        tenantContext={tenantSlug ? { 
+                tenantContext={tenantSlug ? { 
                   slug: tenantSlug, 
                   name: headerTitle, 
                   logoRef: restaurantInfo?.logo?.asset?._ref,
                   openingHours: restaurantInfo?.openingHours,
                   customDateHours: restaurantInfo?.customDateHours,
-                  businessCountry: initialData.businessCountry ?? undefined
+                  businessCountry: initialData.businessCountry ?? undefined,
+                  deliveryPricingMode: initialData.deliveryPricingMode,
+                  deliveryFeeMin: initialData.deliveryFeeMin,
+                  deliveryFeeMax: initialData.deliveryFeeMax
                 } : undefined}
         orderTypeOptions={orderTypeOptions}
         catalogHidePrices={catalogHidePrices}

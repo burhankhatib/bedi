@@ -6,7 +6,7 @@ import { urlFor } from '@/sanity/lib/image'
 import { Product } from '@/app/types/menu'
 import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
-import type { OrderTypeOptions } from '@/components/Cart/CartContext'
+import type { OrderTypeOptions, CartTenant } from '@/components/Cart/CartContext'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Star, Tag, Plus } from 'lucide-react'
@@ -19,7 +19,7 @@ interface ProductListItemProps {
   layoutPrefix?: string
   restaurantLogo?: any
   catalogOnly?: boolean
-  tenantContext?: { slug: string; name: string; logoRef?: string; openingHours?: any; customDateHours?: any; businessCountry?: string }
+  tenantContext?: CartTenant
   orderTypeOptions?: OrderTypeOptions | null
   catalogHidePrices?: boolean
 }

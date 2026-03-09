@@ -168,6 +168,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         // ignore
       }
     }
+    const savedOrderTypeOptions = localStorage.getItem('orderTypeOptions')
+    if (savedOrderTypeOptions) {
+      try {
+        setOrderTypeOptions(JSON.parse(savedOrderTypeOptions))
+      } catch {
+        // ignore
+      }
+    }
     const savedCustomerInfo = localStorage.getItem('customerInfo')
     if (savedCustomerInfo) {
       try {
@@ -202,6 +210,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem(CART_TENANT_KEY)
     }
   }, [cartTenant])
+
+  // Save orderTypeOptions to localStorage whenever it changes
+  useEffect(() => {
+    if (orderTypeOptions) {
+      localStorage.setItem('orderTypeOptions', JSON.stringify(orderTypeOptions))
+    } else {
+      localStorage.removeItem('orderTypeOptions')
+    }
+  }, [orderTypeOptions])
 
   // Save customer info to localStorage whenever it changes
   useEffect(() => {

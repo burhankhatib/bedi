@@ -10,13 +10,18 @@ import { useDriverPush } from '../DriverPushContext'
 import { useDriverStatus } from '../DriverStatusContext'
 import { usePusherStream } from '@/lib/usePusherStream'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
-import { parseCoordsFromGoogleMapsUrl, googleMapsNavigationUrl, wazeNavigationUrl } from '@/lib/maps-utils'
+import { parseCoordsFromGoogleMapsUrl, googleMapsNavigationUrl, wazeNavigationUrl, distanceKm } from '@/lib/maps-utils'
 import { getCityDisplayName } from '@/lib/registration-translations'
+import dynamic from 'next/dynamic'
 import { DriverPWAInstall } from './DriverPWAInstall'
 import { SlideToComplete } from './SlideToComplete'
 import { SlideToPickUp } from './SlideToPickUp'
 import { SlideToConfirm } from './SlideToConfirm'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
+
+const DriverNavigationMap = dynamic(() => import('./DriverNavigationMap'), {
+  ssr: false,
+})
 
 const OFFLINE_PUSH_SENT_KEY = 'driverOfflinePushSent'
 
@@ -103,6 +108,10 @@ function DriverOrdersContent() {
   const [loading, setLoading] = useState(true)
   const [actionId, setActionId] = useState<string | null>(null)
   const [reportOrderId, setReportOrderId] = useState<string | null>(null)
+  const [mapState, setMapState] = useState<'hidden' | 'minimized' | 'maximized'>('hidden')
+  const [activeMapOrderId, setActiveMapOrderId] = useState<string | null>(null)
+  const [liveDriverLat, setLiveDriverLat] = useState<number | null>(null)
+  const [liveDriverLng, setLiveDriverLng] = useState<number | null>(null)
   const prevPendingCountRef = useRef(0)
   const declinedOrderIdsRef = useRef<Set<string>>(new Set())
   const acceptedAtRef = useRef<Map<string, number>>(new Map())
@@ -206,6 +215,39 @@ function DriverOrdersContent() {
     fetch('/api/driver/push-send-offline-reminder', { method: 'POST' }).catch(() => {})
   }, [hasPush, isOnline])
 
+  // Track driver location when map is active
+  useEffect(() => {
+    if (mapState === 'hidden' || !navigator.geolocation) return
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setLiveDriverLat(pos.coords.latitude)
+        setLiveDriverLng(pos.coords.longitude)
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+    )
+    return () => navigator.geolocation.clearWatch(watchId)
+  }, [mapState])
+
+  // Auto-minimize map when near destination
+  useEffect(() => {
+    if (mapState === 'maximized' && activeMapOrderId && liveDriverLat && liveDriverLng) {
+      const order = myDeliveries.find(o => o.orderId === activeMapOrderId)
+      if (order) {
+        const isEnRouteToCustomer = order.status === 'out-for-delivery'
+        const destLat = isEnRouteToCustomer ? order.deliveryLat : order.businessLocationLat
+        const destLng = isEnRouteToCustomer ? order.deliveryLng : order.businessLocationLng
+        
+        if (destLat && destLng) {
+          const distKm = distanceKm({ lat: liveDriverLat, lng: liveDriverLng }, { lat: destLat, lng: destLng })
+          if (distKm < 0.05) { // less than 50 meters
+            setMapState('minimized')
+          }
+        }
+      }
+    }
+  }, [liveDriverLat, liveDriverLng, mapState, activeMapOrderId, myDeliveries])
+
   const canAcceptMore = myDeliveries.length < MAX_ACTIVE_DELIVERIES
 
   const accept = async (orderId: string) => {
@@ -231,6 +273,8 @@ function DriverOrdersContent() {
       }
       showToast(t('Order accepted.', 'تم قبول الطلب.'), t('Order accepted.', 'تم قبول الطلب.'), 'success')
       pushDriverLocation()
+      setMapState('maximized')
+      setActiveMapOrderId(orderId)
       // Live stream will refetch when Sanity order doc updates; no extra fetch here
     } catch (e) {
       acceptedAtRef.current.delete(orderId)
@@ -302,6 +346,7 @@ function DriverOrdersContent() {
       }
       showToast(t('Order picked up.', 'تم استلام الطلب من المتجر.'), t('Order picked up.', 'تم استلام الطلب من المتجر.'), 'success')
       pushDriverLocation()
+      setMapState('maximized')
       // Live stream will refetch when Sanity order doc updates
     } catch (e) {
       setMyDeliveries((prev) => prev.map((x) => x.orderId === orderId ? order : x))
@@ -326,6 +371,10 @@ function DriverOrdersContent() {
       }
       showToast(t('Delivery marked complete.', 'تم تسجيل الطلب مكتملًا.'), t('Delivery marked complete.', 'تم تسجيل الطلب مكتملًا.'), 'success')
       pushDriverLocation()
+      if (activeMapOrderId === orderId) {
+        setMapState('hidden')
+        setActiveMapOrderId(null)
+      }
       // Live stream will refetch when Sanity order doc updates
     } catch (e) {
       setMyDeliveries((prev) => [order, ...prev])
@@ -354,6 +403,15 @@ function DriverOrdersContent() {
     const navSecondary = 'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all'
     return (
     <>
+      {mapState === 'minimized' && activeMapOrderId === o.orderId && (
+        <button
+          onClick={() => setMapState('maximized')}
+          className="w-full flex items-center justify-center gap-2 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-4 mb-4 shadow-lg shadow-blue-500/20"
+        >
+          <Navigation className="w-5 h-5 animate-pulse" />
+          {t('Open Navigation Map', 'فتح خريطة التنقل')}
+        </button>
+      )}
       {showReconfirmBanner && (
         <div className="rounded-3xl border border-amber-500/40 bg-amber-950/30 p-4 mb-4">
           <p className="text-amber-200 font-semibold text-sm mb-2">
@@ -812,6 +870,26 @@ function DriverOrdersContent() {
           onSuccess={() => setReportOrderId(null)}
         />
       )}
+
+      {mapState === 'maximized' && activeMapOrderId && (() => {
+        const order = myDeliveries.find(o => o.orderId === activeMapOrderId)
+        if (!order) return null
+        const isEnRouteToCustomer = order.status === 'out-for-delivery'
+        const destLat = isEnRouteToCustomer ? order.deliveryLat : order.businessLocationLat
+        const destLng = isEnRouteToCustomer ? order.deliveryLng : order.businessLocationLng
+        const destinationLabel = isEnRouteToCustomer ? (order.customerName || t('Customer', 'العميل')) : order.businessName
+
+        return (
+          <DriverNavigationMap
+            driverLat={liveDriverLat}
+            driverLng={liveDriverLng}
+            destLat={destLat ?? null}
+            destLng={destLng ?? null}
+            onMinimize={() => setMapState('minimized')}
+            destinationLabel={destinationLabel}
+          />
+        )
+      })()}
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { ProductCard } from './ProductCard'
 import { ProductListItem } from './ProductListItem'
 import { useLanguage } from '@/components/LanguageContext'
 import { ViewType } from './ViewSwitcher'
-import type { OrderTypeOptions } from '@/components/Cart/CartContext'
+import type { OrderTypeOptions, CartTenant } from '@/components/Cart/CartContext'
 
 interface MenuGridProps {
   menuData: MenuData[]
@@ -15,7 +15,7 @@ interface MenuGridProps {
   viewType?: ViewType
   restaurantLogo?: any
   catalogOnly?: boolean
-  tenantContext?: { slug: string; name: string; logoRef?: string; openingHours?: any; customDateHours?: any; businessCountry?: string }
+  tenantContext?: CartTenant
   orderTypeOptions?: OrderTypeOptions | null
   catalogHidePrices?: boolean
 }

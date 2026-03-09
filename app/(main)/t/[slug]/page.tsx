@@ -144,6 +144,9 @@ export default async function TenantMenuPage({
     catalogHidePrices: tenant.catalogHidePrices ?? false,
     locationLat: tenant.locationLat ?? null,
     locationLng: tenant.locationLng ?? null,
+    deliveryPricingMode: tenant.deliveryPricingMode,
+    deliveryFeeMin: tenant.deliveryFeeMin,
+    deliveryFeeMax: tenant.deliveryFeeMax,
   }
 
   return (

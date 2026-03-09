@@ -871,7 +871,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         onDeliverySubmit={handleDeliverySubmit}
         initialName={customerName}
         initialPhone={customerPhone}
-        tenantSlug={tenantSlug}
+        tenantSlug={tenantSlug ?? cartTenant?.slug ?? undefined}
         supportsDineIn={orderTypeOptions?.supportsDineIn ?? supportsDineIn}
         supportsReceiveInPerson={orderTypeOptions?.supportsReceiveInPerson ?? supportsReceiveInPerson}
         hasDelivery={orderTypeOptions?.hasDelivery}

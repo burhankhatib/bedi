@@ -7,7 +7,7 @@ import { urlFor } from '@/sanity/lib/image'
 import { Product, ProductVariantGroup } from '@/app/types/menu'
 import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
-import type { OrderTypeOptions } from '@/components/Cart/CartContext'
+import type { OrderTypeOptions, CartTenant } from '@/components/Cart/CartContext'
 import { Button } from '@/components/ui/button'
 import { X, Star, Tag, Check, Plus, Minus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -24,7 +24,7 @@ interface ProductModalProps {
   /** When true, product is view-only (catalog); hide Add to Cart. */
   catalogOnly?: boolean
   /** For single-business cart: pass when adding from menu page. */
-  tenantContext?: { slug: string; name: string; logoRef?: string; openingHours?: any; customDateHours?: any; businessCountry?: string }
+  tenantContext?: CartTenant
   orderTypeOptions?: OrderTypeOptions | null
   catalogHidePrices?: boolean
 }
