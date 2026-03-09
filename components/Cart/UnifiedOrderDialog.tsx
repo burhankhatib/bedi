@@ -1,16 +1,22 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/components/LanguageContext'
 import { toEnglishDigits } from '@/lib/phone'
-import { Store, UtensilsCrossed, Truck, User, MapPin, Phone, Locate, Check, Loader2, Link } from 'lucide-react'
+import { Store, UtensilsCrossed, Truck, User, MapPin, Phone, Locate, Check, Loader2, Link, Edit2, Map as MapIcon } from 'lucide-react'
 import { OrderType } from './CartContext'
 import { parseCoordsFromGoogleMapsUrl } from '@/lib/maps-utils'
 import { useCart } from './CartContext'
 import { isWithinShift } from '@/lib/business-hours'
+
+const LocationPickerMap = dynamic(() => import('./LocationPickerMap'), { 
+  ssr: false, 
+  loading: () => <div className="h-full w-full bg-slate-100 animate-pulse rounded-2xl flex items-center justify-center"><Loader2 className="w-6 h-6 text-slate-400 animate-spin" /></div> 
+})
 
 interface Area {
   _id: string
@@ -69,8 +75,12 @@ export function UnifiedOrderDialog({
   const isTableLocked = Boolean(lockedTableNumber)
   const { t, lang } = useLanguage()
   const { cartTenant } = useCart()
-  const [step, setStep] = useState<'name' | 'type' | 'details'>('name')
-  const [orderType, setOrderType] = useState<OrderType | null>(null)
+  const [step, setStep] = useState<'type' | 'details'>(lockedTableNumber ? 'details' : 'type')
+  const [orderType, setOrderType] = useState<OrderType | null>(lockedTableNumber ? 'dine-in' : null)
+
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [showMapModal, setShowMapModal] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
 
   // Timing
   const [isScheduled, setIsScheduled] = useState(false)
@@ -123,8 +133,8 @@ export function UnifiedOrderDialog({
     const justOpened = open && !prevOpenRef.current
     prevOpenRef.current = open
     if (justOpened) {
-      setStep('name')
-      setName(initialName)
+      setStep(lockedTableNumber ? 'details' : 'type')
+      setName(initialName || t('Guest', 'ضيف'))
       setOrderType(lockedTableNumber ? 'dine-in' : null)
       setTableNumber(lockedTableNumber ?? '')
       setPhone(initialPhone)
@@ -136,10 +146,12 @@ export function UnifiedOrderDialog({
       setLocationError(null)
       setMapsLinkInput('')
       setMapsLinkError(null)
+      setIsEditingName(false)
+      setShowMapModal(false)
+      setShowNotes(false)
       clearDeliveryLocation?.()
-      setTimeout(() => nameInputRef.current?.focus(), 100)
     }
-  }, [open, initialName, initialPhone, clearDeliveryLocation, lockedTableNumber])
+  }, [open, initialName, initialPhone, clearDeliveryLocation, lockedTableNumber, t])
 
   const handleNameNext = (e: React.FormEvent) => {
     e.preventDefault()
@@ -313,14 +325,14 @@ export function UnifiedOrderDialog({
 
   const handleBack = () => {
     if (step === 'details') {
-      setStep('type')
-      setTableNumber('')
-      setPhone('')
-      setAreaId('')
-      setAddress('')
+      if (lockedTableNumber) {
+        onOpenChange(false)
+      } else {
+        setStep('type')
+        setOrderType(null)
+      }
     } else if (step === 'type') {
-      setStep('name')
-      setOrderType(null)
+      onOpenChange(false)
     }
   }
 
@@ -417,63 +429,34 @@ export function UnifiedOrderDialog({
     }
   }, [isScheduled, scheduledFor, cartTenant?.openingHours]);
 
+  const customerInfoHeader = (
+    <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6">
+      <div className="flex-1">
+        {isEditingName ? (
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => setIsEditingName(false)}
+            autoFocus
+            className="h-9 font-bold text-lg px-2 -ml-2 rtl:-mr-2 rtl:ml-0 mb-1 bg-white"
+          />
+        ) : (
+          <div 
+            className="flex items-center gap-2 cursor-pointer group mb-1 w-fit"
+            onClick={() => setIsEditingName(true)}
+          >
+            <p className="font-bold text-lg text-slate-900 group-hover:text-green-600 transition-colors">{name || t('Guest', 'ضيف')}</p>
+            <Edit2 className="w-4 h-4 text-slate-400 group-hover:text-green-600" />
+          </div>
+        )}
+        <p className="text-sm font-semibold text-slate-500 dir-ltr text-left w-fit" dir="ltr">{phone}</p>
+      </div>
+    </div>
+  )
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md w-[95%] rounded-[32px] p-8 border-none shadow-2xl max-h-[90vh] overflow-y-auto pb-[max(2rem,calc(env(safe-area-inset-bottom)+100px))]">
-
-        {/* Step 1: Name */}
-        {step === 'name' && (
-          <>
-            <DialogHeader className="mb-6">
-              <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center mb-4">
-                <User className="w-6 h-6 text-white" />
-              </div>
-              <DialogTitle className="text-2xl font-black">
-                {t('Welcome!', 'مرحباً!')}
-              </DialogTitle>
-              <DialogDescription className="font-medium text-slate-500">
-                {t('Please enter your name to continue', 'يرجى إدخال اسمك للمتابعة')}
-              </DialogDescription>
-            </DialogHeader>
-
-            <form onSubmit={handleNameNext} className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0">
-                  {t('Your Name', 'اسمك')} *
-                </label>
-                <Input
-                  ref={nameInputRef}
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={t('Enter your name', 'أدخل اسمك')}
-                  className="h-14 text-lg rounded-2xl border-slate-100 bg-slate-50 focus:bg-white transition-all font-bold px-5"
-                  required
-                  inputMode="text"
-                  autoComplete="name"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => onOpenChange(false)}
-                  className="flex-1 h-14 rounded-2xl font-black text-slate-400"
-                >
-                  {t('Cancel', 'إلغاء')}
-                </Button>
-                <Button
-                  type="submit"
-                  className="flex-1 h-14 rounded-2xl font-black bg-black text-white shadow-xl shadow-black/10 active:scale-[0.98] transition-all"
-                  disabled={!name.trim()}
-                >
-                  {t('Next', 'التالي')}
-                </Button>
-              </div>
-            </form>
-          </>
-        )}
+      <DialogContent className="sm:max-w-md w-[95%] rounded-[32px] p-8 border-none shadow-2xl max-h-[90vh] overflow-y-auto pb-[max(2rem,calc(env(safe-area-inset-bottom)+100px))] scrollbar-thin">
 
         {/* Step 2: Order Type Selection */}
         {step === 'type' && (
@@ -576,29 +559,7 @@ export function UnifiedOrderDialog({
             </DialogHeader>
 
             <form onSubmit={handleFinalSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0">
-                  {t('Your Name', 'اسمك')}
-                </label>
-                <div className="h-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center px-5">
-                  <p className="font-bold text-lg text-slate-600">{name}</p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0 flex items-center gap-1">
-                  <Phone className="w-3 h-3" />
-                  {t('WhatsApp / Mobile Number', 'رقم واتساب / الجوال')} *
-                </label>
-                <Input
-                  type="tel"
-                  value={phone}
-                  readOnly
-                  className="h-14 text-lg rounded-2xl border-slate-100 bg-slate-100 text-slate-500 font-bold px-5 cursor-not-allowed"
-                  required
-                  inputMode="tel"
-                />
-              </div>
+              {customerInfoHeader}
 
               {/* Timing */}
               <div className="space-y-3 pt-4 border-t border-slate-100">
@@ -681,14 +642,7 @@ export function UnifiedOrderDialog({
             </DialogHeader>
 
             <form onSubmit={handleFinalSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0">
-                  {t('Your Name', 'اسمك')}
-                </label>
-                <div className="h-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center px-5">
-                  <p className="font-bold text-lg text-slate-600">{name}</p>
-                </div>
-              </div>
+              {customerInfoHeader}
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0">
@@ -717,23 +671,6 @@ export function UnifiedOrderDialog({
                     {t('Please check the table number on your table', 'يرجى التحقق من رقم الطاولة على طاولتك')}
                   </p>
                 )}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0 flex items-center gap-1">
-                  <Phone className="w-3 h-3" />
-                  {t('WhatsApp / Mobile Number', 'رقم واتساب / الجوال')} *
-                </label>
-                <Input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(toEnglishDigits(e.target.value))}
-                  placeholder={t('e.g., 0501234567', 'مثال: 0501234567')}
-                  className="h-14 text-lg rounded-2xl border-slate-100 bg-slate-50 focus:bg-white transition-all font-bold px-5"
-                  required
-                  inputMode="tel"
-                  autoComplete="tel"
-                />
               </div>
 
               <div className="flex gap-3">
@@ -773,31 +710,7 @@ export function UnifiedOrderDialog({
             </DialogHeader>
 
             <form onSubmit={handleFinalSubmit} className="space-y-5">
-              {/* Name (Read-only, already entered) */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0">
-                  {t('Your Name', 'اسمك')}
-                </label>
-                <div className="h-14 rounded-2xl bg-slate-100 border border-slate-200 flex items-center px-5">
-                  <p className="font-bold text-lg text-slate-600">{name}</p>
-                </div>
-              </div>
-
-              {/* Phone Number */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0 flex items-center gap-1">
-                  <Phone className="w-3 h-3" />
-                  {t('Mobile Number', 'رقم الجوال')} *
-                </label>
-                <Input
-                  type="tel"
-                  value={phone}
-                  readOnly
-                  className="h-14 text-lg rounded-2xl border-slate-100 bg-slate-100 text-slate-500 font-bold px-5 cursor-not-allowed"
-                  required
-                  inputMode="tel"
-                />
-              </div>
+              {customerInfoHeader}
 
               {/* Delivery Area */}
               <div className="space-y-2">
@@ -816,12 +729,7 @@ export function UnifiedOrderDialog({
                     </div>
                   </div>
                 ) : (
-                  <select
-                    value={areaId}
-                    onChange={(e) => setAreaId(e.target.value)}
-                    size={areas.length > 8 ? 8 : areas.length}
-                    className="w-full rounded-2xl border border-slate-200 bg-white p-2 text-base font-semibold shadow-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20 scrollbar-thin"
-                  >
+                  <div className="flex flex-col gap-2 w-full max-h-60 overflow-y-auto scrollbar-thin pr-1 rtl:pr-0 rtl:pl-1">
                     {areas.map((area) => {
                       const areaName = lang === 'ar' ? area.name_ar : area.name_en
                       const priceText = area.deliveryPrice === 0
@@ -831,59 +739,101 @@ export function UnifiedOrderDialog({
                         ? ` • ${area.estimatedTime} ${t('min', 'دقيقة')}`
                         : ''
                       return (
-                        <option 
+                        <label 
                           key={area._id} 
-                          value={area._id}
-                          className="p-3 my-0.5 rounded-lg cursor-pointer hover:bg-slate-50 checked:bg-green-100 checked:text-green-900 checked:font-bold"
+                          className={`flex items-center gap-3 p-4 rounded-2xl border cursor-pointer transition-all ${areaId === area._id ? 'border-green-600 bg-green-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
                         >
-                          {areaName} — {t('Delivery:', 'التوصيل:')} {priceText}{timeText}
-                        </option>
+                          <input
+                            type="radio"
+                            name="delivery_area"
+                            value={area._id}
+                            checked={areaId === area._id}
+                            onChange={(e) => setAreaId(e.target.value)}
+                            className="size-5 accent-green-600 shrink-0"
+                          />
+                          <div className="flex-1">
+                            <p className={`font-bold ${areaId === area._id ? 'text-green-900' : 'text-slate-800'}`}>
+                              {areaName}
+                            </p>
+                            <p className="text-sm font-medium text-slate-500">
+                              {t('Delivery:', 'التوصيل:')} <span className={area.deliveryPrice === 0 ? 'text-green-600 font-bold' : ''}>{priceText}</span>{timeText}
+                            </p>
+                          </div>
+                        </label>
                       )
                     })}
-                  </select>
+                  </div>
                 )}
               </div>
 
               {/* Delivery location: Use my location or type address */}
               <div className="space-y-3">
                 {setDeliveryLocation && (
-                  <div className="rounded-2xl border-2 border-slate-200 bg-slate-50/80 p-4">
-                    <p className="text-sm font-bold text-slate-800 mb-1">
-                      {t('Where should we deliver?', 'أين نوصّل؟')}
-                    </p>
-                    <p className="text-xs text-slate-500 mb-3">
-                      {t('Location sharing is required for delivery on iPhone, Android, and Desktop. Share your live location so the driver reaches you accurately.', 'مشاركة الموقع مطلوبة للتوصيل على iPhone وAndroid وسطح المكتب. شارك موقعك المباشر ليصل السائق إليك بدقة.')}
-                    </p>
-                    <Button
-                      type="button"
-                      onClick={requestDeliveryLocation}
-                      disabled={locationLoading}
-                      className="w-full h-12 rounded-xl font-bold text-base bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-sm flex items-center justify-center gap-2"
-                    >
-                      {locationLoading ? (
-                        <>
-                          <Loader2 className="w-5 h-5 shrink-0 animate-spin" />
-                          {t('Getting your location…', 'جاري الحصول على موقعك…')}
-                        </>
-                      ) : deliveryLat != null && deliveryLng != null ? (
-                        <>
-                          <Check className="w-5 h-5 shrink-0" />
-                          {t('Location set', 'تم تحديد الموقع')}
-                        </>
-                      ) : (
-                        <>
-                          <Locate className="w-5 h-5 shrink-0" />
-                          {t('Use my current location', 'استخدام موقعي الحالي')}
-                        </>
-                      )}
-                    </Button>
-                    {(deliveryLat != null && deliveryLng != null) && (
-                      <p className="text-xs text-emerald-700 mt-2 font-medium">
-                        {t('Driver will get a map link to this spot.', 'سيحصل السائق على رابط خريطة لهذا الموقع.')}
-                      </p>
+                  <div className="rounded-2xl border-2 border-slate-200 bg-slate-50/80 p-4 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-slate-800 mb-0.5">
+                          {t('Delivery Location', 'موقع التوصيل')}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {t('Required for precise delivery', 'مطلوب للتوصيل الدقيق')}
+                        </p>
+                      </div>
+                    </div>
+
+                    {deliveryLat == null || deliveryLng == null ? (
+                      <Button
+                        type="button"
+                        onClick={requestDeliveryLocation}
+                        disabled={locationLoading}
+                        className="w-full h-14 rounded-xl font-bold text-base bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-md flex items-center justify-center gap-2"
+                      >
+                        {locationLoading ? (
+                          <>
+                            <Loader2 className="w-5 h-5 shrink-0 animate-spin" />
+                            {t('Getting your location…', 'جاري الحصول على موقعك…')}
+                          </>
+                        ) : (
+                          <>
+                            <Locate className="w-5 h-5 shrink-0" />
+                            {t('Share My Location', 'مشاركة موقعي')}
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      <>
+                        <div className={`transition-all duration-300 w-full relative z-0 ${showMapModal ? 'h-[350px]' : 'h-[160px]'}`}>
+                          <LocationPickerMap
+                            lat={deliveryLat}
+                            lng={deliveryLng}
+                            onChange={(lat, lng) => setDeliveryLocation(lat, lng)}
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowMapModal(!showMapModal)}
+                            className="flex-1 h-11 rounded-xl text-sm font-bold border-slate-300 bg-white"
+                          >
+                            <MapIcon className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                            {showMapModal ? t('Close Map', 'إغلاق الخريطة') : t('Adjust on Map', 'تعديل على الخريطة')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={showNotes ? "default" : "outline"}
+                            onClick={() => setShowNotes(!showNotes)}
+                            className={`flex-1 h-11 rounded-xl text-sm font-bold ${showNotes ? 'bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-300 bg-white'}`}
+                          >
+                            <Edit2 className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                            {t('Add Details', 'إضافة تفاصيل')}
+                          </Button>
+                        </div>
+                      </>
                     )}
+
                     {!!setDeliveryLocation && (deliveryLat == null || deliveryLng == null) && (
-                      <div className="mt-3 pt-3 border-t border-slate-200">
+                      <div className="pt-2 border-t border-slate-200">
                         <p className="text-xs font-semibold text-slate-500 mb-1.5">
                           {t('Or paste your Google Maps link:', 'أو الصق رابط Google Maps الخاص بك:')}
                         </p>
@@ -921,18 +871,20 @@ export function UnifiedOrderDialog({
                     </Button>
                   </div>
                 )}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0">
-                    {t('Detailed address', 'العنوان التفصيلي')} ({t('optional', 'اختياري')})
-                  </label>
-                  <textarea
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder={t('Street, building number, floor, apartment...', 'الشارع، رقم المبنى، الطابق، الشقة...')}
-                    className="w-full min-h-[100px] text-base rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white transition-all font-semibold px-5 py-4 resize-none"
-                    required={false}
-                  />
-                </div>
+                {(!setDeliveryLocation || (deliveryLat != null && deliveryLng != null && showNotes)) && (
+                  <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0">
+                      {t('Detailed address', 'العنوان التفصيلي')} ({t('optional', 'اختياري')})
+                    </label>
+                    <textarea
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      placeholder={t('Street, building number, floor, apartment...', 'الشارع، رقم المبنى، الطابق، الشقة...')}
+                      className="w-full min-h-[100px] text-base rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white transition-all font-semibold px-5 py-4 resize-none"
+                      required={false}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Timing */}
