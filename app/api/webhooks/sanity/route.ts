@@ -51,6 +51,56 @@ export async function POST(req: NextRequest) {
       }
 
       await Promise.all(triggerPromises)
+
+      // Backup: Send FCM push notification if it hasn't been sent yet
+      if (siteId && token) {
+        try {
+          const orderDoc = await writeClient.fetch<{
+            tenantNewOrderPushSent?: boolean
+            orderNumber?: string
+            scheduledFor?: string
+          }>(`*[_type == "order" && _id == $_id][0]{ tenantNewOrderPushSent, orderNumber, scheduledFor }`, { _id })
+
+          if (orderDoc && !orderDoc.tenantNewOrderPushSent) {
+            const tenantDoc = await writeClient.fetch<{ name?: string; name_ar?: string; slug?: { current?: string } } | null>(
+              `*[_type == "tenant" && _id == $id][0]{ name, name_ar, slug }`,
+              { id: siteId }
+            )
+
+            const businessName = tenantDoc?.name_ar || tenantDoc?.name || tenantDoc?.slug?.current || siteId
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+            const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
+            const slug = tenantDoc?.slug?.current
+            const path = slug ? `/t/${slug}/orders` : '/orders'
+            const url = `${base}${path}`
+            const icon = slug ? `${base}/t/${slug}/icon/192` : `${base}/adminslogo.webp`
+
+            const isScheduled = !!orderDoc.scheduledFor
+            const titleText = isScheduled 
+              ? `${businessName}: طلب مجدول جديد — #${orderDoc.orderNumber || _id.slice(-6)}`
+              : `${businessName}: طلب جديد — #${orderDoc.orderNumber || _id.slice(-6)}`
+
+            const pushPayload = {
+              title: titleText,
+              body: 'تم استلام طلب جديد. افتح التطبيق للمراجعة والقبول.',
+              url,
+              icon,
+              dir: 'rtl' as const,
+            }
+
+            const sent = await sendTenantAndStaffPush(siteId, pushPayload)
+            if (sent) {
+              await writeClient.patch(_id).set({
+                tenantNewOrderPushSent: true,
+                tenantNewOrderPushSentAt: new Date().toISOString()
+              }).commit()
+              console.log(`[Webhook] Sent backup FCM for new order ${_id}`)
+            }
+          }
+        } catch (e) {
+          console.error('[Webhook] Failed to process backup FCM for new order:', e)
+        }
+      }
     } else if (_type === 'driver') {
       // Check for welcome notification (only once per driver)
       if (token) {

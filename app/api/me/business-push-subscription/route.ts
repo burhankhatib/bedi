@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { clientNoCdn } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { getEmailForUser } from '@/lib/getClerkEmail'
+import { upsertUserPushSubscription } from '@/lib/user-push-subscriptions'
 
 const writeClient = clientNoCdn.withConfig({ token: token || undefined, useCdn: false })
 
@@ -76,6 +77,16 @@ export async function POST(req: NextRequest) {
 
     for (const t of list) {
       if (!t?._id) continue
+      
+      // Upsert into central system to ensure full device reach
+      await upsertUserPushSubscription({
+        clerkUserId: userId,
+        roleContext: 'tenant',
+        siteId: t._id,
+        fcmToken,
+      }).catch((e) => console.warn('[business-push-subscription] central upsert failed', e))
+      
+      // Update legacy list for backward compatibility
       const existing = (t.fcmTokens ?? []).concat(t.fcmToken ? [t.fcmToken] : [])
       const nextTokens = [...new Set([...existing, fcmToken])].filter(Boolean)
       const patch = writeClient.patch(t._id).set({ fcmTokens: nextTokens })

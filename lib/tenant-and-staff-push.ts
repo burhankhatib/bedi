@@ -173,6 +173,13 @@ export async function sendTenantAndStaffPush(
   // Track tokens already sent via central so we don't double-send via legacy
   const sentTokens = new Set<string>()
 
+  if (centralSubs.length === 0) {
+    console.warn(`[tenant-push] No central push subscriptions found for tenant ${tenantId}`)
+  }
+  if (clerkUserIds.length === 0) {
+    console.warn(`[tenant-push] No clerkUserIds found for tenant ${tenantId} or its staff`)
+  }
+
   // Step 3: send via central subscriptions
   for (const sub of centralSubs) {
     let fcmSent = false
@@ -213,6 +220,10 @@ export async function sendTenantAndStaffPush(
     const { sent: ok, staleTokens } = await sendToLegacyDoc(doc, docType, payload, sentTokens)
     if (ok) sent = true
     allStaleTokens.push(...staleTokens)
+  }
+  
+  if (allLegacy.length > 0) {
+    console.log(`[tenant-push] Legacy docs processed. Outcome: sent=${sent}, staleTokens=${allStaleTokens.length}`)
   }
 
   // Fire-and-forget cleanup

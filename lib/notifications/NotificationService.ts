@@ -68,9 +68,12 @@ export const NotificationService = {
         
         if (sent) {
           // Mark as sent in Sanity
-          await writeClient.patch(orderId).set({ tenantNewOrderPushSent: true }).commit()
+          await writeClient.patch(orderId).set({ 
+            tenantNewOrderPushSent: true,
+            tenantNewOrderPushSentAt: new Date().toISOString()
+          }).commit()
         } else {
-          console.warn('[NotificationService] sendTenantAndStaffPush returned false (not sent).')
+          console.warn(`[NotificationService] No FCM/Web Push sent for new order ${orderId} – check tenant/staff subscriptions and FCM config.`)
         }
       } catch (e) {
         console.error('[NotificationService] Push notification on new order failed:', e)
