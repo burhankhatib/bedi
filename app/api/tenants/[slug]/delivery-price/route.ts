@@ -43,25 +43,31 @@ export async function GET(
   const smallCities = ['bethany', 'al-eizariya', 'العيزرية', 'jericho', 'اريحا', 'أريحا']
   const largeCities = ['jerusalem', 'القدس', 'ramallah', 'رام الله', 'nablus', 'نابلس', 'bethlehem', 'بيت لحم', 'hebron', 'الخليل']
   
-  let baseDistance = 1.5 // default
-  let extraKmRate = 5    // default
+  let rawFee: number
 
-  if (smallCities.includes(city)) {
-    baseDistance = 1.0
-    extraKmRate = 10
-  } else if (largeCities.includes(city)) {
-    baseDistance = 2.0
-    extraKmRate = 4
+  if (largeCities.includes(city)) {
+    // Big cities: 10 ILS for first 1.5 km, then 5 ILS per 0.5 km
+    const d = distKm
+    if (d <= 1.5) rawFee = 10
+    else rawFee = 10 + Math.ceil((d - 1.5) / 0.5) * 5
+  } else {
+    // Small cities and default: base distance + extra per km
+    let baseDistance = 1.5
+    let extraKmRate = 5
+
+    if (smallCities.includes(city)) {
+      baseDistance = 1.0
+      extraKmRate = 10
+    }
+
+    rawFee = minFee
+    if (distKm > baseDistance) {
+      const extraDistance = distKm - baseDistance
+      rawFee = minFee + (extraDistance * extraKmRate)
+    }
   }
 
-  // Base + Extra formula
-  let rawFee = minFee
-  if (distKm > baseDistance) {
-    const extraDistance = distKm - baseDistance
-    rawFee = minFee + (extraDistance * extraKmRate)
-  }
-
-  // Round to nearest 5 (10, 15, 20, 25, 30)
+  // Round to nearest 5 (10, 15, 20, 25, 30, …)
   let fee = Math.round(rawFee / 5) * 5
   
   // Clamp to [minFee, maxFee] in case rounding pushed it out
