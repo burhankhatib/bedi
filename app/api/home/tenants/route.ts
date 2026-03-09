@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
+import { normalizeSectionKey } from '@/lib/section-key'
 
 /** Cache 60s per (city, category, section, area) to reduce Sanity API calls. */
 export const revalidate = 60
@@ -107,17 +108,18 @@ export async function GET(req: NextRequest) {
   let tenants = rawTenants ?? []
 
   if (section) {
-    const sectionNorm = normalizeForMatch(section)
+    const sectionNorm = normalizeSectionKey(section)
     tenants = tenants.filter((t) =>
       (t.categories ?? []).some((c) => {
         const en = (c.title_en ?? '').trim()
         const ar = (c.title_ar ?? '').trim()
-        return (
-          normalizeForMatch(en || ar) === sectionNorm ||
-          normalizeForMatch(en).includes(sectionNorm) ||
-          normalizeForMatch(ar).includes(sectionNorm) ||
-          sectionNorm.includes(normalizeForMatch(en || ar))
-        )
+        const catNorm = normalizeForMatch(en || ar)
+        if (!catNorm) return false
+        if (sectionNorm === catNorm) return true
+        if (sectionNorm.includes(catNorm) || catNorm.includes(sectionNorm)) return true
+        // Plural/singular: "sandwich" matches "Sandwiches", "sandwiches" matches "Sandwich"
+        if (sectionNorm + 's' === catNorm || catNorm + 's' === sectionNorm) return true
+        return false
       })
     )
   }
@@ -144,7 +146,7 @@ export async function GET(req: NextRequest) {
       const en = (c.title_en ?? '').trim()
       const ar = (c.title_ar ?? '').trim()
       if (en || ar) {
-        const key = normalizeForMatch(en || ar)
+        const key = normalizeSectionKey(en || ar)
         if (!availableSections.has(key)) availableSections.set(key, { en, ar })
       }
     }

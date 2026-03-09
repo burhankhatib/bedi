@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
+import { normalizeSectionKey, canonicalSectionKey } from '@/lib/section-key'
 
 /** Dynamic route to ensure city-specific categories don't get mixed via static cache. */
 export const dynamic = 'force-dynamic'
@@ -30,7 +31,8 @@ function pickFreshImage(candidates: ImageSource[]): ImageSource | null {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const city = searchParams.get('city') ?? ''
-  const categoryParam = searchParams.get('category') ?? ''
+  // Default to restaurant so homepage "Browse by specialty" shows only restaurant/cafe-style sections
+  const categoryParam = searchParams.get('category') ?? 'restaurant'
 
   const { categoriesWithImages, subcategoriesInUse, tenantsWithSubs } = await client.fetch<{
     categoriesWithImages: Array<{
@@ -84,15 +86,11 @@ export async function GET(req: NextRequest) {
     { en: string; ar: string; count: number; subcategoryImage?: ImageSource; candidateImages: ImageSource[] }
   >()
 
-  function normalizeTitle(s: string): string {
-    return (s ?? '').trim().toLowerCase()
-  }
-
   for (const c of categoriesWithImages ?? []) {
     const en = (c.title_en ?? '').trim()
     const ar = (c.title_ar ?? '').trim()
     if (!en && !ar) continue
-    const key = normalizeTitle(en || ar)
+    const key = canonicalSectionKey(en || ar)
     if (!key) continue
     const existing = sectionMap.get(key)
     const img = c.image ?? c.sampleProductImage
@@ -100,6 +98,9 @@ export async function GET(req: NextRequest) {
       if (existing) {
         existing.count += 1
         existing.candidateImages.push(img)
+        // Keep first-seen display names; optional: prefer longer title
+        if (!existing.en && en) existing.en = en
+        if (!existing.ar && ar) existing.ar = ar
       } else {
         sectionMap.set(key, { en, ar, count: 1, candidateImages: [img] })
       }
@@ -128,7 +129,7 @@ export async function GET(req: NextRequest) {
     const en = (s.title_en ?? '').trim()
     const ar = (s.title_ar ?? '').trim()
     if (!en && !ar) continue
-    const key = normalizeTitle(en || ar)
+    const key = canonicalSectionKey(en || ar)
     const count = tenantCountBySubcategory.get(s._id) ?? 0
     const existing = sectionMap.get(key)
     if (existing) {
@@ -148,8 +149,7 @@ export async function GET(req: NextRequest) {
   const result = Array.from(sectionMap.entries())
     .filter(([, v]) => v.count > 0)
     .map(([key, v]) => {
-      // Prioritize actual product images from different restaurants for a fresh look, 
-      // otherwise fall back to the generic subcategory image.
+      // key is canonical; use it as section param so tenants API can match (with plural/singular)
       const freshImg = pickFreshImage(v.candidateImages)
       const image = freshImg?.asset?._ref ? freshImg : v.subcategoryImage
       return {

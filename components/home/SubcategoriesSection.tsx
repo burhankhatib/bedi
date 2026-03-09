@@ -29,7 +29,7 @@ export function SubcategoriesSection() {
       return
     }
     setLoading(true)
-    const params = new URLSearchParams({ city })
+    const params = new URLSearchParams({ city, category: 'restaurant' })
     fetch(`/api/home/sections?${params}`)
       .then((res) => res.json())
       .then((data) => setSections(Array.isArray(data) ? data : []))
@@ -72,7 +72,7 @@ export function SubcategoriesSection() {
             transition={{ duration: 0.3, delay: i * 0.04 }}
           >
             <Link
-              href={`/search?section=${encodeURIComponent(s.key)}`}
+              href={`/search?section=${encodeURIComponent(s.key)}&category=restaurant`}
               className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-emerald-300 hover:shadow-md"
             >
               <div className="relative aspect-square overflow-hidden bg-slate-100">

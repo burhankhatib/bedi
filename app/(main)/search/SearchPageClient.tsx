@@ -330,10 +330,13 @@ export function SearchPageClient() {
       <SiteHeader variant="home" />
       <LocationModal />
 
-      {isChosen && (
+      {isChosen && (category === 'restaurant' || category === 'cafe' || !category) && (
         <div className="bg-white border-b border-slate-200">
           <div className="container mx-auto px-4">
-            <CategoryIconsBar activeCategory={category} />
+            <CategoryIconsBar
+              activeSection={section}
+              category={category || 'restaurant'}
+            />
           </div>
         </div>
       )}

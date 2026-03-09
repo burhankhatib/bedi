@@ -126,6 +126,7 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
   'ice cream': FaIceCream,
   sweets: FaCandyCane,
   gateau: MdCake,
+  gatea: MdCake,
   'oriental sweets': FaCandyCane,
   'oriental-sweets': FaCandyCane,
   pastries: MdBakeryDining,
