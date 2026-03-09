@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
-import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
-import { pusherServer } from '@/lib/pusher'
+import { NotificationService } from '@/lib/notifications/NotificationService'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,10 +27,24 @@ export async function GET(request: Request) {
     const query = `*[_type == "order" && status == "acknowledged" && defined(notifyAt) && notifyAt <= $now && reminderSent != true]{
       _id,
       orderNumber,
-      "siteRef": site._ref
+      "tenantId": site._ref,
+      "tenantPhone": site->ownerPhone,
+      "tenantName": site->name,
+      "tenantNameAr": site->name_ar,
+      "tenantSlug": site->slug.current,
+      "prioritizeWhatsapp": site->prioritizeWhatsapp
     }`
     
-    const ordersToRemind = await writeClient.fetch<{ _id: string, orderNumber: string, siteRef: string }[]>(
+    const ordersToRemind = await writeClient.fetch<{ 
+      _id: string; 
+      orderNumber: string; 
+      tenantId: string;
+      tenantPhone?: string;
+      tenantName?: string;
+      tenantNameAr?: string;
+      tenantSlug: string;
+      prioritizeWhatsapp?: boolean;
+    }[]>(
       query,
       { now }
     )
@@ -42,23 +55,24 @@ export async function GET(request: Request) {
 
     for (const order of ordersToRemind) {
       try {
-        // Send push notification to the business
-        await sendTenantOrderUpdatePush({
+        // Mark the reminder as sent, change status back to new so it pops up in dashboard,
+        // and explicitly unset the WhatsApp notified flag so the backup cron can pick it up.
+        await writeClient.patch(order._id)
+          .set({ reminderSent: true, status: 'new' })
+          .unset(['businessWhatsappNotifiedAt'])
+          .commit()
+
+        // Trigger the full new order notification flow (Pusher ring, FCM Push, instant WhatsApp if prioritized)
+        await NotificationService.onNewOrder({
           orderId: order._id,
-          status: 'new', // We use 'new' as a base but override the title and body
-          customTitle: 'تذكير بطلب مجدول / Scheduled Order Reminder',
-          customBody: 'حان الوقت للبدء في تحضير الطلب المجدول! / It is time to start preparing the scheduled order!',
-          baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+          orderNumber: order.orderNumber,
+          tenantId: order.tenantId,
+          tenantSlug: order.tenantSlug,
+          tenantName: order.tenantName,
+          tenantNameAr: order.tenantNameAr,
+          tenantPhone: order.tenantPhone,
+          prioritizeWhatsapp: order.prioritizeWhatsapp
         })
-
-        // Mark the reminder as sent and change status back to new so it pops up in dashboard
-        await writeClient.patch(order._id).set({ reminderSent: true, status: 'new' }).commit()
-
-        if (order.siteRef) {
-          pusherServer.trigger(`tenant-${order.siteRef}`, 'order-update', { orderId: order._id }).catch((e) => {
-            console.error('[cron/scheduled-order-reminders] Pusher trigger failed:', e)
-          })
-        }
 
         results.push({ orderId: order._id, success: true })
       } catch (err) {

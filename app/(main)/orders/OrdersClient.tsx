@@ -474,6 +474,18 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     }
 
     return true;
+  }).sort((a, b) => {
+    if (activeTab === 'scheduled') {
+      // Sort scheduled orders by scheduledFor ascending (earliest first)
+      const dateA = a.scheduledFor ? new Date(a.scheduledFor).getTime() : 0;
+      const dateB = b.scheduledFor ? new Date(b.scheduledFor).getTime() : 0;
+      return dateA - dateB;
+    } else {
+      // Default live sorting (newest first based on createdAt)
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return dateB - dateA;
+    }
   });
 
   const content = (
@@ -1007,6 +1019,25 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                         </div>
 
                         <div className="space-y-4 mb-4 flex-1">
+                          {activeTab === 'scheduled' && order.scheduledFor && (
+                            <div className="mb-6 flex flex-col items-center justify-center p-6 bg-purple-50 rounded-2xl border-2 border-purple-200 shadow-sm relative overflow-hidden">
+                              <div className="absolute top-0 right-0 -mr-6 -mt-6 opacity-5 pointer-events-none">
+                                <Clock className="w-32 h-32 text-purple-600" />
+                              </div>
+                              
+                              <div className="z-10 flex flex-col items-center text-center space-y-2">
+                                <span className="text-sm font-bold text-purple-600 uppercase tracking-widest">
+                                  {t('Scheduled For', 'مجدول ليوم')}
+                                </span>
+                                <div className="text-4xl md:text-5xl font-black text-purple-900 tracking-tight" dir="ltr">
+                                  {new Date(order.scheduledFor).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                                <div className="text-sm font-bold text-purple-700">
+                                  {new Date(order.scheduledFor).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           <button 
                             onClick={(e) => { e.stopPropagation(); setCustomerModalOrder(order); }}
                             className="flex flex-col items-center justify-center w-full bg-slate-50 hover:bg-slate-100 rounded-xl px-4 py-3 transition-colors border border-slate-100"
