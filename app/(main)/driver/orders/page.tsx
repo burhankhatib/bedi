@@ -53,7 +53,7 @@ type DriverOrder = {
 }
 
 const NEW_ORDER_SOUND = '/sounds/1.wav'
-const MAX_ACTIVE_DELIVERIES = 2
+const MAX_ACTIVE_DELIVERIES = 1
 
 /** Show short order number for driver: ORD-...1060 (last 4 digits). */
 function formatDriverOrderNumber(orderNumber: string): string {
@@ -262,8 +262,8 @@ function DriverOrdersContent() {
   const accept = async (orderId: string) => {
     if (!canAcceptMore) {
       showToast(
-        t('You can have at most 2 active deliveries. Complete or cancel one to accept more.', 'يمكنك تنفيذ توصيلتين نشطتين فقط. أكمِل أو ألغِ واحدة لقبول المزيد.'),
-        t('You can have at most 2 active deliveries. Complete or cancel one to accept more.', 'يمكنك تنفيذ توصيلتين نشطتين فقط. أكمِل أو ألغِ واحدة لقبول المزيد.'),
+        t('You can have at most 1 active delivery. Complete or cancel it to accept more.', 'يمكنك تنفيذ توصيلة نشطة واحدة فقط. أكمِل أو ألغِ الحالية لقبول المزيد.'),
+        t('You can have at most 1 active delivery. Complete or cancel it to accept more.', 'يمكنك تنفيذ توصيلة نشطة واحدة فقط. أكمِل أو ألغِ الحالية لقبول المزيد.'),
         'info'
       )
       return
@@ -599,7 +599,7 @@ function DriverOrdersContent() {
         <div className="flex flex-col gap-3 mt-4">
           {acceptDisabled && (
             <p className="rounded-2xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-amber-200/90 text-sm font-medium">
-              {t('You can have at most 2 active deliveries. Complete or cancel one to accept more.', 'يمكنك تنفيذ توصيلتين نشطتين فقط. أكمِل أو ألغِ واحدة لقبول المزيد.')}
+              {t('You can have at most 1 active delivery. Complete or cancel it to accept more.', 'يمكنك تنفيذ توصيلة نشطة واحدة فقط. أكمِل أو ألغِ الحالية لقبول المزيد.')}
             </p>
           )}
           <SlideToConfirm orderId={o.orderId} variant="accept" onConfirm={accept} disabled={!!actionId || !!acceptDisabled} />
