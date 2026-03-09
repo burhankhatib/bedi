@@ -81,13 +81,18 @@ export function DriverLayoutClient({
 
   useEffect(() => {
     if (hasNoProfileYet || !pathname || pathname === '/driver/profile') return
-    fetch('/api/driver/profile')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data == null || !data._id) router.replace('/driver/profile')
-      })
-      .catch(() => {})
+    const timer = setTimeout(() => {
+      fetch('/api/driver/profile')
+        .then((r) => r.json())
+        .then((data) => {
+          if (data == null || !data._id) router.replace('/driver/profile')
+        })
+        .catch(() => {})
+    }, 0)
+    return () => clearTimeout(timer)
   }, [pathname, router, hasNoProfileYet])
+
+  const hasTenants = false // Or your actual logic to determine this
 
   if (needsRedirect) {
     return (
