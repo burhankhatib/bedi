@@ -42,7 +42,7 @@ export async function GET(req: Request) {
       deliveryAddress?: string
       totalAmount?: number
       currency?: string
-      items?: Array<{ productName: string; quantity: number; price: number; total: number }>
+      items?: Array<{ productName: string; productNameAr?: string; quantity: number; price: number; total: number }>
     }[]>(
       `*[
         _type == "order" &&
@@ -64,7 +64,7 @@ export async function GET(req: Request) {
         deliveryAddress,
         totalAmount,
         currency,
-        items[]{ productName, quantity, price, total }
+        items[]{ productName, "productNameAr": product->title_ar, quantity, price, total }
       }`,
       { cutoff3m, cutoff2h }
     )
@@ -83,7 +83,16 @@ export async function GET(req: Request) {
           const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
           
           // Format items list
-          const itemsList = order.items?.map(i => `▪️ *${i.quantity}x* _${i.productName}_ (${i.total} ${order.currency})`).join('\r') || 'لا توجد منتجات'
+          const itemsList = order.items?.map(i => {
+            const nameAr = i.productNameAr;
+            const nameEn = i.productName;
+            
+            let itemText = `▪️ *${i.quantity}x* _${nameAr || nameEn || 'منتج غير معروف'}_ (${i.total} ${order.currency})`;
+            if (nameAr && nameEn && nameAr !== nameEn) {
+              itemText += `\r   └ _${nameEn}_`;
+            }
+            return itemText;
+          }).join('\r\r') || 'لا توجد منتجات'
           
           // Format customer details
           const customerDetails = `👤 *الاسم:* ${order.customerName || 'غير معروف'}\r📞 *الهاتف:* ${order.customerPhone || 'غير متوفر'}\r🚚 *نوع الطلب:* *${order.orderType === 'delivery' ? 'توصيل' : order.orderType === 'dine-in' ? 'محلي' : 'استلام'}*${order.deliveryAddress ? `\r📍 *العنوان:* _${order.deliveryAddress}_` : ''}`

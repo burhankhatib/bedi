@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
 
-/** Cache 60s per (city, category) to reduce Sanity API calls. */
-export const revalidate = 60
+/** Dynamic route to ensure city-specific categories don't get mixed via static cache. */
+export const dynamic = 'force-dynamic'
 
 type ImageSource = { asset?: { _ref: string } } | null | undefined
 
@@ -148,10 +148,10 @@ export async function GET(req: NextRequest) {
   const result = Array.from(sectionMap.entries())
     .filter(([, v]) => v.count > 0)
     .map(([key, v]) => {
-      const image =
-        v.subcategoryImage?.asset?._ref
-          ? v.subcategoryImage
-          : pickFreshImage(v.candidateImages)
+      // Prioritize actual product images from different restaurants for a fresh look, 
+      // otherwise fall back to the generic subcategory image.
+      const freshImg = pickFreshImage(v.candidateImages)
+      const image = freshImg?.asset?._ref ? freshImg : v.subcategoryImage
       return {
         key,
         title_en: v.en,

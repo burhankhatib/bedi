@@ -16,6 +16,7 @@ import { BUSINESS_TYPES } from '@/lib/constants'
 import { getSectionIcon } from '@/lib/section-icons'
 import { getCityDisplayName } from '@/lib/registration-translations'
 import { Input } from '@/components/ui/input'
+import { CategoryIconsBar } from '@/components/home/CategoryIconsBar'
 
 type SectionWithImage = {
   key: string
@@ -328,6 +329,14 @@ export function SearchPageClient() {
     <div className="min-h-screen bg-slate-50" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <SiteHeader variant="home" />
       <LocationModal />
+
+      {isChosen && (
+        <div className="bg-white border-b border-slate-200">
+          <div className="container mx-auto px-4">
+            <CategoryIconsBar activeCategory={category} />
+          </div>
+        </div>
+      )}
 
       <main className="container mx-auto px-4 py-8">
         {!isChosen ? (

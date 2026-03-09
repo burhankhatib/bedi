@@ -90,7 +90,7 @@ export const NotificationService = {
             deliveryAddress?: string
             totalAmount?: number
             currency?: string
-            items?: Array<{ productName: string; quantity: number; price: number; total: number }>
+            items?: Array<{ productName: string; productNameAr?: string; quantity: number; price: number; total: number }>
           }>(
             `*[_type == "order" && _id == $orderId][0]{
               customerName,
@@ -99,13 +99,22 @@ export const NotificationService = {
               deliveryAddress,
               totalAmount,
               currency,
-              items[]{ productName, quantity, price, total }
+              items[]{ productName, "productNameAr": product->title_ar, quantity, price, total }
             }`,
             { orderId }
           )
 
           // Format items list
-          const itemsList = orderDoc?.items?.map(i => `▪️ *${i.quantity}x* _${i.productName}_ (${i.total} ${orderDoc.currency})`).join('\r') || 'لا توجد منتجات'
+          const itemsList = orderDoc?.items?.map(i => {
+            const nameAr = i.productNameAr;
+            const nameEn = i.productName;
+            
+            let itemText = `▪️ *${i.quantity}x* _${nameAr || nameEn || 'منتج غير معروف'}_ (${i.total} ${orderDoc.currency})`;
+            if (nameAr && nameEn && nameAr !== nameEn) {
+              itemText += `\r   └ _${nameEn}_`;
+            }
+            return itemText;
+          }).join('\r\r') || 'لا توجد منتجات'
           
           // Format customer details
           const customerDetails = `👤 *الاسم:* ${orderDoc?.customerName || 'غير معروف'}\r📞 *الهاتف:* ${orderDoc?.customerPhone || 'غير متوفر'}\r🚚 *نوع الطلب:* *${orderDoc?.orderType === 'delivery' ? 'توصيل' : orderDoc?.orderType === 'dine-in' ? 'محلي' : 'استلام'}*${orderDoc?.deliveryAddress ? `\r📍 *العنوان:* _${orderDoc.deliveryAddress}_` : ''}`

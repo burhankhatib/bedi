@@ -8,6 +8,7 @@ import { SiteHeader } from '@/components/global/SiteHeader'
 import { LocationGate } from '@/components/home/LocationGate'
 import { HeroBannerFallback } from '@/components/home/HeroBanner'
 import { CategoryGrid } from '@/components/home/CategoryGrid'
+import { CategoryIconsBar } from '@/components/home/CategoryIconsBar'
 import { PublicFooter } from '@/components/saas/PublicFooter'
 
 const HeroBanner = lazy(() =>
@@ -37,6 +38,14 @@ export function HomePageNew() {
         </motion.section>
 
         <main className="container mx-auto px-4 py-6 sm:py-8">
+          <motion.section
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, delay: 0.15 }}
+          >
+            <CategoryIconsBar className="mb-2" />
+          </motion.section>
+
           <motion.section
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

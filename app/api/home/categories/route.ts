@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
 
-/** Cache 60s per city to reduce Sanity API calls. */
-export const revalidate = 60
+/** Dynamic route to ensure city-specific categories don't get mixed via static cache. */
+export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/home/categories?city=Jerusalem
