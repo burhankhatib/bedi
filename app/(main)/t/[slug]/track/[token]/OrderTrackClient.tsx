@@ -384,6 +384,18 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         : lang === 'ar'
           ? `السائق في الطريق إلى ${restaurantName}`
           : `Driver is on the way to ${restaurantName}`
+      : statusKey === 'out-for-delivery'
+        ? data.driver?.name
+          ? lang === 'ar'
+            ? `${data.driver.name} في الطريق إليك`
+            : `${data.driver.name} is on the way to you`
+          : lang === 'ar'
+            ? `السائق في الطريق إليك`
+            : `Driver is on the way to you`
+      : statusKey === 'new'
+        ? lang === 'ar'
+          ? `تم إرسال الطلب إلى ${restaurantName}`
+          : `Order sent to ${restaurantName}`
       : lang === 'ar'
         ? statusCfg.labelAr
         : statusCfg.labelEn
@@ -461,7 +473,9 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                   <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                     <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
                     <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-slate-50 shadow-sm border border-slate-100 flex flex-col">
-                      <p className="text-xs font-bold text-slate-800">{t('Order received', 'تم استلام الطلب')}</p>
+                      <p className="text-xs font-bold text-slate-800">
+                        {lang === 'ar' ? `تم إرسال الطلب إلى ${restaurantName}` : `Order sent to ${restaurantName}`}
+                      </p>
                       {data.order.createdAt && <p className="text-xs text-slate-500 mt-1">{fmt(data.order.createdAt)}</p>}
                     </div>
                   </div>
@@ -520,7 +534,13 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                     <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                       <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
                       <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
-                        <p className="text-xs font-bold text-slate-800">{t('Order picked up — on the way to you', 'تم استلام الطلب — في الطريق إليك')}</p>
+                        <p className="text-xs font-bold text-slate-800">
+                          {data.driver?.name
+                            ? lang === 'ar'
+                              ? `تم استلام الطلب — ${data.driver.name} في الطريق إليك`
+                              : `Order picked up — ${data.driver.name} is on the way to you`
+                            : t('Order picked up — on the way to you', 'تم استلام الطلب — في الطريق إليك')}
+                        </p>
                         <p className="text-xs text-slate-500 mt-1">{fmt(data.order.driverPickedUpAt)}</p>
                       </div>
                     </div>

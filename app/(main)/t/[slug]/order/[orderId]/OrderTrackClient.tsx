@@ -177,6 +177,18 @@ export function OrderTrackClient({
         : lang === 'ar'
           ? `السائق في الطريق إلى ${restaurantName}`
           : `Driver is on the way to ${restaurantName}`
+      : statusKey === 'out-for-delivery'
+        ? data.driver?.name
+          ? lang === 'ar'
+            ? `${data.driver.name} في الطريق إليك`
+            : `${data.driver.name} is on the way to you`
+          : lang === 'ar'
+            ? `السائق في الطريق إليك`
+            : `Driver is on the way to you`
+      : statusKey === 'new'
+        ? lang === 'ar'
+          ? `تم إرسال الطلب إلى ${restaurantName}`
+          : `Order sent to ${restaurantName}`
       : lang === 'ar'
         ? statusCfg.labelAr
         : statusCfg.labelEn

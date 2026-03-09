@@ -135,7 +135,7 @@ function ClosedBanner({
 }
 
 export default function MenuLayout({ initialData, tenantSlug, initialTableNumber }: MenuLayoutProps) {
-  const { categories, popularProducts, restaurantInfo, aboutUs, storeName, supportsDineIn, supportsReceiveInPerson, hasDelivery, isManuallyClosed, deactivateUntil } = initialData
+  const { categories, popularProducts, restaurantInfo, aboutUs, storeName, supportsDineIn, supportsReceiveInPerson, hasDelivery, isManuallyClosed, deactivateUntil, locationLat, locationLng } = initialData
   const catalogOnlyBySettings = supportsDineIn === false && supportsReceiveInPerson === false && hasDelivery === false
   const catalogHidePrices = initialData.catalogHidePrices
   const orderTypeOptions = tenantSlug
@@ -751,7 +751,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
       )}
 
       {/* Footer / Contact - only when user set address, map link, or embed */}
-      {restaurantInfo && (restaurantInfo.address_en || restaurantInfo.address_ar || restaurantInfo.mapsLink || restaurantInfo.mapEmbedUrl) && (
+      {((restaurantInfo && (restaurantInfo.address_en || restaurantInfo.address_ar || restaurantInfo.mapsLink || restaurantInfo.mapEmbedUrl)) || locationLat != null) && (
       <footer className="bg-black text-white px-6 py-16 text-center">
         <div className="max-w-7xl mx-auto">
           {restaurantInfo?.logo && (
@@ -768,13 +768,27 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
           <h2 className="text-2xl font-bold mb-2">
             {t('Visit Us', 'زورونا')}
           </h2>
-          {(restaurantInfo.tagline_en || restaurantInfo.tagline_ar) && (
+          {restaurantInfo && (restaurantInfo.tagline_en || restaurantInfo.tagline_ar) && (
             <p className="text-slate-300 text-sm mb-4">
               {t(restaurantInfo.tagline_en || '', restaurantInfo.tagline_ar || '')}
             </p>
           )}
-          {(restaurantInfo.address_en || restaurantInfo.address_ar || restaurantInfo.mapsLink) && (
-            restaurantInfo.mapsLink ? (
+          {((restaurantInfo && (restaurantInfo.address_en || restaurantInfo.address_ar || restaurantInfo.mapsLink)) || locationLat != null) && (
+            (locationLat != null && locationLng != null) ? (
+              <a
+                href={`https://www.google.com/maps?q=${locationLat},${locationLng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mb-8 max-w-lg mx-auto block hover:text-white transition-colors group"
+              >
+                <div className="flex items-center justify-center gap-2 text-slate-300 text-base font-medium">
+                  <MapPin className="w-5 h-5 group-hover:text-white transition-colors" />
+                  <span className="group-hover:text-white transition-colors">
+                    {t('Navigate to', 'انتقل إلى')} {headerTitle} {restaurantInfo?.address_en || restaurantInfo?.address_ar ? `— ${t(restaurantInfo.address_en || '', restaurantInfo.address_ar || '')}` : ''}
+                  </span>
+                </div>
+              </a>
+            ) : restaurantInfo?.mapsLink ? (
               <a
                 href={restaurantInfo.mapsLink}
                 target="_blank"
@@ -784,20 +798,34 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                 <div className="flex items-center justify-center gap-2 text-slate-300 text-base font-medium">
                   <MapPin className="w-5 h-5 group-hover:text-white transition-colors" />
                   <span className="group-hover:text-white transition-colors">
-                    {t('Navigate to', 'انتقل إلى')} {headerTitle} — {t(restaurantInfo.address_en || '', restaurantInfo.address_ar || '')}
+                    {t('Navigate to', 'انتقل إلى')} {headerTitle} {restaurantInfo?.address_en || restaurantInfo?.address_ar ? `— ${t(restaurantInfo.address_en || '', restaurantInfo.address_ar || '')}` : ''}
                   </span>
                 </div>
               </a>
             ) : (
               <div className="mb-8 max-w-lg mx-auto flex items-center justify-center gap-2 text-slate-300 text-base font-medium">
                 <MapPin className="w-5 h-5 shrink-0" />
-                <span>{t(restaurantInfo.address_en || '', restaurantInfo.address_ar || '')}</span>
+                <span>{t(restaurantInfo?.address_en || '', restaurantInfo?.address_ar || '')}</span>
               </div>
             )
           )}
 
-          {/* Embedded Google Maps - only when user added embed URL */}
-          {restaurantInfo.mapEmbedUrl && (() => {
+          {/* Embedded Google Maps - prefers coordinates, falls back to mapEmbedUrl */}
+          {(locationLat != null && locationLng != null) ? (
+            <div className="mb-12 max-w-4xl mx-auto rounded-2xl overflow-hidden shadow-2xl">
+              <iframe
+                src={`https://maps.google.com/maps?q=${locationLat},${locationLng}&hl=en&z=14&output=embed`}
+                width="100%"
+                height="450"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                className="w-full"
+                title={t('Map', 'الخريطة')}
+              />
+            </div>
+          ) : restaurantInfo?.mapEmbedUrl ? (() => {
             const raw = restaurantInfo.mapEmbedUrl.trim()
             const srcMatch = raw.match(/src=["']([^"']+)["']/)
             const embedSrc = srcMatch ? srcMatch[1] : raw
@@ -816,7 +844,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
               />
             </div>
             )
-          })()}
+          })() : null}
 
           <div className="flex justify-center gap-6 mb-12">
             {restaurantInfo?.socials?.facebook && (

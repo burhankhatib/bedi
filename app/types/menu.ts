@@ -150,4 +150,6 @@ export interface InitialData {
   businessCountry?: string | null
   /** Whether to hide prices for products when in catalog mode */
   catalogHidePrices?: boolean
+  locationLat?: number | null
+  locationLng?: number | null
 }

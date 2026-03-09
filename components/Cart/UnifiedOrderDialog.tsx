@@ -408,10 +408,14 @@ export function UnifiedOrderDialog({
       availableTimesText += `${formatTime(minAllowed)} - ${formatTime(maxAllowed)}`;
     };
 
+    // Always check main hours if they exist
+    if (dayHours.open && dayHours.close) {
+      checkShift(dayHours.open, dayHours.close);
+    }
+    
+    // Also check any extra shifts
     if (dayHours.shifts && dayHours.shifts.length > 0) {
       dayHours.shifts.forEach((s: any) => checkShift(s.open, s.close));
-    } else {
-      checkShift(dayHours.open, dayHours.close);
     }
 
     if (!isValid) {

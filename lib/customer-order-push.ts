@@ -91,13 +91,24 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
   let label = statusLabel(newStatus, 'en')
   let labelAr = statusLabel(newStatus, 'ar')
 
-  if (newStatus === 'driver_on_the_way') {
+  if (newStatus === 'new') {
+    label = `Order sent to ${businessNameEn}`
+    labelAr = `تم إرسال الطلب إلى ${businessName}`
+  } else if (newStatus === 'driver_on_the_way') {
     if (driverName) {
       label = `Driver ${driverName} is on the way to ${businessNameEn}`
       labelAr = `السائق ${driverName} في الطريق إلى ${businessName}`
     } else {
       label = `Driver is on the way to ${businessNameEn}`
       labelAr = `السائق في الطريق إلى ${businessName}`
+    }
+  } else if (newStatus === 'out-for-delivery') {
+    if (driverName) {
+      label = `${driverName} is on the way to you`
+      labelAr = `${driverName} في الطريق إليك`
+    } else {
+      label = `Driver is on the way to you`
+      labelAr = `السائق في الطريق إليك`
     }
   }
 

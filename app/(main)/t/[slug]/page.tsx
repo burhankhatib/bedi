@@ -142,6 +142,8 @@ export default async function TenantMenuPage({
     deactivateUntil: tenant.deactivateUntil ?? null,
     businessCountry: tenant.country ?? null,
     catalogHidePrices: tenant.catalogHidePrices ?? false,
+    locationLat: tenant.locationLat ?? null,
+    locationLng: tenant.locationLng ?? null,
   }
 
   return (

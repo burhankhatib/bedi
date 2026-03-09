@@ -164,7 +164,16 @@ export async function POST(request: NextRequest) {
       totalAmount,
       currency: currency || 'ILS',
       createdAt: new Date().toISOString(),
-      ...(scheduledFor && { scheduledFor: new Date(scheduledFor).toISOString() }),
+    }
+
+    if (scheduledFor) {
+      const scheduledTime = new Date(scheduledFor)
+      orderDoc.scheduledFor = scheduledTime.toISOString()
+      
+      // Calculate notifyAt: 1 hour before scheduled time
+      const reminderMinutes = 60
+      const notifyTime = new Date(scheduledTime.getTime() - reminderMinutes * 60000)
+      orderDoc.notifyAt = notifyTime.toISOString()
     }
 
     // Add type-specific fields (customerPhone for contact on all non-delivery types too)

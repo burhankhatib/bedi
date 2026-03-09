@@ -47,8 +47,17 @@ export const NotificationService = {
     const pushReady = isFCMConfigured() || isPushConfigured()
     if (pushReady) {
       try {
+        const orderDoc = await writeClient.fetch<{
+          scheduledFor?: string
+        }>(`*[_type == "order" && _id == $orderId][0]{ scheduledFor }`, { orderId })
+
+        const isScheduled = !!orderDoc?.scheduledFor
+        const titleText = isScheduled 
+          ? `${businessName}: طلب مجدول جديد — #${orderNumber || orderId.slice(-6)}`
+          : `${businessName}: طلب جديد — #${orderNumber || orderId.slice(-6)}`
+
         const pushPayload = {
-          title: `${businessName}: طلب جديد — #${orderNumber || orderId.slice(-6)}`,
+          title: titleText,
           body: 'تم استلام طلب جديد. افتح التطبيق للمراجعة والقبول.',
           url,
           icon,

@@ -49,7 +49,7 @@ export async function GET(req: Request) {
         status == "new" &&
         !defined(businessWhatsappNotifiedAt) &&
         (
-          (!defined(scheduledFor) && createdAt <= $cutoff3m && createdAt >= $cutoff2h) ||
+          (createdAt <= $cutoff3m && createdAt >= $cutoff2h) ||
           (defined(scheduledFor) && defined(notifyAt) && notifyAt <= $cutoff3m && notifyAt >= $cutoff2h)
         )
       ]{
