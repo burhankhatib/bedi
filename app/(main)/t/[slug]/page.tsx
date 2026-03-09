@@ -125,7 +125,7 @@ export default async function TenantMenuPage({
   const isManuallyClosed = isTenantDeactivated(tenant)
   const deliveryAreasCount = await getDeliveryAreasCount(siteId, { useCdn: false })
   const supportsDelivery = tenant.supportsDelivery !== false
-  const hasDelivery = supportsDelivery && deliveryAreasCount > 0
+  const hasDelivery = supportsDelivery && (deliveryAreasCount > 0 || tenant.deliveryPricingMode === 'distance')
   const businessType = tenantFromSlug.businessType ?? ''
   const supportsDineInByType = getSupportsDineIn(businessType)
   const supportsDineIn = supportsDineInByType && (tenant.supportsDineIn ?? true)

@@ -120,7 +120,7 @@ export async function GET(req: Request) {
         order.deliveryAreaNameAr?.trim() || order.deliveryAreaNameEn?.trim() || ''
       const bodyAr = areaName
         ? `${businessName} - عليك دفع ${total} ${currency} - التوصيل ${fee} ${currency} (${areaName})`
-        : `${businessName} - عليك دفع ${total} ${currency} - التوصيل ${fee} ${currency}`
+        : `${businessName} - عليك دفع ${total} ${currency} - التوصيل ${fee} ${currency} (حسب المسافة)`
 
       const payload = {
         title: RTL_MARK + 'طلب توصيل جديد',

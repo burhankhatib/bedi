@@ -29,6 +29,10 @@ export type Tenant = {
   supportsDineIn?: boolean
   supportsReceiveInPerson?: boolean
   supportsDelivery?: boolean
+  deliveryPricingMode?: 'areas' | 'distance'
+  deliveryFeeMin?: number
+  deliveryFeeMax?: number
+  deliveryMaxDistanceKm?: number
   country?: string | null
   city?: string | null
   blockedBySuperAdmin?: boolean
@@ -58,7 +62,12 @@ const TENANT_QUERY = `*[_type == "tenant" && slug.current == $slug][0] {
   supportsDineIn,
   supportsReceiveInPerson,
   supportsDelivery,
+  deliveryPricingMode,
+  deliveryFeeMin,
+  deliveryFeeMax,
+  deliveryMaxDistanceKm,
   country,
+  city,
   blockedBySuperAdmin,
   catalogHidePrices,
   locationLat,

@@ -96,6 +96,40 @@ export const tenantType = defineType({
       description: 'If enabled, WhatsApp notifications will be sent instantly for new orders instead of waiting 3 minutes.',
     }),
     defineField({
+      name: 'deliveryPricingMode',
+      title: 'Delivery Pricing Mode',
+      type: 'string',
+      options: {
+        list: [
+          { title: 'Manual Areas (Default)', value: 'areas' },
+          { title: 'Distance-based (Automatic)', value: 'distance' },
+        ],
+      },
+      initialValue: 'areas',
+      description: 'How delivery fees are calculated. If Distance-based, it uses business and customer coordinates.',
+    }),
+    defineField({
+      name: 'deliveryFeeMin',
+      title: 'Minimum Delivery Fee',
+      type: 'number',
+      description: 'Minimum fee for distance-based delivery (e.g. 10).',
+      hidden: ({ parent }) => parent?.deliveryPricingMode !== 'distance',
+    }),
+    defineField({
+      name: 'deliveryFeeMax',
+      title: 'Maximum Delivery Fee',
+      type: 'number',
+      description: 'Maximum fee for distance-based delivery (e.g. 25).',
+      hidden: ({ parent }) => parent?.deliveryPricingMode !== 'distance',
+    }),
+    defineField({
+      name: 'deliveryMaxDistanceKm',
+      title: 'Maximum Distance (km) for Fee Scaling',
+      type: 'number',
+      description: 'Distance at which the fee reaches the maximum (e.g. 15).',
+      hidden: ({ parent }) => parent?.deliveryPricingMode !== 'distance',
+    }),
+    defineField({
       name: 'clerkUserId',
       title: 'Clerk User ID',
       type: 'string',

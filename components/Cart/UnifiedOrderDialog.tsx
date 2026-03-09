@@ -100,33 +100,57 @@ export function UnifiedOrderDialog({
   const [mapsLinkInput, setMapsLinkInput] = useState('')
   const [mapsLinkError, setMapsLinkError] = useState<string | null>(null)
 
-  const showDeliveryOption = hasDelivery === true || (hasDelivery == null && tenantSlug && (loading || areas.length > 0))
+  const showDeliveryOption = hasDelivery === true || (hasDelivery == null && tenantSlug && (loading || areas.length > 0 || cartTenant?.deliveryPricingMode === 'distance'))
+
+  const isDistanceMode = cartTenant?.deliveryPricingMode === 'distance'
 
   const nameInputRef = useRef<HTMLInputElement>(null)
   const prevOpenRef = useRef(false)
 
+  const [distanceFee, setDistanceFee] = useState<number | null>(null)
+  const [distanceKm, setDistanceKm] = useState<number | null>(null)
+  const [priceLoading, setPriceLoading] = useState(false)
+
   // Fetch delivery areas when dialog opens so we know whether to show Delivery option (only if tenant has areas)
   useEffect(() => {
     if (!open || !tenantSlug) return
+    if (cartTenant?.deliveryPricingMode === 'distance') return
     setLoading(true)
     fetch(`/api/tenants/${tenantSlug}/areas`)
       .then((res) => (res.ok ? res.json() : []))
       .then((result) => setAreas(Array.isArray(result) ? result : []))
       .catch(() => setAreas([]))
       .finally(() => setLoading(false))
-  }, [open, tenantSlug])
+  }, [open, tenantSlug, cartTenant?.deliveryPricingMode])
 
   // Also ensure areas are loaded when user selects delivery (e.g. if fetch was slow)
   useEffect(() => {
     if (step !== 'details' || orderType !== 'delivery' || areas.length > 0) return
     if (!tenantSlug) return
+    if (cartTenant?.deliveryPricingMode === 'distance') return
     setLoading(true)
     fetch(`/api/tenants/${tenantSlug}/areas`)
       .then((res) => (res.ok ? res.json() : []))
       .then((result) => setAreas(Array.isArray(result) ? result : []))
       .catch(() => setAreas([]))
       .finally(() => setLoading(false))
-  }, [step, orderType, tenantSlug, areas.length])
+  }, [step, orderType, tenantSlug, areas.length, cartTenant?.deliveryPricingMode])
+
+  // Fetch distance price when location changes in distance mode
+  useEffect(() => {
+    if (orderType !== 'delivery' || !isDistanceMode || !tenantSlug || deliveryLat == null || deliveryLng == null) return
+    setPriceLoading(true)
+    fetch(`/api/tenants/${tenantSlug}/delivery-price?lat=${deliveryLat}&lng=${deliveryLng}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.suggestedFee !== undefined) {
+          setDistanceFee(data.suggestedFee)
+          setDistanceKm(data.distanceKm)
+        }
+      })
+      .catch(err => console.error('Failed to fetch delivery price', err))
+      .finally(() => setPriceLoading(false))
+  }, [orderType, isDistanceMode, tenantSlug, deliveryLat, deliveryLng])
 
   // Reset form only when dialog transitions from closed to open (not when location/callbacks update while open)
   useEffect(() => {
@@ -305,8 +329,7 @@ export function UnifiedOrderDialog({
         onOpenChange(false)
       }
     } else if (orderType === 'delivery') {
-      const selectedArea = areas.find(a => a._id === areaId)
-      const deliveryFee = selectedArea?.deliveryPrice || 0
+      const deliveryFeeValue = isDistanceMode ? (distanceFee ?? 0) : (areas.find(a => a._id === areaId)?.deliveryPrice || 0)
       const hasSharedLocation = deliveryLat != null && deliveryLng != null
       if (!hasSharedLocation) {
         setLocationError(
@@ -318,9 +341,9 @@ export function UnifiedOrderDialog({
         return
       }
 
-      if (name.trim() && phone.trim() && areaId) {
+      if (name.trim() && phone.trim() && (isDistanceMode || areaId)) {
         const addressValue = address.trim() || (hasSharedLocation ? t('Location shared', 'تم مشاركة الموقع') : '')
-        onDeliverySubmit(name.trim(), phone.trim(), areaId, addressValue, deliveryFee, finalScheduledFor)
+        onDeliverySubmit(name.trim(), phone.trim(), isDistanceMode ? '' : areaId, addressValue, deliveryFeeValue, finalScheduledFor)
         onOpenChange(false)
       }
     }
@@ -719,62 +742,88 @@ export function UnifiedOrderDialog({
             <form onSubmit={handleFinalSubmit} className="space-y-5">
               {customerInfoHeader}
 
-              {/* Delivery Area */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0 flex items-center gap-1">
-                  <MapPin className="w-3 h-3" />
-                  {t('Delivery Area', 'منطقة التوصيل')} *
-                </label>
-                {loading ? (
-                  <div className="h-14 rounded-2xl bg-slate-50 flex items-center justify-center">
-                    <div className="text-sm text-slate-400">{t('Loading areas...', 'جارٍ تحميل المناطق...')}</div>
-                  </div>
-                ) : areas.length === 0 ? (
-                  <div className="h-14 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center">
-                    <div className="text-sm text-red-600 font-semibold">
-                      {t('No delivery areas available', 'لا توجد مناطق توصيل متاحة')}
+              {/* Delivery Area or Distance Fee */}
+              {!isDistanceMode && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0 flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    {t('Delivery Area', 'منطقة التوصيل')} *
+                  </label>
+                  {loading ? (
+                    <div className="h-14 rounded-2xl bg-slate-50 flex items-center justify-center">
+                      <div className="text-sm text-slate-400">{t('Loading areas...', 'جارٍ تحميل المناطق...')}</div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2 w-full max-h-60 overflow-y-auto scrollbar-thin pr-1 rtl:pr-0 rtl:pl-1">
-                    {areas.map((area) => {
-                      const areaName = lang === 'ar' ? area.name_ar : area.name_en
-                      const priceText = area.deliveryPrice === 0
-                        ? t('Free', 'مجاني')
-                        : `${area.deliveryPrice} ${area.currency}`
-                      const timeText = area.estimatedTime
-                        ? ` • ${area.estimatedTime} ${t('min', 'دقيقة')}`
-                        : ''
-                      return (
-                        <label 
-                          key={area._id} 
-                          className={`flex items-center gap-3 p-4 rounded-2xl border cursor-pointer transition-all ${areaId === area._id ? 'border-green-600 bg-green-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
-                        >
-                          <input
-                            type="radio"
-                            name="delivery_area"
-                            value={area._id}
-                            checked={areaId === area._id}
-                            onChange={(e) => setAreaId(e.target.value)}
-                            className="size-5 accent-green-600 shrink-0"
-                          />
-                          <div className="flex-1">
-                            <p className={`font-bold ${areaId === area._id ? 'text-green-900' : 'text-slate-800'}`}>
-                              {areaName}
-                            </p>
-                            <p className="text-sm font-medium text-slate-500">
-                              {t('Delivery:', 'التوصيل:')} <span className={area.deliveryPrice === 0 ? 'text-green-600 font-bold' : ''}>{priceText}</span>{timeText}
-                            </p>
-                          </div>
-                        </label>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
+                  ) : areas.length === 0 ? (
+                    <div className="h-14 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center">
+                      <div className="text-sm text-red-600 font-semibold">
+                        {t('No delivery areas available', 'لا توجد مناطق توصيل متاحة')}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2 w-full max-h-60 overflow-y-auto scrollbar-thin pr-1 rtl:pr-0 rtl:pl-1">
+                      {areas.map((area) => {
+                        const areaName = lang === 'ar' ? area.name_ar : area.name_en
+                        const priceText = area.deliveryPrice === 0
+                          ? t('Free', 'مجاني')
+                          : `${area.deliveryPrice} ${area.currency}`
+                        const timeText = area.estimatedTime
+                          ? ` • ${area.estimatedTime} ${t('min', 'دقيقة')}`
+                          : ''
+                        return (
+                          <label 
+                            key={area._id} 
+                            className={`flex items-center gap-3 p-4 rounded-2xl border cursor-pointer transition-all ${areaId === area._id ? 'border-green-600 bg-green-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                          >
+                            <input
+                              type="radio"
+                              name="delivery_area"
+                              value={area._id}
+                              checked={areaId === area._id}
+                              onChange={(e) => setAreaId(e.target.value)}
+                              className="size-5 accent-green-600 shrink-0"
+                            />
+                            <div className="flex-1">
+                              <p className={`font-bold ${areaId === area._id ? 'text-green-900' : 'text-slate-800'}`}>
+                                {areaName}
+                              </p>
+                              <p className="text-sm font-medium text-slate-500">
+                                {t('Delivery:', 'التوصيل:')} <span className={area.deliveryPrice === 0 ? 'text-green-600 font-bold' : ''}>{priceText}</span>{timeText}
+                              </p>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Delivery location: Use my location or type address */}
               <div className="space-y-3">
+                {isDistanceMode && deliveryLat != null && deliveryLng != null && (
+                  <div className="rounded-2xl border border-green-200 bg-green-50 p-4 mb-4">
+                    {priceLoading ? (
+                      <div className="flex items-center gap-2 text-green-700">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm font-semibold">{t('Calculating delivery fee...', 'جاري حساب رسوم التوصيل...')}</span>
+                      </div>
+                    ) : distanceFee !== null && distanceKm !== null ? (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-green-900">{t('Delivery Fee', 'رسوم التوصيل')}</span>
+                          <span className="font-black text-green-700 text-lg">{distanceFee} {t('ILS', 'شيكل')}</span>
+                        </div>
+                        <span className="text-xs font-medium text-green-600">
+                          {t('Distance:', 'المسافة:')} ~{distanceKm.toFixed(1)} {t('km', 'كم')}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-red-600 font-semibold">
+                        {t('Could not calculate delivery fee. Please try a different location.', 'تعذر حساب رسوم التوصيل. يرجى تجربة موقع آخر.')}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {setDeliveryLocation && (
                   <div className="rounded-2xl border-2 border-slate-200 bg-slate-50/80 p-4 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
@@ -947,8 +996,8 @@ export function UnifiedOrderDialog({
                 <div className="flex-1 flex flex-col">
                   <Button
                     type="submit"
-                    className="w-full h-14 rounded-2xl font-black bg-green-600 text-white shadow-xl shadow-green-600/10 hover:bg-green-700 active:scale-[0.98] transition-all"
-                    disabled={!phone.trim() || !areaId || deliveryLat == null || deliveryLng == null || (isScheduled && (!scheduledFor || !!scheduleError))}
+                    className="w-full h-14 rounded-2xl font-black bg-green-600 text-white shadow-xl shadow-green-600/10 hover:bg-green-700 active:scale-[0.98] transition-all disabled:opacity-50"
+                    disabled={!phone.trim() || (!isDistanceMode && !areaId) || deliveryLat == null || deliveryLng == null || (isScheduled && (!scheduledFor || !!scheduleError)) || (isDistanceMode && distanceFee === null)}
                   >
                     {t('Continue', 'متابعة')}
                   </Button>

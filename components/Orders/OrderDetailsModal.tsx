@@ -668,7 +668,7 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
 Order # / الطلب: ${localOrder.orderNumber}
 
 Name / الاسم: ${localOrder.customerName}
-${localOrder.deliveryArea ? `Area / المنطقة: ${localOrder.deliveryArea.name_en || ''} | ${localOrder.deliveryArea.name_ar || ''}\n` : ''}${localOrder.deliveryAddress ? `Address / العنوان: ${localOrder.deliveryAddress}\n` : ''}
+${localOrder.deliveryArea ? `Area / المنطقة: ${localOrder.deliveryArea.name_en || ''} | ${localOrder.deliveryArea.name_ar || ''}\n` : 'Area / المنطقة: Distance-based / حسب المسافة\n'}${localOrder.deliveryAddress ? `Address / العنوان: ${localOrder.deliveryAddress}\n` : ''}
 
 Items / الطلبات:
 ${itemsList}
@@ -702,7 +702,7 @@ Order # / الطلب: ${localOrder.orderNumber}
 
 Customer / العميل: ${localOrder.customerName}
 Phone / الجوال: ${localOrder.customerPhone}
-Area / المنطقة: ${localOrder.deliveryArea?.name_en || ''} | ${localOrder.deliveryArea?.name_ar || '—'}
+Area / المنطقة: ${localOrder.deliveryArea ? `${localOrder.deliveryArea.name_en || ''} | ${localOrder.deliveryArea.name_ar || '—'}` : 'Distance-based / حسب المسافة'}
 Address / العنوان: ${localOrder.deliveryAddress || '—'}
 
 Items / الطلبات:

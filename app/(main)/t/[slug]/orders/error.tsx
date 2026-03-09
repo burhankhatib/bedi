@@ -28,15 +28,15 @@ export default function TenantOrdersError({
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center bg-slate-950 px-4 text-white">
-      <div className="text-center max-w-md">
-        <h1 className="text-xl font-bold mb-2">
-          {isAuthRelated ? 'Session expired or sign-in required' : 'Something went wrong'}
-        </h1>
-        <p className="text-slate-400 text-sm mb-6">
-          {isAuthRelated
-            ? 'Redirecting you to sign in…'
-            : 'We couldn’t load the orders. Sign in again or try again.'}
-        </p>
+        <div className="text-center max-w-md">
+          <h1 className="text-xl font-bold mb-2">
+            {isAuthRelated ? 'Session expired or sign-in required' : 'Something went wrong'}
+          </h1>
+          <p className="text-slate-400 text-sm mb-6">
+            {isAuthRelated
+              ? 'Redirecting you to sign in…'
+              : 'We couldn’t load the orders. Sign in again or try again.'}
+          </p>
         <div className="flex flex-wrap justify-center gap-3">
           <Button asChild className="bg-amber-500 text-slate-950 hover:bg-amber-400" size="lg">
             <Link href={`/sign-in?redirect_url=${slug ? `/t/${slug}/orders` : '/dashboard'}`}>

@@ -152,4 +152,7 @@ export interface InitialData {
   catalogHidePrices?: boolean
   locationLat?: number | null
   locationLng?: number | null
+  deliveryPricingMode?: 'areas' | 'distance'
+  deliveryFeeMin?: number
+  deliveryFeeMax?: number
 }

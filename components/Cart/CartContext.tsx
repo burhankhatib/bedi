@@ -23,6 +23,9 @@ export interface CartTenant {
   openingHours?: any[] | null
   customDateHours?: any[] | null
   businessCountry?: string
+  deliveryPricingMode?: 'areas' | 'distance'
+  deliveryFeeMin?: number
+  deliveryFeeMax?: number
 }
 
 /** Order-type flags for the current cart tenant (from menu page). Used to show/hide Dine-in, Receive in Person, Delivery in the order dialog. */

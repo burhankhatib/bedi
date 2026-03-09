@@ -105,9 +105,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (orderType === 'delivery' && (!customerPhone || !deliveryAreaId || !deliveryAddress)) {
+    if (orderType === 'delivery' && (!customerPhone || !deliveryAddress)) {
       return NextResponse.json(
-        { error: 'Phone, area, and address are required for delivery orders' },
+        { error: 'Phone and address are required for delivery orders' },
+        { status: 400 }
+      )
+    }
+
+    if (orderType === 'delivery' && !deliveryAreaId && (typeof deliveryLat !== 'number' || typeof deliveryLng !== 'number')) {
+      return NextResponse.json(
+        { error: 'Delivery location or area is required for delivery orders' },
         { status: 400 }
       )
     }
@@ -184,9 +191,11 @@ export async function POST(request: NextRequest) {
       orderDoc.customerPhone = customerPhone
     } else if (orderType === 'delivery') {
       orderDoc.customerPhone = customerPhone
-      orderDoc.deliveryArea = {
-        _type: 'reference',
-        _ref: deliveryAreaId
+      if (deliveryAreaId) {
+        orderDoc.deliveryArea = {
+          _type: 'reference',
+          _ref: deliveryAreaId
+        }
       }
       orderDoc.deliveryAddress = deliveryAddress
       orderDoc.deliveryFee = deliveryFee || 0

@@ -34,8 +34,8 @@ export async function POST(
     )
   }
 
-  const order = await client.fetch<{ _id: string; status?: string; assignedDriverRef?: string; deliveryRequestedAt?: string } | null>(
-    `*[_type == "order" && _id == $orderId][0]{ _id, status, "assignedDriverRef": assignedDriver._ref, deliveryRequestedAt }`,
+  const order = await client.fetch<{ _id: string; status?: string; assignedDriverRef?: string; deliveryRequestedAt?: string; deliveryJourneyLog?: any[] } | null>(
+    `*[_type == "order" && _id == $orderId][0]{ _id, status, "assignedDriverRef": assignedDriver._ref, deliveryRequestedAt, deliveryJourneyLog }`,
     { orderId }
   )
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
@@ -44,6 +44,23 @@ export async function POST(
   }
   if (order.assignedDriverRef) return NextResponse.json({ error: 'Order already assigned to another driver' }, { status: 400 })
   if (!order.deliveryRequestedAt) return NextResponse.json({ error: 'Order is not requesting a driver' }, { status: 400 })
+
+  const driverDoc = await client.fetch<{ lastKnownLat?: number; lastKnownLng?: number } | null>(
+    `*[_type == "driver" && _id == $driverId][0]{ lastKnownLat, lastKnownLng }`,
+    { driverId: driver._id }
+  )
+
+  const newLogEntry = {
+    _key: crypto.randomUUID().replace(/-/g, ''),
+    at: new Date().toISOString(),
+    lat: driverDoc?.lastKnownLat ?? 0,
+    lng: driverDoc?.lastKnownLng ?? 0,
+    label: 'driver_accepted',
+    source: 'driver'
+  }
+  
+  const currentLogs = order.deliveryJourneyLog ?? []
+
   await writeClient
     .patch(orderId)
     .set({
@@ -51,6 +68,7 @@ export async function POST(
       status: 'driver_on_the_way',
       driverAcceptedAt: new Date().toISOString(),
       deliveryRequestedAt: undefined,
+      deliveryJourneyLog: [...currentLogs, newLogEntry]
     })
     .unset(['deliveryRequestedAt'])
     .commit()

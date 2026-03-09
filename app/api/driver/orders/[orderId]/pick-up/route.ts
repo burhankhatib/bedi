@@ -16,21 +16,33 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
   const { orderId } = await params
-  const driver = await client.fetch<{ _id: string } | null>(
-    `*[_type == "driver" && clerkUserId == $userId][0]{ _id }`,
+  const driver = await client.fetch<{ _id: string; lastKnownLat?: number; lastKnownLng?: number } | null>(
+    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, lastKnownLat, lastKnownLng }`,
     { userId }
   )
   if (!driver) return NextResponse.json({ error: 'Driver profile not found' }, { status: 404 })
-  const order = await client.fetch<{ _id: string; assignedDriverRef?: string; status: string } | null>(
-    `*[_type == "order" && _id == $orderId][0]{ _id, "assignedDriverRef": assignedDriver._ref, status }`,
+  const order = await client.fetch<{ _id: string; assignedDriverRef?: string; status: string; deliveryJourneyLog?: any[] } | null>(
+    `*[_type == "order" && _id == $orderId][0]{ _id, "assignedDriverRef": assignedDriver._ref, status, deliveryJourneyLog }`,
     { orderId }
   )
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
   if (order.assignedDriverRef !== driver._id) return NextResponse.json({ error: 'Order is not assigned to you' }, { status: 403 })
   
+  const newLogEntry = {
+    _key: crypto.randomUUID().replace(/-/g, ''),
+    at: new Date().toISOString(),
+    lat: driver.lastKnownLat ?? 0,
+    lng: driver.lastKnownLng ?? 0,
+    label: 'driver_picked_up',
+    source: 'driver'
+  }
+  
+  const currentLogs = order.deliveryJourneyLog ?? []
+
   await writeClient.patch(orderId).set({ 
     status: 'out-for-delivery',
-    driverPickedUpAt: new Date().toISOString()
+    driverPickedUpAt: new Date().toISOString(),
+    deliveryJourneyLog: [...currentLogs, newLogEntry]
   }).commit()
 
   sendCustomerOrderStatusPush({

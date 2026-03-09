@@ -497,7 +497,7 @@ function DriverOrdersContent() {
         </div>
         <div className="text-slate-300 text-[15px] leading-relaxed pr-2 ml-12 rtl:mr-12 rtl:ml-2 space-y-1">
           {o.city && <p>{getCityDisplayName(o.city, lang)}</p>}
-          <p><span className="font-semibold">{t('Area:', 'المنطقة:')}</span> {lang === 'ar' && o.deliveryAreaNameAr ? o.deliveryAreaNameAr : (o.deliveryAreaName || '—')}</p>
+          <p><span className="font-semibold">{t('Area:', 'المنطقة:')}</span> {o.deliveryAreaName || o.deliveryAreaNameAr ? ((lang === 'ar' && o.deliveryAreaNameAr) ? o.deliveryAreaNameAr : o.deliveryAreaName) : t('Distance-based', 'حسب المسافة')}</p>
           <p><span className="font-semibold">{t('Address:', 'العنوان:')}</span> {o.deliveryAddress || '—'}</p>
         </div>
         {!showAcceptDecline && o.deliveryLat != null && o.deliveryLng != null && Number.isFinite(o.deliveryLat) && Number.isFinite(o.deliveryLng) && (
@@ -781,7 +781,7 @@ function DriverOrdersContent() {
                         {t('Total', 'المجموع')} <span className="text-white font-bold">{o.totalAmount.toFixed(2)} {o.currency}</span>
                       </p>
                       <p className="text-slate-400 text-sm mt-1">
-                        {t('Delivery', 'التوصيل')}: {o.city ? `${getCityDisplayName(o.city, lang)} - ` : ''}{(lang === 'ar' && o.deliveryAreaNameAr) ? o.deliveryAreaNameAr : (o.deliveryAddress || '—')}
+                        {t('Delivery', 'التوصيل')}: {o.city ? `${getCityDisplayName(o.city, lang)} - ` : ''}{(lang === 'ar' && o.deliveryAreaNameAr) ? o.deliveryAreaNameAr : (o.deliveryAreaName || t('Distance-based', 'حسب المسافة'))} - {(o.deliveryAddress || '—')}
                       </p>
                       <div className="mt-3 flex justify-end">
                         <button

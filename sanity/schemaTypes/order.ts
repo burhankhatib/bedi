@@ -120,6 +120,27 @@ export const orderType = defineType({
       hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
     }),
     defineField({
+      name: 'deliveryJourneyLog',
+      title: 'Delivery Journey Log',
+      type: 'array',
+      description: 'Log of driver locations and events during the delivery',
+      of: [
+        {
+          type: 'object',
+          name: 'journeyLogEntry',
+          fields: [
+            { name: 'at', type: 'datetime', title: 'Timestamp' },
+            { name: 'lat', type: 'number', title: 'Latitude' },
+            { name: 'lng', type: 'number', title: 'Longitude' },
+            { name: 'label', type: 'string', title: 'Event Label' },
+            { name: 'source', type: 'string', title: 'Source (e.g. driver, system)' },
+          ],
+        },
+      ],
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+      readOnly: true,
+    }),
+    defineField({
       name: 'assignedDriver',
       title: 'Assigned Driver',
       type: 'reference',
