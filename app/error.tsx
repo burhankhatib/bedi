@@ -59,6 +59,9 @@ export default function Error({
             </Link>
           </Button>
         </div>
+        <p className="text-slate-500 text-xs mt-12 px-4">
+          If you opened this from your home screen and it isn't working, try opening the site in your regular browser first.
+        </p>
       </div>
     </div>
   )

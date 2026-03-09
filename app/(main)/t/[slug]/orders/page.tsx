@@ -34,11 +34,20 @@ export default async function TenantOrdersPage({
 }) {
   const { slug } = await params
   const { open: initialOpenOrderId } = await searchParams
-  const auth = await checkTenantAuth(slug)
-  if (!auth.ok) redirect('/dashboard')
-  if (!requirePermission(auth, 'orders')) redirect(`/t/${slug}/manage`)
 
-  await enforcePhoneVerification(`/t/${slug}/orders`)
+  let auth
+  try {
+    auth = await checkTenantAuth(slug)
+    if (!auth.ok) redirect('/dashboard')
+    if (!requirePermission(auth, 'orders')) redirect(`/t/${slug}/manage`)
+    await enforcePhoneVerification(`/t/${slug}/orders`)
+  } catch (err) {
+    if (err && typeof err === 'object' && 'digest' in err && String((err as { digest?: string }).digest).startsWith('NEXT_REDIRECT')) {
+      throw err
+    }
+    console.error('[TenantOrders] Setup error (redirecting to dashboard):', err)
+    redirect('/dashboard')
+  }
 
   const siteId = auth.tenantId
   const siteFilter = '(site._ref == $siteId || !defined(site))'
