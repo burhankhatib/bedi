@@ -109,10 +109,6 @@ export default function LocationPickerMap({
         <MapUpdater center={[lat, lng]} />
         <CenterMapToMarker markerRef={markerRef} onChange={onChange} />
       </MapContainer>
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[400] pointer-events-none text-xs font-bold bg-white/90 text-slate-800 px-3 py-1.5 rounded-full shadow-md backdrop-blur-sm shadow-black/10 border border-slate-200/50 flex flex-col items-center">
-        <span>{lat === 0 ? 'Click to set location' : 'Drag the pin or click on the map to adjust'}</span>
-        <span className="text-[10px] text-slate-500 font-medium">اسحب الدبوس أو انقر على الخريطة للتعديل</span>
-      </div>
     </div>
   )
 }

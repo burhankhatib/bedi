@@ -636,7 +636,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
               {t('Most Popular', 'الأكثر طلباً')}
             </h2>
           </div>
-          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-6 snap-x scroll-smooth px-4">
+          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-6 snap-x scroll-smooth px-4 items-stretch">
             <div className="shrink-0 w-4" aria-hidden />
             {popularProducts.map((product, index) => (
               <PopularProductCard

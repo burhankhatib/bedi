@@ -12,6 +12,9 @@ import { toEnglishDigits } from '@/lib/phone'
 import { Upload, ImageIcon, Volume2, Play, AlertTriangle, Trash2, Store, UtensilsCrossed, Clock, MapPin, Save, LocateFixed } from 'lucide-react'
 import { TenantQRCode } from '@/components/TenantQRCode'
 import { useTenantBusiness } from '../TenantBusinessContext'
+import dynamic from 'next/dynamic'
+
+const LocationPickerMap = dynamic(() => import('@/components/Cart/LocationPickerMap'), { ssr: false })
 
 type CountryOption = { code: string; name: string }
 type Subcategory = { _id: string; slug: string; title_en: string; title_ar: string; businessType: string }
@@ -32,6 +35,8 @@ type BusinessData = {
     supportsReceiveInPerson?: boolean
     supportsDelivery?: boolean
     prioritizeWhatsapp?: boolean
+    locationLat?: number
+    locationLng?: number
   }
   restaurantInfo: {
     name_en?: string
@@ -40,8 +45,6 @@ type BusinessData = {
     tagline_ar?: string
     address_en?: string
     address_ar?: string
-    mapsLink?: string
-    mapEmbedUrl?: string
     logoUrl?: string | null
     notificationSound?: string
     openingHours?: Array<{ open?: string; close?: string; shifts?: { open?: string; close?: string }[] }> | null
@@ -153,8 +156,8 @@ type FormState = {
   tagline_ar: string
   address_en: string
   address_ar: string
-  mapsLink: string
-  mapEmbedUrl: string
+  locationLat: number | null
+  locationLng: number | null
   facebook: string
   instagram: string
   tiktok: string
@@ -192,8 +195,8 @@ function formSnapshotFromData(d: BusinessData): FormState {
     tagline_ar: r?.tagline_ar ?? '',
     address_en: r?.address_en ?? '',
     address_ar: r?.address_ar ?? '',
-    mapsLink: r?.mapsLink ?? '',
-    mapEmbedUrl: r?.mapEmbedUrl ?? '',
+    locationLat: tenant?.locationLat ?? null,
+    locationLng: tenant?.locationLng ?? null,
     facebook: r?.socials?.facebook ?? '',
     instagram: r?.socials?.instagram ?? '',
     tiktok: r?.socials?.tiktok ?? '',
@@ -251,8 +254,8 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     tagline_ar: '',
     address_en: '',
     address_ar: '',
-    mapsLink: '',
-    mapEmbedUrl: '',
+    locationLat: null as number | null,
+    locationLng: null as number | null,
     facebook: '',
     instagram: '',
     tiktok: '',
@@ -329,6 +332,8 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           supportsReceiveInPerson: d.tenant!.supportsReceiveInPerson ?? true,
           supportsDelivery: d.tenant!.supportsDelivery ?? true,
           prioritizeWhatsapp: d.tenant!.prioritizeWhatsapp ?? false,
+          locationLat: d.tenant!.locationLat ?? null,
+          locationLng: d.tenant!.locationLng ?? null,
         }))
       } else if (geo?.countryCode) {
         setForm((f) => ({ ...f, country: geo.countryCode ?? '' }))
@@ -343,8 +348,6 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           tagline_ar: r.tagline_ar || '',
           address_en: r.address_en || '',
           address_ar: r.address_ar || '',
-          mapsLink: r.mapsLink || '',
-          mapEmbedUrl: r.mapEmbedUrl || '',
           facebook: r.socials?.facebook || '',
           instagram: r.socials?.instagram || '',
           tiktok: r.socials?.tiktok || '',
@@ -527,11 +530,6 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
       showToast('Please upload a business logo first.', 'يرجى رفع شعار العمل أولاً.', 'error')
       return
     }
-    const mapsLinkTrimmed = form.mapsLink?.trim()
-    if (!mapsLinkTrimmed) {
-      showToast('Google Maps link is required. Add your business location link.', 'رابط Google Maps مطلوب. أضف رابط موقع عملك.', 'error')
-      return
-    }
     setSaving(true)
     try {
       const res = await api('/business', {
@@ -549,8 +547,8 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           tagline_ar: form.tagline_ar || undefined,
           address_en: form.address_en || undefined,
           address_ar: form.address_ar || undefined,
-          mapsLink: mapsLinkTrimmed,
-          mapEmbedUrl: form.mapEmbedUrl || undefined,
+          locationLat: form.locationLat,
+          locationLng: form.locationLng,
           logoAssetId: form.logoAssetId || undefined,
           notificationSound: form.notificationSound || '1.wav',
           deactivated: form.deactivated,
@@ -1281,52 +1279,29 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
               {/* GPS location share */}
               <BusinessLocationShare 
                 slug={slug} 
-                onSuccess={(lat, lng) => setForm(f => ({ ...f, mapsLink: `https://www.google.com/maps?q=${lat},${lng}` }))}
+                onSuccess={(lat, lng) => setForm(f => ({ ...f, locationLat: lat, locationLng: lng }))}
               />
 
               <div className="relative flex items-center py-2">
                 <div className="flex-grow border-t border-slate-700/60"></div>
-                <span className="flex-shrink-0 mx-4 text-slate-500 text-xs font-bold tracking-wider uppercase">{t('OR MANUAL LINK', 'أو رابط يدوي')}</span>
+                <span className="flex-shrink-0 mx-4 text-slate-500 text-xs font-bold tracking-wider uppercase">{t('OR MANUAL LOCATION', 'أو تحديد يدوي للموقع')}</span>
                 <div className="flex-grow border-t border-slate-700/60"></div>
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-slate-300 mb-2">
-                  {t('Google Maps link', 'رابط Google Maps')} *
+                  {t('Pinpoint on Map', 'تحديد الموقع على الخريطة')} *
                 </label>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Input
-                    type="url"
-                    value={form.mapsLink}
-                    onChange={(e) => setForm((f) => ({ ...f, mapsLink: e.target.value }))}
-                    placeholder="https://maps.google.com/..."
-                    className="flex-1 min-w-[200px] h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
-                    required
+                <div className="w-full h-[300px] rounded-2xl overflow-hidden border border-slate-600 bg-slate-900">
+                  <LocationPickerMap
+                    lat={form.locationLat ?? 24.7136}
+                    lng={form.locationLng ?? 46.6753}
+                    onChange={(lat, lng) => setForm((f) => ({ ...f, locationLat: lat, locationLng: lng }))}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="shrink-0 h-14 rounded-xl px-5 font-semibold border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
-                    onClick={() => window.open('https://www.google.com/maps', '_blank', 'noopener,noreferrer')}
-                  >
-                    <MapPin className="mr-2 size-5" />
-                    {t('Open Maps', 'فتح الخرائط')}
-                  </Button>
                 </div>
                 <p className="mt-2 text-xs text-slate-400 leading-relaxed">
-                  {t('Required. In Google Maps, find your business → Share → Copy link. Paste it here. Used for "Visit us" and driver navigation.', 'مطلوب. في Google Maps ابحث عن عملك ← مشاركة ← انسخ الرابط. الصقه هنا. يُستخدم في "زيارتنا" وتنقل السائق.')}
+                  {t('Required. Drag the pin to your exact business location. Used for driver navigation and "Visit us" button.', 'مطلوب. اسحب الدبوس إلى موقع عملك الدقيق. يُستخدم لتنقل السائقين وزر "زيارتنا".')}
                 </p>
-              </div>
-              
-              <div className="pt-2 border-t border-slate-800/60 mt-4">
-                <label className="block text-sm font-semibold text-slate-300 mb-2 mt-4">Embed map URL</label>
-                <Input
-                  value={form.mapEmbedUrl}
-                  onChange={(e) => setForm((f) => ({ ...f, mapEmbedUrl: e.target.value }))}
-                  placeholder="https://www.google.com/maps/embed?pb=..."
-                  className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
-                />
-                <p className="mt-2 text-xs text-slate-400">Google Maps → Share → Embed a map → copy the iframe src URL.</p>
               </div>
             </div>
           </div>

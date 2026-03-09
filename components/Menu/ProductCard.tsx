@@ -57,7 +57,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
       layoutId={`${layoutPrefix}-${product._id}`}
       whileTap={{ scale: 0.98 }}
       onClick={() => onClick(product)}
-      className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 cursor-pointer hover:shadow-xl transition-all duration-500 relative group h-full flex flex-col"
+      className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 cursor-pointer hover:shadow-xl transition-all duration-500 relative group h-full flex flex-col w-full"
       style={{ position: 'relative' }}
     >
       {/* Badges Overlay */}
@@ -161,15 +161,15 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
         )}
       </div>
 
-      <div className="p-5 flex flex-col grow min-h-0 justify-between">
-        <div>
+      <div className="p-5 flex flex-col grow min-h-0">
+        <div className="flex flex-col grow">
           <h3 className="font-black text-xl leading-tight mb-2 tracking-tight group-hover:text-primary transition-colors line-clamp-2 min-h-[2.75rem]">
             {t(product.title_en, product.title_ar)}
           </h3>
 
           {/* Description - Optional, show only if it exists */}
           {(product.description_en || product.description_ar) && (
-            <p className="text-sm text-slate-500 line-clamp-2 mb-4 leading-relaxed grow min-h-[2.5rem]">
+            <p className="text-sm text-slate-500 line-clamp-2 mb-4 leading-relaxed min-h-[2.5rem]">
               {t(product.description_en || '', product.description_ar || '')}
             </p>
           )}

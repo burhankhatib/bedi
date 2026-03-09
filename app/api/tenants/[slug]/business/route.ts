@@ -53,20 +53,22 @@ export async function GET(
       prioritizeWhatsapp?: boolean
       ownerPhone?: string
       normalizedOwnerPhone?: string
+      locationLat?: number
+      locationLng?: number
     } | null>(
       `*[_type == "tenant" && _id == $tenantId][0]{
         _id, name, country, city,
         businessType,
         "businessSubcategoryIds": businessSubcategories[]._ref,
         deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, catalogHidePrices, prioritizeWhatsapp,
-        ownerPhone, normalizedOwnerPhone
+        ownerPhone, normalizedOwnerPhone, locationLat, locationLng
       }`,
       { tenantId: auth.tenantId }
     ),
     client.fetch<RestaurantInfoDoc | null>(
       `*[_type == "restaurantInfo" && site._ref == $siteId][0]{
         name_en, name_ar, tagline_en, tagline_ar,
-        address_en, address_ar, mapsLink, mapEmbedUrl,
+        address_en, address_ar,
         socials,
         logo,
         notificationSound,
@@ -223,8 +225,6 @@ export async function PATCH(
     tagline_ar: body.tagline_ar,
     address_en: body.address_en,
     address_ar: body.address_ar,
-    mapsLink: body.mapsLink,
-    mapEmbedUrl: body.mapEmbedUrl,
     socials: body.socials,
     logoAssetId: body.logoAssetId,
     notificationSound: body.notificationSound,
@@ -239,8 +239,6 @@ export async function PATCH(
   if (restFields.tagline_ar !== undefined) restPatch.tagline_ar = restFields.tagline_ar
   if (restFields.address_en !== undefined) restPatch.address_en = restFields.address_en
   if (restFields.address_ar !== undefined) restPatch.address_ar = restFields.address_ar
-  if (restFields.mapsLink !== undefined) restPatch.mapsLink = restFields.mapsLink
-  if (restFields.mapEmbedUrl !== undefined) restPatch.mapEmbedUrl = restFields.mapEmbedUrl
   if (restFields.socials !== undefined) restPatch.socials = restFields.socials
   if (restFields.logoAssetId != null && restFields.logoAssetId !== '') {
     restPatch.logo = { _type: 'image' as const, asset: { _type: 'reference' as const, _ref: String(restFields.logoAssetId) } }
@@ -271,6 +269,18 @@ export async function PATCH(
         }))
       : []
     restPatch.customDateHours = custom
+  }
+
+  // Also patch locationLat and locationLng on the tenant directly
+  if (body.locationLat !== undefined && body.locationLng !== undefined) {
+    if (body.locationLat === null || body.locationLng === null) {
+      await writeClient.patch(auth.tenantId).unset(['locationLat', 'locationLng']).commit()
+    } else {
+      await writeClient.patch(auth.tenantId).set({ 
+        locationLat: Number(body.locationLat), 
+        locationLng: Number(body.locationLng) 
+      }).commit()
+    }
   }
 
   if (Object.keys(restPatch).length > 0) {
