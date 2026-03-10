@@ -30,6 +30,7 @@ import {
   LocateFixed,
   ChevronDown,
 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/ToastProvider'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
@@ -165,22 +166,38 @@ function CustomerLocationShare({ orderId, trackingToken }: { orderId: string; tr
   )
 }
 
-/** Delivery ETA countdown box with driver info. */
+/** Unified delivery box: countdown + total price + tipping + driver info. */
 function DeliveryETABox({
   order,
   driver,
   countryCode,
+  tipEnabled,
+  tipPercent,
+  tipAmount,
+  displayTotal,
+  currency,
+  onTipToggle,
+  onTipPercentChange,
 }: {
   order: TrackData['order']
   driver: TrackData['driver']
   countryCode: string
+  tipEnabled: boolean
+  tipPercent: number
+  tipAmount: number
+  displayTotal: number
+  currency: string
+  onTipToggle: (enabled: boolean) => void
+  onTipPercentChange: (percent: number) => void
 }) {
-  const { t, lang } = useLanguage()
+  const { t } = useLanguage()
   const [now, setNow] = useState(() => Date.now())
+  const [driverInfoOpen, setDriverInfoOpen] = useState(false)
 
   const isActive =
     order.status === 'out-for-delivery' || order.status === 'driver_on_the_way'
   const isCompleted = order.status === 'completed'
+  const isOutForDelivery = order.status === 'out-for-delivery'
   const showBox = (isActive || isCompleted) && order.orderType === 'delivery'
 
   useEffect(() => {
@@ -191,7 +208,9 @@ function DeliveryETABox({
 
   if (!showBox) return null
 
-  // After completion: show actual delivery duration
+  const fmtCurrency = formatCurrency(currency)
+
+  // ═══ COMPLETED STATE ═══
   if (isCompleted && order.completedAt) {
     const deliveredAt = new Date(order.completedAt)
     const fmt = deliveredAt.toLocaleString('en-US', {
@@ -250,12 +269,12 @@ function DeliveryETABox({
     )
   }
 
-  // Active: countdown to estimated delivery
+  // ═══ ACTIVE STATE ═══
   const pickedUpAt = order.driverPickedUpAt
     ? new Date(order.driverPickedUpAt).getTime()
     : null
   const etaMinutes = order.estimatedDeliveryMinutes
-  const hasCountdown = isActive && pickedUpAt && etaMinutes && order.status === 'out-for-delivery'
+  const hasCountdown = isActive && pickedUpAt && etaMinutes && isOutForDelivery
 
   let countdownMinutes = 0
   let countdownSeconds = 0
@@ -276,122 +295,276 @@ function DeliveryETABox({
 
   return (
     <div className="mt-6 px-4">
-      <div className="rounded-3xl border border-purple-200 bg-gradient-to-b from-purple-50 to-white p-5 shadow-sm relative overflow-hidden">
-        <div className="absolute -right-4 -top-4 text-purple-200/40 pointer-events-none">
-          <Truck className="w-28 h-28" />
-        </div>
+      <div className="rounded-3xl overflow-hidden shadow-md border border-purple-200/80">
 
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-4 relative z-10">
-          <div className="bg-purple-600 p-2.5 rounded-xl text-white">
-            <Truck className="w-5 h-5" />
+        {/* ═══ SECTION 1: COUNTDOWN (Purple header) ═══ */}
+        <div className="bg-gradient-to-b from-purple-600 to-purple-700 px-5 pt-5 pb-4 text-white relative overflow-hidden">
+          <div className="absolute -right-6 -top-6 text-white/[0.07] pointer-events-none">
+            <Truck className="w-32 h-32" />
           </div>
-          <div>
-            <h2 className="text-lg font-black text-purple-900">
-              {isDriverToStore
-                ? t('Driver heading to the store', 'السائق في الطريق إلى المتجر')
-                : t('On the way to you', 'في الطريق إليك')}
-            </h2>
-            {hasCountdown && (
-              <p className="text-xs text-purple-600 font-medium">
-                {t('Estimated arrival', 'الوصول المتوقع')}
+
+          <div className="flex items-center gap-3 mb-3 relative z-10">
+            <div className="bg-white/20 p-2 rounded-xl backdrop-blur-sm">
+              <Truck className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black">
+                {isDriverToStore
+                  ? t('Driver heading to the store', 'السائق في الطريق إلى المتجر')
+                  : t('On the way to you', 'في الطريق إليك')}
+              </h2>
+              {hasCountdown && !isOverdue && (
+                <p className="text-xs text-white/75 font-medium">
+                  {t('Estimated arrival', 'الوصول المتوقع')}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {hasCountdown && (
+            <div className="relative z-10">
+              {isOverdue ? (
+                <div className="text-center py-2 rounded-2xl bg-white/10 backdrop-blur-sm">
+                  <p className="text-amber-200 font-bold text-sm">
+                    {t('Arriving any moment now…', 'يصل في أي لحظة…')}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-5 py-3 text-center min-w-[80px]">
+                    <span className="text-3xl font-black tabular-nums block">
+                      {String(countdownMinutes).padStart(2, '0')}
+                    </span>
+                    <span className="text-[10px] font-bold text-white/60 uppercase tracking-wider">
+                      {t('min', 'دقيقة')}
+                    </span>
+                  </div>
+                  <span className="text-2xl font-black text-white/40">:</span>
+                  <div className="bg-white/15 backdrop-blur-sm rounded-2xl px-5 py-3 text-center min-w-[80px]">
+                    <span className="text-3xl font-black tabular-nums block">
+                      {String(countdownSeconds).padStart(2, '0')}
+                    </span>
+                    <span className="text-[10px] font-bold text-white/60 uppercase tracking-wider">
+                      {t('sec', 'ثانية')}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!hasCountdown && isDriverToStore && (
+            <div className="relative z-10 text-center py-2 rounded-2xl bg-white/10 backdrop-blur-sm">
+              <p className="text-white/90 font-semibold text-sm">
+                {t('The driver is picking up your order', 'السائق يستلم طلبك')}
               </p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* Countdown */}
-        {hasCountdown && (
-          <div className="relative z-10 mb-4">
-            {isOverdue ? (
-              <div className="text-center py-3 rounded-2xl bg-amber-50 border border-amber-200">
-                <p className="text-amber-700 font-bold text-sm">
-                  {t('Arriving any moment now…', 'يصل في أي لحظة…')}
-                </p>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center gap-2">
-                <div className="bg-purple-100 rounded-2xl px-5 py-3 text-center min-w-[80px]">
-                  <span className="text-3xl font-black text-purple-800 tabular-nums block">
-                    {String(countdownMinutes).padStart(2, '0')}
-                  </span>
-                  <span className="text-[10px] font-bold text-purple-500 uppercase tracking-wider">
-                    {t('min', 'دقيقة')}
-                  </span>
-                </div>
-                <span className="text-2xl font-black text-purple-400">:</span>
-                <div className="bg-purple-100 rounded-2xl px-5 py-3 text-center min-w-[80px]">
-                  <span className="text-3xl font-black text-purple-800 tabular-nums block">
-                    {String(countdownSeconds).padStart(2, '0')}
-                  </span>
-                  <span className="text-[10px] font-bold text-purple-500 uppercase tracking-wider">
-                    {t('sec', 'ثانية')}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {!hasCountdown && isDriverToStore && (
-          <div className="relative z-10 mb-4 text-center py-3 rounded-2xl bg-purple-50 border border-purple-200">
-            <p className="text-purple-700 font-semibold text-sm">
-              {t(
-                'The driver is picking up your order',
-                'السائق يستلم طلبك',
-              )}
+        {/* ═══ SECTION 2: TOTAL PRICE (Clean white) ═══ */}
+        {isOutForDelivery && (
+          <div className="bg-white px-5 py-5">
+            <p className="text-slate-400 text-[11px] font-semibold uppercase tracking-wider mb-1.5">
+              {t('Total to pay (Cash on Delivery)', 'المبلغ المطلوب (الدفع عند الاستلام)')}
             </p>
-          </div>
-        )}
-
-        {/* Tip encouragement during active delivery */}
-        {hasCountdown && !isOverdue && (
-          <div className="relative z-10 mb-4 rounded-2xl bg-gradient-to-r from-rose-50/80 to-amber-50/80 border border-rose-200/60 p-3">
-            <p className="text-center text-sm text-rose-700 font-medium">
-              💜 {t(
-                'Your driver is rushing to you! A small tip makes a big difference',
-                'السائق يسارع إليك! إكرامية صغيرة تعني الكثير'
-              )} 🌟
-            </p>
-          </div>
-        )}
-
-        {/* Driver info */}
-        {driver && (
-          <div className="relative z-10 pt-3 border-t border-purple-200/60">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
-                <Truck className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-bold text-purple-900 text-base">{driver.name}</p>
-                <p className="text-xs text-purple-600">
-                  {t('Your delivery driver', 'سائق التوصيل')}
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <a
-                href={`tel:+${normalizePhoneForWhatsApp(driver.phoneNumber, countryCode)}`}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 text-sm min-h-[48px] shadow-sm transition-colors"
-              >
-                <Phone className="h-4 w-4" />
-                {t('Call Driver', 'اتصل بالسائق')}
-              </a>
-              {getWhatsAppUrl(driver.phoneNumber, '', countryCode) && (
-                <a
-                  href={getWhatsAppUrl(driver.phoneNumber, '', countryCode)!}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 text-sm min-h-[48px] shadow-sm transition-colors"
+            <div className="flex items-baseline gap-2">
+              <AnimatePresence mode="popLayout">
+                <motion.span
+                  key={displayTotal.toFixed(2)}
+                  initial={{ y: -12, opacity: 0, scale: 0.9 }}
+                  animate={{ y: 0, opacity: 1, scale: 1 }}
+                  exit={{ y: 12, opacity: 0, scale: 0.9 }}
+                  transition={{ type: 'spring', stiffness: 350, damping: 22 }}
+                  className="text-4xl font-black text-slate-900 tabular-nums inline-block"
                 >
-                  <MessageCircle className="h-4 w-4" />
-                  WhatsApp
-                </a>
-              )}
+                  {displayTotal.toFixed(2)}
+                </motion.span>
+              </AnimatePresence>
+              <span className="text-lg font-bold text-slate-300">{fmtCurrency}</span>
             </div>
+            <AnimatePresence>
+              {tipEnabled && tipAmount > 0 && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden"
+                >
+                  <p className="text-sm text-rose-500 font-medium mt-1.5">
+                    💜 {t('Includes tip', 'يشمل إكرامية')}: +{tipAmount.toFixed(2)} {fmtCurrency} ({tipPercent}%)
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
+
+        {/* ═══ SECTION 3: TIP (Warm rose) ═══ */}
+        {isOutForDelivery && (
+          <div className="bg-gradient-to-b from-rose-50 to-rose-100/50 px-5 py-5 border-t border-rose-200/40">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Heart className="h-5 w-5 text-rose-400" />
+              <p className="font-bold text-rose-800 text-[15px]">
+                {t('Would you like to thank your driver?', 'هل تود شكر السائق؟')}
+              </p>
+            </div>
+            <p className="text-xs text-rose-500/70 mb-4 leading-relaxed">
+              {t(
+                'A small gesture that makes a big difference in their day!',
+                'لفتة صغيرة تصنع فرقاً كبيراً في يومه!'
+              )}
+            </p>
+
+            {/* Yes / No */}
+            <div className="flex gap-3">
+              <motion.button
+                type="button"
+                onClick={() => onTipToggle(true)}
+                whileTap={{ scale: 0.95 }}
+                className={`flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all duration-300 ${
+                  tipEnabled
+                    ? 'bg-rose-500 text-white shadow-lg shadow-rose-300/40'
+                    : 'bg-white text-rose-600 border-2 border-rose-200 hover:border-rose-300 hover:bg-rose-50'
+                }`}
+              >
+                {tipEnabled ? '💚 ' : ''}{t('Yes, add a tip!', 'نعم، أضف إكرامية!')}
+              </motion.button>
+              <motion.button
+                type="button"
+                onClick={() => onTipToggle(false)}
+                whileTap={{ scale: 0.95 }}
+                className={`flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all duration-300 ${
+                  !tipEnabled
+                    ? 'bg-slate-600 text-white shadow-lg shadow-slate-300/40'
+                    : 'bg-white text-slate-400 border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {t('No, thanks', 'لا، شكراً')}
+              </motion.button>
+            </div>
+
+            {/* Percentage selector */}
+            <AnimatePresence>
+              {tipEnabled && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-4">
+                    <p className="text-xs text-rose-600/80 font-semibold mb-2.5">
+                      {t('Choose tip amount', 'اختر نسبة الإكرامية')}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {[5, 10, 15, 20, 25].map((p) => (
+                        <motion.button
+                          key={p}
+                          type="button"
+                          onClick={() => onTipPercentChange(p)}
+                          whileTap={{ scale: 0.9 }}
+                          animate={tipPercent === p ? { scale: [1, 1.08, 1] } : {}}
+                          transition={{ duration: 0.25 }}
+                          className={`flex-1 min-w-[3.5rem] py-2.5 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                            tipPercent === p
+                              ? 'bg-rose-500 text-white shadow-md shadow-rose-300/50 ring-2 ring-rose-300/60'
+                              : 'bg-white text-rose-500 border border-rose-200 hover:border-rose-300 hover:bg-rose-50'
+                          }`}
+                        >
+                          {p}%
+                        </motion.button>
+                      ))}
+                    </div>
+                    <AnimatePresence mode="wait">
+                      <motion.p
+                        key={`${tipPercent}`}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.15 }}
+                        className="text-center text-xs text-rose-400 mt-3"
+                      >
+                        {tipPercent}% = {((order.subtotal ?? 0) * tipPercent / 100).toFixed(2)} {fmtCurrency}
+                      </motion.p>
+                    </AnimatePresence>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* "No worries" message when tip is off */}
+            <AnimatePresence>
+              {!tipEnabled && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-center text-xs text-slate-400 mt-3"
+                >
+                  {t('No worries! You can change your mind anytime.', 'لا مشكلة! يمكنك تغيير رأيك في أي وقت.')}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {/* ═══ SECTION 4: DRIVER (collapsible) ═══ */}
+        {driver && (
+          <div className="border-t border-purple-200/40 bg-purple-50/40">
+            <button
+              type="button"
+              onClick={() => setDriverInfoOpen(!driverInfoOpen)}
+              className="w-full flex items-center justify-between px-5 py-3.5 focus:outline-none"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                  <Truck className="h-4 w-4" />
+                </div>
+                <span className="font-bold text-purple-900 text-sm">{driver.name}</span>
+                <span className="text-[11px] text-purple-400 font-medium">
+                  — {t('your driver', 'سائقك')}
+                </span>
+              </div>
+              <ChevronDown className={`h-4 w-4 text-purple-400 transition-transform duration-300 ${driverInfoOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence>
+              {driverInfoOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-5 pb-4 flex flex-wrap gap-2">
+                    <a
+                      href={`tel:+${normalizePhoneForWhatsApp(driver.phoneNumber, countryCode)}`}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 text-sm min-h-[48px] shadow-sm transition-colors"
+                    >
+                      <Phone className="h-4 w-4" />
+                      {t('Call', 'اتصال')}
+                    </a>
+                    {getWhatsAppUrl(driver.phoneNumber, '', countryCode) && (
+                      <a
+                        href={getWhatsAppUrl(driver.phoneNumber, '', countryCode)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 text-sm min-h-[48px] shadow-sm transition-colors"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        WhatsApp
+                      </a>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
       </div>
     </div>
   )
@@ -401,6 +574,7 @@ const STATUS_CONFIG: Record<string, { labelEn: string; labelAr: string; icon: ty
   new: { labelEn: 'Order received', labelAr: 'تم استلام الطلب', icon: Package, headerBg: 'from-blue-600 to-blue-700', headerFrom: 'from-blue-600', headerTo: 'to-blue-700' },
   acknowledged: { labelEn: 'Order scheduled', labelAr: 'تم جدولة الطلب', icon: Clock, headerBg: 'from-purple-600 to-purple-700', headerFrom: 'from-purple-600', headerTo: 'to-purple-700' },
   preparing: { labelEn: 'Your order is being carefully prepared', labelAr: 'يتم تحضير طلبك بعناية', icon: ChefHat, headerBg: 'from-amber-600 to-amber-700', headerFrom: 'from-amber-600', headerTo: 'to-amber-700' },
+  ready_for_pickup: { labelEn: 'Ready for pickup!', labelAr: 'طلبك جاهز للاستلام!', icon: Package, headerBg: 'from-emerald-500 to-emerald-600', headerFrom: 'from-emerald-500', headerTo: 'to-emerald-600' },
   waiting_for_delivery: { labelEn: 'Waiting for delivery', labelAr: 'في انتظار التوصيل', icon: Clock, headerBg: 'from-amber-600 to-amber-700', headerFrom: 'from-amber-600', headerTo: 'to-amber-700' },
   driver_on_the_way: { labelEn: 'Driver on the way to the store', labelAr: 'السائق في الطريق إلى المتجر', icon: Truck, headerBg: 'from-blue-600 to-blue-700', headerFrom: 'from-blue-600', headerTo: 'to-blue-700' },
   'out-for-delivery': { labelEn: 'Driver on the way to you', labelAr: 'السائق في الطريق إليك', icon: Truck, headerBg: 'from-purple-600 to-purple-700', headerFrom: 'from-purple-600', headerTo: 'to-purple-700' },
@@ -602,37 +776,48 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   }
 
   const isDelivery = data.order.orderType === 'delivery'
-  const deliveryOnlyStatuses = ['waiting_for_delivery', 'driver_on_the_way', 'out-for-delivery']
+  const isPickup = !isDelivery && !isDineIn
+  const isTerminal = ['completed', 'served', 'cancelled', 'refunded'].includes(data.order.status ?? '')
   const rawStatusKey = (data.order.status || 'new') as keyof typeof STATUS_CONFIG
-  const statusKey = (!isDelivery && deliveryOnlyStatuses.includes(data.order.status || '')) ? 'preparing' : rawStatusKey
+  const statusKey: keyof typeof STATUS_CONFIG = (() => {
+    if (isDelivery) return rawStatusKey
+    const st = data.order.status || 'new'
+    if (st === 'waiting_for_delivery') return isPickup ? 'ready_for_pickup' : 'preparing'
+    if (['driver_on_the_way', 'out-for-delivery'].includes(st)) return 'preparing'
+    return rawStatusKey
+  })()
   const statusCfg = STATUS_CONFIG[statusKey] ?? STATUS_CONFIG.new
   const StatusIcon = statusCfg.icon
   const businessName = (lang === 'ar' ? data.restaurant?.name_ar : data.restaurant?.name_en) || data.restaurant?.name_en || data.restaurant?.name_ar || ''
   const restaurantName = businessName || t('Store', 'المتجر')
-  const statusLabel =
-    statusKey === 'driver_on_the_way'
-      ? data.driver?.name
+  const statusLabel = (() => {
+    if (statusKey === 'driver_on_the_way') {
+      return data.driver?.name
         ? lang === 'ar'
           ? `السائق ${data.driver.name} في الطريق إلى ${restaurantName}`
           : `Driver ${data.driver.name} is on the way to ${restaurantName}`
         : lang === 'ar'
           ? `السائق في الطريق إلى ${restaurantName}`
           : `Driver is on the way to ${restaurantName}`
-      : statusKey === 'out-for-delivery'
-        ? data.driver?.name
-          ? lang === 'ar'
-            ? `${data.driver.name} في الطريق إليك`
-            : `${data.driver.name} is on the way to you`
-          : lang === 'ar'
-            ? `السائق في الطريق إليك`
-            : `Driver is on the way to you`
-      : statusKey === 'new'
-        ? lang === 'ar'
-          ? `تم إرسال الطلب إلى ${restaurantName}`
-          : `Order sent to ${restaurantName}`
-      : lang === 'ar'
-        ? statusCfg.labelAr
-        : statusCfg.labelEn
+    }
+    if (statusKey === 'out-for-delivery') {
+      return data.driver?.name
+        ? lang === 'ar' ? `${data.driver.name} في الطريق إليك` : `${data.driver.name} is on the way to you`
+        : lang === 'ar' ? `السائق في الطريق إليك` : `Driver is on the way to you`
+    }
+    if (statusKey === 'new') {
+      return lang === 'ar' ? `تم إرسال الطلب إلى ${restaurantName}` : `Order sent to ${restaurantName}`
+    }
+    if (statusKey === 'served' && isDineIn) {
+      return lang === 'ar' ? 'بالعافية!' : 'Enjoy your meal!'
+    }
+    if (statusKey === 'completed') {
+      if (isDineIn) return lang === 'ar' ? 'شكراً لزيارتك!' : 'Thank you for your visit!'
+      if (isPickup) return lang === 'ar' ? 'تم الاستلام بنجاح!' : 'Picked up successfully!'
+      return lang === 'ar' ? statusCfg.labelAr : statusCfg.labelEn
+    }
+    return lang === 'ar' ? statusCfg.labelAr : statusCfg.labelEn
+  })()
   const deliveryFee = data.order.deliveryFee ?? 0
 
   return (
@@ -658,14 +843,83 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         <p className="mt-2 text-center text-white/90">
           {t('Order', 'الطلب')} #{data.order.orderNumber ?? data.order._id?.slice(-6)}
         </p>
+        {isDineIn && tableNumber && (
+          <p className="mt-1 text-center text-white/70 text-sm font-medium">
+            {t('Table', 'طاولة')} {tableNumber}
+          </p>
+        )}
+        {isPickup && (
+          <p className="mt-1 text-center text-white/70 text-sm font-medium">
+            {t('Pickup order', 'طلب استلام')}
+          </p>
+        )}
       </div>
 
-      {/* Delivery ETA / Countdown box */}
+      {/* Delivery ETA / Countdown + Price + Tip unified box */}
       <DeliveryETABox
         order={data.order}
         driver={data.driver}
         countryCode={countryCode}
+        tipEnabled={tipEnabled}
+        tipPercent={tipPercent}
+        tipAmount={tipAmount}
+        displayTotal={displayTotal}
+        currency={currency}
+        onTipToggle={handleTipToggle}
+        onTipPercentChange={handleTipPercentChange}
       />
+
+      {/* Dine-in: table number badge */}
+      {isDineIn && tableNumber && !isTerminal && (
+        <div className="mt-6 px-4">
+          <div className="rounded-3xl border border-amber-200 bg-gradient-to-b from-amber-50 to-white p-5 shadow-sm text-center">
+            <UtensilsCrossed className="w-8 h-8 text-amber-500 mx-auto mb-2" />
+            <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider mb-1">
+              {t('Your table', 'طاولتك')}
+            </p>
+            <p className="text-4xl font-black text-amber-800">
+              {tableNumber}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Non-delivery completed/served state */}
+      {!isDelivery && (data.order.status === 'completed' || data.order.status === 'served') && (
+        <div className="mt-6 px-4">
+          <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm relative overflow-hidden">
+            <div className="absolute -right-4 -top-4 text-emerald-200/40 pointer-events-none">
+              <CheckCircle2 className="w-28 h-28" />
+            </div>
+            <div className="flex items-center gap-3 mb-2 relative z-10">
+              <div className="bg-emerald-600 p-2.5 rounded-xl text-white">
+                {isDineIn ? <UtensilsCrossed className="w-5 h-5" /> : <Package className="w-5 h-5" />}
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-emerald-900">
+                  {data.order.status === 'served'
+                    ? t('Order served', 'تم تقديم الطلب')
+                    : isDineIn
+                      ? t('Enjoy your meal!', 'بالعافية!')
+                      : t('Order completed', 'تم إكمال الطلب')}
+                </h2>
+                {data.order.completedAt && (
+                  <p className="text-sm text-emerald-600">
+                    {new Date(data.order.completedAt).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="relative z-10 rounded-2xl bg-emerald-100/80 border border-emerald-200/60 p-3 mt-3">
+              <p className="text-center text-sm text-emerald-700 font-medium">
+                {isDineIn
+                  ? t('Enjoyed your meal? Show appreciation with a tip!', 'استمتعت بوجبتك؟ أظهر تقديرك بإكرامية!')
+                  : t('Enjoyed the service? Consider leaving a tip!', 'أعجبتك الخدمة؟ فكّر بإكرامية!')} 💚
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {data.order.scheduledFor && data.order.status !== 'completed' && data.order.status !== 'cancelled' && data.order.status !== 'refunded' && (
         <div className="mt-6 px-4">
@@ -751,8 +1005,8 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                     </div>
                   )}
 
-                  {/* 3. Driver on the way to business */}
-                  {data.order.driverAcceptedAt && (
+                  {/* 3. Driver on the way to business (delivery only) */}
+                  {isDelivery && data.order.driverAcceptedAt && (
                     <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                       <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
                       <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
@@ -770,8 +1024,8 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                     </div>
                   )}
 
-                  {/* 4. Order picked up / on the way to client */}
-                  {data.order.driverPickedUpAt && (
+                  {/* 4. Order picked up / on the way to client (delivery only) */}
+                  {isDelivery && data.order.driverPickedUpAt && (
                     <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                       <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
                       <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
@@ -787,12 +1041,18 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                     </div>
                   )}
 
-                  {/* 5. Order delivered / completed */}
+                  {/* 5. Order completed / served */}
                   {data.order.completedAt && (
                     <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                       <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-emerald-300 bg-emerald-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
                       <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-emerald-50 shadow-sm border border-emerald-100 flex flex-col">
-                        <p className="text-xs font-bold text-emerald-800">{t('Order delivered / completed', 'تم التوصيل / مكتمل')}</p>
+                        <p className="text-xs font-bold text-emerald-800">
+                          {isDelivery
+                            ? t('Order delivered', 'تم التوصيل')
+                            : isDineIn
+                              ? t('Order completed', 'تم إكمال الطلب')
+                              : t('Order picked up', 'تم استلام الطلب')}
+                        </p>
                         <p className="text-xs text-emerald-600 mt-1">{fmt(data.order.completedAt)}</p>
                       </div>
                     </div>
@@ -809,8 +1069,8 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                     </div>
                   )}
 
-                  {/* Driver cancelled delivery */}
-                  {data.order.driverCancelledAt && (
+                  {/* Driver cancelled delivery (delivery only) */}
+                  {isDelivery && data.order.driverCancelledAt && (
                     <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                       <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-amber-300 bg-amber-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
                       <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-amber-50 shadow-sm border border-amber-100 flex flex-col">
@@ -877,70 +1137,152 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         </div>
       </div>
 
-      {/* Tips option — under total */}
-      <div className="mt-5 px-4">
-        <div className={`rounded-3xl border ${isDeliveryActive ? 'border-rose-300 shadow-lg shadow-rose-100/50 ring-1 ring-rose-200/40' : 'border-rose-100'} bg-rose-50/30 shadow-sm overflow-hidden transition-all duration-500`}>
-          {isDeliveryActive && (
-            <div className="bg-gradient-to-r from-rose-100/60 to-amber-50/60 px-5 py-3 border-b border-rose-200/50">
-              <p className="text-sm text-rose-700 font-semibold text-center">
-                🌟 {t(
-                  'Your driver is working hard to bring your food — a tip means the world!',
-                  'السائق يعمل بجهد لإيصال طعامك — الإكرامية تعني الكثير!'
-                )}
-              </p>
-            </div>
-          )}
-          <label className="flex items-center justify-between cursor-pointer px-5 py-4 select-none">
-            <div className="flex items-center gap-3">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-full ${isDeliveryActive ? 'bg-rose-200 text-rose-600' : 'bg-rose-100 text-rose-500'} transition-colors`}>
-                <Heart className={`h-5 w-5 ${isDeliveryActive ? 'animate-pulse' : ''}`} />
-              </div>
-              <div>
-                <h2 className="font-bold text-slate-800">
-                  {t('Add a tip?', 'إضافة إكرامية؟')}
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {isDeliveryActive
-                    ? t('Encourage your driver for a great delivery!', 'شجّع السائق على توصيل ممتاز!')
-                    : t('Support the team', 'ادعم الفريق')}
+      {/* Tips option — shown for all order types when the unified delivery ETA box is NOT active */}
+      {!isDeliveryActive && (
+        <div className="mt-5 px-4">
+          <div className="rounded-3xl border border-rose-200/60 bg-gradient-to-b from-rose-50 to-rose-100/30 shadow-sm overflow-hidden">
+            <div className="px-5 pt-5 pb-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Heart className="h-5 w-5 text-rose-400" />
+                <p className="font-bold text-rose-800 text-[15px]">
+                  {isDelivery
+                    ? t('Thank your driver?', 'هل تود شكر السائق؟')
+                    : isDineIn
+                      ? t('Thank the staff?', 'هل تود شكر الطاقم؟')
+                      : t('Show your appreciation?', 'هل تود إظهار تقديرك؟')}
                 </p>
               </div>
-            </div>
-            <div className="relative inline-flex items-center">
-              <input
-                type="checkbox"
-                checked={tipEnabled}
-                onChange={(e) => handleTipToggle(e.target.checked)}
-                className="peer sr-only"
-              />
-              <div className="h-6 w-11 rounded-full bg-slate-200 after:absolute after:start-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-rose-500 peer-checked:after:translate-x-full peer-checked:after:border-white rtl:peer-checked:after:-translate-x-full"></div>
-            </div>
-          </label>
-          
-          <div className={`grid transition-[grid-template-rows,opacity] duration-300 ${tipEnabled ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-            <div className="overflow-hidden">
-              <div className="px-5 pb-5 pt-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  {[5, 10, 15, 20, 25].map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => handleTipPercentChange(p)}
-                      className={`flex-1 min-w-[3.5rem] py-2.5 rounded-2xl text-sm font-bold transition-all active:scale-95 ${
-                        tipPercent === p
-                          ? 'bg-rose-500 text-white shadow-md shadow-rose-200'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:border-rose-200 hover:bg-rose-50'
-                      }`}
-                    >
-                      {p}%
-                    </button>
-                  ))}
-                </div>
+              <p className="text-xs text-rose-500/70 mb-4 leading-relaxed">
+                {isDelivery
+                  ? t('A small gesture that makes a big difference in their day!', 'لفتة صغيرة تصنع فرقاً كبيراً في يومه!')
+                  : isDineIn
+                    ? t('Great service deserves a little extra!', 'الخدمة المميزة تستحق التقدير!')
+                    : t('A kind gesture goes a long way!', 'لفتة لطيفة تصنع فرقاً!')}
+              </p>
+
+              <div className="flex gap-3">
+                <motion.button
+                  type="button"
+                  onClick={() => handleTipToggle(true)}
+                  whileTap={{ scale: 0.95 }}
+                  className={`flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all duration-300 ${
+                    tipEnabled
+                      ? 'bg-rose-500 text-white shadow-lg shadow-rose-300/40'
+                      : 'bg-white text-rose-600 border-2 border-rose-200 hover:border-rose-300 hover:bg-rose-50'
+                  }`}
+                >
+                  {tipEnabled ? '💚 ' : ''}{t('Yes, add a tip!', 'نعم، أضف إكرامية!')}
+                </motion.button>
+                <motion.button
+                  type="button"
+                  onClick={() => handleTipToggle(false)}
+                  whileTap={{ scale: 0.95 }}
+                  className={`flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all duration-300 ${
+                    !tipEnabled
+                      ? 'bg-slate-600 text-white shadow-lg shadow-slate-300/40'
+                      : 'bg-white text-slate-400 border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {t('No, thanks', 'لا، شكراً')}
+                </motion.button>
               </div>
+
+              <AnimatePresence>
+                {tipEnabled && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pt-4">
+                      <p className="text-xs text-rose-600/80 font-semibold mb-2.5">
+                        {t('Choose tip amount', 'اختر نسبة الإكرامية')}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {[5, 10, 15, 20, 25].map((p) => (
+                          <motion.button
+                            key={p}
+                            type="button"
+                            onClick={() => handleTipPercentChange(p)}
+                            whileTap={{ scale: 0.9 }}
+                            animate={tipPercent === p ? { scale: [1, 1.08, 1] } : {}}
+                            transition={{ duration: 0.25 }}
+                            className={`flex-1 min-w-[3.5rem] py-2.5 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                              tipPercent === p
+                                ? 'bg-rose-500 text-white shadow-md shadow-rose-300/50 ring-2 ring-rose-300/60'
+                                : 'bg-white text-rose-500 border border-rose-200 hover:border-rose-300 hover:bg-rose-50'
+                            }`}
+                          >
+                            {p}%
+                          </motion.button>
+                        ))}
+                      </div>
+                      <AnimatePresence mode="wait">
+                        <motion.p
+                          key={`${tipPercent}`}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.15 }}
+                          className="text-center text-xs text-rose-400 mt-3"
+                        >
+                          {tipPercent}% = {((subtotal * tipPercent) / 100).toFixed(2)} {formatCurrency(currency)}
+                        </motion.p>
+                      </AnimatePresence>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <AnimatePresence>
+                {!tipEnabled && (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="text-center text-xs text-slate-400 mt-3"
+                  >
+                    {t('No worries! You can change your mind anytime.', 'لا مشكلة! يمكنك تغيير رأيك في أي وقت.')}
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
+
+            {/* Animated total with tip */}
+            <AnimatePresence>
+              {tipEnabled && tipAmount > 0 && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden border-t border-rose-200/40"
+                >
+                  <div className="px-5 py-3 bg-white/60 flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-600">
+                      {t('Total with tip', 'المجموع مع الإكرامية')}
+                    </span>
+                    <AnimatePresence mode="popLayout">
+                      <motion.span
+                        key={displayTotal.toFixed(2)}
+                        initial={{ y: -8, opacity: 0, scale: 0.9 }}
+                        animate={{ y: 0, opacity: 1, scale: 1 }}
+                        exit={{ y: 8, opacity: 0, scale: 0.9 }}
+                        transition={{ type: 'spring', stiffness: 350, damping: 22 }}
+                        className="text-lg font-black text-slate-900 tabular-nums"
+                      >
+                        {displayTotal.toFixed(2)} {formatCurrency(currency)}
+                      </motion.span>
+                    </AnimatePresence>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Split the bill — local only, friendly */}
       <div className="mt-5 px-4">
@@ -986,8 +1328,8 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         </div>
       </div>
 
-      {/* Dine-in: Call waiter / Ask for check — hidden only when order is completed (paid/done) */}
-      {isDineIn && data.order.status !== 'completed' && (
+      {/* Dine-in: Call waiter / Ask for check — visible until order is fully completed/cancelled */}
+      {isDineIn && !['completed', 'cancelled', 'refunded'].includes(data.order.status ?? '') && (
         <div className="mt-5 px-4">
           <div className="rounded-3xl border border-slate-200/60 bg-white shadow-sm overflow-hidden">
             <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-4">
@@ -1114,8 +1456,8 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         </div>
       )}
 
-      {/* Driver contact */}
-      {data.driver && (
+      {/* Driver contact (delivery only) */}
+      {isDelivery && data.driver && (
         <div className="mt-5 px-4">
           <div className="rounded-3xl border border-slate-200/60 bg-white shadow-sm overflow-hidden transition-all duration-300">
             <button
@@ -1205,7 +1547,9 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         <div className="px-2">
           <h3 className="font-bold text-slate-800 text-sm mb-1">{t('Device Settings', 'إعدادات الجهاز')}</h3>
           <p className="text-xs text-slate-500 mb-4">
-            {t('Enable notifications to stay updated, and share your location to help the driver find you faster.', 'فعّل الإشعارات لتصلك التحديثات، وشارك موقعك لمساعدة السائق في الوصول إليك أسرع.')}
+            {isDelivery
+              ? t('Enable notifications to stay updated, and share your location to help the driver find you faster.', 'فعّل الإشعارات لتصلك التحديثات، وشارك موقعك لمساعدة السائق في الوصول إليك أسرع.')
+              : t('Enable notifications to stay updated on your order status.', 'فعّل الإشعارات لتصلك تحديثات حالة طلبك.')}
           </p>
         </div>
         <CustomerTrackPushSetup slug={slug} token={token} />
