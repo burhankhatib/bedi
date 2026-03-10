@@ -26,6 +26,7 @@ export function ContactPageClient() {
   const { user, isLoaded: userLoaded } = useUser()
 
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [city, setCity] = useState('')
   const [country, setCountry] = useState('')
@@ -61,6 +62,8 @@ export function ContactPageClient() {
     if (!userLoaded || !user) return
     const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
     if (fullName) setName(fullName)
+    const primaryEmail = user.primaryEmailAddress?.emailAddress ?? user.emailAddresses?.[0]?.emailAddress
+    if (primaryEmail) setEmail(primaryEmail)
     const primaryPhone = user.primaryPhoneNumber?.phoneNumber ?? user.phoneNumbers?.[0]?.phoneNumber
     if (primaryPhone) setPhone(primaryPhone)
     const meta = user.publicMetadata as { city?: string; country?: string } | undefined
@@ -83,6 +86,11 @@ export function ContactPageClient() {
       setError(t('Message is required', 'الرسالة مطلوبة'))
       return
     }
+    const emailTrim = email.trim()
+    if (!emailTrim) {
+      setError(t('Email is required', 'البريد الإلكتروني مطلوب'))
+      return
+    }
     if (type === 'business' && !businessName.trim()) {
       setError(t('Business name is required when you select Business', 'اسم العمل مطلوب عند اختيار أعمال'))
       return
@@ -94,6 +102,7 @@ export function ContactPageClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
+          email: emailTrim,
           phone: phone.trim(),
           city: city.trim(),
           country: country.trim(),
@@ -205,6 +214,27 @@ export function ContactPageClient() {
                           placeholder={t('+972... or 05...', '+972... أو 05...')}
                           required
                         />
+                      </div>
+
+                      {/* Email — required; pre-filled when logged in */}
+                      <div>
+                        <label htmlFor="contact-email" className="mb-1.5 block text-sm font-medium text-slate-700">
+                          {t('Email', 'البريد الإلكتروني')} *
+                        </label>
+                        <Input
+                          id="contact-email"
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="h-12 rounded-xl border-0 bg-slate-100 text-slate-900 placeholder:text-slate-500 focus-visible:ring-2 focus-visible:ring-amber-500"
+                          placeholder={t('your@email.com', 'your@email.com')}
+                          required
+                        />
+                        {user && (
+                          <p className="mt-1 text-xs text-slate-500">
+                            {t('Using your account email', 'باستخدام بريد حسابك')}
+                          </p>
+                        )}
                       </div>
 
                       {/* Country */}

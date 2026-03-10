@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const RESEND_API = 'https://api.resend.com/emails'
 const FROM_EMAIL = 'Bedi Delivery <contact@bedi.delivery>'
-const TO_EMAIL = 'burhank@gmail.com'
+const TO_EMAILS = ['burhank@gmail.com', 'burhan@bedi.delivery']
 const SUBJECT = 'Bedi contact us form'
 
 export const dynamic = 'force-dynamic'
@@ -17,10 +17,11 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
-/** POST: Send contact form email via Resend. Body: name, phone, city, country, type (customer|driver|business), businessName? (if type=business), message */
+/** POST: Send contact form email via Resend. Body: name, email, phone, city, country, type (customer|driver|business), businessName? (if type=business), message */
 export async function POST(req: NextRequest) {
   let body: {
     name?: string
+    email?: string
     phone?: string
     city?: string
     country?: string
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
   }
 
   const name = String(body.name ?? '').trim().slice(0, 200)
+  const email = String(body.email ?? '').trim().slice(0, 320)
   const phone = String(body.phone ?? '').trim().slice(0, 50)
   const city = String(body.city ?? '').trim().slice(0, 120)
   const country = String(body.country ?? '').trim().slice(0, 120)
@@ -46,6 +48,9 @@ export async function POST(req: NextRequest) {
 
   if (!name) {
     return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+  }
+  if (!email) {
+    return NextResponse.json({ error: 'Email is required' }, { status: 400 })
   }
   if (!phone) {
     return NextResponse.json({ error: 'Phone is required' }, { status: 400 })
@@ -65,6 +70,7 @@ export async function POST(req: NextRequest) {
     <h2>Bedi contact us form</h2>
     <p><strong>Type:</strong> ${escapeHtml(typeLabel)}</p>
     <p><strong>Name:</strong> ${escapeHtml(name)}</p>
+    <p><strong>Email:</strong> ${escapeHtml(email)}</p>
     <p><strong>Mobile / Primary phone:</strong> ${escapeHtml(phone)}</p>
     <p><strong>City:</strong> ${escapeHtml(city) || '—'}</p>
     <p><strong>Country:</strong> ${escapeHtml(country) || '—'}</p>
@@ -82,7 +88,8 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         from: FROM_EMAIL,
-        to: [TO_EMAIL],
+        to: TO_EMAILS,
+        reply_to: email,
         subject: SUBJECT,
         html,
       }),
