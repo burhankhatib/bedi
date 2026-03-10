@@ -195,6 +195,18 @@ export function UnifiedOrderDialog({
 
   const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)
 
+  /** Reverse geocode (lat,lng) → friendly display name via Nominatim. Returns null on failure. */
+  const reverseGeocode = useCallback(async (lat: number, lng: number): Promise<string | null> => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=${lang === 'ar' ? 'ar' : 'en'}`)
+      const data = await res.json()
+      if (data?.display_name) return data.display_name
+    } catch {
+      // ignore
+    }
+    return null
+  }, [lang])
+
   /** Request location permission and get coordinates. Must be called from user gesture (tap) for iOS to show prompt. */
   const requestDeliveryLocation = useCallback(() => {
     if (!setDeliveryLocation || !navigator.geolocation) {
@@ -212,15 +224,8 @@ export function UnifiedOrderDialog({
       setDeliveryLocation(lat, lng)
       setLocationLoading(false)
 
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-        const data = await res.json()
-        if (data && data.display_name) {
-          setAddress(prev => prev.trim() ? prev : data.display_name)
-        }
-      } catch (e) {
-        // ignore error
-      }
+      const name = await reverseGeocode(lat, lng)
+      if (name) setAddress(prev => prev.trim() ? prev : name)
     }
 
     const onError = (err: GeolocationPositionError) => {
@@ -284,9 +289,9 @@ export function UnifiedOrderDialog({
         onError(err)
       }
     }, options)
-  }, [setDeliveryLocation, t, isIOS])
+  }, [setDeliveryLocation, t, isIOS, reverseGeocode])
 
-  const handleMapsLinkChange = (value: string) => {
+  const handleMapsLinkChange = async (value: string) => {
     setMapsLinkInput(value)
     setMapsLinkError(null)
     if (!value.trim()) return
@@ -294,6 +299,8 @@ export function UnifiedOrderDialog({
     if (coords && setDeliveryLocation) {
       setDeliveryLocation(coords.lat, coords.lng)
       setMapsLinkError(null)
+      const name = await reverseGeocode(coords.lat, coords.lng)
+      if (name) setAddress(name)
     } else if (value.trim().length > 10) {
       setMapsLinkError(
         t('Could not read location from this link. Try copying the link from Google Maps → Share → Copy link.', 'تعذر قراءة الموقع من هذا الرابط. جرب نسخ الرابط من Google Maps ← مشاركة ← نسخ الرابط.')
@@ -863,7 +870,11 @@ export function UnifiedOrderDialog({
                           <LocationPickerMap
                             lat={deliveryLat}
                             lng={deliveryLng}
-                            onChange={(lat, lng) => setDeliveryLocation(lat, lng)}
+                            onChange={async (lat, lng) => {
+                              setDeliveryLocation(lat, lng)
+                              const name = await reverseGeocode(lat, lng)
+                              if (name) setAddress(name)
+                            }}
                           />
                         </div>
                         <div className="flex gap-2">

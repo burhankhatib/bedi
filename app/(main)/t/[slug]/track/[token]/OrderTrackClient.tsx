@@ -181,12 +181,13 @@ function DeliveryETABox({
   driver,
   countryCode,
   tipEnabled,
-  tipPercent,
+  selectedTipAmount,
   tipAmount,
   displayTotal,
+  totalAmount,
   currency,
   onTipToggle,
-  onTipPercentChange,
+  onTipAmountChange,
   onSendTipToDriver,
   onConfirmTipAfterCountdown,
   onConfirmTipIncludedInTotal,
@@ -196,12 +197,13 @@ function DeliveryETABox({
   driver: TrackData['driver']
   countryCode: string
   tipEnabled: boolean
-  tipPercent: number
+  selectedTipAmount: number
   tipAmount: number
   displayTotal: number
+  totalAmount: number
   currency: string
   onTipToggle: (enabled: boolean) => void
-  onTipPercentChange: (percent: number) => void
+  onTipAmountChange: (amount: number) => void
   onSendTipToDriver: () => void
   onConfirmTipAfterCountdown: (keep: boolean) => void
   onConfirmTipIncludedInTotal: (keep: boolean, reason?: string) => void
@@ -315,7 +317,21 @@ function DeliveryETABox({
           {wasFast && (
             <div className="relative z-10 rounded-2xl bg-emerald-100/80 border border-emerald-200/60 p-3 mt-3">
               <p className="text-center text-sm text-emerald-700 font-medium">
-                ⚡ {t('That was a speedy delivery!', 'كان توصيل سريع!')} {t('Consider thanking your driver with a tip', 'فكّر بشكر السائق بإكرامية')} 💚
+                ⚡ {t('That was a speedy delivery!', 'كان توصيل سريع!')} 💚
+              </p>
+            </div>
+          )}
+
+          {(order.tipAmount ?? 0) > 0 ? (
+            <div className="relative z-10 rounded-2xl bg-emerald-100/80 border border-emerald-200/60 p-3 mt-3">
+              <p className="text-center text-sm text-emerald-700 font-medium">
+                💚 {t('Thank you for your generous tip! Your kindness truly brightens the driver\'s day.', 'شكراً لإكراميتك الكريمة! لطفك يصنع فرقاً كبيراً في يوم السائق.')}
+              </p>
+            </div>
+          ) : (
+            <div className="relative z-10 rounded-2xl bg-amber-50/80 border border-amber-200/60 p-3 mt-3">
+              <p className="text-center text-sm text-amber-700 font-medium">
+                {t('Next time, consider adding a small tip — it means a lot to drivers who work hard to deliver your order!', 'في المرة القادمة، فكّر بإضافة إكرامية صغيرة — تعني الكثير للسائقين الذين يعملون بجد لتوصيل طلبك!')} 💛
               </p>
             </div>
           )}
@@ -513,7 +529,7 @@ function DeliveryETABox({
                       <span className="font-medium">{(order.totalAmount ?? 0).toFixed(2)} {fmtCurrency}</span>
                     </div>
                     <div className="flex justify-between text-xs text-emerald-600 font-medium">
-                      <span>💚 {t('Tip', 'إكرامية')} ({tipPercent}%)</span>
+                      <span>💚 {t('Tip', 'إكرامية')}</span>
                       <span>+{tipAmount.toFixed(2)} {fmtCurrency}</span>
                     </div>
                     <div className="flex justify-between text-sm text-emerald-800 font-bold pt-1 border-t border-emerald-200/50">
@@ -534,7 +550,7 @@ function DeliveryETABox({
                   className="overflow-hidden"
                 >
                   <p className="text-sm text-rose-500 font-medium mt-1.5">
-                    💜 {t('Includes tip', 'يشمل إكرامية')}: +{tipAmount.toFixed(2)} {fmtCurrency} ({tipPercent}%)
+                    💜 {t('Includes tip', 'يشمل إكرامية')}: +{tipAmount.toFixed(2)} {fmtCurrency}
                   </p>
                 </motion.div>
               )}
@@ -564,7 +580,7 @@ function DeliveryETABox({
                 </p>
                 {tipIncluded && (
                   <p className="text-xs text-emerald-600 mt-0.5">
-                    💚 +{tipAmount.toFixed(2)} {fmtCurrency} ({tipPercent}%)
+                    💚 +{tipAmount.toFixed(2)} {fmtCurrency}
                   </p>
                 )}
                 {tipRemovedByDriver && (
@@ -621,7 +637,7 @@ function DeliveryETABox({
               </motion.button>
             </div>
 
-            {/* Percentage selector */}
+            {/* Amount selector */}
             <AnimatePresence>
               {tipEnabled && (
                 <motion.div
@@ -633,37 +649,37 @@ function DeliveryETABox({
                 >
                   <div className="pt-4">
                     <p className="text-xs text-rose-600/80 font-semibold mb-2.5">
-                      {t('Choose tip amount', 'اختر نسبة الإكرامية')}
+                      {t('Choose tip amount', 'اختر مبلغ الإكرامية')}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
-                      {[5, 10, 15, 20, 25].map((p) => (
+                      {getSuggestedTips(totalAmount).map((amt) => (
                         <motion.button
-                          key={p}
+                          key={amt}
                           type="button"
-                          onClick={() => onTipPercentChange(p)}
+                          onClick={() => onTipAmountChange(amt)}
                           whileTap={{ scale: 0.9 }}
-                          animate={tipPercent === p ? { scale: [1, 1.08, 1] } : {}}
+                          animate={selectedTipAmount === amt ? { scale: [1, 1.08, 1] } : {}}
                           transition={{ duration: 0.25 }}
                           className={`flex-1 min-w-[3.5rem] py-2.5 rounded-2xl text-sm font-bold transition-all duration-200 ${
-                            tipPercent === p
+                            selectedTipAmount === amt
                               ? 'bg-rose-500 text-white shadow-md shadow-rose-300/50 ring-2 ring-rose-300/60'
                               : 'bg-white text-rose-500 border border-rose-200 hover:border-rose-300 hover:bg-rose-50'
                           }`}
                         >
-                          {p}%
+                          +{amt} {fmtCurrency}
                         </motion.button>
                       ))}
                     </div>
                     <AnimatePresence mode="wait">
                       <motion.p
-                        key={`${tipPercent}`}
+                        key={`${selectedTipAmount}`}
                         initial={{ opacity: 0, y: 4 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -4 }}
                         transition={{ duration: 0.15 }}
                         className="text-center text-xs text-rose-400 mt-3"
                       >
-                        {tipPercent}% = {((order.subtotal ?? 0) * tipPercent / 100).toFixed(2)} {fmtCurrency}
+                        {t('New total:', 'المجموع الجديد:')} {(totalAmount + selectedTipAmount).toFixed(2)} {fmtCurrency}
                       </motion.p>
                     </AnimatePresence>
                   </div>
@@ -1037,7 +1053,16 @@ const STATUS_CONFIG: Record<string, { labelEn: string; labelAr: string; icon: ty
 
 const DEFAULT_COUNTRY_CODE = '972'
 
-const DEFAULT_TIP_PERCENT = 10
+/** Compute 3 round-up-to-nearest-5 tip suggestions based on the total (incl. delivery). */
+function getSuggestedTips(total: number): [number, number, number] {
+  let next5 = Math.ceil(total / 5) * 5
+  let base = next5 - total
+  if (base < 2) {
+    next5 += 5
+    base = next5 - total
+  }
+  return [Math.round(base * 100) / 100, Math.round((base + 5) * 100) / 100, Math.round((base + 10) * 100) / 100]
+}
 
 export function OrderTrackClient({ slug, token }: { slug: string; token: string }) {
   const { t, lang } = useLanguage()
@@ -1051,7 +1076,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   const [requestSending, setRequestSending] = useState(false)
   const [showCheckModal, setShowCheckModal] = useState(false)
   const [tipEnabled, setTipEnabled] = useState(false)
-  const [tipPercent, setTipPercent] = useState(DEFAULT_TIP_PERCENT)
+  const [selectedTipAmount, setSelectedTipAmount] = useState(0)
   const [tipSending, setTipSending] = useState(false)
   const [splitPeople, setSplitPeople] = useState(1)
   const [restaurantOpen, setRestaurantOpen] = useState(false)
@@ -1087,11 +1112,11 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
 
   useEffect(() => {
     if (data?.order) {
-      const hasTip = (data.order.tipAmount ?? 0) > 0 || (data.order.tipPercent ?? 0) > 0
+      const hasTip = (data.order.tipAmount ?? 0) > 0
       setTipEnabled(hasTip)
-      if ((data.order.tipPercent ?? 0) > 0) setTipPercent(data.order.tipPercent ?? DEFAULT_TIP_PERCENT)
+      if ((data.order.tipAmount ?? 0) > 0) setSelectedTipAmount(data.order.tipAmount ?? 0)
     }
-  }, [data?.order?._id, data?.order?.tipPercent, data?.order?.tipAmount])
+  }, [data?.order?._id, data?.order?.tipAmount])
 
   // Toast when staff acknowledges table request (waiter on the way)
   useEffect(() => {
@@ -1113,7 +1138,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   const subtotal = data?.order?.subtotal ?? 0
   const totalAmount = data?.order?.totalAmount ?? 0
   const currency = data?.order?.currency ?? 'ILS'
-  const tipAmount = tipEnabled ? (subtotal * tipPercent) / 100 : 0
+  const tipAmount = tipEnabled ? selectedTipAmount : 0
   const displayTotal = totalAmount + tipAmount
   const perPerson = splitPeople > 0 ? displayTotal / splitPeople : displayTotal
 
@@ -1148,13 +1173,13 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
     }
   }
 
-  const saveTip = async (percent: number, amount: number) => {
+  const saveTip = async (amount: number) => {
     if (!token) return
     try {
       await fetch(`/api/tenants/${slug}/track/${encodeURIComponent(token)}/tip`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipPercent: percent, tipAmount: amount }),
+        body: JSON.stringify({ tipPercent: 0, tipAmount: amount }),
       })
       fetchTrack(true)
     } catch {
@@ -1165,18 +1190,20 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   const handleTipToggle = (enabled: boolean) => {
     setTipEnabled(enabled)
     if (enabled) {
-      const amount = (subtotal * tipPercent) / 100
-      saveTip(tipPercent, amount)
+      const suggestions = getSuggestedTips(totalAmount)
+      const amount = suggestions[0]
+      setSelectedTipAmount(amount)
+      saveTip(amount)
     } else {
-      saveTip(0, 0)
+      setSelectedTipAmount(0)
+      saveTip(0)
     }
   }
 
-  const handleTipPercentChange = (p: number) => {
-    setTipPercent(p)
+  const handleTipAmountChange = (amount: number) => {
+    setSelectedTipAmount(amount)
     if (tipEnabled) {
-      const amount = (subtotal * p) / 100
-      saveTip(p, amount)
+      saveTip(amount)
     }
   }
 
@@ -1187,7 +1214,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
       const res = await fetch(`/api/tenants/${slug}/track/${encodeURIComponent(token)}/tip-notify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipPercent, tipAmount }),
+        body: JSON.stringify({ tipPercent: 0, tipAmount }),
       })
       if (!res.ok) throw new Error('Failed')
       showToast(
@@ -1214,7 +1241,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tipPercent: keep ? tipPercent : 0,
+          tipPercent: 0,
           tipAmount: keep ? tipAmount : 0,
           tipConfirmedAfterCountdown: keep,
         }),
@@ -1396,12 +1423,13 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         driver={data.driver}
         countryCode={countryCode}
         tipEnabled={tipEnabled}
-        tipPercent={tipPercent}
+        selectedTipAmount={selectedTipAmount}
         tipAmount={tipAmount}
         displayTotal={displayTotal}
+        totalAmount={totalAmount}
         currency={currency}
         onTipToggle={handleTipToggle}
-        onTipPercentChange={handleTipPercentChange}
+        onTipAmountChange={handleTipAmountChange}
         onSendTipToDriver={sendTipToDriver}
         onConfirmTipAfterCountdown={confirmTipAfterCountdown}
         onConfirmTipIncludedInTotal={confirmTipIncludedInTotal}
@@ -1449,13 +1477,21 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                 )}
               </div>
             </div>
-            <div className="relative z-10 rounded-2xl bg-emerald-100/80 border border-emerald-200/60 p-3 mt-3">
-              <p className="text-center text-sm text-emerald-700 font-medium">
-                {isDineIn
-                  ? t('Enjoyed your meal? Show appreciation with a tip!', 'استمتعت بوجبتك؟ أظهر تقديرك بإكرامية!')
-                  : t('Enjoyed the service? Consider leaving a tip!', 'أعجبتك الخدمة؟ فكّر بإكرامية!')} 💚
-              </p>
-            </div>
+            {(data.order.tipAmount ?? 0) > 0 ? (
+              <div className="relative z-10 rounded-2xl bg-emerald-100/80 border border-emerald-200/60 p-3 mt-3">
+                <p className="text-center text-sm text-emerald-700 font-medium">
+                  💚 {t('Thank you for your generous tip! Your kindness is truly appreciated.', 'شكراً لإكراميتك الكريمة! لطفك موضع تقدير كبير.')}
+                </p>
+              </div>
+            ) : (
+              <div className="relative z-10 rounded-2xl bg-amber-50/80 border border-amber-200/60 p-3 mt-3">
+                <p className="text-center text-sm text-amber-700 font-medium">
+                  {isDineIn
+                    ? t('Enjoyed your meal? A small tip next time goes a long way to show your appreciation!', 'استمتعت بوجبتك؟ إكرامية صغيرة في المرة القادمة تعني الكثير!')
+                    : t('Enjoyed the service? Consider leaving a tip next time — it means a lot!', 'أعجبتك الخدمة؟ فكّر بإكرامية في المرة القادمة — تعني الكثير!')} 💛
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1675,7 +1711,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
             )}
             {tipEnabled && tipAmount > 0 && (
               <div className="flex justify-between text-slate-600 text-sm">
-                <span>{t('Tip', 'إكرامية')} ({tipPercent}%)</span>
+                <span>{t('Tip', 'إكرامية')}</span>
                 <span className="font-medium">{tipAmount.toFixed(2)} {formatCurrency(data.order.currency)}</span>
               </div>
             )}
@@ -1750,37 +1786,37 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                   >
                     <div className="pt-4">
                       <p className="text-xs text-rose-600/80 font-semibold mb-2.5">
-                        {t('Choose tip amount', 'اختر نسبة الإكرامية')}
+                        {t('Choose tip amount', 'اختر مبلغ الإكرامية')}
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
-                        {[5, 10, 15, 20, 25].map((p) => (
+                        {getSuggestedTips(totalAmount).map((amt) => (
                           <motion.button
-                            key={p}
+                            key={amt}
                             type="button"
-                            onClick={() => handleTipPercentChange(p)}
+                            onClick={() => handleTipAmountChange(amt)}
                             whileTap={{ scale: 0.9 }}
-                            animate={tipPercent === p ? { scale: [1, 1.08, 1] } : {}}
+                            animate={selectedTipAmount === amt ? { scale: [1, 1.08, 1] } : {}}
                             transition={{ duration: 0.25 }}
                             className={`flex-1 min-w-[3.5rem] py-2.5 rounded-2xl text-sm font-bold transition-all duration-200 ${
-                              tipPercent === p
+                              selectedTipAmount === amt
                                 ? 'bg-rose-500 text-white shadow-md shadow-rose-300/50 ring-2 ring-rose-300/60'
                                 : 'bg-white text-rose-500 border border-rose-200 hover:border-rose-300 hover:bg-rose-50'
                             }`}
                           >
-                            {p}%
+                            +{amt} {formatCurrency(currency)}
                           </motion.button>
                         ))}
                       </div>
                       <AnimatePresence mode="wait">
                         <motion.p
-                          key={`${tipPercent}`}
+                          key={`${selectedTipAmount}`}
                           initial={{ opacity: 0, y: 4 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -4 }}
                           transition={{ duration: 0.15 }}
                           className="text-center text-xs text-rose-400 mt-3"
                         >
-                          {tipPercent}% = {((subtotal * tipPercent) / 100).toFixed(2)} {formatCurrency(currency)}
+                          {t('New total:', 'المجموع الجديد:')} {(totalAmount + selectedTipAmount).toFixed(2)} {formatCurrency(currency)}
                         </motion.p>
                       </AnimatePresence>
                     </div>
