@@ -403,6 +403,17 @@ function DriverOrdersV2Content() {
     return Math.abs(hash) % DRIVER_MOTIVATIONAL_QUOTES.length
   }, [activeOrder?.orderId])
 
+  /** True when driver is within 100m of customer (for enabling "Slide to confirm arrival"). */
+  const within100mOfCustomer = useMemo(() => {
+    if (!isEnRouteToCustomer || activeOrder?.deliveryLat == null || activeOrder?.deliveryLng == null) return false
+    if (driverLat == null || driverLng == null) return false
+    const distKm = distanceKm(
+      { lat: driverLat, lng: driverLng },
+      { lat: activeOrder.deliveryLat, lng: activeOrder.deliveryLng },
+    )
+    return distKm <= 0.1
+  }, [isEnRouteToCustomer, activeOrder?.orderId, activeOrder?.deliveryLat, activeOrder?.deliveryLng, driverLat, driverLng])
+
   /* ── action handlers ───────────────────────────────── */
   const accept = async (orderId: string) => {
     if (!canAcceptMore) {
@@ -1425,12 +1436,12 @@ function DriverOrdersV2Content() {
                   )}
                 </AnimatePresence>
 
-                {/* Slide to arrive (when within ~100m of customer and not yet arrived) */}
+                {/* Slide to arrive (enabled only when within 100m of customer) */}
                 {!activeOrder.driverArrivedAt && (
                   <SlideToArrive
                     orderId={activeOrder.orderId}
                     onArrive={arrive}
-                    disabled={!!actionId}
+                    disabled={!!actionId || !within100mOfCustomer}
                   />
                 )}
 
