@@ -1,10 +1,12 @@
 /**
  * Send push to the business (tenant) when order status changes.
+ * Also triggers Pusher so the live /orders page updates in real time.
  * Uses stable fallbacks so a missing slug / name never silently drops the push.
  */
 
 import { client } from '@/sanity/lib/client'
 import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
+import { pusherServer } from '@/lib/pusher'
 
 export type TenantOrderPushStatus =
   | 'new'
@@ -95,6 +97,12 @@ export async function sendTenantOrderUpdatePush(
   }
 
   if (!siteRef) return false
+
+  // Trigger Pusher so the live /orders page updates in real time for ALL status changes
+  // (driver accept, pick-up, complete, cancel, tenant status changes, etc.)
+  pusherServer
+    .trigger(`tenant-${siteRef}`, 'order-update', { orderId, status })
+    .catch((e) => console.warn('[tenant-order-push] Pusher trigger failed', e))
 
   // Fetch tenant metadata for business name and icon — with safe fallbacks
   let businessName = 'المتجر'

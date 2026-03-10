@@ -500,6 +500,7 @@ function DriverOrdersV2Content() {
         'success',
       )
       pushDriverLocation()
+      setActiveMapOrderId(orderId)
       setMapState('maximized')
     } catch {
       setMyDeliveries((prev) =>

@@ -2,12 +2,14 @@
  * Send push notification to customer when their order status changes.
  * Uses customer name and business name for personalization.
  * Click opens the token-based tracking page (no phone auth).
+ *
+ * IMPORTANT: Uses clientNoCdn so freshly-saved subscriptions are always visible.
  */
 
-import { client } from '@/sanity/lib/client'
+import { clientNoCdn } from '@/sanity/lib/client'
 import { sendPushNotificationDetailed, isPushConfigured } from '@/lib/push'
 import { sendFCMToTokenDetailed, isFCMConfigured } from '@/lib/fcm'
-import { getActiveSubscriptionsForUser, markSubscriptionInactive } from '@/lib/user-push-subscriptions'
+import { getActiveSubscriptionsForUser, removeDevice } from '@/lib/user-push-subscriptions'
 
 const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
   new: { en: 'Order received', ar: 'تم استلام الطلب' },
@@ -45,7 +47,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
   const { orderId, newStatus, baseUrl = '', estimatedDeliveryMinutes } = options
   if (!isFCMConfigured() && !isPushConfigured()) return false
 
-  const order = await client.fetch<{
+  const order = await clientNoCdn.fetch<{
     customerName?: string
     trackingToken?: string
     siteRef?: string
@@ -70,7 +72,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
   const tenantId = order.siteRef
   if (!tenantId) return false
 
-  const combined = await client.fetch<{
+  const combined = await clientNoCdn.fetch<{
     tenant: { slug?: string } | null
     restaurant: { name_en?: string; name_ar?: string } | null
   }>(
@@ -132,15 +134,16 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
   const useAr = true
   const finalPayload = useAr ? payloadAr : payload
 
-  const recipients: Array<{
-    subscriptionId?: string
+  type Recipient = {
+    clerkUserId?: string
     fcmToken?: string
     webPush?: { endpoint?: string; p256dh?: string; auth?: string }
     source: 'central' | 'legacy'
-  }> = []
+  }
+  const recipients: Recipient[] = []
 
   if (order.customerRef) {
-    const customer = await client.fetch<{ clerkUserId?: string } | null>(
+    const customer = await clientNoCdn.fetch<{ clerkUserId?: string } | null>(
       `*[_type == "customer" && _id == $id][0]{ clerkUserId }`,
       { id: order.customerRef }
     )
@@ -150,13 +153,18 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
         clerkUserId,
         roleContext: 'customer',
       })
+      // Each subscription doc has a devices[] array — fan out to every device
       for (const sub of subs) {
-        recipients.push({
-          subscriptionId: sub._id,
-          fcmToken: sub.fcmToken,
-          webPush: sub.webPush,
-          source: 'central',
-        })
+        if (Array.isArray(sub.devices)) {
+          for (const device of sub.devices) {
+            recipients.push({
+              clerkUserId,
+              fcmToken: device.fcmToken,
+              webPush: device.webPush,
+              source: 'central',
+            })
+          }
+        }
       }
     }
   }
@@ -171,7 +179,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
   }
 
   // Deduplicate fanout targets to avoid sending duplicate notifications to same device.
-  const dedupedRecipients: typeof recipients = []
+  const dedupedRecipients: Recipient[] = []
   const seenKeys = new Set<string>()
   for (const recipient of recipients) {
     const key =
@@ -186,7 +194,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
   }
 
   let sentAny = false
-  let permanentInactiveCount = 0
+  const cleanupPromises: Promise<void>[] = []
   for (const recipient of dedupedRecipients) {
     let delivered = false
 
@@ -194,12 +202,14 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
       const fcmResult = await sendFCMToTokenDetailed(recipient.fcmToken, finalPayload)
       if (fcmResult.ok) {
         delivered = true
-      } else if (recipient.source === 'central' && recipient.subscriptionId && fcmResult.permanent) {
-        permanentInactiveCount += 1
-        await markSubscriptionInactive({
-          id: recipient.subscriptionId,
-          reason: fcmResult.reason || 'fcm_permanent_failure',
-        })
+      } else if (recipient.source === 'central' && recipient.clerkUserId && fcmResult.permanent) {
+        cleanupPromises.push(
+          removeDevice({
+            clerkUserId: recipient.clerkUserId,
+            roleContext: 'customer',
+            fcmToken: recipient.fcmToken,
+          })
+        )
       }
     }
 
@@ -212,17 +222,24 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
         )
         if (pushResult.ok) {
           delivered = true
-        } else if (recipient.source === 'central' && recipient.subscriptionId && pushResult.permanent) {
-          permanentInactiveCount += 1
-          await markSubscriptionInactive({
-            id: recipient.subscriptionId,
-            reason: pushResult.reason || 'webpush_permanent_failure',
-          })
+        } else if (recipient.source === 'central' && recipient.clerkUserId && pushResult.permanent) {
+          cleanupPromises.push(
+            removeDevice({
+              clerkUserId: recipient.clerkUserId,
+              roleContext: 'customer',
+              endpoint: sub.endpoint,
+            })
+          )
         }
       }
     }
 
     if (delivered) sentAny = true
+  }
+
+  // Fire-and-forget device cleanup
+  if (cleanupPromises.length > 0) {
+    Promise.all(cleanupPromises).catch((e) => console.warn('[customer-order-push] device cleanup error', e))
   }
 
   console.info('[customer-order-push] fanout', {
@@ -231,8 +248,12 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
     recipients: dedupedRecipients.length,
     source: hasCentralRecipients ? 'central' : 'legacy',
     sentAny,
-    permanentInactiveCount,
+    permanentFailures: cleanupPromises.length,
   })
+
+  if (!sentAny && dedupedRecipients.length > 0) {
+    console.warn(`[customer-order-push] ⚠️ PUSH NOT DELIVERED for order ${orderId}, status=${newStatus}, targets=${dedupedRecipients.length}`)
+  }
 
   return sentAny
 }

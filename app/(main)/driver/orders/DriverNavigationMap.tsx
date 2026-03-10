@@ -91,9 +91,14 @@ function formatDistance(meters: number): string {
 /* ─── Map Updater ───────────────────────────────────────────────────── */
 
 /**
- * Navigation-style map updater (Waze / Google Maps feel).
- * In follow mode, positions the driver in the bottom quarter of the map
- * so the road ahead is visible.  Accounts for top & bottom UI bars.
+ * Navigation-style map updater.
+ * In follow mode the driver is kept at the vertical centre of the usable
+ * viewport (between top bar and bottom bar) so the road ahead and behind
+ * are equally visible — matching what drivers expect from Waze / Google Maps.
+ *
+ * Also calls invalidateSize() on mount so the Leaflet container recalculates
+ * its dimensions after being remounted (prevents the "stuck / blank map" bug
+ * when transitioning from hidden → maximized).
  */
 function MapUpdater({
   driverLat,
@@ -118,6 +123,14 @@ function MapUpdater({
   const map = useMap()
   const hasSetInitialView = useRef(false)
 
+  // Force Leaflet to recalculate container size after mount / remount.
+  // Without this, tiles may not load when the component is dynamically
+  // toggled (hidden → maximized).
+  useEffect(() => {
+    const timer = setTimeout(() => map.invalidateSize(), 100)
+    return () => clearTimeout(timer)
+  }, [map])
+
   useEffect(() => {
     const onDragStart = () => onUserInteraction()
     map.on('dragstart', onDragStart)
@@ -140,11 +153,16 @@ function MapUpdater({
       }
 
       const mapSize = map.getSize()
+      if (mapSize.y === 0) {
+        map.invalidateSize()
+        return
+      }
+
       const usableHeight = mapSize.y - topBarPx - bottomBarPx
       const targetPoint = map.project([driverLat, driverLng], zoom)
-      // Place the driver at ~75% down in the usable area (bottom quarter),
-      // shifted upward by the top bar offset.
-      const driverYInUsable = usableHeight * 0.75
+      // Place the driver at the vertical centre of the usable area so
+      // equal road is visible ahead and behind.
+      const driverYInUsable = usableHeight * 0.5
       const driverScreenY = topBarPx + driverYInUsable
       const centerScreenY = mapSize.y / 2
       const offsetPixels = driverScreenY - centerScreenY

@@ -2,9 +2,12 @@
  * Send push (FCM + Web Push) to the tenant (owner) and all staff members.
  * Primary: queries central userPushSubscription table (same system as Customer FCM).
  * Fallback: legacy fcmTokens arrays on tenant / tenantStaff documents.
+ *
+ * IMPORTANT: Uses noCdnClient for ALL reads so newly-saved subscriptions are
+ * always visible (CDN cache can lag by up to 60 s, causing missed notifications).
  */
 
-import { client } from '@/sanity/lib/client'
+import { clientNoCdn } from '@/sanity/lib/client'
 import { token as sanityWriteToken } from '@/sanity/lib/token'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToTokenDetailed, isFCMConfigured } from '@/lib/fcm'
@@ -102,7 +105,7 @@ async function sendToLegacyDoc(
 // ──────────────────────────────────────────────────────────
 async function pruneStaleTokens(staleTokens: StaleToken[]): Promise<void> {
   if (!staleTokens.length || !sanityWriteToken) return
-  const writeClient = client.withConfig({ token: sanityWriteToken, useCdn: false })
+  const writeClient = clientNoCdn.withConfig({ token: sanityWriteToken })
 
   const byDoc = new Map<string, StaleToken[]>()
   for (const s of staleTokens) {
@@ -139,13 +142,13 @@ export async function sendTenantAndStaffPush(
 ): Promise<boolean> {
   if (!isFCMConfigured() && !isPushConfigured()) return false
 
-  // Step 1: fetch tenant clerkUserId + all staff clerkUserIds
+  // Step 1: fetch tenant clerkUserId + all staff clerkUserIds (noCdn for fresh data)
   const [tenantDoc, staffList] = await Promise.all([
-    client.fetch<{ _id: string; clerkUserId?: string; fcmToken?: string; fcmTokens?: string[]; pushSubscription?: LegacyDoc['pushSubscription'] } | null>(
+    clientNoCdn.fetch<{ _id: string; clerkUserId?: string; fcmToken?: string; fcmTokens?: string[]; pushSubscription?: LegacyDoc['pushSubscription'] } | null>(
       `*[_type == "tenant" && _id == $id][0]{ _id, clerkUserId, fcmToken, fcmTokens, "pushSubscription": pushSubscription }`,
       { id: tenantId }
     ),
-    client.fetch<Array<{ _id: string; clerkUserId?: string; fcmToken?: string; fcmTokens?: string[]; pushSubscription?: LegacyDoc['pushSubscription'] }>>(
+    clientNoCdn.fetch<Array<{ _id: string; clerkUserId?: string; fcmToken?: string; fcmTokens?: string[]; pushSubscription?: LegacyDoc['pushSubscription'] }>>(
       `*[_type == "tenantStaff" && site._ref == $tenantId]{ _id, clerkUserId, fcmTokens, "pushSubscription": pushSubscription }`,
       { tenantId }
     ),
@@ -157,18 +160,23 @@ export async function sendTenantAndStaffPush(
     ...(staffList ?? []).map((s) => s.clerkUserId),
   ].filter((id): id is string => !!id)
 
-  // Step 2: query central userPushSubscription table for ALL matching users or site
+  // Step 2: query central userPushSubscription table for ALL matching users or site (noCdn)
   let centralSubs: CentralSub[] = []
   if (clerkUserIds.length > 0 || tenantId) {
-    centralSubs = await client.fetch<CentralSub[]>(
-      `*[
-        _type == "userPushSubscription" &&
-        roleContext == "tenant" &&
-        ($tenantId in sites[]._ref || clerkUserId in $ids) &&
-        isActive != false
-      ]{ _id, clerkUserId, roleContext, devices }`,
-      { ids: clerkUserIds, tenantId }
-    ).catch(() => [])
+    try {
+      centralSubs = await clientNoCdn.fetch<CentralSub[]>(
+        `*[
+          _type == "userPushSubscription" &&
+          roleContext == "tenant" &&
+          ($tenantId in sites[]._ref || clerkUserId in $ids) &&
+          isActive != false
+        ]{ _id, clerkUserId, roleContext, devices }`,
+        { ids: clerkUserIds, tenantId }
+      )
+    } catch (e) {
+      console.error(`[tenant-push] FAILED to query central subscriptions for tenant ${tenantId}:`, e)
+      centralSubs = []
+    }
   }
 
   console.log(`[tenant-push] Resolving central subs for tenant ${tenantId}. found: ${centralSubs.length}. clerkUserIds: ${clerkUserIds.join(', ')}`)
@@ -262,6 +270,17 @@ export async function sendTenantAndStaffPush(
   }
   if (allStaleTokens.length > 0) {
     pruneStaleTokens(allStaleTokens).catch((e) => console.warn('[tenant-push] legacy prune error', e))
+  }
+
+  if (!sent) {
+    console.error(
+      `[tenant-push] ⚠️ PUSH NOT DELIVERED for tenant ${tenantId}. ` +
+      `centralSubs=${centralSubs.length}, ` +
+      `totalDevices=${centralSubs.reduce((n, s) => n + (s.devices?.length ?? 0), 0)}, ` +
+      `legacyDocs=${allLegacy.length}, ` +
+      `clerkUserIds=[${clerkUserIds.join(',')}]. ` +
+      `Payload: ${payload.title}`
+    )
   }
 
   return sent
