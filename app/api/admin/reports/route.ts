@@ -109,7 +109,12 @@ export async function GET(req: NextRequest) {
     if (d.phoneNumber) driverPhoneMap.set(d._id, d.phoneNumber)
   })
 
-  const customerIds = [...new Set(list.filter((r) => r.reportedType === 'customer' && r.orderCustomerId).map((r) => r.orderCustomerId as string))]
+  const customerIds = [
+    ...new Set([
+      ...list.filter((r) => r.reportedType === 'customer' && r.orderCustomerId).map((r) => r.orderCustomerId as string),
+      ...list.filter((r) => r.reporterType === 'customer' && r.orderCustomerId).map((r) => r.orderCustomerId as string),
+    ]),
+  ]
   const [tenantBlocked, driverBlocked, customerBlocked] = await Promise.all([
     tenantIdList.length
       ? freshClient.fetch<Array<{ _id: string; blockedBySuperAdmin?: boolean }>>(
@@ -161,6 +166,7 @@ export async function GET(req: NextRequest) {
     if (r.reportedType === 'customer' && r.orderCustomerId) reportedBlocked = customerBlockedMap.get(r.orderCustomerId) ?? null
     if (r.reporterType === 'business' && r.reporterTenantId) reporterBlocked = tenantBlockedMap.get(r.reporterTenantId) ?? null
     if (r.reporterType === 'driver' && r.reporterDriverId) reporterBlocked = driverBlockedMap.get(r.reporterDriverId) ?? null
+    if (r.reporterType === 'customer' && r.orderCustomerId) reporterBlocked = customerBlockedMap.get(r.orderCustomerId) ?? null
 
     return {
       ...r,

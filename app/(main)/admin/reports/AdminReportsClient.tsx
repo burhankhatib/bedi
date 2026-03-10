@@ -36,6 +36,8 @@ type Report = {
   reporterPhone: string | null
   reportedPhone: string | null
   reportedCustomerId: string | null
+  /** Order's customer _ref (used for Block reporter when reporter is customer) */
+  orderCustomerId?: string | null
   reportedBlocked: boolean
   reporterBlocked: boolean
 }
@@ -81,6 +83,8 @@ function getBlockEndpoint(r: Report, isReported: boolean): { url: string; id: st
       return { url: `/api/admin/tenants/${r.reporterTenantId}/block`, id: r.reporterTenantId }
     if (r.reporterType === 'driver' && r.reporterDriverId)
       return { url: `/api/admin/drivers/${r.reporterDriverId}/block`, id: r.reporterDriverId }
+    if (r.reporterType === 'customer' && r.orderCustomerId)
+      return { url: `/api/admin/customers/${r.orderCustomerId}/block`, id: r.orderCustomerId }
   }
   return null
 }
@@ -501,102 +505,117 @@ export function AdminReportsClient() {
                         </span>
                       </td>
                       <td className="px-4 py-3 md:px-6">
-                        <div className="flex flex-wrap items-center gap-2">
-                          {filter !== 'read' && filter !== 'archived' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 text-slate-400 hover:text-slate-300"
-                              onClick={() => updateTaskState(r._id, 'report', { status: 'read' })}
-                              disabled={busy[r._id]}
-                            >
-                              Mark Read
-                            </Button>
-                          )}
-                          {filter !== 'archived' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 text-slate-400 hover:text-slate-300"
-                              onClick={() => updateTaskState(r._id, 'report', { archived: true })}
-                              disabled={busy[r._id]}
-                            >
-                              <Archive className="mr-1 size-3.5" />
-                              Archive
-                            </Button>
-                          )}
-                          {r.orderId && (
-                            <Button
-                              asChild
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 text-slate-400 hover:text-amber-400"
-                            >
-                              <Link href={`/studio/structure/intent/edit/template=order;type=order;id=${r.orderId}`} target="_blank">
-                                View Order
-                              </Link>
-                            </Button>
-                          )}
-                          {r.reporterPhone && (
-                            <a
-                              href={`tel:${r.reporterPhone.replace(/[^\d+]/g, '')}`}
-                              className="inline-flex items-center gap-1 rounded border border-slate-600 bg-slate-800/50 px-2 py-1 text-xs text-slate-300 hover:bg-slate-700/50"
-                            >
-                              <Phone className="size-3.5" />
-                              Call reporter
-                            </a>
-                          )}
-                          {r.reportedPhone && (
-                            <a
-                              href={`tel:${r.reportedPhone.replace(/[^\d+]/g, '')}`}
-                              className="inline-flex items-center gap-1 rounded border border-slate-600 bg-slate-800/50 px-2 py-1 text-xs text-slate-300 hover:bg-slate-700/50"
-                            >
-                              <Phone className="size-3.5" />
-                              Call reported
-                            </a>
-                          )}
-                          {reportedBlockEp && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 text-slate-400 hover:text-slate-300"
-                              onClick={() => toggleBlock(r, true, r.reportedBlocked)}
-                              disabled={busy[`${reportedBlockEp.id}-reported`]}
-                            >
-                              {r.reportedBlocked ? (
-                                <>
-                                  <ShieldOff className="mr-1 size-3.5" />
-                                  Unblock reported
-                                </>
-                              ) : (
-                                <>
-                                  <Shield className="mr-1 size-3.5" />
-                                  Block reported
-                                </>
+                        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+                          {/* Report-level actions */}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {filter !== 'read' && filter !== 'archived' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 text-slate-400 hover:text-slate-300"
+                                onClick={() => updateTaskState(r._id, 'report', { status: 'read' })}
+                                disabled={busy[r._id]}
+                              >
+                                Mark Read
+                              </Button>
+                            )}
+                            {filter !== 'archived' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 text-slate-400 hover:text-slate-300"
+                                onClick={() => updateTaskState(r._id, 'report', { archived: true })}
+                                disabled={busy[r._id]}
+                              >
+                                <Archive className="mr-1 size-3.5" />
+                                Archive
+                              </Button>
+                            )}
+                          </div>
+                          {/* Reporter actions */}
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-medium text-amber-400/90">Reporter</span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {r.orderId && (
+                                <Button
+                                  asChild
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-slate-400 hover:text-amber-400"
+                                >
+                                  <Link href={`/admin/orders/${r.orderId}`}>
+                                    View Order
+                                  </Link>
+                                </Button>
                               )}
-                            </Button>
-                          )}
-                          {reporterBlockEp && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 text-slate-400 hover:text-slate-300"
-                              onClick={() => toggleBlock(r, false, r.reporterBlocked)}
-                              disabled={busy[`${reporterBlockEp.id}-reporter`]}
-                            >
-                              {r.reporterBlocked ? (
-                                <>
-                                  <ShieldOff className="mr-1 size-3.5" />
-                                  Unblock reporter
-                                </>
-                              ) : (
-                                <>
-                                  <Shield className="mr-1 size-3.5" />
-                                  Block reporter
-                                </>
+                              {r.reporterPhone && (
+                                <a
+                                  href={`tel:${r.reporterPhone.replace(/[^\d+]/g, '')}`}
+                                  className="inline-flex items-center gap-1 rounded border border-slate-600 bg-slate-800/50 px-2 py-1 text-xs text-slate-300 hover:bg-slate-700/50"
+                                >
+                                  <Phone className="size-3.5" />
+                                  Call reporter
+                                </a>
                               )}
-                            </Button>
-                          )}
+                              {reporterBlockEp && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-slate-400 hover:text-slate-300"
+                                  onClick={() => toggleBlock(r, false, r.reporterBlocked)}
+                                  disabled={busy[`${reporterBlockEp.id}-reporter`]}
+                                >
+                                  {r.reporterBlocked ? (
+                                    <>
+                                      <ShieldOff className="mr-1 size-3.5" />
+                                      Unblock reporter
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Shield className="mr-1 size-3.5" />
+                                      Block reporter
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          {/* Reported actions */}
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs font-medium text-slate-400">Reported</span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {r.reportedPhone && (
+                                <a
+                                  href={`tel:${r.reportedPhone.replace(/[^\d+]/g, '')}`}
+                                  className="inline-flex items-center gap-1 rounded border border-slate-600 bg-slate-800/50 px-2 py-1 text-xs text-slate-300 hover:bg-slate-700/50"
+                                >
+                                  <Phone className="size-3.5" />
+                                  Call reported
+                                </a>
+                              )}
+                              {reportedBlockEp && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 text-slate-400 hover:text-slate-300"
+                                  onClick={() => toggleBlock(r, true, r.reportedBlocked)}
+                                  disabled={busy[`${reportedBlockEp.id}-reported`]}
+                                >
+                                  {r.reportedBlocked ? (
+                                    <>
+                                      <ShieldOff className="mr-1 size-3.5" />
+                                      Unblock reported
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Shield className="mr-1 size-3.5" />
+                                      Block reported
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </td>
                     </tr>
