@@ -82,11 +82,16 @@ function DeliveryETABoxSimple({
   if (!showBox) return null
 
   if (isCompleted && order.completedAt) {
-    const fmt = new Date(order.completedAt).toLocaleString('en-US', {
+    const deliveredAt = new Date(order.completedAt)
+    const fmt = deliveredAt.toLocaleString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
     })
+    const pickedUpMs = order.driverPickedUpAt ? new Date(order.driverPickedUpAt).getTime() : null
+    const completedMs = deliveredAt.getTime()
+    const deliveryMinutes = pickedUpMs ? Math.max(1, Math.round((completedMs - pickedUpMs) / 60000)) : null
+
     return (
       <div className="mt-6 px-4">
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
@@ -94,7 +99,14 @@ function DeliveryETABoxSimple({
             <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
             <div>
               <p className="font-bold text-emerald-900">{t('Delivered', 'تم التوصيل')}</p>
-              <p className="text-sm text-emerald-700">{fmt}</p>
+              {deliveryMinutes != null && (
+                <p className="text-base font-bold text-emerald-700">
+                  ⏱️ {deliveryMinutes <= 1
+                    ? t('Less than a minute!', 'أقل من دقيقة!')
+                    : t(`${deliveryMinutes} minutes`, `${deliveryMinutes} دقيقة`)}
+                </p>
+              )}
+              <p className="text-sm text-emerald-600">{fmt}</p>
             </div>
           </div>
           {driver && (

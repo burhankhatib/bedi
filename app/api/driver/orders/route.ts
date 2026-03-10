@@ -37,6 +37,8 @@ type DriverOrderView = {
   status: string
   deliveryRequestedAt?: string
   completedAt?: string
+  driverPickedUpAt?: string
+  estimatedDeliveryMinutes?: number
   itemsUpdatedAt?: string
   driverReconfirmedAt?: string
 }
@@ -84,6 +86,8 @@ export async function GET() {
       assignedDriverRef?: string
       siteRef?: string
       completedAt?: string
+      driverPickedUpAt?: string
+      estimatedDeliveryMinutes?: number
       createdAt?: string
       declinedByDriverRefs?: string[]
       itemsUpdatedAt?: string
@@ -108,6 +112,8 @@ export async function GET() {
       status,
       deliveryRequestedAt,
       completedAt,
+      driverPickedUpAt,
+      estimatedDeliveryMinutes,
       createdAt,
       itemsUpdatedAt,
       driverReconfirmedAt,
@@ -208,6 +214,8 @@ export async function GET() {
       status: o.status,
       deliveryRequestedAt: o.deliveryRequestedAt,
       completedAt: o.completedAt,
+      driverPickedUpAt: o.driverPickedUpAt,
+      estimatedDeliveryMinutes: o.estimatedDeliveryMinutes,
       itemsUpdatedAt: o.itemsUpdatedAt,
       driverReconfirmedAt: o.driverReconfirmedAt,
     }

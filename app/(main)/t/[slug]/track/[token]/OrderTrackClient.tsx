@@ -191,7 +191,7 @@ function DeliveryETABox({
 
   if (!showBox) return null
 
-  // After completion: show actual delivery time
+  // After completion: show actual delivery duration
   if (isCompleted && order.completedAt) {
     const deliveredAt = new Date(order.completedAt)
     const fmt = deliveredAt.toLocaleString('en-US', {
@@ -199,13 +199,18 @@ function DeliveryETABox({
       minute: '2-digit',
       hour12: true,
     })
+    const pickedUpMs = order.driverPickedUpAt ? new Date(order.driverPickedUpAt).getTime() : null
+    const completedMs = deliveredAt.getTime()
+    const deliveryMinutes = pickedUpMs ? Math.max(1, Math.round((completedMs - pickedUpMs) / 60000)) : null
+    const wasFast = deliveryMinutes != null && deliveryMinutes <= 15
+
     return (
       <div className="mt-6 px-4">
         <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm relative overflow-hidden">
           <div className="absolute -right-4 -top-4 text-emerald-200/40 pointer-events-none">
             <CheckCircle2 className="w-28 h-28" />
           </div>
-          <div className="flex items-center gap-3 mb-3 relative z-10">
+          <div className="flex items-center gap-3 mb-2 relative z-10">
             <div className="bg-emerald-600 p-2.5 rounded-xl text-white">
               <CheckCircle2 className="w-5 h-5" />
             </div>
@@ -213,9 +218,25 @@ function DeliveryETABox({
               <h2 className="text-lg font-black text-emerald-900">
                 {t('Delivered', 'تم التوصيل')}
               </h2>
-              <p className="text-sm text-emerald-700">{fmt}</p>
+              {deliveryMinutes != null && (
+                <p className="text-base font-bold text-emerald-700">
+                  ⏱️ {deliveryMinutes <= 1
+                    ? t('Less than a minute!', 'أقل من دقيقة!')
+                    : t(`${deliveryMinutes} minutes`, `${deliveryMinutes} دقيقة`)}
+                </p>
+              )}
+              <p className="text-sm text-emerald-600">{fmt}</p>
             </div>
           </div>
+
+          {wasFast && (
+            <div className="relative z-10 rounded-2xl bg-emerald-100/80 border border-emerald-200/60 p-3 mt-3">
+              <p className="text-center text-sm text-emerald-700 font-medium">
+                ⚡ {t('That was a speedy delivery!', 'كان توصيل سريع!')} {t('Consider thanking your driver with a tip', 'فكّر بشكر السائق بإكرامية')} 💚
+              </p>
+            </div>
+          )}
+
           {driver && (
             <div className="relative z-10 mt-3 pt-3 border-t border-emerald-200/60">
               <p className="text-sm text-emerald-800">
@@ -319,6 +340,18 @@ function DeliveryETABox({
                 'The driver is picking up your order',
                 'السائق يستلم طلبك',
               )}
+            </p>
+          </div>
+        )}
+
+        {/* Tip encouragement during active delivery */}
+        {hasCountdown && !isOverdue && (
+          <div className="relative z-10 mb-4 rounded-2xl bg-gradient-to-r from-rose-50/80 to-amber-50/80 border border-rose-200/60 p-3">
+            <p className="text-center text-sm text-rose-700 font-medium">
+              💜 {t(
+                'Your driver is rushing to you! A small tip makes a big difference',
+                'السائق يسارع إليك! إكرامية صغيرة تعني الكثير'
+              )} 🌟
             </p>
           </div>
         )}
@@ -448,6 +481,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
     if (!ack) prevRequestAckRef.current = null
   }, [data?.order?.customerRequestAcknowledgedAt, showToast, t])
 
+  const isDeliveryActive = data?.order?.status === 'out-for-delivery'
   const isDineIn = data?.order?.orderType === 'dine-in'
   const tableNumber = data?.order?.tableNumber ?? ''
   const subtotal = data?.order?.subtotal ?? 0
@@ -845,18 +879,30 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
 
       {/* Tips option — under total */}
       <div className="mt-5 px-4">
-        <div className="rounded-3xl border border-rose-100 bg-rose-50/30 shadow-sm overflow-hidden transition-all duration-300">
+        <div className={`rounded-3xl border ${isDeliveryActive ? 'border-rose-300 shadow-lg shadow-rose-100/50 ring-1 ring-rose-200/40' : 'border-rose-100'} bg-rose-50/30 shadow-sm overflow-hidden transition-all duration-500`}>
+          {isDeliveryActive && (
+            <div className="bg-gradient-to-r from-rose-100/60 to-amber-50/60 px-5 py-3 border-b border-rose-200/50">
+              <p className="text-sm text-rose-700 font-semibold text-center">
+                🌟 {t(
+                  'Your driver is working hard to bring your food — a tip means the world!',
+                  'السائق يعمل بجهد لإيصال طعامك — الإكرامية تعني الكثير!'
+                )}
+              </p>
+            </div>
+          )}
           <label className="flex items-center justify-between cursor-pointer px-5 py-4 select-none">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-500">
-                <Heart className="h-5 w-5" />
+              <div className={`flex h-10 w-10 items-center justify-center rounded-full ${isDeliveryActive ? 'bg-rose-200 text-rose-600' : 'bg-rose-100 text-rose-500'} transition-colors`}>
+                <Heart className={`h-5 w-5 ${isDeliveryActive ? 'animate-pulse' : ''}`} />
               </div>
               <div>
                 <h2 className="font-bold text-slate-800">
                   {t('Add a tip?', 'إضافة إكرامية؟')}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {t('Support the team', 'ادعم الفريق')}
+                  {isDeliveryActive
+                    ? t('Encourage your driver for a great delivery!', 'شجّع السائق على توصيل ممتاز!')
+                    : t('Support the team', 'ادعم الفريق')}
                 </p>
               </div>
             </div>

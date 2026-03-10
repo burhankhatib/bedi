@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useEffect, useCallback, useRef } from 'react'
+import { Suspense, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -28,6 +28,7 @@ import { SlideToPickUp } from './SlideToPickUp'
 import { SlideToConfirm } from './SlideToConfirm'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
 import { ChangeCalculatorModal } from './ChangeCalculatorModal'
+import { DRIVER_MOTIVATIONAL_QUOTES } from './driverQuotes'
 
 const DriverNavigationMap = dynamic(() => import('./DriverNavigationMap'), {
   ssr: false,
@@ -60,6 +61,8 @@ type DriverOrder = {
   currency: string
   status: string
   completedAt?: string
+  driverPickedUpAt?: string
+  estimatedDeliveryMinutes?: number
   itemsUpdatedAt?: string
   driverReconfirmedAt?: string
 }
@@ -180,6 +183,7 @@ function DriverOrdersV2Content() {
 
   const [driverLat, setDriverLat] = useState<number | null>(null)
   const [driverLng, setDriverLng] = useState<number | null>(null)
+  const [deliveryNow, setDeliveryNow] = useState(() => Date.now())
 
   const prevPendingCountRef = useRef(0)
   const declinedOrderIdsRef = useRef<Set<string>>(new Set())
@@ -360,6 +364,23 @@ function DriverOrdersV2Content() {
     activeOrder?.status === 'driver_on_the_way' ||
     activeOrder?.status === 'waiting_for_delivery'
 
+  /* ── delivery countdown tick ────────────────────────── */
+  useEffect(() => {
+    if (!isEnRouteToCustomer) return
+    const id = setInterval(() => setDeliveryNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [isEnRouteToCustomer])
+
+  const quoteIndex = useMemo(() => {
+    const id = activeOrder?.orderId || ''
+    let hash = 0
+    for (let i = 0; i < id.length; i++) {
+      hash = ((hash << 5) - hash) + id.charCodeAt(i)
+      hash |= 0
+    }
+    return Math.abs(hash) % DRIVER_MOTIVATIONAL_QUOTES.length
+  }, [activeOrder?.orderId])
+
   /* ── action handlers ───────────────────────────────── */
   const accept = async (orderId: string) => {
     if (!canAcceptMore) {
@@ -502,6 +523,7 @@ function DriverOrdersV2Content() {
       pushDriverLocation()
       setActiveMapOrderId(orderId)
       setMapState('maximized')
+      fetchOrders()
     } catch {
       setMyDeliveries((prev) =>
         prev.map((x) => (x.orderId === orderId ? order : x)),
@@ -1011,6 +1033,72 @@ function DriverOrdersV2Content() {
                     </div>
                   )}
                 </div>
+
+                {/* Delivery Countdown + Motivational Quote + Safety */}
+                {activeOrder.estimatedDeliveryMinutes && activeOrder.driverPickedUpAt ? (() => {
+                  const pickupMs = new Date(activeOrder.driverPickedUpAt!).getTime()
+                  const targetMs = pickupMs + activeOrder.estimatedDeliveryMinutes! * 60 * 1000
+                  const remainMs = targetMs - deliveryNow
+                  const isOverdue = remainMs <= 0
+                  const cdMinutes = isOverdue ? 0 : Math.floor(remainMs / 60000)
+                  const cdSeconds = isOverdue ? 0 : Math.floor((remainMs % 60000) / 1000)
+
+                  return (
+                    <div className="rounded-3xl bg-gradient-to-b from-purple-900/30 to-slate-900/40 border border-purple-500/30 p-5 mb-4">
+                      <div className="text-center mb-4">
+                        <p className="text-purple-300/80 text-xs font-semibold uppercase tracking-wider mb-2">
+                          {t('Time remaining', 'الوقت المتبقي للتوصيل')}
+                        </p>
+                        {isOverdue ? (
+                          <p className="text-amber-400 font-bold text-lg animate-pulse">
+                            ⏰ {t('Deliver now!', 'وصّل الآن!')}
+                          </p>
+                        ) : (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="bg-purple-500/20 rounded-2xl px-5 py-2 text-center min-w-[75px]">
+                              <span className="text-3xl font-black text-purple-300 tabular-nums block">
+                                {String(cdMinutes).padStart(2, '0')}
+                              </span>
+                              <span className="text-[10px] font-bold text-purple-400/60 uppercase tracking-wider">
+                                {t('min', 'دقيقة')}
+                              </span>
+                            </div>
+                            <span className="text-2xl font-black text-purple-400/40">:</span>
+                            <div className="bg-purple-500/20 rounded-2xl px-5 py-2 text-center min-w-[75px]">
+                              <span className="text-3xl font-black text-purple-300 tabular-nums block">
+                                {String(cdSeconds).padStart(2, '0')}
+                              </span>
+                              <span className="text-[10px] font-bold text-purple-400/60 uppercase tracking-wider">
+                                {t('sec', 'ثانية')}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="text-center px-2 mb-4">
+                        <p className="text-slate-300/80 text-sm leading-relaxed italic">
+                          {DRIVER_MOTIVATIONAL_QUOTES[quoteIndex]}
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-3 text-center">
+                        <p className="text-amber-300/80 text-xs font-medium leading-relaxed">
+                          🛡️ {t(
+                            'Drive safe and stay alert at all times. Your safety and the safety of others matter most. Handle the order with care.',
+                            'سُق بأمان وانتبه على الطريق دائماً. سلامتك وسلامة الآخرين أهم من أي توصيلة. وصّل الطلب بعناية.'
+                          )} 🤲
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })() : isEnRouteToCustomer && (
+                  <div className="rounded-3xl bg-purple-900/20 border border-purple-500/20 p-4 mb-4 text-center">
+                    <p className="text-purple-300/60 text-sm animate-pulse">
+                      {t('Calculating delivery time…', 'جاري حساب وقت التوصيل…')}
+                    </p>
+                  </div>
+                )}
 
                 {/* Total to collect — BIG */}
                 <div className="rounded-3xl bg-emerald-500/10 border border-emerald-500/30 p-5 mb-4 text-center">
