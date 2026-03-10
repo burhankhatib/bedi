@@ -67,6 +67,7 @@ type TrackData = {
     cancelledAt?: string | null
     driverCancelledAt?: string | null
     completedAt?: string | null
+    estimatedDeliveryMinutes?: number | null
     tipPercent?: number
     tipAmount?: number
     customerRequestedAt?: string | null
@@ -160,6 +161,205 @@ function CustomerLocationShare({ orderId, trackingToken }: { orderId: string; tr
             ? t('Update', 'تحديث')
             : t('Share', 'مشاركة')}
       </button>
+    </div>
+  )
+}
+
+/** Delivery ETA countdown box with driver info. */
+function DeliveryETABox({
+  order,
+  driver,
+  countryCode,
+}: {
+  order: TrackData['order']
+  driver: TrackData['driver']
+  countryCode: string
+}) {
+  const { t, lang } = useLanguage()
+  const [now, setNow] = useState(() => Date.now())
+
+  const isActive =
+    order.status === 'out-for-delivery' || order.status === 'driver_on_the_way'
+  const isCompleted = order.status === 'completed'
+  const showBox = (isActive || isCompleted) && order.orderType === 'delivery'
+
+  useEffect(() => {
+    if (!isActive) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [isActive])
+
+  if (!showBox) return null
+
+  // After completion: show actual delivery time
+  if (isCompleted && order.completedAt) {
+    const deliveredAt = new Date(order.completedAt)
+    const fmt = deliveredAt.toLocaleString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+    return (
+      <div className="mt-6 px-4">
+        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm relative overflow-hidden">
+          <div className="absolute -right-4 -top-4 text-emerald-200/40 pointer-events-none">
+            <CheckCircle2 className="w-28 h-28" />
+          </div>
+          <div className="flex items-center gap-3 mb-3 relative z-10">
+            <div className="bg-emerald-600 p-2.5 rounded-xl text-white">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-emerald-900">
+                {t('Delivered', 'تم التوصيل')}
+              </h2>
+              <p className="text-sm text-emerald-700">{fmt}</p>
+            </div>
+          </div>
+          {driver && (
+            <div className="relative z-10 mt-3 pt-3 border-t border-emerald-200/60">
+              <p className="text-sm text-emerald-800">
+                <span className="font-semibold">{t('Driver', 'السائق')}:</span>{' '}
+                {driver.name}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Active: countdown to estimated delivery
+  const pickedUpAt = order.driverPickedUpAt
+    ? new Date(order.driverPickedUpAt).getTime()
+    : null
+  const etaMinutes = order.estimatedDeliveryMinutes
+  const hasCountdown = isActive && pickedUpAt && etaMinutes && order.status === 'out-for-delivery'
+
+  let countdownMinutes = 0
+  let countdownSeconds = 0
+  let isOverdue = false
+
+  if (hasCountdown) {
+    const targetMs = pickedUpAt + etaMinutes * 60 * 1000
+    const remainMs = targetMs - now
+    if (remainMs <= 0) {
+      isOverdue = true
+    } else {
+      countdownMinutes = Math.floor(remainMs / 60000)
+      countdownSeconds = Math.floor((remainMs % 60000) / 1000)
+    }
+  }
+
+  const isDriverToStore = order.status === 'driver_on_the_way'
+
+  return (
+    <div className="mt-6 px-4">
+      <div className="rounded-3xl border border-purple-200 bg-gradient-to-b from-purple-50 to-white p-5 shadow-sm relative overflow-hidden">
+        <div className="absolute -right-4 -top-4 text-purple-200/40 pointer-events-none">
+          <Truck className="w-28 h-28" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-4 relative z-10">
+          <div className="bg-purple-600 p-2.5 rounded-xl text-white">
+            <Truck className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-black text-purple-900">
+              {isDriverToStore
+                ? t('Driver heading to the store', 'السائق في الطريق إلى المتجر')
+                : t('On the way to you', 'في الطريق إليك')}
+            </h2>
+            {hasCountdown && (
+              <p className="text-xs text-purple-600 font-medium">
+                {t('Estimated arrival', 'الوصول المتوقع')}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Countdown */}
+        {hasCountdown && (
+          <div className="relative z-10 mb-4">
+            {isOverdue ? (
+              <div className="text-center py-3 rounded-2xl bg-amber-50 border border-amber-200">
+                <p className="text-amber-700 font-bold text-sm">
+                  {t('Arriving any moment now…', 'يصل في أي لحظة…')}
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2">
+                <div className="bg-purple-100 rounded-2xl px-5 py-3 text-center min-w-[80px]">
+                  <span className="text-3xl font-black text-purple-800 tabular-nums block">
+                    {String(countdownMinutes).padStart(2, '0')}
+                  </span>
+                  <span className="text-[10px] font-bold text-purple-500 uppercase tracking-wider">
+                    {t('min', 'دقيقة')}
+                  </span>
+                </div>
+                <span className="text-2xl font-black text-purple-400">:</span>
+                <div className="bg-purple-100 rounded-2xl px-5 py-3 text-center min-w-[80px]">
+                  <span className="text-3xl font-black text-purple-800 tabular-nums block">
+                    {String(countdownSeconds).padStart(2, '0')}
+                  </span>
+                  <span className="text-[10px] font-bold text-purple-500 uppercase tracking-wider">
+                    {t('sec', 'ثانية')}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!hasCountdown && isDriverToStore && (
+          <div className="relative z-10 mb-4 text-center py-3 rounded-2xl bg-purple-50 border border-purple-200">
+            <p className="text-purple-700 font-semibold text-sm">
+              {t(
+                'The driver is picking up your order',
+                'السائق يستلم طلبك',
+              )}
+            </p>
+          </div>
+        )}
+
+        {/* Driver info */}
+        {driver && (
+          <div className="relative z-10 pt-3 border-t border-purple-200/60">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+                <Truck className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-purple-900 text-base">{driver.name}</p>
+                <p className="text-xs text-purple-600">
+                  {t('Your delivery driver', 'سائق التوصيل')}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={`tel:+${normalizePhoneForWhatsApp(driver.phoneNumber, countryCode)}`}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 text-sm min-h-[48px] shadow-sm transition-colors"
+              >
+                <Phone className="h-4 w-4" />
+                {t('Call Driver', 'اتصل بالسائق')}
+              </a>
+              {getWhatsAppUrl(driver.phoneNumber, '', countryCode) && (
+                <a
+                  href={getWhatsAppUrl(driver.phoneNumber, '', countryCode)!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-3 text-sm min-h-[48px] shadow-sm transition-colors"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -425,6 +625,13 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
           {t('Order', 'الطلب')} #{data.order.orderNumber ?? data.order._id?.slice(-6)}
         </p>
       </div>
+
+      {/* Delivery ETA / Countdown box */}
+      <DeliveryETABox
+        order={data.order}
+        driver={data.driver}
+        countryCode={countryCode}
+      />
 
       {data.order.scheduledFor && data.order.status !== 'completed' && data.order.status !== 'cancelled' && data.order.status !== 'refunded' && (
         <div className="mt-6 px-4">

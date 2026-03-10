@@ -47,6 +47,7 @@ export async function GET(
     tipAmount?: number
     customerRequestedAt?: string | null
     customerRequestAcknowledgedAt?: string | null
+    estimatedDeliveryMinutes?: number | null
     scheduledFor?: string | null
     scheduleEditHistory?: Array<{
       previousScheduledFor: string
@@ -80,6 +81,7 @@ export async function GET(
       tipAmount,
       customerRequestedAt,
       customerRequestAcknowledgedAt,
+      estimatedDeliveryMinutes,
       scheduledFor,
       scheduleEditHistory,
       "site": site,
@@ -141,6 +143,7 @@ export async function GET(
       tipAmount: order.tipAmount,
       customerRequestedAt: order.customerRequestedAt ?? null,
       customerRequestAcknowledgedAt: order.customerRequestAcknowledgedAt ?? null,
+      estimatedDeliveryMinutes: order.estimatedDeliveryMinutes ?? null,
       scheduledFor: order.scheduledFor ?? null,
       scheduleEditHistory: order.scheduleEditHistory ?? [],
     },

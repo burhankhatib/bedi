@@ -37,6 +37,8 @@ export async function GET(
     currency?: string
     createdAt?: string
     completedAt?: string | null
+    driverPickedUpAt?: string | null
+    estimatedDeliveryMinutes?: number | null
     site?: { _ref?: string }
     assignedDriver?: { _ref?: string } | null
   } | null>(
@@ -56,6 +58,8 @@ export async function GET(
       currency,
       createdAt,
       completedAt,
+      driverPickedUpAt,
+      estimatedDeliveryMinutes,
       "site": site,
       "assignedDriver": assignedDriver
     }`,
@@ -101,6 +105,8 @@ export async function GET(
       currency: order.currency,
       createdAt: order.createdAt,
       completedAt: order.completedAt,
+      driverPickedUpAt: order.driverPickedUpAt ?? null,
+      estimatedDeliveryMinutes: order.estimatedDeliveryMinutes ?? null,
     },
     restaurant: restaurantInfo
       ? {

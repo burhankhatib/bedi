@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
+import { urlFor } from '@/sanity/lib/image'
 
 const freshClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -19,6 +20,8 @@ type DriverOrderView = {
   businessMapsLink?: string
   businessLocationLat?: number
   businessLocationLng?: number
+  businessLogoUrl?: string
+  businessWhatsapp?: string
   city: string
   /** Area name from restaurant (e.g. Shufat). Shown before driver accepts. */
   deliveryAreaName: string
@@ -126,10 +129,13 @@ export async function GET() {
             city: string
             locationLat?: number
             locationLng?: number
+            businessLogo?: { asset?: { _ref: string } }
             restaurantName: string
             restaurantAddress: string
             restaurantAddressAr: string | null
             restaurantMapsLink: string | null
+            restaurantLogo?: { asset?: { _ref: string } }
+            restaurantWhatsapp?: string
           }>
         >(
           `*[_type == "tenant" && _id in $siteIds && country == $country && city == $city] {
@@ -138,27 +144,36 @@ export async function GET() {
             city,
             locationLat,
             locationLng,
+            businessLogo,
             "restaurantName": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_en,
             "restaurantAddress": *[_type == "restaurantInfo" && site._ref == ^._id][0].address_en,
             "restaurantAddressAr": *[_type == "restaurantInfo" && site._ref == ^._id][0].address_ar,
-            "restaurantMapsLink": *[_type == "restaurantInfo" && site._ref == ^._id][0].mapsLink
+            "restaurantMapsLink": *[_type == "restaurantInfo" && site._ref == ^._id][0].mapsLink,
+            "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^._id][0].logo,
+            "restaurantWhatsapp": *[_type == "restaurantInfo" && site._ref == ^._id][0].socials.whatsapp
           }`,
           { siteIds, country, city }
         )
       : []
   const siteMap = new Map(
-    (sitesInArea ?? []).map((s) => [
-      s._id,
-      {
-        businessName: s.restaurantName || s.name,
-        businessAddress: s.restaurantAddress || '',
-        businessAddressAr: s.restaurantAddressAr && typeof s.restaurantAddressAr === 'string' ? s.restaurantAddressAr : undefined,
-        businessMapsLink: s.restaurantMapsLink && typeof s.restaurantMapsLink === 'string' ? s.restaurantMapsLink : undefined,
-        businessLocationLat: s.locationLat,
-        businessLocationLng: s.locationLng,
-        city: s.city || '',
-      },
-    ])
+    (sitesInArea ?? []).map((s) => {
+      const logoSource = s.restaurantLogo?.asset?._ref ? s.restaurantLogo : s.businessLogo?.asset?._ref ? s.businessLogo : null
+      const businessLogoUrl = logoSource ? urlFor(logoSource).width(56).height(56).url() : undefined
+      return [
+        s._id,
+        {
+          businessName: s.restaurantName || s.name,
+          businessAddress: s.restaurantAddress || '',
+          businessAddressAr: s.restaurantAddressAr && typeof s.restaurantAddressAr === 'string' ? s.restaurantAddressAr : undefined,
+          businessMapsLink: s.restaurantMapsLink && typeof s.restaurantMapsLink === 'string' ? s.restaurantMapsLink : undefined,
+          businessLocationLat: s.locationLat,
+          businessLocationLng: s.locationLng,
+          businessLogoUrl,
+          businessWhatsapp: s.restaurantWhatsapp || undefined,
+          city: s.city || '',
+        },
+      ]
+    })
   )
 
   const toView = (o: (typeof ordersWithSite)[0]): DriverOrderView => {
@@ -178,6 +193,8 @@ export async function GET() {
       businessMapsLink: site?.businessMapsLink,
       businessLocationLat: site?.businessLocationLat,
       businessLocationLng: site?.businessLocationLng,
+      businessLogoUrl: site?.businessLogoUrl,
+      businessWhatsapp: site?.businessWhatsapp,
       city: site?.city ?? '',
       deliveryAreaName: areaName,
       deliveryAreaNameAr: areaNameAr || undefined,

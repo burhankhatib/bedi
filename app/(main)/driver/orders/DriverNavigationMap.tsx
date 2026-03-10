@@ -1,11 +1,10 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Minimize2, Navigation, Loader2, X, Locate, RotateCw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/components/LanguageContext'
 import { distanceKm } from '@/lib/maps-utils'
 
@@ -18,21 +17,62 @@ if (typeof window !== 'undefined') {
   })
 }
 
-const DRIVER_ICON_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>`
+/* ─── Icons ─────────────────────────────────────────────────────────── */
+
+const DRIVER_ICON_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>`
 
 const driverIcon = typeof window !== 'undefined' ? L.divIcon({
-  html: `<div style="width:40px;height:40px;background:#2563eb;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;">${DRIVER_ICON_SVG}</div>`,
+  html: `<div style="width:48px;height:48px;background:#2563eb;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 12px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;">${DRIVER_ICON_SVG}</div>`,
   className: '',
-  iconSize: [40, 40],
-  iconAnchor: [20, 20],
+  iconSize: [48, 48],
+  iconAnchor: [24, 24],
 }) : null
 
-const destIcon = typeof window !== 'undefined' ? L.divIcon({
-  html: `<div style="width:36px;height:36px;background:#dc2626;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>`,
-  className: '',
-  iconSize: [36, 36],
-  iconAnchor: [18, 36],
-}) : null
+function makeDestIcon(label?: string, logoUrl?: string) {
+  if (typeof window === 'undefined') return null
+
+  const hasLogo = logoUrl && logoUrl.length > 0
+  const displayLabel = label || ''
+  const truncatedLabel = displayLabel.length > 22 ? displayLabel.slice(0, 20) + '…' : displayLabel
+
+  const logoHtml = hasLogo
+    ? `<img src="${logoUrl}" style="width:28px;height:28px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.3);flex-shrink:0;" onerror="this.style.display='none'" />`
+    : ''
+
+  const labelBadge = truncatedLabel
+    ? `<div style="
+        position:absolute;
+        bottom:calc(100% + 6px);
+        left:50%;
+        transform:translateX(-50%);
+        background:rgba(15,23,42,0.92);
+        backdrop-filter:blur(8px);
+        border:1px solid rgba(255,255,255,0.15);
+        border-radius:10px;
+        padding:5px 10px;
+        display:flex;
+        align-items:center;
+        gap:6px;
+        white-space:nowrap;
+        max-width:200px;
+        box-shadow:0 2px 12px rgba(0,0,0,0.4);
+      ">${logoHtml}<span style="font-size:11px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;">${truncatedLabel}</span></div>`
+    : ''
+
+  return L.divIcon({
+    html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+      ${labelBadge}
+      <div style="width:40px;height:40px;background:#dc2626;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+      </div>
+    </div>`,
+    className: '',
+    iconSize: [40, 60],
+    iconAnchor: [20, 60],
+  })
+}
+
+/* ─── Formatters ────────────────────────────────────────────────────── */
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `<1 min`
@@ -48,21 +88,23 @@ function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)} km`
 }
 
+/* ─── Map Updater ───────────────────────────────────────────────────── */
+
 /**
- * Driver-centric map updater.
- * When followDriver is true, keeps the driver at center-bottom of the viewport
- * and zooms to a level appropriate for navigation.
- * When followDriver is false, fits both points on screen.
+ * Navigation-style map updater (Waze / Google Maps feel).
+ * In follow mode, positions the driver in the bottom quarter of the map
+ * so the road ahead is visible.  Accounts for top & bottom UI bars.
  */
-function MapUpdater({ 
-  driverLat, 
-  driverLng, 
-  destLat, 
-  destLng, 
-  route,
+function MapUpdater({
+  driverLat,
+  driverLng,
+  destLat,
+  destLng,
   followDriver,
   onUserInteraction,
-}: { 
+  topBarPx,
+  bottomBarPx,
+}: {
   driverLat: number
   driverLng: number
   destLat: number
@@ -70,51 +112,43 @@ function MapUpdater({
   route: [number, number][]
   followDriver: boolean
   onUserInteraction: () => void
+  topBarPx: number
+  bottomBarPx: number
 }) {
   const map = useMap()
-  const isUserDragging = useRef(false)
   const hasSetInitialView = useRef(false)
 
-  // Listen for user drag to disable follow mode
   useEffect(() => {
-    const onDragStart = () => {
-      isUserDragging.current = true
-      onUserInteraction()
-    }
-    const onZoomStart = () => {
-      // Only count as user interaction if it's manual (not programmatic)
-      if (!map.options.zoomAnimation) return
-    }
+    const onDragStart = () => onUserInteraction()
     map.on('dragstart', onDragStart)
-    map.on('zoomstart', onZoomStart)
-    return () => {
-      map.off('dragstart', onDragStart)
-      map.off('zoomstart', onZoomStart)
-    }
+    return () => { map.off('dragstart', onDragStart) }
   }, [map, onUserInteraction])
 
   useEffect(() => {
     if (!driverLat || !driverLng) return
 
     if (followDriver) {
-      isUserDragging.current = false
-
-      // Calculate appropriate zoom based on distance to destination
       let zoom = 16
       if (destLat && destLng) {
         const dist = distanceKm({ lat: driverLat, lng: driverLng }, { lat: destLat, lng: destLng })
         if (dist > 10) zoom = 12
         else if (dist > 5) zoom = 13
         else if (dist > 2) zoom = 14
-        else if (dist > 0.5) zoom = 15
+        else if (dist > 1) zoom = 15
+        else if (dist > 0.3) zoom = 16
         else zoom = 17
       }
 
-      // Offset the driver position to be at the bottom third of the viewport
       const mapSize = map.getSize()
+      const usableHeight = mapSize.y - topBarPx - bottomBarPx
       const targetPoint = map.project([driverLat, driverLng], zoom)
-      // Shift up by 1/3 of viewport height so driver appears in bottom third
-      const offsetPoint = L.point(targetPoint.x, targetPoint.y + mapSize.y * 0.25)
+      // Place the driver at ~75% down in the usable area (bottom quarter),
+      // shifted upward by the top bar offset.
+      const driverYInUsable = usableHeight * 0.75
+      const driverScreenY = topBarPx + driverYInUsable
+      const centerScreenY = mapSize.y / 2
+      const offsetPixels = driverScreenY - centerScreenY
+      const offsetPoint = L.point(targetPoint.x, targetPoint.y + offsetPixels)
       const offsetLatLng = map.unproject(offsetPoint, zoom)
 
       if (!hasSetInitialView.current) {
@@ -124,19 +158,20 @@ function MapUpdater({
         map.setView(offsetLatLng, zoom, { animate: true, duration: 1 })
       }
     } else if (!hasSetInitialView.current) {
-      // First render without follow: fit both points
       if (destLat && destLng) {
         const bounds = L.latLngBounds([driverLat, driverLng], [destLat, destLng])
-        map.fitBounds(bounds, { padding: [60, 60] })
+        map.fitBounds(bounds, { padding: [80, 80] })
       } else {
         map.setView([driverLat, driverLng], 15)
       }
       hasSetInitialView.current = true
     }
-  }, [driverLat, driverLng, destLat, destLng, map, followDriver])
+  }, [driverLat, driverLng, destLat, destLng, map, followDriver, topBarPx, bottomBarPx])
 
   return null
 }
+
+/* ─── Component ─────────────────────────────────────────────────────── */
 
 interface DriverNavigationMapProps {
   driverLat: number | null
@@ -146,7 +181,11 @@ interface DriverNavigationMapProps {
   onMinimize: () => void
   onClose: () => void
   destinationLabel?: string
+  destinationLogoUrl?: string
 }
+
+const TOP_BAR_HEIGHT = 88
+const BOTTOM_BAR_HEIGHT = 80
 
 export default function DriverNavigationMap({
   driverLat,
@@ -155,14 +194,15 @@ export default function DriverNavigationMap({
   destLng,
   onMinimize,
   onClose,
-  destinationLabel
+  destinationLabel,
+  destinationLogoUrl,
 }: DriverNavigationMapProps) {
   const { t } = useLanguage()
   const [route, setRoute] = useState<[number, number][]>([])
   const [routeLoading, setRouteLoading] = useState(false)
   const [routeError, setRouteError] = useState(false)
-  const [routeDistance, setRouteDistance] = useState<number | null>(null) // meters
-  const [routeDuration, setRouteDuration] = useState<number | null>(null) // seconds
+  const [routeDistance, setRouteDistance] = useState<number | null>(null)
+  const [routeDuration, setRouteDuration] = useState<number | null>(null)
   const [followDriver, setFollowDriver] = useState(true)
 
   const handleRecenter = useCallback(() => {
@@ -172,6 +212,11 @@ export default function DriverNavigationMap({
   const handleUserInteraction = useCallback(() => {
     setFollowDriver(false)
   }, [])
+
+  const destIcon = useMemo(
+    () => makeDestIcon(destinationLabel, destinationLogoUrl),
+    [destinationLabel, destinationLogoUrl],
+  )
 
   // Fetch route from OSRM
   useEffect(() => {
@@ -191,12 +236,14 @@ export default function DriverNavigationMap({
         const url = `https://router.project-osrm.org/route/v1/driving/${driverLng},${driverLat};${destLng},${destLat}?overview=full&geometries=geojson`
         const res = await fetch(url)
         const data = await res.json()
-        
+
         if (cancelled) return
 
         if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
           const r = data.routes[0]
-          const coords = r.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]] as [number, number])
+          const coords = r.geometry.coordinates.map(
+            (c: [number, number]) => [c[1], c[0]] as [number, number],
+          )
           setRoute(coords)
           setRouteDistance(r.distance ?? null)
           setRouteDuration(r.duration ?? null)
@@ -214,7 +261,6 @@ export default function DriverNavigationMap({
     }
 
     fetchRoute()
-    
     const interval = setInterval(fetchRoute, 30000)
     return () => {
       cancelled = true
@@ -222,22 +268,34 @@ export default function DriverNavigationMap({
     }
   }, [driverLat, driverLng, destLat, destLng])
 
-  // Calculate straight-line distance as fallback
-  const straightLineKm = driverLat && driverLng && destLat && destLng
-    ? distanceKm({ lat: driverLat, lng: driverLng }, { lat: destLat, lng: destLng })
-    : null
+  const straightLineKm =
+    driverLat && driverLng && destLat && destLng
+      ? distanceKm(
+          { lat: driverLat, lng: driverLng },
+          { lat: destLat, lng: destLng },
+        )
+      : null
 
+  /* ── Loading state ─────────────────────────────────── */
   if (!driverLat || !driverLng) {
     return (
-      <div 
+      <div
         className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center text-white"
-        style={{ paddingTop: 'max(16px, calc(env(safe-area-inset-top, 0px) + 12px))' }}
+        style={{
+          paddingTop:
+            'max(16px, calc(env(safe-area-inset-top, 0px) + 12px))',
+        }}
       >
-        <Loader2 className="w-10 h-10 animate-spin mb-4 text-emerald-500" />
-        <p className="font-bold">{t('Locating driver...', 'جاري تحديد موقع السائق...')}</p>
-        <Button onClick={onMinimize} variant="ghost" className="mt-6 text-slate-400">
+        <Loader2 className="w-12 h-12 animate-spin mb-4 text-emerald-500" />
+        <p className="font-bold text-lg">
+          {t('Locating driver...', 'جاري تحديد موقع السائق...')}
+        </p>
+        <button
+          onClick={onMinimize}
+          className="mt-6 text-slate-400 hover:text-white font-semibold text-base px-6 py-3 rounded-2xl transition-colors"
+        >
           {t('Close', 'إغلاق')}
-        </Button>
+        </button>
       </div>
     )
   }
@@ -246,146 +304,181 @@ export default function DriverNavigationMap({
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col">
-      {/* Top Bar - Destination info */}
-      <div 
+      {/* ── Top Bar ────────────────────────────────────── */}
+      <div
         className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/60 px-4 flex items-center justify-between absolute top-0 left-0 right-0 z-[9999] shadow-lg"
-        style={{ paddingTop: 'max(12px, calc(env(safe-area-inset-top, 0px) + 8px))', paddingBottom: '10px' }}
+        style={{
+          paddingTop:
+            'max(14px, calc(env(safe-area-inset-top, 0px) + 10px))',
+          paddingBottom: '14px',
+        }}
       >
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shrink-0">
-            <Navigation className="w-5 h-5" />
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          {/* Destination icon — bigger */}
+          <div className="w-12 h-12 rounded-full bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-400 shrink-0">
+            <Navigation className="w-6 h-6" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="font-black text-white leading-tight text-sm truncate">
+            <h2 className="font-black text-white leading-tight text-base truncate">
               {destinationLabel || t('Navigation', 'التنقل')}
             </h2>
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="flex items-center gap-2.5 mt-1">
               {routeDistance != null && routeDuration != null ? (
                 <>
-                  <span className="text-emerald-400 text-xs font-bold">{formatDistance(routeDistance)}</span>
-                  <span className="text-slate-500 text-xs">·</span>
-                  <span className="text-sky-400 text-xs font-bold">{formatDuration(routeDuration)}</span>
+                  <span className="text-emerald-400 text-sm font-bold">
+                    {formatDistance(routeDistance)}
+                  </span>
+                  <span className="text-slate-600 text-sm">·</span>
+                  <span className="text-sky-400 text-sm font-bold">
+                    {formatDuration(routeDuration)}
+                  </span>
                 </>
               ) : straightLineKm != null ? (
-                <span className="text-slate-400 text-xs font-medium">{straightLineKm.toFixed(1)} km {t('away', 'بعيد')}</span>
+                <span className="text-slate-400 text-sm font-medium">
+                  {straightLineKm.toFixed(1)} km {t('away', 'بعيد')}
+                </span>
               ) : null}
               {routeLoading && (
-                <Loader2 className="w-3 h-3 animate-spin text-emerald-400 ml-1" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400 ml-1" />
               )}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Button 
-            onClick={onMinimize} 
-            variant="ghost" 
-            size="icon" 
-            className="rounded-full w-9 h-9 text-slate-400 hover:bg-slate-700 hover:text-white"
+
+        {/* Action buttons — bigger touch targets */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={onMinimize}
+            className="w-11 h-11 rounded-full bg-slate-800 border border-slate-600 flex items-center justify-center text-slate-300 hover:bg-slate-700 hover:text-white active:scale-95 transition-all"
+            title={t('Minimize', 'تصغير')}
           >
-            <Minimize2 className="w-4 h-4" />
-          </Button>
-          <Button 
-            onClick={onClose} 
-            variant="ghost" 
-            size="icon" 
-            className="rounded-full w-9 h-9 text-slate-400 hover:bg-slate-700 hover:text-white"
+            <Minimize2 className="w-5 h-5" />
+          </button>
+          <button
+            onClick={onClose}
+            className="w-11 h-11 rounded-full bg-slate-800 border border-slate-600 flex items-center justify-center text-slate-300 hover:bg-slate-700 hover:text-white active:scale-95 transition-all"
+            title={t('Close', 'إغلاق')}
           >
-            <X className="w-4 h-4" />
-          </Button>
+            <X className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
-      {/* Map */}
+      {/* ── Map ────────────────────────────────────────── */}
       <div className="flex-1 relative w-full h-full">
-        <MapContainer 
-          center={center} 
-          zoom={16} 
+        <MapContainer
+          center={center}
+          zoom={16}
           zoomControl={false}
           className="w-full h-full"
           attributionControl={false}
         >
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          />
-          
-          <MapUpdater 
-            driverLat={driverLat} 
-            driverLng={driverLng} 
-            destLat={destLat!} 
-            destLng={destLng!} 
+          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+
+          <MapUpdater
+            driverLat={driverLat}
+            driverLng={driverLng}
+            destLat={destLat!}
+            destLng={destLng!}
             route={route}
             followDriver={followDriver}
             onUserInteraction={handleUserInteraction}
+            topBarPx={TOP_BAR_HEIGHT}
+            bottomBarPx={BOTTOM_BAR_HEIGHT}
           />
 
           {/* Driver Marker */}
           {driverIcon && (
-            <Marker position={[driverLat, driverLng]} icon={driverIcon} zIndexOffset={200} />
+            <Marker
+              position={[driverLat, driverLng]}
+              icon={driverIcon}
+              zIndexOffset={200}
+            />
           )}
 
-          {/* Destination Marker */}
+          {/* Destination Marker (with label badge) */}
           {destLat && destLng && destIcon && (
-            <Marker position={[destLat, destLng]} icon={destIcon} zIndexOffset={100} />
+            <Marker
+              position={[destLat, destLng]}
+              icon={destIcon}
+              zIndexOffset={100}
+            />
           )}
 
           {/* Route Polyline */}
           {route.length > 0 && (
             <>
-              <Polyline positions={route} color="#1e293b" weight={9} opacity={0.3} />
-              <Polyline positions={route} color="#3b82f6" weight={5} opacity={1} />
+              <Polyline
+                positions={route}
+                color="#1e293b"
+                weight={10}
+                opacity={0.25}
+              />
+              <Polyline
+                positions={route}
+                color="#3b82f6"
+                weight={6}
+                opacity={1}
+              />
             </>
           )}
         </MapContainer>
 
-        {/* Re-center button - only shown when user has panned away */}
+        {/* Re-center button */}
         {!followDriver && (
           <button
             onClick={handleRecenter}
-            className="absolute bottom-28 right-4 z-[500] w-12 h-12 bg-white rounded-full shadow-lg border border-slate-200 flex items-center justify-center text-blue-600 active:scale-95 transition-transform"
+            className="absolute bottom-28 right-4 z-[500] w-14 h-14 bg-white rounded-full shadow-xl border border-slate-200 flex items-center justify-center text-blue-600 active:scale-95 transition-transform"
             title={t('Re-center on driver', 'إعادة التمركز على السائق')}
           >
-            <Locate className="w-6 h-6" />
+            <Locate className="w-7 h-7" />
           </button>
         )}
       </div>
 
-      {/* Bottom Card - ETA & distance summary */}
+      {/* ── Bottom Card — ETA & Distance ────────────── */}
       {(routeDistance != null || straightLineKm != null) && (
-        <div 
+        <div
           className="absolute bottom-0 left-0 right-0 z-[9999] bg-slate-900/95 backdrop-blur-md border-t border-slate-700/60"
-          style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 0px))' }}
+          style={{
+            paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))',
+          }}
         >
-          <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="px-5 pt-4 pb-2 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-6 flex-1 min-w-0">
               {routeDuration != null && (
                 <div className="text-center">
-                  <p className="text-2xl font-black text-white leading-none">
-                    {routeDuration < 60 ? '<1' : Math.round(routeDuration / 60)}
+                  <p className="text-3xl font-black text-white leading-none tabular-nums">
+                    {routeDuration < 60
+                      ? '<1'
+                      : Math.round(routeDuration / 60)}
                   </p>
-                  <p className="text-[10px] text-slate-400 font-bold mt-0.5">{t('MIN', 'دقيقة')}</p>
+                  <p className="text-xs text-slate-400 font-bold mt-1">
+                    {t('MIN', 'دقيقة')}
+                  </p>
                 </div>
               )}
               {routeDistance != null && (
                 <div className="text-center">
-                  <p className="text-2xl font-black text-emerald-400 leading-none">
+                  <p className="text-3xl font-black text-emerald-400 leading-none tabular-nums">
                     {formatDistance(routeDistance)}
                   </p>
-                  <p className="text-[10px] text-slate-400 font-bold mt-0.5">{t('DISTANCE', 'المسافة')}</p>
+                  <p className="text-xs text-slate-400 font-bold mt-1">
+                    {t('DISTANCE', 'المسافة')}
+                  </p>
                 </div>
               )}
               {routeError && !routeLoading && (
-                <p className="text-xs font-bold text-amber-400">
+                <p className="text-sm font-bold text-amber-400">
                   {t('Route unavailable', 'المسار غير متاح')}
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {routeLoading && (
-                <div className="flex items-center gap-1 text-slate-400">
-                  <RotateCw className="w-4 h-4 animate-spin" />
-                </div>
-              )}
-            </div>
+            {routeLoading && (
+              <div className="shrink-0">
+                <RotateCw className="w-5 h-5 animate-spin text-slate-500" />
+              </div>
+            )}
           </div>
         </div>
       )}

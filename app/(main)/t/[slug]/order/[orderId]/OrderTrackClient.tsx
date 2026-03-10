@@ -49,10 +49,147 @@ type TrackData = {
     currency?: string
     createdAt?: string
     completedAt?: string | null
+    driverPickedUpAt?: string | null
+    estimatedDeliveryMinutes?: number | null
   }
   restaurant: { name_en?: string; name_ar?: string; whatsapp?: string } | null
   driver: { _id: string; name: string; phoneNumber: string } | null
   country?: string
+}
+
+function DeliveryETABoxSimple({
+  order,
+  driver,
+  countryCode,
+}: {
+  order: TrackData['order']
+  driver: TrackData['driver']
+  countryCode: string
+}) {
+  const { t } = useLanguage()
+  const [now, setNow] = useState(() => Date.now())
+
+  const isActive = order.status === 'out-for-delivery' || order.status === 'driver_on_the_way'
+  const isCompleted = order.status === 'completed'
+  const showBox = (isActive || isCompleted) && order.orderType === 'delivery'
+
+  useEffect(() => {
+    if (!isActive) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [isActive])
+
+  if (!showBox) return null
+
+  if (isCompleted && order.completedAt) {
+    const fmt = new Date(order.completedAt).toLocaleString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+    return (
+      <div className="mt-6 px-4">
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
+            <div>
+              <p className="font-bold text-emerald-900">{t('Delivered', 'تم التوصيل')}</p>
+              <p className="text-sm text-emerald-700">{fmt}</p>
+            </div>
+          </div>
+          {driver && (
+            <p className="mt-2 text-sm text-emerald-800 ml-9">
+              <span className="font-semibold">{t('Driver', 'السائق')}:</span> {driver.name}
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const pickedUpAt = order.driverPickedUpAt ? new Date(order.driverPickedUpAt).getTime() : null
+  const etaMinutes = order.estimatedDeliveryMinutes
+  const hasCountdown = isActive && pickedUpAt && etaMinutes && order.status === 'out-for-delivery'
+
+  let countdownMinutes = 0
+  let countdownSeconds = 0
+  let isOverdue = false
+
+  if (hasCountdown) {
+    const targetMs = pickedUpAt + etaMinutes * 60 * 1000
+    const remainMs = targetMs - now
+    if (remainMs <= 0) {
+      isOverdue = true
+    } else {
+      countdownMinutes = Math.floor(remainMs / 60000)
+      countdownSeconds = Math.floor((remainMs % 60000) / 1000)
+    }
+  }
+
+  return (
+    <div className="mt-6 px-4">
+      <div className="rounded-2xl border border-purple-200 bg-purple-50 p-4">
+        <div className="flex items-center gap-3 mb-3">
+          <Truck className="w-6 h-6 text-purple-600 shrink-0" />
+          <p className="font-bold text-purple-900">
+            {order.status === 'driver_on_the_way'
+              ? t('Driver heading to the store', 'السائق في الطريق إلى المتجر')
+              : t('On the way to you', 'في الطريق إليك')}
+          </p>
+        </div>
+        {hasCountdown && (
+          <div className="mb-3">
+            {isOverdue ? (
+              <p className="text-amber-700 font-semibold text-sm text-center py-2 bg-amber-50 rounded-xl border border-amber-200">
+                {t('Arriving any moment now…', 'يصل في أي لحظة…')}
+              </p>
+            ) : (
+              <div className="flex items-center justify-center gap-2">
+                <div className="bg-purple-100 rounded-xl px-4 py-2 text-center min-w-[70px]">
+                  <span className="text-2xl font-black text-purple-800 tabular-nums block">
+                    {String(countdownMinutes).padStart(2, '0')}
+                  </span>
+                  <span className="text-[10px] font-bold text-purple-500 uppercase">{t('min', 'دقيقة')}</span>
+                </div>
+                <span className="text-xl font-black text-purple-400">:</span>
+                <div className="bg-purple-100 rounded-xl px-4 py-2 text-center min-w-[70px]">
+                  <span className="text-2xl font-black text-purple-800 tabular-nums block">
+                    {String(countdownSeconds).padStart(2, '0')}
+                  </span>
+                  <span className="text-[10px] font-bold text-purple-500 uppercase">{t('sec', 'ثانية')}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {driver && (
+          <div className="pt-3 border-t border-purple-200/60">
+            <p className="font-semibold text-purple-900 mb-2">{driver.name}</p>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={`tel:+${normalizePhoneForWhatsApp(driver.phoneNumber, countryCode)}`}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 text-sm transition-colors"
+              >
+                <Phone className="h-4 w-4" />
+                {t('Call', 'اتصال')}
+              </a>
+              {getWhatsAppUrl(driver.phoneNumber, '', countryCode) && (
+                <a
+                  href={getWhatsAppUrl(driver.phoneNumber, '', countryCode)!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold py-2.5 text-sm transition-colors"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 const STATUS_CONFIG: Record<string, { labelEn: string; labelAr: string; icon: typeof ChefHat; headerBg: string; color: string; bg: string }> = {
@@ -217,6 +354,13 @@ export function OrderTrackClient({
           {t('Order', 'الطلب')} #{data.order.orderNumber ?? data.order._id?.slice(-6)}
         </p>
       </div>
+
+      {/* Delivery ETA / Countdown box */}
+      <DeliveryETABoxSimple
+        order={data.order}
+        driver={data.driver}
+        countryCode={countryCode}
+      />
 
       {/* Order details */}
       <div className="mt-6 px-4">

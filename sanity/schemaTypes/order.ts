@@ -361,6 +361,14 @@ export const orderType = defineType({
       description: 'When the driver picked up the order (out for delivery)',
     }),
     defineField({
+      name: 'estimatedDeliveryMinutes',
+      title: 'Estimated Delivery Minutes',
+      type: 'number',
+      description: 'Estimated minutes from pickup to customer (OSRM route + 5 min buffer). Set when driver picks up.',
+      readOnly: true,
+      hidden: ({ parent }) => parent?.orderType !== 'delivery',
+    }),
+    defineField({
       name: 'completedAt',
       title: 'Completed At',
       type: 'datetime',

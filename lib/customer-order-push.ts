@@ -33,6 +33,8 @@ export type SendCustomerOrderPushOptions = {
   newStatus: string
   /** Optional base URL for tracking link (e.g. process.env.NEXT_PUBLIC_APP_URL). If missing, URL is path-only. */
   baseUrl?: string
+  /** When status is out-for-delivery, estimated minutes until delivery (includes buffer). */
+  estimatedDeliveryMinutes?: number
 }
 
 /**
@@ -40,7 +42,7 @@ export type SendCustomerOrderPushOptions = {
  * No-op if push is not configured or order has no subscription.
  */
 export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPushOptions): Promise<boolean> {
-  const { orderId, newStatus, baseUrl = '' } = options
+  const { orderId, newStatus, baseUrl = '', estimatedDeliveryMinutes } = options
   if (!isFCMConfigured() && !isPushConfigured()) return false
 
   const order = await client.fetch<{
@@ -103,12 +105,18 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
       labelAr = `السائق في الطريق إلى ${businessName}`
     }
   } else if (newStatus === 'out-for-delivery') {
+    const etaSuffix = estimatedDeliveryMinutes
+      ? ` — ~${estimatedDeliveryMinutes} min`
+      : ''
+    const etaSuffixAr = estimatedDeliveryMinutes
+      ? ` — ~${estimatedDeliveryMinutes} دقيقة`
+      : ''
     if (driverName) {
-      label = `${driverName} is on the way to you`
-      labelAr = `${driverName} في الطريق إليك`
+      label = `${driverName} is on the way to you${etaSuffix}`
+      labelAr = `${driverName} في الطريق إليك${etaSuffixAr}`
     } else {
-      label = `Driver is on the way to you`
-      labelAr = `السائق في الطريق إليك`
+      label = `Driver is on the way to you${etaSuffix}`
+      labelAr = `السائق في الطريق إليك${etaSuffixAr}`
     }
   }
 

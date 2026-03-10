@@ -46,6 +46,8 @@ type DriverOrder = {
   businessMapsLink?: string
   businessLocationLat?: number
   businessLocationLng?: number
+  businessLogoUrl?: string
+  businessWhatsapp?: string
   city: string
   deliveryAreaName: string
   deliveryAreaNameAr?: string
@@ -174,6 +176,7 @@ function DriverOrdersV2Content() {
   const [calcOrderTotal, setCalcOrderTotal] = useState(0)
   const [calcCurrency, setCalcCurrency] = useState('ILS')
   const [showCompleted, setShowCompleted] = useState(false)
+  const [showBizContact, setShowBizContact] = useState(false)
 
   const [driverLat, setDriverLat] = useState<number | null>(null)
   const [driverLng, setDriverLng] = useState<number | null>(null)
@@ -872,6 +875,42 @@ function DriverOrdersV2Content() {
                   </div>
                 )}
 
+                {/* Business contact (collapsible) */}
+                <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 overflow-hidden mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowBizContact((p) => !p)}
+                    className="w-full flex items-center justify-between px-4 py-3 focus:outline-none"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-bold text-slate-300">
+                      <Store className="h-4 w-4 text-amber-400" />
+                      {activeOrder.businessName}
+                    </span>
+                    <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${showBizContact ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showBizContact && activeOrder.businessWhatsapp && (
+                    <div className="px-4 pb-3 flex flex-wrap items-center gap-2">
+                      <a
+                        href={`tel:${activeOrder.businessWhatsapp.replace(/\s/g, '')}`}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold px-4 py-3 min-h-[48px] transition-colors text-sm"
+                      >
+                        <Phone className="w-4 h-4" />
+                        {t('Call', 'اتصال')}
+                      </a>
+                      {getWhatsAppUrl(activeOrder.businessWhatsapp) && (
+                        <a
+                          href={getWhatsAppUrl(activeOrder.businessWhatsapp)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] font-bold px-4 py-3 min-h-[48px] transition-colors text-sm"
+                        >
+                          WhatsApp
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <SlideToPickUp
                   orderId={activeOrder.orderId}
                   onPickUp={pickUp}
@@ -935,6 +974,42 @@ function DriverOrdersV2Content() {
                     )}
                   </div>
                 )}
+
+                {/* Business contact (collapsible) */}
+                <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 overflow-hidden mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowBizContact((p) => !p)}
+                    className="w-full flex items-center justify-between px-4 py-3 focus:outline-none"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-bold text-slate-300">
+                      <Store className="h-4 w-4 text-amber-400" />
+                      {activeOrder.businessName}
+                    </span>
+                    <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${showBizContact ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showBizContact && activeOrder.businessWhatsapp && (
+                    <div className="px-4 pb-3 flex flex-wrap items-center gap-2">
+                      <a
+                        href={`tel:${activeOrder.businessWhatsapp.replace(/\s/g, '')}`}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold px-4 py-3 min-h-[48px] transition-colors text-sm"
+                      >
+                        <Phone className="w-4 h-4" />
+                        {t('Call', 'اتصال')}
+                      </a>
+                      {getWhatsAppUrl(activeOrder.businessWhatsapp) && (
+                        <a
+                          href={getWhatsAppUrl(activeOrder.businessWhatsapp)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] font-bold px-4 py-3 min-h-[48px] transition-colors text-sm"
+                        >
+                          WhatsApp
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Total to collect — BIG */}
                 <div className="rounded-3xl bg-emerald-500/10 border border-emerald-500/30 p-5 mb-4 text-center">
@@ -1305,6 +1380,7 @@ function DriverOrdersV2Content() {
           const label = isEnRoute
             ? order.customerName || t('Customer', 'العميل')
             : order.businessName
+          const logoUrl = isEnRoute ? undefined : order.businessLogoUrl
 
           return (
             <DriverNavigationMap
@@ -1315,6 +1391,7 @@ function DriverOrdersV2Content() {
               onMinimize={() => setMapState('minimized')}
               onClose={() => setMapState('hidden')}
               destinationLabel={label}
+              destinationLogoUrl={logoUrl}
             />
           )
         })()}
