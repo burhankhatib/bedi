@@ -361,33 +361,9 @@ function DriverOrdersV2Content() {
     )
   }, [hasPush, isOnline])
 
-  /* auto-minimize map when driver is within ~50 m of destination */
-  useEffect(() => {
-    if (
-      mapState === 'maximized' &&
-      activeMapOrderId &&
-      driverLat &&
-      driverLng
-    ) {
-      const order = myDeliveries.find((o) => o.orderId === activeMapOrderId)
-      if (order) {
-        const isEnRoute = order.status === 'out-for-delivery'
-        const destLat = isEnRoute
-          ? order.deliveryLat
-          : order.businessLocationLat
-        const destLng = isEnRoute
-          ? order.deliveryLng
-          : order.businessLocationLng
-        if (destLat && destLng) {
-          const dist = distanceKm(
-            { lat: driverLat, lng: driverLng },
-            { lat: destLat, lng: destLng },
-          )
-          if (dist < 0.05) setMapState('minimized')
-        }
-      }
-    }
-  }, [driverLat, driverLng, mapState, activeMapOrderId, myDeliveries])
+  // The full-screen map stays open until the driver manually minimizes,
+  // closes it, or the order completes. No auto-minimize — the driver
+  // should be able to keep the map open at all times for navigation.
 
   /* auto-scroll to countdown box when map minimizes in Phase C */
   const prevMapStateRef = useRef(mapState)
