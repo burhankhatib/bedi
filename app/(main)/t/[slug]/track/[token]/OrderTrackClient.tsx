@@ -1725,27 +1725,23 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         </div>
       </div>
 
-      {/* Tips option — shown for all order types when the unified delivery ETA box is NOT active */}
-      {!isDeliveryActive && (
+      {/* Tips option — under Order Details: only for Dine-in and In Person. Delivery uses the tip box in the ETA section when driver is on the way. */}
+      {(isDineIn || isPickup) && !isDeliveryActive && (
         <div className="mt-5 px-4">
           <div className="rounded-3xl border border-rose-200/60 bg-gradient-to-b from-rose-50 to-rose-100/30 shadow-sm overflow-hidden">
             <div className="px-5 pt-5 pb-4">
               <div className="flex items-center gap-2 mb-1">
                 <Heart className="h-5 w-5 text-rose-400" />
                 <p className="font-bold text-rose-800 text-[15px]">
-                  {isDelivery
-                    ? t('Thank your driver?', 'هل تود شكر السائق؟')
-                    : isDineIn
-                      ? t('Thank the staff?', 'هل تود شكر الطاقم؟')
-                      : t('Show your appreciation?', 'هل تود إظهار تقديرك؟')}
+                  {isDineIn
+                    ? t('Thank the staff?', 'هل تود شكر الطاقم؟')
+                    : t('Show your appreciation?', 'هل تود إظهار تقديرك؟')}
                 </p>
               </div>
               <p className="text-xs text-rose-500/70 mb-4 leading-relaxed">
-                {isDelivery
-                  ? t('A small gesture that makes a big difference in their day!', 'لفتة صغيرة تصنع فرقاً كبيراً في يومه!')
-                  : isDineIn
-                    ? t('Great service deserves a little extra!', 'الخدمة المميزة تستحق التقدير!')
-                    : t('A kind gesture goes a long way!', 'لفتة لطيفة تصنع فرقاً!')}
+                {isDineIn
+                  ? t('Great service deserves a little extra!', 'الخدمة المميزة تستحق التقدير!')
+                  : t('A kind gesture goes a long way!', 'لفتة لطيفة تصنع فرقاً!')}
               </p>
 
               <div className="flex gap-3">

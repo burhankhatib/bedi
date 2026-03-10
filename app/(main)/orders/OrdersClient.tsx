@@ -889,9 +889,9 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                                   <div className="flex items-center gap-2">
                                     <button
                                       onClick={(e) => { e.stopPropagation(); requestDelivery(order._id); }}
-                                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 text-xs font-bold transition-colors shadow-sm"
+                                      className="flex items-center justify-center gap-2 min-h-[44px] px-4 py-2.5 sm:py-1.5 rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 active:scale-[0.97] active:bg-blue-300 text-sm sm:text-xs font-bold transition-all duration-150 ease-out shadow-sm border border-blue-200/50 touch-manipulation"
                                     >
-                                      <Truck className="w-3.5 h-3.5" />
+                                      <Truck className="w-4 h-4 sm:w-3.5 sm:h-3.5 shrink-0" />
                                       {t('Request Delivery', 'طلب توصيل')}
                                     </button>
                                     <button
@@ -1082,9 +1082,9 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                                       <div className="flex items-center gap-2">
                                         <button
                                           onClick={(e) => { e.stopPropagation(); requestDelivery(order._id); }}
-                                          className="flex items-center justify-center gap-1.5 px-4 py-2 w-full rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-bold transition-colors shadow-sm"
+                                          className="flex items-center justify-center gap-2 min-h-[48px] px-5 py-3 w-full rounded-xl bg-blue-100 text-blue-700 hover:bg-blue-200 active:scale-[0.97] active:bg-blue-300 text-base font-bold transition-all duration-150 ease-out shadow-md border border-blue-200/50 touch-manipulation"
                                         >
-                                          <Truck className="w-4 h-4" />
+                                          <Truck className="w-5 h-5 shrink-0" />
                                           {t('Request Delivery', 'طلب توصيل')}
                                         </button>
                                         <button
