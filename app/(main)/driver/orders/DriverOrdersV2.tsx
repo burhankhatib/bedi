@@ -388,10 +388,10 @@ function DriverOrdersV2Content() {
 
   /* ── delivery countdown tick ────────────────────────── */
   useEffect(() => {
-    if (!isEnRouteToCustomer) return
+    if (!isEnRouteToCustomer || activeOrder?.driverArrivedAt) return
     const id = setInterval(() => setDeliveryNow(Date.now()), 1000)
     return () => clearInterval(id)
-  }, [isEnRouteToCustomer])
+  }, [isEnRouteToCustomer, activeOrder?.driverArrivedAt])
 
   const quoteIndex = useMemo(() => {
     const id = activeOrder?.orderId || ''
@@ -1130,6 +1130,18 @@ function DriverOrdersV2Content() {
                           <p className="text-slate-400 text-xs mt-2">
                             {t('Hand over the order and complete the delivery.', 'سلّم الطلب وأكمل التوصيل.')}
                           </p>
+                          {activeOrder.driverPickedUpAt && (() => {
+                            const pickupMs = new Date(activeOrder.driverPickedUpAt).getTime()
+                            const arrivedMs = new Date(activeOrder.driverArrivedAt!).getTime()
+                            const deliveryMinutes = Math.max(1, Math.round((arrivedMs - pickupMs) / 60000))
+                            const estimatedMins = activeOrder.estimatedDeliveryMinutes ?? Infinity
+                            const onTime = deliveryMinutes <= estimatedMins
+                            return (
+                              <p className={`text-sm font-bold mt-3 ${onTime ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {t('Delivery time', 'وقت التوصيل')}: {deliveryMinutes} {t('min', 'دقيقة')}
+                              </p>
+                            )
+                          })()}
                         </div>
                       ) : hasCountdown ? (
                         <div className="px-5 py-5 text-center border-b border-slate-700/40">
@@ -1213,7 +1225,7 @@ function DriverOrdersV2Content() {
                               <span className="tabular-nums">{activeOrder.totalAmount.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-emerald-400 font-semibold">
-                              <span>{t('Tip', 'إكرامية')} ({activeOrder.tipPercent ?? 0}%)</span>
+                              <span>{t('Tip', 'إكرامية')}</span>
                               <span className="tabular-nums">+{(activeOrder.tipAmount ?? 0).toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-white font-bold text-sm pt-1 border-t border-slate-700/50">

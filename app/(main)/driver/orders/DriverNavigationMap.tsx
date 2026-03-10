@@ -254,12 +254,12 @@ export default function DriverNavigationMap({
   const [arriveSliding, setArriveSliding] = useState(false)
   const arriveTrackRef = useRef<HTMLDivElement>(null)
 
-  // Countdown ticker
+  // Countdown ticker — stop when driver has arrived
   useEffect(() => {
-    if (!countdown) return
+    if (!countdown || orderInfo?.driverArrivedAt) return
     const id = setInterval(() => setCountdownNow(Date.now()), 1000)
     return () => clearInterval(id)
-  }, [!!countdown])
+  }, [!!countdown, orderInfo?.driverArrivedAt])
 
   const countdownData = useMemo(() => {
     if (!countdown) return null
@@ -450,8 +450,8 @@ export default function DriverNavigationMap({
         </div>
         </div>
 
-        {/* Floating Order Info Bar — directly below top bar, respects safe area on iOS/Android */}
-        {orderInfo && countdownData && !countdownData.overdue && (
+        {/* Floating Order Info Bar — directly below top bar, respects safe area on iOS/Android (hidden when driver has arrived) */}
+        {orderInfo && countdownData && !countdownData.overdue && !orderInfo.driverArrivedAt && (
           <motion.div
             initial={{ y: -10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -517,8 +517,8 @@ export default function DriverNavigationMap({
           </motion.div>
         )}
 
-        {/* Overdue banner */}
-        {orderInfo && countdownData?.overdue && (
+        {/* Overdue banner (hidden when driver has arrived) */}
+        {orderInfo && countdownData?.overdue && !orderInfo.driverArrivedAt && (
           <motion.div
             initial={{ y: -10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
