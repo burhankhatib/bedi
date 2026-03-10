@@ -386,6 +386,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setDeliveryAreaId('')
     setDeliveryAddress('')
     setDeliveryFee(0)
+    setLockedTableNumber(null)
   }, [])
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)

@@ -1,15 +1,13 @@
 import { notFound, redirect } from 'next/navigation'
-import { unstable_noStore } from 'next/cache'
 import type { Metadata } from 'next'
 import { getTenantBySlug, getDeliveryAreasCount } from '@/lib/tenant'
 import { getSupportsDineIn } from '@/lib/constants'
-import { clientNoCdn } from '@/sanity/lib/client'
+import { client } from '@/sanity/lib/client'
 import { MENU_QUERY_TENANT } from '@/sanity/lib/queries'
 import MenuClient from '@/components/Menu/MenuClient'
 import { InitialData } from '@/app/types/menu'
 
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+export const revalidate = 60
 
 const defaultData: InitialData = {
   categories: [],
@@ -24,10 +22,10 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
-  const tenant = await getTenantBySlug(slug, { useCdn: false })
+  const tenant = await getTenantBySlug(slug)
   if (!tenant) return { title: 'Not found' }
 
-  const restaurantInfo = await clientNoCdn.fetch<{
+  const restaurantInfo = await client.fetch<{
     name_en?: string
     name_ar?: string
     tagline_en?: string
@@ -92,9 +90,8 @@ export default async function TenantMenuPage({
   const resolvedSearchParams = await searchParams
   const tableParam = resolvedSearchParams?.table
   const initialTableNumber = typeof tableParam === 'string' ? tableParam.trim() : Array.isArray(tableParam) ? (tableParam[0] ?? '').trim() : null
-  unstable_noStore() // Force fresh fetch every request — no caching
   const { slug } = await params
-  const tenantFromSlug = await getTenantBySlug(slug, { useCdn: false })
+  const tenantFromSlug = await getTenantBySlug(slug)
   if (!tenantFromSlug) notFound()
   if (tenantFromSlug.blockedBySuperAdmin) {
     redirect('/suspended?type=business')
@@ -114,7 +111,7 @@ export default async function TenantMenuPage({
   let menuData: InitialData = defaultData
 
   try {
-    const menuResult = await clientNoCdn.fetch<InitialData>(MENU_QUERY_TENANT, { siteId })
+    const menuResult = await client.fetch<InitialData>(MENU_QUERY_TENANT, { siteId })
     menuData = menuResult ?? defaultData
   } catch (error) {
     console.error('[TenantMenu] Failed to fetch:', error)
@@ -123,7 +120,7 @@ export default async function TenantMenuPage({
 
   const tenant = tenantFromSlug
   const isManuallyClosed = isTenantDeactivated(tenant)
-  const deliveryAreasCount = await getDeliveryAreasCount(siteId, { useCdn: false })
+  const deliveryAreasCount = await getDeliveryAreasCount(siteId)
   const supportsDelivery = tenant.supportsDelivery !== false
   const deliveryPricingMode = tenant.deliveryPricingMode || 'distance'
   const hasDelivery = supportsDelivery && (deliveryAreasCount > 0 || deliveryPricingMode === 'distance')

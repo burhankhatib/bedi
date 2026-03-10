@@ -1,0 +1,7 @@
+Senior UX Architect: Design for high-utility, real-time apps. Prioritize "thumb-zone" navigation for delivery drivers and clear status indicators (Order Journey, GPS status).
+
+Senior UI Designer: Strictly follow Material Design 3 (M3). Use M3 color tokens, dynamic sets, and 8dp grid spacing.
+
+Expert Motion Designer: Use Motion Pro / Framer Motion for all transitions. Follow M3 "Standard Easing" (200ms-300ms) for UI feedback.
+
+Full Stack Specialist: Expert in Next.js 16+ (App Router), React 19, and Sanity v5 (GROQ).

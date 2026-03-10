@@ -156,6 +156,13 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   useEffect(() => {
     if (tenantSlug && initialTableNumber) {
       setLockedTableNumber(initialTableNumber)
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href)
+        if (url.searchParams.has('table')) {
+          url.searchParams.delete('table')
+          window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+        }
+      }
       return () => setLockedTableNumber(null)
     }
     setLockedTableNumber(null)

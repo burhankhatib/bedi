@@ -3,6 +3,9 @@ import { client } from '@/sanity/lib/client'
 import { getAreasForCity, areaKey, type AreaSuggestion } from '@/lib/areas-by-city'
 import { getTenantIdBySlug } from '@/lib/tenant'
 
+/** Cache for 10 minutes to avoid hitting DB for cities list. */
+export const revalidate = 600
+
 /** Dedupe by name_en (lowercase) + name_ar; normalize whitespace. */
 function dedupeByKey(areas: AreaSuggestion[]): AreaSuggestion[] {
   const seen = new Set<string>()

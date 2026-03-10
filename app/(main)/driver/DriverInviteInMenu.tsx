@@ -1,16 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { MessageCircle } from 'lucide-react'
+import { Share2, Link as LinkIcon, CheckCircle2 } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
-import { getWhatsAppUrl } from '@/lib/whatsapp'
-import { getDriverInviteMessageAr } from '@/lib/driver-invite'
 
 export function DriverInviteInMenu() {
-  const { t, lang } = useLanguage()
-  const [inviteName, setInviteName] = useState('')
-  const [invitePhone, setInvitePhone] = useState('')
+  const { t } = useLanguage()
   const [referralCode, setReferralCode] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     fetch('/api/driver/profile')
@@ -23,47 +20,76 @@ export function DriverInviteInMenu() {
       .catch((e) => console.error(e))
   }, [])
 
-  const openInviteWhatsApp = () => {
-    let inviteUrl = `https://bedi.delivery/driver/join`
+  const handleShare = async () => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://bedi.delivery'
+    let inviteUrl = `${baseUrl}/driver/join`
     if (referralCode) {
       inviteUrl += `?ref=${referralCode}`
     }
-    const message = getDriverInviteMessageAr(inviteName, inviteUrl)
-    const url = getWhatsAppUrl(invitePhone, message)
-    if (url) window.open(url, '_blank', 'noopener,noreferrer')
+
+    const shareText = t(
+      'Join me as a delivery driver! 🚗',
+      'انضم إلي كسائق توصيل! 🚗'
+    )
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: t('Driver Invite', 'دعوة سائق'),
+          text: shareText,
+          url: inviteUrl,
+        })
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          fallbackCopy(inviteUrl)
+        }
+      }
+    } else {
+      fallbackCopy(inviteUrl)
+    }
+  }
+
+  const fallbackCopy = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Ignore
+    }
   }
 
   return (
     <div className="border-t border-slate-800 px-6 py-4">
       <h3 className="mb-2 text-sm font-semibold text-slate-200">{t('Invite a driver', 'ادعُ سائقاً')}</h3>
-      <p className="mb-3 text-xs text-slate-400">
-        {t('Invite a friend via WhatsApp.', 'ادعُ صديقاً عبر واتساب.')}
+      <p className="mb-4 text-xs text-slate-400 leading-relaxed">
+        {t(
+          'Share your invite link with friends. They will be linked to you automatically.',
+          'شارك رابط الدعوة مع أصدقائك. سيتم ربطهم بك تلقائياً.'
+        )}
       </p>
-      <div className="space-y-2">
-        <input
-          type="text"
-          value={inviteName}
-          onChange={(e) => setInviteName(e.target.value)}
-          placeholder={lang === 'ar' ? 'الاسم' : 'Name'}
-          className="h-9 w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-white placeholder:text-slate-500"
-        />
-        <input
-          type="text"
-          value={invitePhone}
-          onChange={(e) => setInvitePhone(e.target.value)}
-          placeholder="+972501234567"
-          className="h-9 w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm text-white placeholder:text-slate-500"
-        />
-        <button
-          type="button"
-          onClick={openInviteWhatsApp}
-          disabled={!invitePhone.trim()}
-          className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-[#25D366] text-sm font-medium text-white hover:bg-[#20bd5a] disabled:opacity-50 disabled:pointer-events-none"
-        >
-          <MessageCircle className="size-4" />
-          {t('Send WhatsApp invite', 'إرسال دعوة واتساب')}
-        </button>
-      </div>
+      
+      <button
+        type="button"
+        onClick={handleShare}
+        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-emerald-600/20 border border-emerald-500/30 text-sm font-medium text-emerald-400 hover:bg-emerald-600/30 transition-colors"
+      >
+        {copied ? (
+          <>
+            <CheckCircle2 className="size-4" />
+            {t('Link copied!', 'تم نسخ الرابط!')}
+          </>
+        ) : (
+          <>
+            {typeof navigator !== 'undefined' && !!navigator.share ? (
+              <Share2 className="size-4" />
+            ) : (
+              <LinkIcon className="size-4" />
+            )}
+            {t('Share invite link', 'مشاركة رابط الدعوة')}
+          </>
+        )}
+      </button>
     </div>
   )
 }
