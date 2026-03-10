@@ -28,8 +28,9 @@ export async function PATCH(
     _id: string
     site?: { _ref?: string }
     tipSentToDriver?: boolean
+    assignedDriver?: { _ref?: string }
   } | null>(
-    `*[_type == "order" && site._ref == $tenantId && trackingToken == $trackingToken][0]{ _id, "site": site, tipSentToDriver }`,
+    `*[_type == "order" && site._ref == $tenantId && trackingToken == $trackingToken][0]{ _id, "site": site, tipSentToDriver, assignedDriver }`,
     { tenantId, trackingToken }
   )
 
@@ -82,12 +83,13 @@ export async function PATCH(
   if (body.removeTipReason && typeof body.removeTipReason === 'string' && body.removeTipReason.trim()) {
     await writeClient.create({
       _type: 'report',
-      reporter: 'customer',
-      reported: 'driver',
-      reason: 'customer_removed_tip_after_arrival',
+      reporterType: 'customer',
+      reportedType: 'driver',
+      category: 'customer_removed_tip_after_arrival',
       description: body.removeTipReason.trim(),
       order: { _type: 'reference', _ref: order._id },
-      createdAt: new Date().toISOString(),
+      reportedDriverId: order.assignedDriver?._ref || undefined,
+      status: 'new',
     })
   }
 

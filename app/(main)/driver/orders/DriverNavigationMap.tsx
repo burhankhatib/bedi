@@ -223,6 +223,8 @@ interface DriverNavigationMapProps {
 }
 
 const TOP_BAR_HEIGHT = 88
+/** Used for map centering: leave room for top bar + countdown/tip bar + safe area (iOS/Android). */
+const TOP_HEADER_OFFSET_PX = 170
 const BOTTOM_BAR_HEIGHT = 80
 
 export default function DriverNavigationMap({
@@ -388,15 +390,17 @@ export default function DriverNavigationMap({
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col">
-      {/* ── Top Bar ────────────────────────────────────── */}
-      <div
-        className="bg-slate-900/95 backdrop-blur-xl border-b border-slate-800/60 px-4 flex items-center justify-between absolute top-0 left-0 right-0 z-[9999]"
-        style={{
-          paddingTop:
-            'max(14px, calc(env(safe-area-inset-top, 0px) + 10px))',
-          paddingBottom: '14px',
-        }}
-      >
+      {/* ── Top Bar + Floating Info Bar (stacked so countdown/tip is never hidden) ─── */}
+      <div className="absolute top-0 left-0 right-0 z-[9999] flex flex-col">
+        {/* Top bar — height varies with safe-area-inset-top on iOS/Android */}
+        <div
+          className="bg-slate-900/95 backdrop-blur-xl border-b border-slate-800/60 px-4 flex items-center justify-between shrink-0"
+          style={{
+            paddingTop:
+              'max(14px, calc(env(safe-area-inset-top, 0px) + 10px))',
+            paddingBottom: '14px',
+          }}
+        >
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 shrink-0">
             <Navigation className="w-5 h-5" />
@@ -444,6 +448,89 @@ export default function DriverNavigationMap({
             <X className="w-4.5 h-4.5" />
           </button>
         </div>
+        </div>
+
+        {/* Floating Order Info Bar — directly below top bar, respects safe area on iOS/Android */}
+        {orderInfo && countdownData && !countdownData.overdue && (
+          <motion.div
+            initial={{ y: -10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className="px-3 pt-2 pb-1 shrink-0"
+          >
+            <div className="bg-slate-900/92 backdrop-blur-xl rounded-2xl border border-slate-700/40 shadow-2xl">
+              <div className="flex items-stretch">
+                <div className="flex-1 px-3.5 py-2.5 flex items-center gap-2 min-w-0">
+                  <Timer className="w-4 h-4 text-slate-500 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider leading-none">
+                      {t('TIME', 'الوقت')}
+                    </p>
+                    <p className="text-xl font-black text-white tabular-nums leading-tight mt-0.5">
+                      {String(countdownData.minutes).padStart(2, '0')}
+                      <span className="text-slate-600">:</span>
+                      {String(countdownData.seconds).padStart(2, '0')}
+                    </p>
+                  </div>
+                </div>
+                <div className="w-px bg-slate-700/40 my-2 shrink-0" />
+                <div className="flex-1 px-3.5 py-2.5 text-center min-w-0">
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider leading-none">
+                    {t('TOTAL', 'المجموع')}
+                  </p>
+                  <p className="text-xl font-black text-white tabular-nums leading-tight mt-0.5 truncate">
+                    {(() => {
+                      const total = orderInfo.tipIncludedInTotal
+                        ? orderInfo.totalAmount + (orderInfo.tipAmount ?? 0)
+                        : orderInfo.totalAmount
+                      return total.toFixed(0)
+                    })()}
+                    <span className="text-slate-500 text-xs font-bold ml-0.5">{formatCurrency(orderInfo.currency)}</span>
+                  </p>
+                </div>
+                <AnimatePresence>
+                  {orderInfo.tipSentToDriver && (orderInfo.tipAmount ?? 0) > 0 && (
+                    <motion.div
+                      initial={{ width: 0, opacity: 0 }}
+                      animate={{ width: 'auto', opacity: 1 }}
+                      exit={{ width: 0, opacity: 0 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                      className="overflow-hidden flex items-stretch shrink-0"
+                    >
+                      <div className="w-px bg-slate-700/40 my-2" />
+                      <div className="px-3.5 py-2.5 text-center bg-emerald-500/5">
+                        <div className="flex items-center justify-center gap-1">
+                          <Heart className="w-3 h-3 text-emerald-400" />
+                          <p className="text-[9px] text-emerald-400/70 font-bold uppercase leading-none">
+                            {t('TIP', 'إكرامية')}
+                          </p>
+                        </div>
+                        <p className="text-lg font-black text-emerald-400 tabular-nums leading-tight mt-0.5">
+                          +{(orderInfo.tipAmount ?? 0).toFixed(0)}
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Overdue banner */}
+        {orderInfo && countdownData?.overdue && (
+          <motion.div
+            initial={{ y: -10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="px-3 pt-2 pb-1 shrink-0"
+          >
+            <div className="bg-slate-900/92 backdrop-blur-xl rounded-2xl border border-amber-500/30 shadow-2xl px-4 py-3 text-center">
+              <p className="text-sm font-black text-amber-400">
+                {t('Time\'s up — deliver now!', 'انتهى الوقت — وصّل الآن!')}
+              </p>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* ── Map ────────────────────────────────────────── */}
@@ -465,7 +552,7 @@ export default function DriverNavigationMap({
             route={route}
             followDriver={followDriver}
             onUserInteraction={handleUserInteraction}
-            topBarPx={TOP_BAR_HEIGHT}
+            topBarPx={TOP_HEADER_OFFSET_PX}
             bottomBarPx={BOTTOM_BAR_HEIGHT}
           />
 
@@ -517,97 +604,6 @@ export default function DriverNavigationMap({
           </button>
         )}
       </div>
-
-      {/* ── Floating Order Info Bar (countdown + total + tip) ─── */}
-      {orderInfo && countdownData && !countdownData.overdue && (
-        <motion.div
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="absolute left-3 right-3 z-[9998]"
-          style={{ top: `${TOP_BAR_HEIGHT + 8}px` }}
-        >
-          <div className="bg-slate-900/92 backdrop-blur-xl rounded-2xl border border-slate-700/40 shadow-2xl">
-            <div className="flex items-stretch">
-              {/* Countdown section */}
-              <div className="flex-1 px-3.5 py-2.5 flex items-center gap-2">
-                <Timer className="w-4 h-4 text-slate-500 shrink-0" />
-                <div>
-                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider leading-none">
-                    {t('TIME', 'الوقت')}
-                  </p>
-                  <p className="text-xl font-black text-white tabular-nums leading-tight mt-0.5">
-                    {String(countdownData.minutes).padStart(2, '0')}
-                    <span className="text-slate-600">:</span>
-                    {String(countdownData.seconds).padStart(2, '0')}
-                  </p>
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="w-px bg-slate-700/40 my-2" />
-
-              {/* Total section */}
-              <div className="flex-1 px-3.5 py-2.5 text-center">
-                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider leading-none">
-                  {t('TOTAL', 'المجموع')}
-                </p>
-                <p className="text-xl font-black text-white tabular-nums leading-tight mt-0.5">
-                  {(() => {
-                    const total = orderInfo.tipIncludedInTotal
-                      ? orderInfo.totalAmount + (orderInfo.tipAmount ?? 0)
-                      : orderInfo.totalAmount
-                    return total.toFixed(0)
-                  })()}
-                  <span className="text-slate-500 text-xs font-bold ml-0.5">{formatCurrency(orderInfo.currency)}</span>
-                </p>
-              </div>
-
-              {/* Tip section (only when tip exists) */}
-              <AnimatePresence>
-                {orderInfo.tipSentToDriver && (orderInfo.tipAmount ?? 0) > 0 && (
-                  <motion.div
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: 'auto', opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                    className="overflow-hidden flex items-stretch"
-                  >
-                    <div className="w-px bg-slate-700/40 my-2" />
-                    <div className="px-3.5 py-2.5 text-center bg-emerald-500/5">
-                      <div className="flex items-center justify-center gap-1">
-                        <Heart className="w-3 h-3 text-emerald-400" />
-                        <p className="text-[9px] text-emerald-400/70 font-bold uppercase leading-none">
-                          {t('TIP', 'إكرامية')}
-                        </p>
-                      </div>
-                      <p className="text-lg font-black text-emerald-400 tabular-nums leading-tight mt-0.5">
-                        +{(orderInfo.tipAmount ?? 0).toFixed(0)}
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* ── Overdue banner ───────────────────────────── */}
-      {orderInfo && countdownData?.overdue && (
-        <motion.div
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="absolute left-3 right-3 z-[9998]"
-          style={{ top: `${TOP_BAR_HEIGHT + 8}px` }}
-        >
-          <div className="bg-slate-900/92 backdrop-blur-xl rounded-2xl border border-amber-500/30 shadow-2xl px-4 py-3 text-center">
-            <p className="text-sm font-black text-amber-400">
-              {t('Time\'s up — deliver now!', 'انتهى الوقت — وصّل الآن!')}
-            </p>
-          </div>
-        </motion.div>
-      )}
 
       {/* ── I Arrived Slider Modal (within 100m) ─────── */}
       <AnimatePresence>

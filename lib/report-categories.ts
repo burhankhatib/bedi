@@ -47,7 +47,7 @@ export const REPORT_CATEGORIES: Record<string, { value: string; labelEn: string;
     { value: 'driver_damaged_order', labelEn: 'Order damaged in delivery', labelAr: 'الطلب تلف أثناء التوصيل' },
     { value: 'driver_wrong_location', labelEn: 'Driver left order at wrong place', labelAr: 'السائق ترك الطلب في مكان خاطئ' },
     { value: 'driver_no_contact', labelEn: 'Driver did not call or contact', labelAr: 'السائق لم يتصل أو يتواصل' },
-    { value: 'customer_removed_tip_after_arrival', labelEn: 'Removed tip after driver arrived on time', labelAr: 'أزال الإكرامية بعد وصول السائق في الوقت' },
+    { value: 'customer_removed_tip_after_arrival', labelEn: 'Customer cancelled tip', labelAr: 'العميل ألغى الإكرامية' },
     { value: 'driver_other_customer', labelEn: 'Other', labelAr: 'أخرى' },
   ],
 }

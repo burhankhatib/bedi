@@ -28,6 +28,7 @@ const REPORT_CATEGORIES = [
   { title: 'Driver was late', value: 'driver_late_customer', reporter: 'customer', reported: 'driver' },
   { title: 'Driver rude / bad behaviour', value: 'driver_rude', reporter: 'customer', reported: 'driver' },
   { title: 'Driver did not deliver properly', value: 'driver_delivery_issue', reporter: 'customer', reported: 'driver' },
+  { title: 'Customer cancelled tip', value: 'customer_removed_tip_after_arrival', reporter: 'customer', reported: 'driver' },
   { title: 'Other (driver)', value: 'driver_other_customer', reporter: 'customer', reported: 'driver' },
 ] as const
 
