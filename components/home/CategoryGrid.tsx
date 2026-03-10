@@ -58,40 +58,42 @@ export function CategoryGrid() {
 
   return (
     <section className="py-8">
-      <h2 className="mb-6 text-xl font-bold text-slate-900 md:text-2xl">
+      <h2 className="mb-6 text-xl font-bold text-slate-900 md:text-2xl tracking-tight">
         {t('Browse by category', 'تصفح حسب التصنيف')}
       </h2>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {categories.map((cat, i) => (
           <motion.div
             key={cat._id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: i * 0.05 }}
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.2, 0, 0, 1], delay: i * 0.05 }}
           >
             <Link
               href={`/search?category=${encodeURIComponent(cat.value)}`}
-              className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-emerald-300 hover:shadow-md"
+              className="group flex flex-col overflow-hidden rounded-[20px] bg-white transition-all duration-300 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-slate-100 hover:border-emerald-100"
             >
-              <div className="relative aspect-square overflow-hidden bg-slate-100">
+              <div className="relative aspect-square overflow-hidden bg-slate-50">
                 {cat.imageUrl ? (
                   <Image
                     src={cat.imageUrl}
                     alt={lang === 'ar' ? cat.name_ar : cat.name_en}
                     fill
-                    className="object-cover transition group-hover:scale-105"
+                    className="object-cover transition-transform duration-500 ease-[cubic-bezier(0.2,0,0,1)] group-hover:scale-[1.05]"
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
                   />
                 ) : (
-                  <div className="h-full w-full bg-slate-200" />
+                  <div className="h-full w-full bg-slate-100" />
                 )}
+                {/* Subtle gradient overlay for premium feel */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
               </div>
-              <div className="p-3 text-center">
-                <span className="font-semibold text-slate-900 group-hover:text-emerald-600">
+              <div className="p-3.5 text-center flex flex-col items-center justify-center bg-white z-10 relative">
+                <span className="font-bold text-[15px] sm:text-base text-slate-900 group-hover:text-emerald-700 transition-colors">
                   {lang === 'ar' ? cat.name_ar : cat.name_en}
                 </span>
                 {cat.tenantCount > 0 && (
-                  <span className="mt-0.5 block text-xs text-slate-500">
+                  <span className="mt-0.5 block text-[13px] font-medium text-slate-500">
                     {t('{count} places', '{count} أماكن').replace(
                       '{count}',
                       String(cat.tenantCount)

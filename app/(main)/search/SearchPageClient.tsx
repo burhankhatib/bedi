@@ -331,7 +331,7 @@ export function SearchPageClient() {
       <LocationModal />
 
       {isChosen && (category === 'restaurant' || category === 'cafe' || !category) && (
-        <div className="bg-white border-b border-slate-200">
+        <div className="bg-white border-b border-slate-100 shadow-sm sticky top-14 z-20">
           <div className="container mx-auto px-4">
             <CategoryIconsBar
               activeSection={section}
@@ -341,7 +341,7 @@ export function SearchPageClient() {
         </div>
       )}
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 max-w-7xl">
         {!isChosen ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <p className="text-lg text-slate-600">
@@ -367,25 +367,25 @@ export function SearchPageClient() {
                   )}
             </h1>
 
-            {/* Search box + Filter toggle (same row) */}
-            <div className="mb-4 flex gap-2">
-              <div className="relative min-w-0 flex-1">
-                <Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            {/* M3 Search Header */}
+            <div className="mb-6 flex gap-3 items-center">
+              <div className="relative min-w-0 flex-1 group">
+                <Search className="absolute start-4 top-1/2 size-5 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
                 <Input
                   type="search"
                   placeholder={t('Search businesses or items...', 'ابحث عن أعمال أو أصناف...')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-11 rounded-xl border-slate-200 bg-white pl-10 pr-4"
+                  className="h-14 rounded-full border-0 bg-slate-100/80 px-12 text-base shadow-inner focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-emerald-500/50 transition-all font-medium placeholder:text-slate-400 placeholder:font-normal"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => setFiltersExpanded(!filtersExpanded)}
-                className={`flex size-11 shrink-0 items-center justify-center rounded-xl border transition md:size-11 ${
+                className={`flex size-14 shrink-0 items-center justify-center rounded-full transition-all duration-300 md:size-14 ${
                   filtersExpanded
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-600'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    ? 'bg-emerald-100 text-emerald-700 shadow-sm'
+                    : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200 shadow-sm'
                 }`}
                 aria-label={t('Filters', 'الفلاتر')}
                 aria-expanded={filtersExpanded}
@@ -438,130 +438,75 @@ export function SearchPageClient() {
                   )}
                 </AnimatePresence>
 
-            {/* Specialty strip: Material You circular icon chips */}
-            {category && sectionsWithImages.length > 0 && (
-              <div className="mb-6">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  {t('Specialty', 'التخصص')}
-                </p>
-                <div className="-mx-4 overflow-x-auto overflow-y-hidden px-4 md:-mx-0 md:px-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                  <div className="flex gap-5 pb-2 md:gap-6">
-                    {/* All */}
-                    <button
-                      onClick={() => setFilter(undefined, '', undefined)}
-                      className={`flex shrink-0 flex-col items-center gap-2.5 transition-all duration-200 ${
-                        !section
-                          ? 'opacity-100'
-                          : 'opacity-70 hover:opacity-100'
-                      }`}
-                    >
-                      <div
-                        className={`flex size-14 shrink-0 items-center justify-center rounded-full shadow-sm transition-all duration-200 md:size-16 ${
-                          !section
-                            ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-200/80'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:ring-2 hover:ring-slate-200'
-                        }`}
-                      >
-                        <MdRestaurant className="size-7 md:size-8" />
-                      </div>
-                      <span className="max-w-[4.5rem] truncate text-center text-xs font-medium text-slate-700 md:max-w-20">
-                        {t('All', 'الكل')}
-                      </span>
-                    </button>
-                    {sectionsWithImages.map((s) => {
-                      const Icon = getSectionIcon(s.key)
-                      const isSelected = section === s.key
-                      return (
-                        <button
-                          key={s.key}
-                          onClick={() => setFilter(undefined, s.key, undefined)}
-                          className={`flex shrink-0 flex-col items-center gap-2.5 transition-all duration-200 ${
-                            isSelected ? 'opacity-100' : 'opacity-70 hover:opacity-100'
-                          }`}
-                        >
-                          <div
-                            className={`flex size-14 shrink-0 items-center justify-center rounded-full shadow-sm transition-all duration-200 md:size-16 ${
-                              isSelected
-                                ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-200/80'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:ring-2 hover:ring-slate-200'
-                            }`}
-                          >
-                            <Icon className="size-7 md:size-8" />
-                          </div>
-                          <span className="max-w-[4.5rem] truncate text-center text-xs font-medium text-slate-700 md:max-w-20">
-                            {lang === 'ar' ? s.title_ar : s.title_en}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Note: In M3 Overhaul, the duplicate Specialty strip widget was removed because the top header (CategoryIconsBar) already solves this filtering natively and sticky-persists. */}
 
             {loading ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {[...Array(6)].map((_, i) => (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {[...Array(8)].map((_, i) => (
                   <div
                     key={i}
-                    className="h-32 animate-pulse rounded-2xl bg-slate-200"
+                    className="h-[104px] animate-pulse rounded-2xl bg-slate-200/60"
                   />
                 ))}
               </div>
             ) : filteredTenants.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-                <Store className="mx-auto size-12 text-slate-300" />
-                <p className="mt-4 text-slate-600">
+              <div className="rounded-3xl border border-slate-100 bg-white p-12 text-center shadow-sm">
+                <Store className="mx-auto size-16 text-slate-200" />
+                <p className="mt-4 text-slate-600 font-medium text-lg">
                   {t('No businesses found in this area.', 'لا توجد أعمال في هذه المنطقة.')}
                 </p>
-                <Link href="/" className="mt-4 inline-block">
-                  <Button variant="outline">{t('Back to home', 'العودة للرئيسية')}</Button>
+                <Link href="/" className="mt-6 inline-block">
+                  <Button variant="outline" className="rounded-full shadow-sm px-6 h-12">
+                    {t('Back to home', 'العودة للرئيسية')}
+                  </Button>
                 </Link>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-4">
                 {filteredTenants.map((t, i) => (
                   <motion.div
                     key={t._id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25, delay: Math.min(i * 0.03, 0.3) }}
+                    initial={{ opacity: 0, scale: 0.95, y: 16 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={{ duration: 0.3, ease: [0.2, 0, 0, 1], delay: Math.min(i * 0.04, 0.4) }}
                   >
                     <Link
                       href={t.slug ? `/t/${t.slug}` : '#'}
-                      className="group flex items-center gap-4 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-all duration-200 hover:border-emerald-300 hover:shadow-md"
+                      className="group flex items-center gap-4 overflow-hidden rounded-[20px] bg-white p-4 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-emerald-100"
                     >
-                      {/* Logo - bigger, left */}
-                      <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-slate-50 ring-1 ring-slate-100">
+                      {/* Logo - Circular elevated avatar M3 */}
+                      <div className="relative size-[72px] shrink-0 overflow-hidden rounded-full bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300">
                         {t.logoUrl ? (
                           <Image
                             src={t.logoUrl}
                             alt={(lang === 'ar' ? t.name_ar : t.name_en) || t.name}
                             fill
-                            className="object-contain p-1.5"
-                            sizes="80px"
+                            className="object-contain p-2"
+                            sizes="72px"
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center">
-                            <Store className="size-10 text-slate-300" />
+                            <Store className="size-8 text-slate-300" />
                           </div>
                         )}
                       </div>
-                      {/* Details - right */}
-                      <div className="min-w-0 flex-1">
-                        <h2 className="font-bold text-slate-900 truncate group-hover:text-emerald-700 transition-colors">
+                      {/* Details - Right stack */}
+                      <div className="min-w-0 flex-1 flex flex-col justify-center">
+                        <h2 className="font-bold text-slate-900 text-[17px] tracking-tight truncate group-hover:text-emerald-700 transition-colors">
                           {(lang === 'ar' ? t.name_ar : t.name_en) || t.name}
                         </h2>
-                        <p className="text-sm text-slate-500 capitalize">
+                        
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[13px] text-slate-500 capitalize font-medium">
                           {lang === 'ar'
                             ? BUSINESS_TYPES.find((b) => b.value === t.businessType)?.labelAr ??
                               t.businessType
                             : BUSINESS_TYPES.find((b) => b.value === t.businessType)?.label ??
                               t.businessType}
-                        </p>
+                        </div>
+
                         {t.sections.length > 0 && (
-                          <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                            <UtensilsCrossed className="size-3.5 shrink-0 text-emerald-600" />
+                          <div className="flex items-center gap-1.5 mt-1.5 text-[13px] text-slate-500">
+                            <UtensilsCrossed className="size-3.5 shrink-0 text-slate-400" />
                             <span className="line-clamp-1">
                               {t.sections
                                 .map((s) => (lang === 'ar' ? s.ar || s.en : s.en || s.ar))
@@ -570,19 +515,7 @@ export function SearchPageClient() {
                             </span>
                           </div>
                         )}
-                        {t.popularItems.length > 0 && (
-                          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-amber-700">
-                            <Flame className="size-3 shrink-0 text-amber-500" />
-                            <span className="line-clamp-1 font-medium">
-                              {t.popularItems
-                                .map((p) => (lang === 'ar' ? p.ar || p.en : p.en || p.ar))
-                                .filter(Boolean)
-                                .join(', ')}
-                            </span>
-                          </div>
-                        )}
                       </div>
-                      <ChevronRight className="size-4 shrink-0 text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all" />
                     </Link>
                   </motion.div>
                 ))}

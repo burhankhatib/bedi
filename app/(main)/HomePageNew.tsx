@@ -37,27 +37,21 @@ export function HomePageNew() {
           </Suspense>
         </motion.section>
 
-        <main className="container mx-auto px-4 py-6 sm:py-8">
+        <main className="container mx-auto px-4 py-8 md:py-12 max-w-7xl">
+          {/* 1. First choice: What kind of business? (Restaurant, Cafe, Supermarket) */}
           <motion.section
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, delay: 0.15 }}
-          >
-            <CategoryIconsBar className="mb-2" />
-          </motion.section>
-
-          <motion.section
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, delay: 0.2 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.2, 0, 0, 1], delay: 0.1 }}
           >
             <CategoryGrid />
           </motion.section>
 
+          {/* 2. Subcategories if applicable */}
           <motion.section
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, delay: 0.25 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.2, 0, 0, 1], delay: 0.15 }}
           >
             <SubcategoriesSection />
           </motion.section>

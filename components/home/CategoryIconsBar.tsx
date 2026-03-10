@@ -76,26 +76,21 @@ export function CategoryIconsBar({ activeSection, category = 'restaurant', class
             >
               <Link
                 href={`/search?section=${encodeURIComponent(s.key)}&category=${encodeURIComponent(category)}`}
-                className="group flex flex-col items-center gap-2 w-16 sm:w-20 cursor-pointer outline-none"
+                className="group flex flex-col items-center gap-2.5 w-16 sm:w-[84px] cursor-pointer outline-none"
               >
                 <div
-                  className={`flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full transition-all duration-300 ease-in-out cursor-pointer
+                  className={`relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] shadow-sm
                     ${isActive
-                      ? 'bg-emerald-100 text-emerald-600 shadow-md ring-2 ring-emerald-500 ring-offset-2'
-                      : 'bg-white text-slate-600 shadow-sm border border-slate-200 group-hover:bg-emerald-50 group-hover:text-emerald-500 group-hover:border-emerald-200 group-hover:shadow-md'
+                      ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-200/80 ring-offset-2'
+                      : 'bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-100'
                     }
                   `}
                 >
-                  <motion.div
-                    whileHover={{ scale: 1.15 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    <Icon className="w-7 h-7 sm:w-8 sm:h-8" />
-                  </motion.div>
+                  <Icon className="w-6 h-6 sm:w-7 sm:h-7 transition-transform duration-300 group-hover:scale-110" />
                 </div>
                 <span
-                  className={`text-xs sm:text-sm font-medium text-center transition-colors
-                    ${isActive ? 'text-emerald-700 font-bold' : 'text-slate-600 group-hover:text-emerald-600'}
+                  className={`text-[11px] sm:text-[13px] font-medium text-center transition-colors line-clamp-2 leading-tight px-1
+                    ${isActive ? 'text-emerald-800 font-bold' : 'text-slate-600 group-hover:text-slate-900'}
                   `}
                 >
                   {lang === 'ar' ? s.title_ar : s.title_en}
