@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Store, MapPin, Navigation, Flag, Wallet, Receipt, Truck,
   User, Smartphone, CircleAlert, RefreshCw, ArrowDown, History,
-  ChevronDown, Package, Calculator, Phone,
+  ChevronDown, Package, Calculator, Phone, Trash2, ShieldCheck,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
@@ -69,6 +69,8 @@ type DriverOrder = {
   tipAmount?: number
   tipPercent?: number
   tipSentToDriver?: boolean
+  tipIncludedInTotal?: boolean
+  tipRemovedByDriver?: boolean
   driverArrivedAt?: string
 }
 
@@ -185,6 +187,8 @@ function DriverOrdersV2Content() {
   const [calcCurrency, setCalcCurrency] = useState('ILS')
   const [showCompleted, setShowCompleted] = useState(false)
   const [showBizContact, setShowBizContact] = useState(false)
+  const [removeTipConfirmOpen, setRemoveTipConfirmOpen] = useState(false)
+  const [removingTip, setRemovingTip] = useState(false)
 
   const [driverLat, setDriverLat] = useState<number | null>(null)
   const [driverLng, setDriverLng] = useState<number | null>(null)
@@ -647,6 +651,34 @@ function DriverOrdersV2Content() {
       }
     } finally {
       setActionId(null)
+    }
+  }
+
+  const removeTip = async (orderId: string) => {
+    setRemovingTip(true)
+    try {
+      const res = await fetch(`/api/driver/orders/${orderId}/remove-tip`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Failed')
+      }
+      showToast(
+        t('Tip removed from total.', 'تمت إزالة الإكرامية من المجموع.'),
+        t('Tip removed from total.', 'تمت إزالة الإكرامية من المجموع.'),
+        'success'
+      )
+      setRemoveTipConfirmOpen(false)
+      fetchOrders()
+    } catch {
+      showToast(
+        t('Could not remove tip. Try again.', 'تعذّرت إزالة الإكرامية. حاول مرة أخرى.'),
+        t('Could not remove tip. Try again.', 'تعذّرت إزالة الإكرامية. حاول مرة أخرى.'),
+        'error'
+      )
+    } finally {
+      setRemovingTip(false)
     }
   }
 
@@ -1181,48 +1213,177 @@ function DriverOrdersV2Content() {
                 )}
 
                 {/* Total to collect — BIG */}
-                <div className="rounded-3xl bg-emerald-500/10 border border-emerald-500/30 p-5 mb-4 text-center">
-                  <p className="text-emerald-300/80 text-sm font-semibold mb-1">
-                    {t('Collect from Customer', 'حصّل من العميل')}
-                  </p>
-                  <p className="text-5xl font-black text-emerald-400 tabular-nums">
-                    {activeOrder.totalAmount.toFixed(2)}
-                  </p>
-                  <p className="text-emerald-300/60 text-lg font-bold">
-                    {fmtCurrency(activeOrder.currency)}
-                  </p>
+                {(() => {
+                  const tipActive = activeOrder.tipIncludedInTotal && (activeOrder.tipAmount ?? 0) > 0 && !activeOrder.tipRemovedByDriver
+                  const collectTotal = tipActive
+                    ? activeOrder.totalAmount + (activeOrder.tipAmount ?? 0)
+                    : activeOrder.totalAmount
+                  return (
+                    <div className="rounded-3xl bg-emerald-500/10 border border-emerald-500/30 p-5 mb-4 text-center">
+                      <p className="text-emerald-300/80 text-sm font-semibold mb-1">
+                        {tipActive
+                          ? t('Collect from Customer (incl. tip)', 'حصّل من العميل (شامل الإكرامية)')
+                          : t('Collect from Customer', 'حصّل من العميل')}
+                      </p>
+                      <AnimatePresence mode="popLayout">
+                        <motion.p
+                          key={collectTotal.toFixed(2)}
+                          initial={{ y: -10, opacity: 0, scale: 0.9 }}
+                          animate={{ y: 0, opacity: 1, scale: 1 }}
+                          exit={{ y: 10, opacity: 0, scale: 0.9 }}
+                          transition={{ type: 'spring', stiffness: 350, damping: 22 }}
+                          className={`text-5xl font-black tabular-nums ${tipActive ? 'text-emerald-300' : 'text-emerald-400'}`}
+                        >
+                          {collectTotal.toFixed(2)}
+                        </motion.p>
+                      </AnimatePresence>
+                      <p className="text-emerald-300/60 text-lg font-bold">
+                        {fmtCurrency(activeOrder.currency)}
+                      </p>
 
-                  {/* Tip from customer */}
-                  {activeOrder.tipSentToDriver && (activeOrder.tipAmount ?? 0) > 0 && (
-                    <div className="mt-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 p-3">
-                      <p className="text-rose-300/80 text-xs font-medium mb-1">
-                        💚 {t('Customer tip (gesture of appreciation)', 'إكرامية العميل (لفتة تقدير)')}
-                      </p>
-                      <p className="text-2xl font-black text-rose-400 tabular-nums">
-                        +{(activeOrder.tipAmount ?? 0).toFixed(2)} {fmtCurrency(activeOrder.currency)}
-                      </p>
-                      <p className="text-rose-300/50 text-[10px] mt-1 leading-relaxed">
-                        {t(
-                          'This is a voluntary gesture from the customer — not required. The customer may change their mind.',
-                          'هذه لفتة تطوعية من العميل — ليست إلزامية. يمكن للعميل أن يغيّر رأيه.'
-                        )}
-                      </p>
+                      {/* Tip breakdown when included in total */}
+                      {tipActive && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          transition={{ duration: 0.3 }}
+                          className="mt-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-left"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                            <p className="text-emerald-300/80 text-xs font-bold">
+                              {t('Amount breakdown', 'تفصيل المبلغ')}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-slate-400">{t('Order', 'الطلب')}</span>
+                              <span className="text-emerald-400 font-medium tabular-nums">{activeOrder.totalAmount.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-rose-400">💚 {t('Tip', 'إكرامية')} ({activeOrder.tipPercent ?? 0}%)</span>
+                              <span className="text-rose-400 font-medium tabular-nums">+{(activeOrder.tipAmount ?? 0).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm font-bold pt-1 border-t border-emerald-500/20">
+                              <span className="text-emerald-300">{t('Total', 'المجموع')}</span>
+                              <span className="text-emerald-300 tabular-nums">{collectTotal.toFixed(2)} {fmtCurrency(activeOrder.currency)}</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {/* Tip pending (sent but not yet included in total) */}
+                      {activeOrder.tipSentToDriver && (activeOrder.tipAmount ?? 0) > 0 && !activeOrder.tipIncludedInTotal && !activeOrder.tipRemovedByDriver && (
+                        <div className="mt-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 p-3">
+                          <p className="text-rose-300/80 text-xs font-medium mb-1">
+                            💚 {t('Customer tip (gesture of appreciation)', 'إكرامية العميل (لفتة تقدير)')}
+                          </p>
+                          <p className="text-2xl font-black text-rose-400 tabular-nums">
+                            +{(activeOrder.tipAmount ?? 0).toFixed(2)} {fmtCurrency(activeOrder.currency)}
+                          </p>
+                          <p className="text-rose-300/50 text-[10px] mt-1 leading-relaxed">
+                            {t(
+                              'This is a voluntary gesture from the customer — not required. The customer may change their mind.',
+                              'هذه لفتة تطوعية من العميل — ليست إلزامية. يمكن للعميل أن يغيّر رأيه.'
+                            )}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Tip removed by driver badge */}
+                      {activeOrder.tipRemovedByDriver && (
+                        <div className="mt-3 rounded-2xl bg-slate-800/50 border border-slate-600/30 p-3">
+                          <p className="text-slate-400 text-xs font-medium">
+                            {t('You removed the tip from this order.', 'لقد أزلت الإكرامية من هذا الطلب.')}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Remove tip button — only when tip is active and order is not completed */}
+                      {tipActive && activeOrder.status !== 'completed' && (
+                        <motion.button
+                          type="button"
+                          onClick={() => setRemoveTipConfirmOpen(true)}
+                          whileTap={{ scale: 0.95 }}
+                          className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-rose-900/30 hover:bg-rose-900/50 border border-rose-500/30 text-rose-400 font-semibold px-4 py-2.5 text-xs min-h-[40px] transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          {t('Remove tip from total', 'إزالة الإكرامية من المجموع')}
+                        </motion.button>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          setCalcOrderTotal(collectTotal)
+                          setCalcCurrency(activeOrder.currency)
+                          setCalcOpen(true)
+                        }}
+                        className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold px-5 py-3 text-sm min-h-[48px] active:scale-[0.97] transition-all"
+                      >
+                        <Calculator className="w-5 h-5 text-amber-400" />
+                        {t('Change Calculator', 'حاسبة الباقي')}
+                      </button>
                     </div>
-                  )}
+                  )
+                })()}
 
-                  <button
-                    onClick={() => {
-                      const total = activeOrder.totalAmount + (activeOrder.tipSentToDriver ? (activeOrder.tipAmount ?? 0) : 0)
-                      setCalcOrderTotal(total)
-                      setCalcCurrency(activeOrder.currency)
-                      setCalcOpen(true)
-                    }}
-                    className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold px-5 py-3 text-sm min-h-[48px] active:scale-[0.97] transition-all"
-                  >
-                    <Calculator className="w-5 h-5 text-amber-400" />
-                    {t('Change Calculator', 'حاسبة الباقي')}
-                  </button>
-                </div>
+                {/* Remove tip confirmation modal */}
+                <AnimatePresence>
+                  {removeTipConfirmOpen && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+                      onClick={() => setRemoveTipConfirmOpen(false)}
+                    >
+                      <motion.div
+                        initial={{ scale: 0.85, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.85, opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                        className="relative w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="bg-gradient-to-b from-amber-600 to-amber-700 px-6 pt-5 pb-4 text-white">
+                          <div className="flex items-center gap-3">
+                            <Trash2 className="w-6 h-6 shrink-0" />
+                            <h3 className="text-lg font-black">
+                              {t('Remove tip?', 'إزالة الإكرامية؟')}
+                            </h3>
+                          </div>
+                          <p className="text-sm text-white/80 mt-1.5 leading-relaxed">
+                            {t(
+                              'Are you sure you want to remove the customer\'s tip? This will update the total for both you and the customer.',
+                              'هل أنت متأكد من إزالة إكرامية العميل؟ سيتم تحديث المجموع لك وللعميل.'
+                            )}
+                          </p>
+                        </div>
+                        <div className="px-6 py-5 flex gap-3">
+                          <motion.button
+                            type="button"
+                            onClick={() => removeTip(activeOrder.orderId)}
+                            disabled={removingTip}
+                            whileTap={{ scale: 0.95 }}
+                            className="flex-1 py-3.5 rounded-2xl font-bold text-sm bg-red-500 text-white shadow-lg shadow-red-500/20 disabled:opacity-60 transition-all"
+                          >
+                            {removingTip
+                              ? t('Removing…', 'جاري الإزالة…')
+                              : t('Yes, remove tip', 'نعم، أزل الإكرامية')}
+                          </motion.button>
+                          <motion.button
+                            type="button"
+                            onClick={() => setRemoveTipConfirmOpen(false)}
+                            whileTap={{ scale: 0.95 }}
+                            className="flex-1 py-3.5 rounded-2xl font-bold text-sm bg-slate-700 text-white transition-all hover:bg-slate-600"
+                          >
+                            {t('Keep tip', 'أبقِ الإكرامية')}
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Slide to arrive (when within ~100m of customer and not yet arrived) */}
                 {!activeOrder.driverArrivedAt && (

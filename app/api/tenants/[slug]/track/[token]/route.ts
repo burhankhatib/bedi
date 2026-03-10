@@ -48,6 +48,8 @@ export async function GET(
     tipSentToDriver?: boolean
     tipSentToDriverAt?: string | null
     tipConfirmedAfterCountdown?: boolean
+    tipIncludedInTotal?: boolean
+    tipRemovedByDriver?: boolean
     driverArrivedAt?: string | null
     customerRequestedAt?: string | null
     customerRequestAcknowledgedAt?: string | null
@@ -86,6 +88,8 @@ export async function GET(
       tipSentToDriver,
       tipSentToDriverAt,
       tipConfirmedAfterCountdown,
+      tipIncludedInTotal,
+      tipRemovedByDriver,
       driverArrivedAt,
       customerRequestedAt,
       customerRequestAcknowledgedAt,
@@ -152,6 +156,8 @@ export async function GET(
       tipSentToDriver: order.tipSentToDriver ?? false,
       tipSentToDriverAt: order.tipSentToDriverAt ?? null,
       tipConfirmedAfterCountdown: order.tipConfirmedAfterCountdown ?? null,
+      tipIncludedInTotal: order.tipIncludedInTotal ?? false,
+      tipRemovedByDriver: order.tipRemovedByDriver ?? false,
       driverArrivedAt: order.driverArrivedAt ?? null,
       customerRequestedAt: order.customerRequestedAt ?? null,
       customerRequestAcknowledgedAt: order.customerRequestAcknowledgedAt ?? null,

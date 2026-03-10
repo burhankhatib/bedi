@@ -29,6 +29,9 @@ import {
   Heart,
   LocateFixed,
   ChevronDown,
+  ShieldCheck,
+  X,
+  AlertTriangle,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -74,6 +77,8 @@ type TrackData = {
     tipSentToDriver?: boolean
     tipSentToDriverAt?: string | null
     tipConfirmedAfterCountdown?: boolean | null
+    tipIncludedInTotal?: boolean
+    tipRemovedByDriver?: boolean
     driverArrivedAt?: string | null
     customerRequestedAt?: string | null
     customerRequestAcknowledgedAt?: string | null
@@ -184,6 +189,7 @@ function DeliveryETABox({
   onTipPercentChange,
   onSendTipToDriver,
   onConfirmTipAfterCountdown,
+  onConfirmTipIncludedInTotal,
   tipSending,
 }: {
   order: TrackData['order']
@@ -198,11 +204,19 @@ function DeliveryETABox({
   onTipPercentChange: (percent: number) => void
   onSendTipToDriver: () => void
   onConfirmTipAfterCountdown: (keep: boolean) => void
+  onConfirmTipIncludedInTotal: (keep: boolean, reason?: string) => void
   tipSending: boolean
 }) {
   const { t } = useLanguage()
   const [now, setNow] = useState(() => Date.now())
   const [driverInfoOpen, setDriverInfoOpen] = useState(false)
+  const [arrivalPopupVisible, setArrivalPopupVisible] = useState(false)
+  const [arrivalPopupDismissed, setArrivalPopupDismissed] = useState(false)
+  const arrivalPopupTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [showRemoveReason, setShowRemoveReason] = useState(false)
+  const [removeReason, setRemoveReason] = useState('')
+  const [removeSending, setRemoveSending] = useState(false)
+  const [acknowledgeChecked, setAcknowledgeChecked] = useState(false)
 
   const isActive =
     order.status === 'out-for-delivery' || order.status === 'driver_on_the_way'
@@ -211,12 +225,50 @@ function DeliveryETABox({
   const showBox = (isActive || isCompleted) && order.orderType === 'delivery'
   const driverArrived = !!order.driverArrivedAt
   const tipWasSentToDriver = !!order.tipSentToDriver
+  const tipIncluded = !!order.tipIncludedInTotal
+  const tipRemovedByDriver = !!order.tipRemovedByDriver
 
   useEffect(() => {
     if (!isActive || driverArrived) return
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [isActive, driverArrived])
+
+  useEffect(() => {
+    if (driverArrived && tipWasSentToDriver && tipEnabled && !arrivalPopupDismissed && !tipIncluded && !tipRemovedByDriver) {
+      setArrivalPopupVisible(true)
+      arrivalPopupTimerRef.current = setTimeout(() => {
+        setArrivalPopupVisible(false)
+        setArrivalPopupDismissed(true)
+        onConfirmTipIncludedInTotal(true)
+      }, 30000)
+    }
+    return () => {
+      if (arrivalPopupTimerRef.current) clearTimeout(arrivalPopupTimerRef.current)
+    }
+  }, [driverArrived, tipWasSentToDriver, tipEnabled, arrivalPopupDismissed, tipIncluded, tipRemovedByDriver])
+
+  const handleArrivalOkay = () => {
+    if (arrivalPopupTimerRef.current) clearTimeout(arrivalPopupTimerRef.current)
+    setArrivalPopupVisible(false)
+    setArrivalPopupDismissed(true)
+    onConfirmTipIncludedInTotal(true)
+  }
+
+  const handleArrivalRemoveTip = () => {
+    if (arrivalPopupTimerRef.current) clearTimeout(arrivalPopupTimerRef.current)
+    setShowRemoveReason(true)
+  }
+
+  const submitRemoveReason = () => {
+    setRemoveSending(true)
+    setArrivalPopupVisible(false)
+    setArrivalPopupDismissed(true)
+    setShowRemoveReason(false)
+    setAcknowledgeChecked(false)
+    onConfirmTipIncludedInTotal(false, removeReason.trim())
+    setRemoveSending(false)
+  }
 
   if (!showBox) return null
 
@@ -427,25 +479,53 @@ function DeliveryETABox({
         {isOutForDelivery && (
           <div className="bg-white px-5 py-5">
             <p className="text-slate-400 text-[11px] font-semibold uppercase tracking-wider mb-1.5">
-              {t('Total to pay (Cash on Delivery)', 'المبلغ المطلوب (الدفع عند الاستلام)')}
+              {tipIncluded
+                ? t('Total to pay (incl. tip)', 'المبلغ المطلوب (شامل الإكرامية)')
+                : t('Total to pay (Cash on Delivery)', 'المبلغ المطلوب (الدفع عند الاستلام)')}
             </p>
             <div className="flex items-baseline gap-2">
               <AnimatePresence mode="popLayout">
                 <motion.span
-                  key={displayTotal.toFixed(2)}
+                  key={(tipIncluded ? displayTotal : (order.totalAmount ?? 0)).toFixed(2)}
                   initial={{ y: -12, opacity: 0, scale: 0.9 }}
                   animate={{ y: 0, opacity: 1, scale: 1 }}
                   exit={{ y: 12, opacity: 0, scale: 0.9 }}
                   transition={{ type: 'spring', stiffness: 350, damping: 22 }}
-                  className="text-4xl font-black text-slate-900 tabular-nums inline-block"
+                  className={`text-4xl font-black tabular-nums inline-block ${tipIncluded ? 'text-emerald-700' : 'text-slate-900'}`}
                 >
-                  {displayTotal.toFixed(2)}
+                  {(tipIncluded ? displayTotal : (tipRemovedByDriver ? (order.totalAmount ?? 0) : displayTotal)).toFixed(2)}
                 </motion.span>
               </AnimatePresence>
               <span className="text-lg font-bold text-slate-300">{fmtCurrency}</span>
             </div>
             <AnimatePresence>
-              {tipEnabled && tipAmount > 0 && (
+              {tipIncluded && tipAmount > 0 && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-2 rounded-xl bg-emerald-50/80 border border-emerald-200/50 p-3 space-y-1">
+                    <div className="flex justify-between text-xs text-slate-600">
+                      <span>{t('Order total', 'مجموع الطلب')}</span>
+                      <span className="font-medium">{(order.totalAmount ?? 0).toFixed(2)} {fmtCurrency}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-emerald-600 font-medium">
+                      <span>💚 {t('Tip', 'إكرامية')} ({tipPercent}%)</span>
+                      <span>+{tipAmount.toFixed(2)} {fmtCurrency}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-emerald-800 font-bold pt-1 border-t border-emerald-200/50">
+                      <span>{t('Total', 'المجموع')}</span>
+                      <span>{displayTotal.toFixed(2)} {fmtCurrency}</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <AnimatePresence>
+              {tipEnabled && tipAmount > 0 && !tipIncluded && !tipRemovedByDriver && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
@@ -463,7 +543,42 @@ function DeliveryETABox({
         )}
 
         {/* ═══ SECTION 3: TIP (Warm rose) ═══ */}
-        {isOutForDelivery && (
+        {/* When driver has arrived and tip was sent: collapse full tip controls, show locked badge */}
+        {isOutForDelivery && driverArrived && tipWasSentToDriver && tipEnabled && (
+          <div className="bg-gradient-to-b from-emerald-50 to-emerald-100/50 px-5 py-4 border-t border-emerald-200/40">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center gap-3 rounded-2xl bg-white/80 border border-emerald-200/60 p-4 shadow-sm"
+            >
+              <div className="bg-emerald-100 p-2.5 rounded-xl shrink-0">
+                <ShieldCheck className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-emerald-800 text-sm">
+                  {tipIncluded
+                    ? t('Tip added to total', 'الإكرامية مضافة للمجموع')
+                    : tipRemovedByDriver
+                      ? t('Tip was removed', 'تمت إزالة الإكرامية')
+                      : t('Tip is being confirmed', 'جاري تأكيد الإكرامية')}
+                </p>
+                {tipIncluded && (
+                  <p className="text-xs text-emerald-600 mt-0.5">
+                    💚 +{tipAmount.toFixed(2)} {fmtCurrency} ({tipPercent}%)
+                  </p>
+                )}
+                {tipRemovedByDriver && (
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {t('The driver chose not to collect the tip.', 'السائق اختار عدم أخذ الإكرامية.')}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* When driver has NOT arrived: show full tip controls */}
+        {isOutForDelivery && !driverArrived && (
           <div className="bg-gradient-to-b from-rose-50 to-rose-100/50 px-5 py-5 border-t border-rose-200/40">
             <div className="flex items-center gap-2 mb-1.5">
               <Heart className="h-5 w-5 text-rose-400" />
@@ -623,6 +738,229 @@ function DeliveryETABox({
             </AnimatePresence>
           </div>
         )}
+
+        {/* ═══ ARRIVAL TIP POPUP — shows for 30s when driver arrives ═══ */}
+        <AnimatePresence>
+          {arrivalPopupVisible && !showRemoveReason && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+              className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/40"
+              onClick={handleArrivalOkay}
+            >
+              <motion.div
+                initial={{ scale: 0.9 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.9 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="bg-gradient-to-b from-emerald-500 to-emerald-600 px-6 pt-6 pb-5 text-white text-center relative overflow-hidden">
+                  <div className="absolute -right-6 -top-6 text-white/10 pointer-events-none">
+                    <ShieldCheck className="w-28 h-28" />
+                  </div>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.15, type: 'spring', stiffness: 400, damping: 15 }}
+                    className="inline-flex p-3 rounded-full bg-white/20 backdrop-blur-sm mb-3"
+                  >
+                    <ShieldCheck className="w-8 h-8" />
+                  </motion.div>
+                  <h3 className="text-xl font-black">
+                    {t('Driver has arrived!', 'السائق وصل!')}
+                  </h3>
+                  <p className="text-sm text-white/80 mt-1">
+                    {t('Your tip will be added to the total', 'سيتم إضافة إكراميتك إلى المجموع')}
+                  </p>
+                </div>
+
+                <div className="px-6 py-5">
+                  <div className="rounded-2xl bg-emerald-50 border border-emerald-200/60 p-4 text-center mb-4">
+                    <p className="text-sm text-emerald-700 font-medium mb-1">
+                      {t('Tip amount', 'مبلغ الإكرامية')}
+                    </p>
+                    <p className="text-3xl font-black text-emerald-800 tabular-nums">
+                      +{tipAmount.toFixed(2)} <span className="text-lg">{fmtCurrency}</span>
+                    </p>
+                    <p className="text-xs text-emerald-600 mt-1">
+                      {t('New total', 'المجموع الجديد')}: <span className="font-bold">{displayTotal.toFixed(2)} {fmtCurrency}</span>
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <motion.button
+                      type="button"
+                      onClick={handleArrivalOkay}
+                      whileTap={{ scale: 0.95 }}
+                      className="flex-1 py-3.5 rounded-2xl font-bold text-sm bg-emerald-500 text-white shadow-lg shadow-emerald-300/40 transition-all"
+                    >
+                      💚 {t('Okay', 'حسناً')}
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      onClick={handleArrivalRemoveTip}
+                      whileTap={{ scale: 0.95 }}
+                      className="flex-1 py-3.5 rounded-2xl font-bold text-sm bg-slate-100 text-slate-600 transition-all hover:bg-slate-200"
+                    >
+                      {t('No, remove tip', 'لا، أزِل الإكرامية')}
+                    </motion.button>
+                  </div>
+
+                  <p className="text-[10px] text-slate-400 mt-3 text-center leading-relaxed">
+                    {t('This will auto-confirm in 30 seconds', 'سيتم التأكيد تلقائياً بعد 30 ثانية')}
+                  </p>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ═══ REMOVE TIP REASON MODAL ═══ */}
+        <AnimatePresence>
+          {showRemoveReason && (() => {
+            const wordCount = removeReason.trim().split(/\s+/).filter(Boolean).length
+            const hasEnoughWords = wordCount >= 5
+            const canSubmit = hasEnoughWords && acknowledgeChecked && !removeSending
+            return (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+                onClick={() => { setShowRemoveReason(false); setAcknowledgeChecked(false); setArrivalPopupVisible(true) }}
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+                  className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="bg-gradient-to-b from-amber-500 to-amber-600 px-6 pt-5 pb-4 text-white relative overflow-hidden">
+                    <div className="absolute -right-4 -top-4 text-white/10 pointer-events-none">
+                      <AlertTriangle className="w-24 h-24" />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="w-6 h-6 shrink-0" />
+                      <h3 className="text-lg font-black">
+                        {t('Why remove the tip?', 'لماذا تريد إزالة الإكرامية؟')}
+                      </h3>
+                    </div>
+                    <p className="text-sm text-white/80 mt-1">
+                      {t(
+                        'The driver arrived on time. Please explain why you changed your mind.',
+                        'السائق وصل في الوقت. يرجى توضيح سبب تغيير رأيك.'
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="px-6 py-5 space-y-4">
+                    <div>
+                      <textarea
+                        value={removeReason}
+                        onChange={(e) => setRemoveReason(e.target.value)}
+                        placeholder={t(
+                          'Describe your reason in detail (minimum 5 words)…',
+                          'اشرح السبب بالتفصيل (5 كلمات على الأقل)…'
+                        )}
+                        rows={4}
+                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-amber-300 focus:border-amber-300 focus:outline-none resize-none transition-all"
+                      />
+                      <div className="flex items-center justify-between mt-1.5 px-1">
+                        <p className={`text-[11px] font-medium transition-colors ${hasEnoughWords ? 'text-emerald-500' : 'text-slate-400'}`}>
+                          {wordCount}/5 {t('words', 'كلمات')} {hasEnoughWords ? '✓' : ''}
+                        </p>
+                        {!hasEnoughWords && removeReason.trim().length > 0 && (
+                          <p className="text-[11px] text-amber-500 font-medium">
+                            {t(`${5 - wordCount} more word${5 - wordCount > 1 ? 's' : ''} needed`, `${5 - wordCount > 1 ? 'تحتاج' : 'تحتاج'} ${5 - wordCount} كلمات أخرى`)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-amber-50 border border-amber-200/60 p-4">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-800 leading-relaxed">
+                          {t(
+                            'Your response will be reviewed by our team. Tip removal requests are taken seriously and may be investigated to ensure fair treatment for both customers and drivers. Depending on the outcome, this may impact the driver\'s profile status on our platform.',
+                            'سيتم مراجعة ردك من قبل فريقنا. طلبات إزالة الإكرامية تؤخذ على محمل الجد وقد يتم التحقيق فيها لضمان المعاملة العادلة للعملاء والسائقين. بناءً على النتائج، قد يؤثر ذلك على حالة ملف السائق على منصتنا.'
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <div className="relative mt-0.5 shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={acknowledgeChecked}
+                          onChange={(e) => setAcknowledgeChecked(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-5 h-5 rounded-md border-2 border-slate-300 bg-white transition-all peer-checked:border-amber-500 peer-checked:bg-amber-500 group-hover:border-amber-400 flex items-center justify-center">
+                          {acknowledgeChecked && (
+                            <motion.svg
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                              className="w-3.5 h-3.5 text-white"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={3}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </motion.svg>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-xs text-slate-600 leading-relaxed">
+                        {t(
+                          'I have read and understand the above notice. I confirm that my reason is genuine and I accept that this report will be reviewed.',
+                          'لقد قرأت وفهمت الملاحظة أعلاه. أؤكد أن سببي حقيقي وأوافق على أنه سيتم مراجعة هذا التقرير.'
+                        )}
+                      </span>
+                    </label>
+
+                    <div className="flex gap-3">
+                      <motion.button
+                        type="button"
+                        onClick={submitRemoveReason}
+                        disabled={!canSubmit}
+                        whileTap={canSubmit ? { scale: 0.95 } : {}}
+                        className={`flex-1 py-3.5 rounded-2xl font-bold text-sm shadow-lg transition-all ${
+                          canSubmit
+                            ? 'bg-red-500 text-white shadow-red-300/30 active:bg-red-600'
+                            : 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'
+                        }`}
+                      >
+                        {removeSending
+                          ? t('Submitting…', 'جاري الإرسال…')
+                          : t('Confirm & Remove Tip', 'تأكيد وإزالة الإكرامية')}
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        onClick={() => { setShowRemoveReason(false); setAcknowledgeChecked(false); setArrivalPopupVisible(true) }}
+                        whileTap={{ scale: 0.95 }}
+                        className="flex-1 py-3.5 rounded-2xl font-bold text-sm bg-slate-100 text-slate-600 transition-all hover:bg-slate-200"
+                      >
+                        {t('Go back', 'رجوع')}
+                      </motion.button>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )
+          })()}
+        </AnimatePresence>
 
         {/* ═══ SECTION 4: DRIVER (collapsible) ═══ */}
         {driver && (
@@ -897,6 +1235,34 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
     } catch {}
   }
 
+  const confirmTipIncludedInTotal = async (keep: boolean, reason?: string) => {
+    if (!token) return
+    try {
+      await fetch(`/api/tenants/${slug}/track/${encodeURIComponent(token)}/tip`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipIncludedInTotal: keep,
+          ...(keep ? {} : { tipPercent: 0, tipAmount: 0 }),
+          ...(reason ? { removeTipReason: reason } : {}),
+        }),
+      })
+      if (!keep) {
+        setTipEnabled(false)
+      }
+      fetchTrack(true)
+      showToast(
+        keep
+          ? t('Tip added to total! The driver will see the updated amount.', 'تمت إضافة الإكرامية للمجموع! السائق سيرى المبلغ المحدّث.')
+          : t('Tip removed.', 'تمت إزالة الإكرامية.'),
+        keep
+          ? t('Tip added to total! The driver will see the updated amount.', 'تمت إضافة الإكرامية للمجموع! السائق سيرى المبلغ المحدّث.')
+          : t('Tip removed.', 'تمت إزالة الإكرامية.'),
+        keep ? 'success' : 'info'
+      )
+    } catch {}
+  }
+
   usePusherStream(
     data?.order?._id ? `order-${data.order._id}` : null,
     'order-update',
@@ -1038,6 +1404,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         onTipPercentChange={handleTipPercentChange}
         onSendTipToDriver={sendTipToDriver}
         onConfirmTipAfterCountdown={confirmTipAfterCountdown}
+        onConfirmTipIncludedInTotal={confirmTipIncludedInTotal}
         tipSending={tipSending}
       />
 

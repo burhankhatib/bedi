@@ -95,6 +95,8 @@ interface Order {
   tipPercent?: number
   tipAmount?: number
   tipSentToDriver?: boolean
+  tipIncludedInTotal?: boolean
+  tipRemovedByDriver?: boolean
   driverArrivedAt?: string
 }
 
@@ -1391,7 +1393,7 @@ Please deliver this order to the customer.
             )}
             {(localOrder.tipAmount ?? 0) > 0 && (
               <div className="flex justify-between items-center">
-                <span className="text-rose-300 flex items-center gap-1.5">
+                <span className="text-rose-300 flex items-center gap-1.5 flex-wrap">
                   💚 {t('Tip', 'إكرامية')}
                   {localOrder.tipPercent ? ` (${localOrder.tipPercent}%)` : ''}
                   {localOrder.tipSentToDriver && (
@@ -1399,8 +1401,18 @@ Please deliver this order to the customer.
                       {localOrder.orderType === 'delivery' ? t('→ Driver', '→ السائق') : t('→ Staff', '→ الطاقم')}
                     </span>
                   )}
+                  {localOrder.tipIncludedInTotal && (
+                    <span className="text-[10px] text-emerald-400/80 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                      {t('✓ In total', '✓ في المجموع')}
+                    </span>
+                  )}
+                  {localOrder.tipRemovedByDriver && (
+                    <span className="text-[10px] text-amber-400/80 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                      {t('Removed by driver', 'أزاله السائق')}
+                    </span>
+                  )}
                 </span>
-                <span className="font-bold text-lg text-rose-400">
+                <span className={`font-bold text-lg ${localOrder.tipRemovedByDriver ? 'text-slate-500 line-through' : 'text-rose-400'}`}>
                   {(localOrder.tipAmount ?? 0).toFixed(2)} {formatCurrency(localOrder.currency)}
                 </span>
               </div>

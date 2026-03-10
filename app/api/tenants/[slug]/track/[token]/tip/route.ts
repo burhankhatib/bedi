@@ -37,7 +37,13 @@ export async function PATCH(
     return NextResponse.json({ error: 'Order not found' }, { status: 404 })
   }
 
-  let body: { tipPercent?: number; tipAmount?: number; tipConfirmedAfterCountdown?: boolean }
+  let body: {
+    tipPercent?: number
+    tipAmount?: number
+    tipConfirmedAfterCountdown?: boolean
+    tipIncludedInTotal?: boolean
+    removeTipReason?: string
+  }
   try {
     body = await req.json()
   } catch {
@@ -57,10 +63,14 @@ export async function PATCH(
   if (typeof body.tipConfirmedAfterCountdown === 'boolean') {
     patch.tipConfirmedAfterCountdown = body.tipConfirmedAfterCountdown
   }
+  if (typeof body.tipIncludedInTotal === 'boolean') {
+    patch.tipIncludedInTotal = body.tipIncludedInTotal
+  }
 
   const tipRemoved = (tipPercent === 0 || tipAmount === 0) && order.tipSentToDriver
   if (tipRemoved) {
     patch.tipSentToDriver = false
+    patch.tipIncludedInTotal = false
   }
 
   if (Object.keys(patch).length === 0) {
@@ -69,7 +79,19 @@ export async function PATCH(
 
   await writeClient.patch(order._id).set(patch).commit()
 
-  if (order.tipSentToDriver || tipRemoved) {
+  if (body.removeTipReason && typeof body.removeTipReason === 'string' && body.removeTipReason.trim()) {
+    await writeClient.create({
+      _type: 'report',
+      reporter: 'customer',
+      reported: 'driver',
+      reason: 'customer_removed_tip_after_arrival',
+      description: body.removeTipReason.trim(),
+      order: { _type: 'reference', _ref: order._id },
+      createdAt: new Date().toISOString(),
+    })
+  }
+
+  if (order.tipSentToDriver || tipRemoved || body.tipIncludedInTotal !== undefined) {
     pusherServer
       .trigger(`order-${order._id}`, 'order-update', { type: 'tip-updated' })
       .catch(() => {})

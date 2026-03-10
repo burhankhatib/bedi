@@ -72,7 +72,7 @@ export default async function TenantOrdersPage({
         items, subtotal, totalAmount, currency,
         createdAt, preparedAt, driverAcceptedAt, driverPickedUpAt, completedAt, cancelledAt, driverCancelledAt,
         customerRequestType, customerRequestPaymentMethod, customerRequestedAt, customerRequestAcknowledgedAt,
-        tipPercent, tipAmount, tipSentToDriver, driverArrivedAt
+        tipPercent, tipAmount, tipSentToDriver, tipIncludedInTotal, tipRemovedByDriver, driverArrivedAt
       }`, { siteId }),
       freshClient.fetch(`*[_type == "order" && ${siteFilter} && status == "new"] | order(createdAt desc) {
         _id,

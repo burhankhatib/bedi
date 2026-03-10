@@ -44,6 +44,8 @@ type DriverOrderView = {
   tipAmount?: number
   tipPercent?: number
   tipSentToDriver?: boolean
+  tipIncludedInTotal?: boolean
+  tipRemovedByDriver?: boolean
   driverArrivedAt?: string
 }
 
@@ -99,6 +101,8 @@ export async function GET() {
       tipAmount?: number
       tipPercent?: number
       tipSentToDriver?: boolean
+      tipIncludedInTotal?: boolean
+      tipRemovedByDriver?: boolean
       driverArrivedAt?: string
       deliveryArea?: { name_en?: string; name_ar?: string } | null
     }>
@@ -128,6 +132,8 @@ export async function GET() {
       tipAmount,
       tipPercent,
       tipSentToDriver,
+      tipIncludedInTotal,
+      tipRemovedByDriver,
       driverArrivedAt,
       "assignedDriverRef": assignedDriver._ref,
       "siteRef": site._ref,
@@ -233,6 +239,8 @@ export async function GET() {
       tipAmount: o.tipAmount,
       tipPercent: o.tipPercent,
       tipSentToDriver: o.tipSentToDriver,
+      tipIncludedInTotal: o.tipIncludedInTotal,
+      tipRemovedByDriver: o.tipRemovedByDriver,
       driverArrivedAt: o.driverArrivedAt,
     }
   }

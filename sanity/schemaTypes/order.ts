@@ -500,6 +500,18 @@ export const orderType = defineType({
       description: 'When countdown expired, whether the customer chose to keep the tip.',
     }),
     defineField({
+      name: 'tipIncludedInTotal',
+      title: 'Tip included in total',
+      type: 'boolean',
+      description: 'Customer confirmed the tip should be added to the total amount the driver collects.',
+    }),
+    defineField({
+      name: 'tipRemovedByDriver',
+      title: 'Tip removed by driver',
+      type: 'boolean',
+      description: 'Driver chose to remove the tip from the total before completing the order.',
+    }),
+    defineField({
       name: 'driverArrivedAt',
       title: 'Driver arrived at',
       type: 'datetime',
