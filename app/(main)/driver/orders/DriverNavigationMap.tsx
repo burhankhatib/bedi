@@ -390,60 +390,58 @@ export default function DriverNavigationMap({
     <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col">
       {/* ── Top Bar ────────────────────────────────────── */}
       <div
-        className="bg-slate-900/95 backdrop-blur-md border-b border-slate-700/60 px-4 flex items-center justify-between absolute top-0 left-0 right-0 z-[9999] shadow-lg"
+        className="bg-slate-900/95 backdrop-blur-xl border-b border-slate-800/60 px-4 flex items-center justify-between absolute top-0 left-0 right-0 z-[9999]"
         style={{
           paddingTop:
             'max(14px, calc(env(safe-area-inset-top, 0px) + 10px))',
           paddingBottom: '14px',
         }}
       >
-        <div className="flex items-center gap-3.5 min-w-0 flex-1">
-          {/* Destination icon — bigger */}
-          <div className="w-12 h-12 rounded-full bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center text-emerald-400 shrink-0">
-            <Navigation className="w-6 h-6" />
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 shrink-0">
+            <Navigation className="w-5 h-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="font-black text-white leading-tight text-base truncate">
+            <h2 className="font-black text-white leading-tight text-sm truncate">
               {destinationLabel || t('Navigation', 'التنقل')}
             </h2>
-            <div className="flex items-center gap-2.5 mt-1">
+            <div className="flex items-center gap-2 mt-0.5">
               {routeDistance != null && routeDuration != null ? (
                 <>
-                  <span className="text-emerald-400 text-sm font-bold">
+                  <span className="text-slate-400 text-xs font-bold">
                     {formatDistance(routeDistance)}
                   </span>
-                  <span className="text-slate-600 text-sm">·</span>
-                  <span className="text-sky-400 text-sm font-bold">
+                  <span className="text-slate-700 text-xs">·</span>
+                  <span className="text-slate-400 text-xs font-bold">
                     {formatDuration(routeDuration)}
                   </span>
                 </>
               ) : straightLineKm != null ? (
-                <span className="text-slate-400 text-sm font-medium">
-                  {straightLineKm.toFixed(1)} km {t('away', 'بعيد')}
+                <span className="text-slate-500 text-xs font-medium">
+                  {straightLineKm.toFixed(1)} km
                 </span>
               ) : null}
               {routeLoading && (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400 ml-1" />
+                <Loader2 className="w-3 h-3 animate-spin text-slate-500 ml-0.5" />
               )}
             </div>
           </div>
         </div>
 
-        {/* Action buttons — bigger touch targets */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={onMinimize}
-            className="w-11 h-11 rounded-full bg-slate-800 border border-slate-600 flex items-center justify-center text-slate-300 hover:bg-slate-700 hover:text-white active:scale-95 transition-all"
+            className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white active:scale-95 transition-all"
             title={t('Minimize', 'تصغير')}
           >
-            <Minimize2 className="w-5 h-5" />
+            <Minimize2 className="w-4.5 h-4.5" />
           </button>
           <button
             onClick={onClose}
-            className="w-11 h-11 rounded-full bg-slate-800 border border-slate-600 flex items-center justify-center text-slate-300 hover:bg-slate-700 hover:text-white active:scale-95 transition-all"
+            className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white active:scale-95 transition-all"
             title={t('Close', 'إغلاق')}
           >
-            <X className="w-5 h-5" />
+            <X className="w-4.5 h-4.5" />
           </button>
         </div>
       </div>
@@ -512,10 +510,10 @@ export default function DriverNavigationMap({
         {!followDriver && (
           <button
             onClick={handleRecenter}
-            className="absolute bottom-28 right-4 z-[500] w-14 h-14 bg-white rounded-full shadow-xl border border-slate-200 flex items-center justify-center text-blue-600 active:scale-95 transition-transform"
+            className="absolute bottom-28 right-4 z-[500] w-12 h-12 bg-slate-900/90 backdrop-blur-md rounded-full shadow-xl border border-slate-700/50 flex items-center justify-center text-white active:scale-95 transition-transform"
             title={t('Re-center on driver', 'إعادة التمركز على السائق')}
           >
-            <Locate className="w-7 h-7" />
+            <Locate className="w-5 h-5" />
           </button>
         )}
       </div>
@@ -529,64 +527,61 @@ export default function DriverNavigationMap({
           className="absolute left-3 right-3 z-[9998]"
           style={{ top: `${TOP_BAR_HEIGHT + 8}px` }}
         >
-          <div className="bg-slate-900/90 backdrop-blur-lg rounded-2xl border border-slate-700/50 shadow-2xl px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              {/* Countdown */}
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="shrink-0 w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                  <Timer className="w-4.5 h-4.5 text-purple-400" />
-                </div>
+          <div className="bg-slate-900/92 backdrop-blur-xl rounded-2xl border border-slate-700/40 shadow-2xl">
+            <div className="flex items-stretch">
+              {/* Countdown section */}
+              <div className="flex-1 px-3.5 py-2.5 flex items-center gap-2">
+                <Timer className="w-4 h-4 text-slate-500 shrink-0" />
                 <div>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">
-                    {t('DELIVER BY', 'وصّل قبل')}
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider leading-none">
+                    {t('TIME', 'الوقت')}
                   </p>
                   <p className="text-xl font-black text-white tabular-nums leading-tight mt-0.5">
                     {String(countdownData.minutes).padStart(2, '0')}
-                    <span className="text-purple-400/60">:</span>
+                    <span className="text-slate-600">:</span>
                     {String(countdownData.seconds).padStart(2, '0')}
                   </p>
                 </div>
               </div>
 
               {/* Divider */}
-              <div className="w-px h-10 bg-slate-700/60 shrink-0" />
+              <div className="w-px bg-slate-700/40 my-2" />
 
-              {/* Total */}
-              <div className="text-center min-w-0">
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">
+              {/* Total section */}
+              <div className="flex-1 px-3.5 py-2.5 text-center">
+                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider leading-none">
                   {t('TOTAL', 'المجموع')}
                 </p>
-                <p className="text-lg font-black text-emerald-400 tabular-nums leading-tight mt-0.5">
+                <p className="text-xl font-black text-white tabular-nums leading-tight mt-0.5">
                   {(() => {
                     const total = orderInfo.tipIncludedInTotal
                       ? orderInfo.totalAmount + (orderInfo.tipAmount ?? 0)
                       : orderInfo.totalAmount
-                    return total.toFixed(2)
+                    return total.toFixed(0)
                   })()}
-                </p>
-                <p className="text-[9px] text-slate-500 font-medium leading-none">
-                  {formatCurrency(orderInfo.currency)}
+                  <span className="text-slate-500 text-xs font-bold ml-0.5">{formatCurrency(orderInfo.currency)}</span>
                 </p>
               </div>
 
-              {/* Tip badge (only when sent to driver) */}
+              {/* Tip section (only when tip exists) */}
               <AnimatePresence>
                 {orderInfo.tipSentToDriver && (orderInfo.tipAmount ?? 0) > 0 && (
                   <motion.div
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                    className="shrink-0"
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 'auto', opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                    className="overflow-hidden flex items-stretch"
                   >
-                    <div className="bg-rose-500/15 border border-rose-500/30 rounded-xl px-2.5 py-1.5 text-center">
-                      <div className="flex items-center gap-1">
-                        <Heart className="w-3 h-3 text-rose-400" />
-                        <p className="text-[9px] text-rose-400/80 font-bold uppercase leading-none">
+                    <div className="w-px bg-slate-700/40 my-2" />
+                    <div className="px-3.5 py-2.5 text-center bg-emerald-500/5">
+                      <div className="flex items-center justify-center gap-1">
+                        <Heart className="w-3 h-3 text-emerald-400" />
+                        <p className="text-[9px] text-emerald-400/70 font-bold uppercase leading-none">
                           {t('TIP', 'إكرامية')}
                         </p>
                       </div>
-                      <p className="text-sm font-black text-rose-400 tabular-nums leading-tight mt-0.5">
+                      <p className="text-lg font-black text-emerald-400 tabular-nums leading-tight mt-0.5">
                         +{(orderInfo.tipAmount ?? 0).toFixed(0)}
                       </p>
                     </div>
@@ -606,9 +601,9 @@ export default function DriverNavigationMap({
           className="absolute left-3 right-3 z-[9998]"
           style={{ top: `${TOP_BAR_HEIGHT + 8}px` }}
         >
-          <div className="bg-amber-500/90 backdrop-blur-lg rounded-2xl shadow-2xl px-4 py-3 text-center">
-            <p className="text-sm font-black text-white">
-              {t('Time is up — deliver ASAP!', 'انتهى الوقت — وصّل بأسرع وقت!')}
+          <div className="bg-slate-900/92 backdrop-blur-xl rounded-2xl border border-amber-500/30 shadow-2xl px-4 py-3 text-center">
+            <p className="text-sm font-black text-amber-400">
+              {t('Time\'s up — deliver now!', 'انتهى الوقت — وصّل الآن!')}
             </p>
           </div>
         </motion.div>
@@ -625,30 +620,29 @@ export default function DriverNavigationMap({
             className="absolute left-3 right-3 z-[9999]"
             style={{ bottom: `calc(${BOTTOM_BAR_HEIGHT + 16}px + max(0px, env(safe-area-inset-bottom, 0px)))` }}
           >
-            <div className="bg-slate-900/95 backdrop-blur-xl rounded-3xl border border-blue-500/30 shadow-2xl overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-3 flex items-center gap-3">
+            <div className="bg-slate-900/95 backdrop-blur-xl rounded-3xl border border-slate-700/40 shadow-2xl overflow-hidden">
+              <div className="px-5 py-4 flex items-center gap-3">
                 <motion.div
-                  animate={{ scale: [1, 1.15, 1] }}
+                  animate={{ scale: [1, 1.1, 1] }}
                   transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-                  className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
+                  className="w-10 h-10 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0"
                 >
-                  <MapPin className="w-5 h-5 text-white" />
+                  <MapPin className="w-5 h-5 text-emerald-400" />
                 </motion.div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-white font-black text-sm">
-                    {t('You\'re at the customer\'s location!', 'أنت عند موقع العميل!')}
+                    {t('You\'re here!', 'لقد وصلت!')}
                   </p>
-                  <p className="text-blue-200/80 text-xs font-medium">
+                  <p className="text-slate-500 text-xs font-medium">
                     {distToDestKm != null ? `${Math.round(distToDestKm * 1000)}m ${t('away', 'بعيد')}` : ''}
                   </p>
                 </div>
               </div>
 
-              <div className="px-5 py-4">
-                {/* Slide to arrive track */}
+              <div className="px-5 pb-5">
                 <div
                   ref={arriveTrackRef}
-                  className="relative h-16 rounded-2xl bg-blue-950/60 border border-blue-500/20 overflow-hidden"
+                  className="relative h-14 rounded-2xl bg-slate-800/80 border border-slate-700/40 overflow-hidden"
                   onTouchStart={(e) => {
                     const touch = e.touches[0]
                     const rect = arriveTrackRef.current?.getBoundingClientRect()
@@ -676,30 +670,27 @@ export default function DriverNavigationMap({
                     setArriveSliding(false)
                   }}
                 >
-                  {/* Shimmer hint */}
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <motion.div
-                      animate={{ x: [0, 30, 0] }}
+                      animate={{ x: [0, 20, 0] }}
                       transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-                      className="text-blue-400/30 font-bold text-sm"
+                      className="text-slate-600 font-bold text-sm"
                     >
-                      {t('Slide to confirm arrival →', 'اسحب لتأكيد الوصول ←')}
+                      {t('Slide to confirm →', 'اسحب للتأكيد ←')}
                     </motion.div>
                   </div>
 
-                  {/* Slider thumb */}
                   <motion.div
-                    className="absolute top-2 left-2 w-12 h-12 rounded-xl bg-gradient-to-b from-blue-500 to-blue-600 shadow-lg flex items-center justify-center z-10"
+                    className="absolute top-1.5 left-1.5 w-11 h-11 rounded-xl bg-emerald-500 shadow-lg shadow-emerald-500/20 flex items-center justify-center z-10"
                     style={{ x: arriveSliderX }}
                     animate={!arriveSliding ? { x: 0 } : undefined}
                     transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   >
-                    <MapPin className="w-6 h-6 text-white" />
+                    <MapPin className="w-5 h-5 text-white" />
                   </motion.div>
 
-                  {/* Progress fill */}
                   <motion.div
-                    className="absolute top-0 left-0 bottom-0 bg-blue-500/10 rounded-2xl"
+                    className="absolute top-0 left-0 bottom-0 bg-emerald-500/8 rounded-2xl"
                     style={{ width: arriveSliderX + 56 }}
                   />
                 </div>
@@ -712,7 +703,7 @@ export default function DriverNavigationMap({
       {/* ── Bottom Card — ETA & Distance ────────────── */}
       {(routeDistance != null || straightLineKm != null) && (
         <div
-          className="absolute bottom-0 left-0 right-0 z-[9998] bg-slate-900/95 backdrop-blur-md border-t border-slate-700/60"
+          className="absolute bottom-0 left-0 right-0 z-[9998] bg-slate-900/95 backdrop-blur-xl border-t border-slate-800/60"
           style={{
             paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))',
           }}
@@ -726,30 +717,30 @@ export default function DriverNavigationMap({
                       ? '<1'
                       : Math.round(routeDuration / 60)}
                   </p>
-                  <p className="text-xs text-slate-400 font-bold mt-1">
+                  <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase tracking-wider">
                     {t('MIN', 'دقيقة')}
                   </p>
                 </div>
               )}
               {routeDistance != null && (
                 <div className="text-center">
-                  <p className="text-3xl font-black text-emerald-400 leading-none tabular-nums">
+                  <p className="text-3xl font-black text-white leading-none tabular-nums">
                     {formatDistance(routeDistance)}
                   </p>
-                  <p className="text-xs text-slate-400 font-bold mt-1">
-                    {t('DISTANCE', 'المسافة')}
+                  <p className="text-[10px] text-slate-500 font-bold mt-1 uppercase tracking-wider">
+                    {t('DIST', 'المسافة')}
                   </p>
                 </div>
               )}
               {routeError && !routeLoading && (
-                <p className="text-sm font-bold text-amber-400">
+                <p className="text-sm font-bold text-slate-400">
                   {t('Route unavailable', 'المسار غير متاح')}
                 </p>
               )}
             </div>
             {routeLoading && (
               <div className="shrink-0">
-                <RotateCw className="w-5 h-5 animate-spin text-slate-500" />
+                <RotateCw className="w-4 h-4 animate-spin text-slate-600" />
               </div>
             )}
           </div>

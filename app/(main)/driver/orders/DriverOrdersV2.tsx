@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Store, MapPin, Navigation, Flag, Wallet, Receipt, Truck,
   User, Smartphone, CircleAlert, RefreshCw, ArrowDown, History,
-  ChevronDown, Package, Calculator, Phone, Trash2, ShieldCheck,
+  ChevronDown, Package, Calculator, Phone, Trash2, ShieldCheck, Heart,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
@@ -189,6 +189,7 @@ function DriverOrdersV2Content() {
   const [showBizContact, setShowBizContact] = useState(false)
   const [removeTipConfirmOpen, setRemoveTipConfirmOpen] = useState(false)
   const [removingTip, setRemovingTip] = useState(false)
+  const countdownBoxRef = useRef<HTMLDivElement>(null)
 
   const [driverLat, setDriverLat] = useState<number | null>(null)
   const [driverLng, setDriverLng] = useState<number | null>(null)
@@ -197,6 +198,8 @@ function DriverOrdersV2Content() {
   const prevPendingCountRef = useRef(0)
   const declinedOrderIdsRef = useRef<Set<string>>(new Set())
   const acceptedAtRef = useRef<Map<string, number>>(new Map())
+  const pickedUpAtRef = useRef<number | null>(null)
+  const activeMapOrderIdRef = useRef<string | null>(null)
 
   const [startY, setStartY] = useState<number | null>(null)
   const [pullDistance, setPullDistance] = useState(0)
@@ -225,6 +228,8 @@ function DriverOrdersV2Content() {
     )
     return () => navigator.geolocation.clearWatch(watchId)
   }, [])
+
+  useEffect(() => { activeMapOrderIdRef.current = activeMapOrderId }, [activeMapOrderId])
 
   /* ── fetch orders ─────────────────────────────────────────────────── */
   const fetchOrders = useCallback(async () => {
@@ -268,7 +273,27 @@ function DriverOrdersV2Content() {
         const prevCount = prevPendingCountRef.current
         prevPendingCountRef.current = nextPending.length
         setPending(nextPending)
-        setMyDeliveries(mergedMy)
+
+        // Use updater to preserve optimistic pickup state:
+        // if the driver just slid "pick up" and the server hasn't
+        // propagated yet, keep the local version so the map and
+        // Phase C UI don't flicker back to Phase B.
+        setMyDeliveries((prev) => {
+          const pickedUpTs = pickedUpAtRef.current
+          const navId = activeMapOrderIdRef.current
+          if (pickedUpTs && now - pickedUpTs < keepWindow && navId) {
+            const localOrder = prev.find(
+              (lo) => lo.orderId === navId && lo.status === 'out-for-delivery'
+            )
+            if (localOrder) {
+              const idx = mergedMy.findIndex((o) => o.orderId === navId)
+              if (idx !== -1 && mergedMy[idx].status !== 'out-for-delivery') {
+                mergedMy[idx] = localOrder
+              }
+            }
+          }
+          return mergedMy
+        })
         setMyCompletedToday(nextCompleted)
         if (nextPending.length > prevCount && prevCount >= 0) {
           try {
@@ -363,6 +388,18 @@ function DriverOrdersV2Content() {
       }
     }
   }, [driverLat, driverLng, mapState, activeMapOrderId, myDeliveries])
+
+  /* auto-scroll to countdown box when map minimizes in Phase C */
+  const prevMapStateRef = useRef(mapState)
+  useEffect(() => {
+    const wasMaximized = prevMapStateRef.current === 'maximized'
+    prevMapStateRef.current = mapState
+    if (wasMaximized && mapState === 'minimized') {
+      setTimeout(() => {
+        countdownBoxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 300)
+    }
+  }, [mapState])
 
   /* ── derived ───────────────────────────────────────── */
   const activeOrder = myDeliveries[0] || null
@@ -514,9 +551,12 @@ function DriverOrdersV2Content() {
     const order = myDeliveries.find((x) => x.orderId === orderId)
     if (!order) return
     setActionId(orderId)
+    pickedUpAtRef.current = Date.now()
     setMyDeliveries((prev) =>
       prev.map((x) =>
-        x.orderId === orderId ? { ...x, status: 'out-for-delivery' } : x,
+        x.orderId === orderId
+          ? { ...x, status: 'out-for-delivery', driverPickedUpAt: new Date().toISOString() }
+          : x,
       ),
     )
     try {
@@ -532,7 +572,9 @@ function DriverOrdersV2Content() {
       pushDriverLocation()
       setActiveMapOrderId(orderId)
       setMapState('maximized')
-      fetchOrders()
+      // Delayed refetch — give Sanity time to propagate the write before
+      // we replace the optimistic state with server data.
+      setTimeout(() => fetchOrders(), 3000)
     } catch {
       setMyDeliveries((prev) =>
         prev.map((x) => (x.orderId === orderId ? order : x)),
@@ -892,18 +934,18 @@ function DriverOrdersV2Content() {
                       href={urls.google}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 text-sm min-h-[52px] shadow-md active:scale-[0.97] transition-all"
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-white font-bold py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all"
                     >
-                      <Navigation className="w-4 h-4 shrink-0" />
+                      <Navigation className="w-4 h-4 shrink-0 text-slate-400" />
                       Maps
                     </a>
                     <a
                       href={urls.waze}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-white font-bold py-3.5 text-sm min-h-[52px] shadow-md active:scale-[0.97] transition-all"
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-white font-bold py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all"
                     >
-                      <Navigation className="w-4 h-4 shrink-0" />
+                      <Navigation className="w-4 h-4 shrink-0 text-slate-400" />
                       Waze
                     </a>
                     <button
@@ -911,9 +953,9 @@ function DriverOrdersV2Content() {
                         setActiveMapOrderId(activeOrder.orderId)
                         setMapState('maximized')
                       }}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-slate-700 hover:bg-slate-600 border border-slate-600 text-emerald-400 font-bold py-3.5 text-sm min-h-[52px] shadow-md active:scale-[0.97] transition-all"
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all"
                     >
-                      <MapPin className="w-4 h-4 shrink-0 animate-pulse" />
+                      <MapPin className="w-4 h-4 shrink-0" />
                       {t('Map', 'خريطة')}
                     </button>
                   </div>
@@ -1067,265 +1109,285 @@ function DriverOrdersV2Content() {
             {/* ── Phase C: Delivering to Customer ──────── */}
             {isEnRouteToCustomer && !needsReconfirm(activeOrder) && (
               <>
-                {(activeOrder.customerName || activeOrder.customerPhone) && (
-                  <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 p-4 mb-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-700/50 text-slate-300">
-                        <User className="h-5 w-5" />
-                      </div>
-                      <span className="font-bold text-slate-100 text-lg">
-                        {activeOrder.customerName || '\u2014'}
-                      </span>
-                    </div>
-                    {activeOrder.customerPhone && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <a
-                          href={`tel:${activeOrder.customerPhone.replace(/\s/g, '')}`}
-                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-bold px-4 py-3 min-h-[48px] transition-colors"
-                        >
-                          <Phone className="w-4 h-4" />
-                          {activeOrder.customerPhone}
-                        </a>
-                        {getWhatsAppUrl(activeOrder.customerPhone) && (
-                          <a
-                            href={getWhatsAppUrl(activeOrder.customerPhone)!}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] font-bold px-4 py-3 min-h-[48px] transition-colors"
-                          >
-                            WhatsApp
-                          </a>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Business contact (collapsible) */}
-                <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 overflow-hidden mb-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowBizContact((p) => !p)}
-                    className="w-full flex items-center justify-between px-4 py-3 focus:outline-none"
-                  >
-                    <span className="flex items-center gap-2 text-sm font-bold text-slate-300">
-                      <Store className="h-4 w-4 text-amber-400" />
-                      {activeOrder.businessName}
-                    </span>
-                    <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${showBizContact ? 'rotate-180' : ''}`} />
-                  </button>
-                  {showBizContact && activeOrder.businessWhatsapp && (
-                    <div className="px-4 pb-3 flex flex-wrap items-center gap-2">
-                      <a
-                        href={`tel:${activeOrder.businessWhatsapp.replace(/\s/g, '')}`}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold px-4 py-3 min-h-[48px] transition-colors text-sm"
-                      >
-                        <Phone className="w-4 h-4" />
-                        {t('Call', 'اتصال')}
-                      </a>
-                      {getWhatsAppUrl(activeOrder.businessWhatsapp) && (
-                        <a
-                          href={getWhatsAppUrl(activeOrder.businessWhatsapp)!}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] font-bold px-4 py-3 min-h-[48px] transition-colors text-sm"
-                        >
-                          WhatsApp
-                        </a>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Delivery Countdown + Motivational Quote + Safety */}
-                {activeOrder.driverArrivedAt ? (
-                  <div className="rounded-3xl bg-gradient-to-b from-emerald-900/30 to-slate-900/40 border border-emerald-500/30 p-5 mb-4 text-center">
-                    <p className="text-emerald-400 font-black text-xl mb-1">
-                      ✅ {t('You have arrived!', 'لقد وصلت!')}
-                    </p>
-                    <p className="text-slate-400 text-sm">
-                      {t('Hand over the order and complete the delivery.', 'سلّم الطلب وأكمل التوصيل.')}
-                    </p>
-                  </div>
-                ) : activeOrder.estimatedDeliveryMinutes && activeOrder.driverPickedUpAt ? (() => {
-                  const pickupMs = new Date(activeOrder.driverPickedUpAt!).getTime()
-                  const targetMs = pickupMs + activeOrder.estimatedDeliveryMinutes! * 60 * 1000
-                  const remainMs = targetMs - deliveryNow
-                  const isOverdue = remainMs <= 0
-                  const cdMinutes = isOverdue ? 0 : Math.floor(remainMs / 60000)
-                  const cdSeconds = isOverdue ? 0 : Math.floor((remainMs % 60000) / 1000)
-
-                  return (
-                    <div className="rounded-3xl bg-gradient-to-b from-purple-900/30 to-slate-900/40 border border-purple-500/30 p-5 mb-4">
-                      <div className="text-center mb-4">
-                        <p className="text-purple-300/80 text-xs font-semibold uppercase tracking-wider mb-2">
-                          {t('Time remaining', 'الوقت المتبقي للتوصيل')}
-                        </p>
-                        {isOverdue ? (
-                          <p className="text-amber-400 font-bold text-lg animate-pulse">
-                            ⏰ {t('Deliver now!', 'وصّل الآن!')}
-                          </p>
-                        ) : (
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="bg-purple-500/20 rounded-2xl px-5 py-2 text-center min-w-[75px]">
-                              <span className="text-3xl font-black text-purple-300 tabular-nums block">
-                                {String(cdMinutes).padStart(2, '0')}
-                              </span>
-                              <span className="text-[10px] font-bold text-purple-400/60 uppercase tracking-wider">
-                                {t('min', 'دقيقة')}
-                              </span>
-                            </div>
-                            <span className="text-2xl font-black text-purple-400/40">:</span>
-                            <div className="bg-purple-500/20 rounded-2xl px-5 py-2 text-center min-w-[75px]">
-                              <span className="text-3xl font-black text-purple-300 tabular-nums block">
-                                {String(cdSeconds).padStart(2, '0')}
-                              </span>
-                              <span className="text-[10px] font-bold text-purple-400/60 uppercase tracking-wider">
-                                {t('sec', 'ثانية')}
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="text-center px-2 mb-4">
-                        <p className="text-slate-300/80 text-sm leading-relaxed italic">
-                          {DRIVER_MOTIVATIONAL_QUOTES[quoteIndex]}
-                        </p>
-                      </div>
-
-                      <div className="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-3 text-center">
-                        <p className="text-amber-300/80 text-xs font-medium leading-relaxed">
-                          🛡️ {t(
-                            'Drive safe and stay alert at all times. Your safety and the safety of others matter most. Handle the order with care.',
-                            'سُق بأمان وانتبه على الطريق دائماً. سلامتك وسلامة الآخرين أهم من أي توصيلة. وصّل الطلب بعناية.'
-                          )} 🤲
-                        </p>
-                      </div>
-                    </div>
-                  )
-                })() : isEnRouteToCustomer && (
-                  <div className="rounded-3xl bg-purple-900/20 border border-purple-500/20 p-4 mb-4 text-center">
-                    <p className="text-purple-300/60 text-sm animate-pulse">
-                      {t('Calculating delivery time…', 'جاري حساب وقت التوصيل…')}
-                    </p>
-                  </div>
-                )}
-
-                {/* Total to collect — BIG */}
+                {/* === COUNTDOWN + TOTAL + TIP — unified hero box === */}
+                <div ref={countdownBoxRef}>
                 {(() => {
                   const tipActive = activeOrder.tipIncludedInTotal && (activeOrder.tipAmount ?? 0) > 0 && !activeOrder.tipRemovedByDriver
+                  const tipPending = activeOrder.tipSentToDriver && (activeOrder.tipAmount ?? 0) > 0 && !activeOrder.tipIncludedInTotal && !activeOrder.tipRemovedByDriver
                   const collectTotal = tipActive
                     ? activeOrder.totalAmount + (activeOrder.tipAmount ?? 0)
                     : activeOrder.totalAmount
+
+                  const hasCountdown = activeOrder.estimatedDeliveryMinutes && activeOrder.driverPickedUpAt
+                  let cdMinutes = 0, cdSeconds = 0, isOverdue = false
+                  if (hasCountdown) {
+                    const pickupMs = new Date(activeOrder.driverPickedUpAt!).getTime()
+                    const targetMs = pickupMs + activeOrder.estimatedDeliveryMinutes! * 60 * 1000
+                    const remainMs = targetMs - deliveryNow
+                    isOverdue = remainMs <= 0
+                    cdMinutes = isOverdue ? 0 : Math.floor(remainMs / 60000)
+                    cdSeconds = isOverdue ? 0 : Math.floor((remainMs % 60000) / 1000)
+                  }
+
                   return (
-                    <div className="rounded-3xl bg-emerald-500/10 border border-emerald-500/30 p-5 mb-4 text-center">
-                      <p className="text-emerald-300/80 text-sm font-semibold mb-1">
-                        {tipActive
-                          ? t('Collect from Customer (incl. tip)', 'حصّل من العميل (شامل الإكرامية)')
-                          : t('Collect from Customer', 'حصّل من العميل')}
-                      </p>
-                      <AnimatePresence mode="popLayout">
-                        <motion.p
-                          key={collectTotal.toFixed(2)}
-                          initial={{ y: -10, opacity: 0, scale: 0.9 }}
-                          animate={{ y: 0, opacity: 1, scale: 1 }}
-                          exit={{ y: 10, opacity: 0, scale: 0.9 }}
-                          transition={{ type: 'spring', stiffness: 350, damping: 22 }}
-                          className={`text-5xl font-black tabular-nums ${tipActive ? 'text-emerald-300' : 'text-emerald-400'}`}
-                        >
-                          {collectTotal.toFixed(2)}
-                        </motion.p>
-                      </AnimatePresence>
-                      <p className="text-emerald-300/60 text-lg font-bold">
-                        {fmtCurrency(activeOrder.currency)}
-                      </p>
-
-                      {/* Tip breakdown when included in total */}
-                      {tipActive && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          transition={{ duration: 0.3 }}
-                          className="mt-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-left"
-                        >
-                          <div className="flex items-center gap-2 mb-2">
-                            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                            <p className="text-emerald-300/80 text-xs font-bold">
-                              {t('Amount breakdown', 'تفصيل المبلغ')}
-                            </p>
+                    <div className="rounded-3xl bg-gradient-to-b from-slate-800/80 to-slate-900/80 border border-slate-700/60 overflow-hidden mb-4">
+                      {/* — Section 1: Countdown — */}
+                      {activeOrder.driverArrivedAt ? (
+                        <div className="px-5 py-5 text-center border-b border-slate-700/40">
+                          <div className="inline-flex items-center gap-2 bg-emerald-500/15 rounded-full px-4 py-2">
+                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="text-emerald-400 font-black text-base">
+                              {t('You have arrived', 'لقد وصلت')}
+                            </span>
                           </div>
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-slate-400">{t('Order', 'الطلب')}</span>
-                              <span className="text-emerald-400 font-medium tabular-nums">{activeOrder.totalAmount.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between text-xs">
-                              <span className="text-rose-400">💚 {t('Tip', 'إكرامية')} ({activeOrder.tipPercent ?? 0}%)</span>
-                              <span className="text-rose-400 font-medium tabular-nums">+{(activeOrder.tipAmount ?? 0).toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between text-sm font-bold pt-1 border-t border-emerald-500/20">
-                              <span className="text-emerald-300">{t('Total', 'المجموع')}</span>
-                              <span className="text-emerald-300 tabular-nums">{collectTotal.toFixed(2)} {fmtCurrency(activeOrder.currency)}</span>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-
-                      {/* Tip pending (sent but not yet included in total) */}
-                      {activeOrder.tipSentToDriver && (activeOrder.tipAmount ?? 0) > 0 && !activeOrder.tipIncludedInTotal && !activeOrder.tipRemovedByDriver && (
-                        <div className="mt-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 p-3">
-                          <p className="text-rose-300/80 text-xs font-medium mb-1">
-                            💚 {t('Customer tip (gesture of appreciation)', 'إكرامية العميل (لفتة تقدير)')}
+                          <p className="text-slate-400 text-xs mt-2">
+                            {t('Hand over the order and complete the delivery.', 'سلّم الطلب وأكمل التوصيل.')}
                           </p>
-                          <p className="text-2xl font-black text-rose-400 tabular-nums">
-                            +{(activeOrder.tipAmount ?? 0).toFixed(2)} {fmtCurrency(activeOrder.currency)}
-                          </p>
-                          <p className="text-rose-300/50 text-[10px] mt-1 leading-relaxed">
-                            {t(
-                              'This is a voluntary gesture from the customer — not required. The customer may change their mind.',
-                              'هذه لفتة تطوعية من العميل — ليست إلزامية. يمكن للعميل أن يغيّر رأيه.'
-                            )}
+                        </div>
+                      ) : hasCountdown ? (
+                        <div className="px-5 py-5 text-center border-b border-slate-700/40">
+                          {isOverdue ? (
+                            <div className="flex items-center justify-center gap-2">
+                              <motion.div
+                                animate={{ scale: [1, 1.15, 1] }}
+                                transition={{ repeat: Infinity, duration: 1.5 }}
+                                className="text-amber-400 font-black text-lg"
+                              >
+                                {t('Time\'s up — deliver now!', 'انتهى الوقت — وصّل الآن!')}
+                              </motion.div>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-2">
+                                {t('Deliver within', 'وصّل خلال')}
+                              </p>
+                              <div className="flex items-center justify-center gap-1.5">
+                                <div className="bg-slate-700/60 rounded-xl px-4 py-1.5 min-w-[60px]">
+                                  <span className="text-3xl font-black text-white tabular-nums">
+                                    {String(cdMinutes).padStart(2, '0')}
+                                  </span>
+                                </div>
+                                <span className="text-xl font-black text-slate-600">:</span>
+                                <div className="bg-slate-700/60 rounded-xl px-4 py-1.5 min-w-[60px]">
+                                  <span className="text-3xl font-black text-white tabular-nums">
+                                    {String(cdSeconds).padStart(2, '0')}
+                                  </span>
+                                </div>
+                              </div>
+                              {(tipPending || tipActive) && (
+                                <p className="text-emerald-400/70 text-[11px] font-semibold mt-2">
+                                  {t(
+                                    'Deliver on time to earn the tip below',
+                                    'وصّل بالوقت لتحصل على الإكرامية أدناه'
+                                  )}
+                                </p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="px-5 py-4 text-center border-b border-slate-700/40">
+                          <p className="text-slate-500 text-sm animate-pulse">
+                            {t('Calculating delivery time…', 'جاري حساب وقت التوصيل…')}
                           </p>
                         </div>
                       )}
 
-                      {/* Tip removed by driver badge */}
+                      {/* — Section 2: Total to collect — */}
+                      <div className="px-5 py-5 text-center border-b border-slate-700/40">
+                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">
+                          {tipActive
+                            ? t('Collect (incl. tip)', 'حصّل (شامل الإكرامية)')
+                            : t('Collect from customer', 'حصّل من العميل')}
+                        </p>
+                        <AnimatePresence mode="popLayout">
+                          <motion.p
+                            key={collectTotal.toFixed(2)}
+                            initial={{ y: -8, opacity: 0, scale: 0.95 }}
+                            animate={{ y: 0, opacity: 1, scale: 1 }}
+                            exit={{ y: 8, opacity: 0, scale: 0.95 }}
+                            transition={{ type: 'spring', stiffness: 350, damping: 22 }}
+                            className="text-5xl font-black text-white tabular-nums leading-none"
+                          >
+                            {collectTotal.toFixed(2)}
+                            <span className="text-slate-500 text-lg font-bold ml-1.5">{fmtCurrency(activeOrder.currency)}</span>
+                          </motion.p>
+                        </AnimatePresence>
+
+                        {/* Tip breakdown when included */}
+                        {tipActive && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            className="mt-3 mx-auto max-w-[280px] space-y-1 text-xs"
+                          >
+                            <div className="flex justify-between text-slate-400">
+                              <span>{t('Order', 'الطلب')}</span>
+                              <span className="tabular-nums">{activeOrder.totalAmount.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-emerald-400 font-semibold">
+                              <span>{t('Tip', 'إكرامية')} ({activeOrder.tipPercent ?? 0}%)</span>
+                              <span className="tabular-nums">+{(activeOrder.tipAmount ?? 0).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-white font-bold text-sm pt-1 border-t border-slate-700/50">
+                              <span>{t('Total', 'المجموع')}</span>
+                              <span className="tabular-nums">{collectTotal.toFixed(2)}</span>
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
+
+                      {/* — Section 3: Tip info — */}
+                      {tipPending && (
+                        <div className="px-5 py-4 border-b border-slate-700/40">
+                          <div className="flex items-start gap-3">
+                            <div className="shrink-0 w-9 h-9 rounded-full bg-emerald-500/15 flex items-center justify-center mt-0.5">
+                              <Heart className="w-4 h-4 text-emerald-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <p className="text-emerald-400 text-sm font-bold">
+                                  {t('Customer tip', 'إكرامية من العميل')}
+                                </p>
+                                <span className="text-emerald-400 text-xl font-black tabular-nums shrink-0">
+                                  +{(activeOrder.tipAmount ?? 0).toFixed(2)}
+                                </span>
+                              </div>
+                              <p className="text-slate-500 text-[11px] leading-relaxed mt-1">
+                                {t(
+                                  'The customer promised this tip if you deliver before the countdown ends. It\'s a gesture of appreciation — not an obligation. Deliver on time to earn it!',
+                                  'العميل وعد بهذه الإكرامية إذا وصّلت قبل انتهاء العد التنازلي. هذه لفتة تقدير — ليست إلزامية. وصّل بالوقت لتحصل عليها!'
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tip removed by driver */}
                       {activeOrder.tipRemovedByDriver && (
-                        <div className="mt-3 rounded-2xl bg-slate-800/50 border border-slate-600/30 p-3">
-                          <p className="text-slate-400 text-xs font-medium">
+                        <div className="px-5 py-3 border-b border-slate-700/40">
+                          <p className="text-slate-500 text-xs text-center">
                             {t('You removed the tip from this order.', 'لقد أزلت الإكرامية من هذا الطلب.')}
                           </p>
                         </div>
                       )}
 
-                      {/* Remove tip button — only when tip is active and order is not completed */}
-                      {tipActive && activeOrder.status !== 'completed' && (
-                        <motion.button
-                          type="button"
-                          onClick={() => setRemoveTipConfirmOpen(true)}
-                          whileTap={{ scale: 0.95 }}
-                          className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-rose-900/30 hover:bg-rose-900/50 border border-rose-500/30 text-rose-400 font-semibold px-4 py-2.5 text-xs min-h-[40px] transition-all"
+                      {/* — Section 4: Actions row — */}
+                      <div className="px-4 py-3 flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => {
+                            setCalcOrderTotal(collectTotal)
+                            setCalcCurrency(activeOrder.currency)
+                            setCalcOpen(true)
+                          }}
+                          className="inline-flex items-center gap-2 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-white font-bold px-4 py-2.5 text-sm active:scale-[0.97] transition-all"
                         >
-                          <Trash2 className="w-4 h-4" />
-                          {t('Remove tip from total', 'إزالة الإكرامية من المجموع')}
-                        </motion.button>
-                      )}
-
-                      <button
-                        onClick={() => {
-                          setCalcOrderTotal(collectTotal)
-                          setCalcCurrency(activeOrder.currency)
-                          setCalcOpen(true)
-                        }}
-                        className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold px-5 py-3 text-sm min-h-[48px] active:scale-[0.97] transition-all"
-                      >
-                        <Calculator className="w-5 h-5 text-amber-400" />
-                        {t('Change Calculator', 'حاسبة الباقي')}
-                      </button>
+                          <Calculator className="w-4 h-4 text-slate-400" />
+                          {t('Calculator', 'الحاسبة')}
+                        </button>
+                        {tipActive && activeOrder.status !== 'completed' && (
+                          <motion.button
+                            type="button"
+                            onClick={() => setRemoveTipConfirmOpen(true)}
+                            whileTap={{ scale: 0.95 }}
+                            className="inline-flex items-center gap-2 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-400 font-semibold px-4 py-2.5 text-sm transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            {t('Remove tip', 'إزالة الإكرامية')}
+                          </motion.button>
+                        )}
+                      </div>
                     </div>
                   )
                 })()}
+                </div>
+
+                {/* Motivational quote */}
+                {!activeOrder.driverArrivedAt && activeOrder.driverPickedUpAt && (
+                  <div className="text-center px-3 mb-4">
+                    <p className="text-slate-500 text-sm leading-relaxed italic">
+                      {DRIVER_MOTIVATIONAL_QUOTES[quoteIndex]}
+                    </p>
+                    <p className="text-slate-600 text-[10px] mt-1.5">
+                      {t(
+                        'Drive safe — your safety comes first.',
+                        'سُق بأمان — سلامتك أولاً.'
+                      )}
+                    </p>
+                  </div>
+                )}
+
+                {/* Contact cards (collapsible) */}
+                <div className="space-y-2 mb-4">
+                  {(activeOrder.customerName || activeOrder.customerPhone) && (
+                    <div className="rounded-2xl bg-slate-800/40 border border-slate-700/40 p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700/60 text-slate-400">
+                            <User className="h-4 w-4" />
+                          </div>
+                          <span className="font-bold text-slate-200 text-sm truncate">
+                            {activeOrder.customerName || '\u2014'}
+                          </span>
+                        </div>
+                        {activeOrder.customerPhone && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <a
+                              href={`tel:${activeOrder.customerPhone.replace(/\s/g, '')}`}
+                              className="w-9 h-9 rounded-full bg-slate-700/60 hover:bg-slate-600 flex items-center justify-center text-emerald-400 active:scale-95 transition-all"
+                            >
+                              <Phone className="w-4 h-4" />
+                            </a>
+                            {getWhatsAppUrl(activeOrder.customerPhone) && (
+                              <a
+                                href={getWhatsAppUrl(activeOrder.customerPhone)!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-9 h-9 rounded-full bg-slate-700/60 hover:bg-slate-600 flex items-center justify-center text-[#25D366] active:scale-95 transition-all"
+                              >
+                                <Smartphone className="w-4 h-4" />
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeOrder.businessWhatsapp && (
+                    <div className="rounded-2xl bg-slate-800/40 border border-slate-700/40 p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700/60 text-slate-400">
+                            <Store className="h-4 w-4" />
+                          </div>
+                          <span className="font-bold text-slate-200 text-sm truncate">
+                            {activeOrder.businessName}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <a
+                            href={`tel:${activeOrder.businessWhatsapp.replace(/\s/g, '')}`}
+                            className="w-9 h-9 rounded-full bg-slate-700/60 hover:bg-slate-600 flex items-center justify-center text-emerald-400 active:scale-95 transition-all"
+                          >
+                            <Phone className="w-4 h-4" />
+                          </a>
+                          {getWhatsAppUrl(activeOrder.businessWhatsapp) && (
+                            <a
+                              href={getWhatsAppUrl(activeOrder.businessWhatsapp)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-9 h-9 rounded-full bg-slate-700/60 hover:bg-slate-600 flex items-center justify-center text-[#25D366] active:scale-95 transition-all"
+                            >
+                              <Smartphone className="w-4 h-4" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Remove tip confirmation modal */}
                 <AnimatePresence>
@@ -1338,44 +1400,46 @@ function DriverOrdersV2Content() {
                       onClick={() => setRemoveTipConfirmOpen(false)}
                     >
                       <motion.div
-                        initial={{ scale: 0.85, opacity: 0 }}
+                        initial={{ scale: 0.9, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.85, opacity: 0 }}
+                        exit={{ scale: 0.9, opacity: 0 }}
                         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                         className="relative w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl overflow-hidden"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div className="bg-gradient-to-b from-amber-600 to-amber-700 px-6 pt-5 pb-4 text-white">
-                          <div className="flex items-center gap-3">
-                            <Trash2 className="w-6 h-6 shrink-0" />
-                            <h3 className="text-lg font-black">
+                        <div className="px-6 pt-6 pb-4">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
+                              <Trash2 className="w-5 h-5 text-slate-400" />
+                            </div>
+                            <h3 className="text-white text-lg font-black">
                               {t('Remove tip?', 'إزالة الإكرامية؟')}
                             </h3>
                           </div>
-                          <p className="text-sm text-white/80 mt-1.5 leading-relaxed">
+                          <p className="text-sm text-slate-400 leading-relaxed">
                             {t(
-                              'Are you sure you want to remove the customer\'s tip? This will update the total for both you and the customer.',
-                              'هل أنت متأكد من إزالة إكرامية العميل؟ سيتم تحديث المجموع لك وللعميل.'
+                              'This will update the total for both you and the customer.',
+                              'سيتم تحديث المجموع لك وللعميل.'
                             )}
                           </p>
                         </div>
-                        <div className="px-6 py-5 flex gap-3">
+                        <div className="px-6 pb-6 flex gap-3">
                           <motion.button
                             type="button"
                             onClick={() => removeTip(activeOrder.orderId)}
                             disabled={removingTip}
                             whileTap={{ scale: 0.95 }}
-                            className="flex-1 py-3.5 rounded-2xl font-bold text-sm bg-red-500 text-white shadow-lg shadow-red-500/20 disabled:opacity-60 transition-all"
+                            className="flex-1 py-3.5 rounded-2xl font-bold text-sm bg-slate-800 border border-slate-700 text-white disabled:opacity-60 transition-all hover:bg-slate-700"
                           >
                             {removingTip
                               ? t('Removing…', 'جاري الإزالة…')
-                              : t('Yes, remove tip', 'نعم، أزل الإكرامية')}
+                              : t('Yes, remove', 'نعم، أزل')}
                           </motion.button>
                           <motion.button
                             type="button"
                             onClick={() => setRemoveTipConfirmOpen(false)}
                             whileTap={{ scale: 0.95 }}
-                            className="flex-1 py-3.5 rounded-2xl font-bold text-sm bg-slate-700 text-white transition-all hover:bg-slate-600"
+                            className="flex-1 py-3.5 rounded-2xl font-bold text-sm bg-emerald-600 text-white transition-all hover:bg-emerald-500"
                           >
                             {t('Keep tip', 'أبقِ الإكرامية')}
                           </motion.button>
@@ -1403,19 +1467,19 @@ function DriverOrdersV2Content() {
                 <div className="mt-4 flex flex-wrap items-center justify-between px-2 gap-4">
                   <button
                     onClick={() => setReportOrderId(activeOrder.orderId)}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-300 transition-colors"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-400 transition-colors"
                   >
-                    <Flag className="h-4 w-4" />
-                    {t('Report customer', 'الإبلاغ عن العميل')}
+                    <Flag className="h-3.5 w-3.5" />
+                    {t('Report', 'إبلاغ')}
                   </button>
                   <button
                     onClick={() => cancel(activeOrder.orderId)}
                     disabled={actionId === activeOrder.orderId}
-                    className="text-xs font-semibold text-rose-500/80 hover:text-rose-400 transition-colors underline underline-offset-4"
+                    className="text-xs font-semibold text-slate-600 hover:text-slate-400 transition-colors"
                   >
                     {actionId === activeOrder.orderId
                       ? t('Cancelling\u2026', 'جاري الإلغاء\u2026')
-                      : t('Cancel delivery', 'إلغاء التوصيل')}
+                      : t('Cancel', 'إلغاء')}
                   </button>
                 </div>
               </>
