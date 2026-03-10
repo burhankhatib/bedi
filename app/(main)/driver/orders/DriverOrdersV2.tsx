@@ -1746,6 +1746,7 @@ function DriverOrdersV2Content() {
             : order.businessName
           const logoUrl = isEnRoute ? undefined : order.businessLogoUrl
 
+          const hasCountdown = isEnRoute && order.driverPickedUpAt && order.estimatedDeliveryMinutes
           return (
             <DriverNavigationMap
               driverLat={driverLat}
@@ -1756,6 +1757,20 @@ function DriverOrdersV2Content() {
               onClose={() => setMapState('hidden')}
               destinationLabel={label}
               destinationLogoUrl={logoUrl}
+              orderId={order.orderId}
+              onArrive={arrive}
+              countdown={hasCountdown ? {
+                driverPickedUpAt: order.driverPickedUpAt!,
+                estimatedDeliveryMinutes: order.estimatedDeliveryMinutes!,
+              } : undefined}
+              orderInfo={isEnRoute ? {
+                totalAmount: order.totalAmount,
+                currency: order.currency,
+                tipAmount: order.tipAmount,
+                tipSentToDriver: order.tipSentToDriver,
+                tipIncludedInTotal: order.tipIncludedInTotal,
+                driverArrivedAt: order.driverArrivedAt,
+              } : undefined}
             />
           )
         })()}

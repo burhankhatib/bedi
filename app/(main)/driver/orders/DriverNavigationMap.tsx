@@ -4,8 +4,10 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Minimize2, Navigation, Loader2, X, Locate, RotateCw } from 'lucide-react'
+import { Minimize2, Navigation, Loader2, X, Locate, RotateCw, Timer, Banknote, Heart, MapPin } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useLanguage } from '@/components/LanguageContext'
+import { formatCurrency } from '@/lib/currency'
 import { distanceKm } from '@/lib/maps-utils'
 
 if (typeof window !== 'undefined') {
@@ -200,6 +202,24 @@ interface DriverNavigationMapProps {
   onClose: () => void
   destinationLabel?: string
   destinationLogoUrl?: string
+  /** Delivery countdown info (Phase C only) */
+  countdown?: {
+    driverPickedUpAt: string
+    estimatedDeliveryMinutes: number
+  }
+  /** Order financial info for the floating bar */
+  orderInfo?: {
+    totalAmount: number
+    currency: string
+    tipAmount?: number
+    tipSentToDriver?: boolean
+    tipIncludedInTotal?: boolean
+    driverArrivedAt?: string
+  }
+  /** Called when the driver slides "I Arrived" from within the map */
+  onArrive?: (orderId: string) => void
+  /** The order ID (needed for the arrive action) */
+  orderId?: string
 }
 
 const TOP_BAR_HEIGHT = 88
@@ -214,6 +234,10 @@ export default function DriverNavigationMap({
   onClose,
   destinationLabel,
   destinationLogoUrl,
+  countdown,
+  orderInfo,
+  onArrive,
+  orderId,
 }: DriverNavigationMapProps) {
   const { t } = useLanguage()
   const [route, setRoute] = useState<[number, number][]>([])
@@ -222,6 +246,48 @@ export default function DriverNavigationMap({
   const [routeDistance, setRouteDistance] = useState<number | null>(null)
   const [routeDuration, setRouteDuration] = useState<number | null>(null)
   const [followDriver, setFollowDriver] = useState(true)
+
+  const [countdownNow, setCountdownNow] = useState(() => Date.now())
+  const [arriveSliderX, setArriveSliderX] = useState(0)
+  const [arriveSliding, setArriveSliding] = useState(false)
+  const arriveTrackRef = useRef<HTMLDivElement>(null)
+
+  // Countdown ticker
+  useEffect(() => {
+    if (!countdown) return
+    const id = setInterval(() => setCountdownNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [!!countdown])
+
+  const countdownData = useMemo(() => {
+    if (!countdown) return null
+    const pickedMs = new Date(countdown.driverPickedUpAt).getTime()
+    const targetMs = pickedMs + countdown.estimatedDeliveryMinutes * 60 * 1000
+    const remainMs = targetMs - countdownNow
+    if (remainMs <= 0) return { minutes: 0, seconds: 0, overdue: true }
+    return {
+      minutes: Math.floor(remainMs / 60000),
+      seconds: Math.floor((remainMs % 60000) / 1000),
+      overdue: false,
+    }
+  }, [countdown, countdownNow])
+
+  // Proximity check for arrival modal
+  const distToDestKm = useMemo(() => {
+    if (!driverLat || !driverLng || !destLat || !destLng) return null
+    return distanceKm({ lat: driverLat, lng: driverLng }, { lat: destLat, lng: destLng })
+  }, [driverLat, driverLng, destLat, destLng])
+
+  const isWithin100m = distToDestKm != null && distToDestKm <= 0.1
+  const showArriveModal = isWithin100m && onArrive && orderId && !orderInfo?.driverArrivedAt
+
+  const handleArriveSlideComplete = useCallback(() => {
+    if (onArrive && orderId) {
+      onArrive(orderId)
+    }
+    setArriveSliderX(0)
+    setArriveSliding(false)
+  }, [onArrive, orderId])
 
   const handleRecenter = useCallback(() => {
     setFollowDriver(true)
@@ -454,10 +520,199 @@ export default function DriverNavigationMap({
         )}
       </div>
 
+      {/* ── Floating Order Info Bar (countdown + total + tip) ─── */}
+      {orderInfo && countdownData && !countdownData.overdue && (
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          className="absolute left-3 right-3 z-[9998]"
+          style={{ top: `${TOP_BAR_HEIGHT + 8}px` }}
+        >
+          <div className="bg-slate-900/90 backdrop-blur-lg rounded-2xl border border-slate-700/50 shadow-2xl px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              {/* Countdown */}
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="shrink-0 w-9 h-9 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                  <Timer className="w-4.5 h-4.5 text-purple-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">
+                    {t('DELIVER BY', 'وصّل قبل')}
+                  </p>
+                  <p className="text-xl font-black text-white tabular-nums leading-tight mt-0.5">
+                    {String(countdownData.minutes).padStart(2, '0')}
+                    <span className="text-purple-400/60">:</span>
+                    {String(countdownData.seconds).padStart(2, '0')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="w-px h-10 bg-slate-700/60 shrink-0" />
+
+              {/* Total */}
+              <div className="text-center min-w-0">
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">
+                  {t('TOTAL', 'المجموع')}
+                </p>
+                <p className="text-lg font-black text-emerald-400 tabular-nums leading-tight mt-0.5">
+                  {(() => {
+                    const total = orderInfo.tipIncludedInTotal
+                      ? orderInfo.totalAmount + (orderInfo.tipAmount ?? 0)
+                      : orderInfo.totalAmount
+                    return total.toFixed(2)
+                  })()}
+                </p>
+                <p className="text-[9px] text-slate-500 font-medium leading-none">
+                  {formatCurrency(orderInfo.currency)}
+                </p>
+              </div>
+
+              {/* Tip badge (only when sent to driver) */}
+              <AnimatePresence>
+                {orderInfo.tipSentToDriver && (orderInfo.tipAmount ?? 0) > 0 && (
+                  <motion.div
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                    className="shrink-0"
+                  >
+                    <div className="bg-rose-500/15 border border-rose-500/30 rounded-xl px-2.5 py-1.5 text-center">
+                      <div className="flex items-center gap-1">
+                        <Heart className="w-3 h-3 text-rose-400" />
+                        <p className="text-[9px] text-rose-400/80 font-bold uppercase leading-none">
+                          {t('TIP', 'إكرامية')}
+                        </p>
+                      </div>
+                      <p className="text-sm font-black text-rose-400 tabular-nums leading-tight mt-0.5">
+                        +{(orderInfo.tipAmount ?? 0).toFixed(0)}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── Overdue banner ───────────────────────────── */}
+      {orderInfo && countdownData?.overdue && (
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="absolute left-3 right-3 z-[9998]"
+          style={{ top: `${TOP_BAR_HEIGHT + 8}px` }}
+        >
+          <div className="bg-amber-500/90 backdrop-blur-lg rounded-2xl shadow-2xl px-4 py-3 text-center">
+            <p className="text-sm font-black text-white">
+              {t('Time is up — deliver ASAP!', 'انتهى الوقت — وصّل بأسرع وقت!')}
+            </p>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── I Arrived Slider Modal (within 100m) ─────── */}
+      <AnimatePresence>
+        {showArriveModal && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+            className="absolute left-3 right-3 z-[9999]"
+            style={{ bottom: `calc(${BOTTOM_BAR_HEIGHT + 16}px + max(0px, env(safe-area-inset-bottom, 0px)))` }}
+          >
+            <div className="bg-slate-900/95 backdrop-blur-xl rounded-3xl border border-blue-500/30 shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-3 flex items-center gap-3">
+                <motion.div
+                  animate={{ scale: [1, 1.15, 1] }}
+                  transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+                  className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center"
+                >
+                  <MapPin className="w-5 h-5 text-white" />
+                </motion.div>
+                <div>
+                  <p className="text-white font-black text-sm">
+                    {t('You\'re at the customer\'s location!', 'أنت عند موقع العميل!')}
+                  </p>
+                  <p className="text-blue-200/80 text-xs font-medium">
+                    {distToDestKm != null ? `${Math.round(distToDestKm * 1000)}m ${t('away', 'بعيد')}` : ''}
+                  </p>
+                </div>
+              </div>
+
+              <div className="px-5 py-4">
+                {/* Slide to arrive track */}
+                <div
+                  ref={arriveTrackRef}
+                  className="relative h-16 rounded-2xl bg-blue-950/60 border border-blue-500/20 overflow-hidden"
+                  onTouchStart={(e) => {
+                    const touch = e.touches[0]
+                    const rect = arriveTrackRef.current?.getBoundingClientRect()
+                    if (!rect) return
+                    if (touch.clientX - rect.left < 70) {
+                      setArriveSliding(true)
+                      setArriveSliderX(0)
+                    }
+                  }}
+                  onTouchMove={(e) => {
+                    if (!arriveSliding || !arriveTrackRef.current) return
+                    const rect = arriveTrackRef.current.getBoundingClientRect()
+                    const x = Math.max(0, Math.min(e.touches[0].clientX - rect.left - 28, rect.width - 56))
+                    setArriveSliderX(x)
+                  }}
+                  onTouchEnd={() => {
+                    if (!arriveSliding || !arriveTrackRef.current) return
+                    const rect = arriveTrackRef.current.getBoundingClientRect()
+                    const threshold = rect.width - 80
+                    if (arriveSliderX >= threshold) {
+                      handleArriveSlideComplete()
+                    } else {
+                      setArriveSliderX(0)
+                    }
+                    setArriveSliding(false)
+                  }}
+                >
+                  {/* Shimmer hint */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <motion.div
+                      animate={{ x: [0, 30, 0] }}
+                      transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+                      className="text-blue-400/30 font-bold text-sm"
+                    >
+                      {t('Slide to confirm arrival →', 'اسحب لتأكيد الوصول ←')}
+                    </motion.div>
+                  </div>
+
+                  {/* Slider thumb */}
+                  <motion.div
+                    className="absolute top-2 left-2 w-12 h-12 rounded-xl bg-gradient-to-b from-blue-500 to-blue-600 shadow-lg flex items-center justify-center z-10"
+                    style={{ x: arriveSliderX }}
+                    animate={!arriveSliding ? { x: 0 } : undefined}
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  >
+                    <MapPin className="w-6 h-6 text-white" />
+                  </motion.div>
+
+                  {/* Progress fill */}
+                  <motion.div
+                    className="absolute top-0 left-0 bottom-0 bg-blue-500/10 rounded-2xl"
+                    style={{ width: arriveSliderX + 56 }}
+                  />
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Bottom Card — ETA & Distance ────────────── */}
       {(routeDistance != null || straightLineKm != null) && (
         <div
-          className="absolute bottom-0 left-0 right-0 z-[9999] bg-slate-900/95 backdrop-blur-md border-t border-slate-700/60"
+          className="absolute bottom-0 left-0 right-0 z-[9998] bg-slate-900/95 backdrop-blur-md border-t border-slate-700/60"
           style={{
             paddingBottom: 'max(14px, env(safe-area-inset-bottom, 0px))',
           }}

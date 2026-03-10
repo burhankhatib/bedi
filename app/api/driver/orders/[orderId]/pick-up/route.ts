@@ -7,7 +7,29 @@ import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
-const EXTRA_BUFFER_MINUTES = 5
+/**
+ * ETA formula — balanced for driver success & customer satisfaction:
+ *
+ *   total = drivingETA × 1.5  +  STARTUP_BUFFER  (min: MIN_DELIVERY_MINUTES)
+ *
+ * Breakdown:
+ * • drivingETA × 1.5  — adds 30 sec per driving minute to absorb traffic,
+ *                        red lights, one-way detours, and finding parking.
+ * • STARTUP_BUFFER (5 min) — flat time for loading the food, securing it on
+ *                        the motorcycle/car, and pulling out of the business.
+ * • MIN_DELIVERY_MINUTES (8 min) — floor so ultra-close drops (< 1 km) still
+ *                        give the driver a realistic window.
+ *
+ * Examples (OSRM driving time → customer countdown):
+ *   2 min  →  2×1.5 + 5 =  8 min  (floor kicks in)
+ *   3 min  →  3×1.5 + 5 =  9.5 → 10 min
+ *   5 min  →  5×1.5 + 5 = 12.5 → 13 min
+ *   8 min  →  8×1.5 + 5 = 17 min
+ *  15 min  → 15×1.5 + 5 = 27.5 → 28 min
+ */
+const TRAFFIC_MULTIPLIER = 1.5
+const STARTUP_BUFFER_MINUTES = 5
+const MIN_DELIVERY_MINUTES = 8
 
 async function fetchOsrmDurationMinutes(
   fromLat: number,
@@ -85,10 +107,10 @@ export async function POST(
 
   if (fromLat && fromLng && toLat && toLng) {
     const osrmMinutes = await fetchOsrmDurationMinutes(fromLat, fromLng, toLat, toLng)
+    let drivingEta: number
     if (osrmMinutes != null) {
-      estimatedDeliveryMinutes = osrmMinutes + EXTRA_BUFFER_MINUTES
+      drivingEta = osrmMinutes
     } else {
-      // Fallback: Haversine straight-line distance at ~30 km/h city speed
       const R = 6371
       const dLat = ((toLat - fromLat) * Math.PI) / 180
       const dLng = ((toLng - fromLng) * Math.PI) / 180
@@ -98,8 +120,12 @@ export async function POST(
           Math.cos((toLat * Math.PI) / 180) *
           Math.sin(dLng / 2) ** 2
       const km = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-      estimatedDeliveryMinutes = Math.ceil((km / 30) * 60) + EXTRA_BUFFER_MINUTES
+      drivingEta = Math.ceil((km / 30) * 60)
     }
+    estimatedDeliveryMinutes = Math.max(
+      MIN_DELIVERY_MINUTES,
+      Math.ceil(drivingEta * TRAFFIC_MULTIPLIER) + STARTUP_BUFFER_MINUTES
+    )
   }
 
   const patchFields: Record<string, unknown> = {
