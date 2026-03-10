@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
       deliveryLng?: number
       deliveryFee?: number
       totalAmount?: number
+      tipAmount?: number
+      tipPercent?: number
       currency?: string
       status: string
       completedAt?: string
@@ -48,6 +50,8 @@ export async function GET(req: NextRequest) {
       deliveryLng,
       deliveryFee,
       totalAmount,
+      tipAmount,
+      tipPercent,
       currency,
       status,
       completedAt,
@@ -109,6 +113,8 @@ export async function GET(req: NextRequest) {
       deliveryLng: o.deliveryLng,
       deliveryFee: o.deliveryFee ?? 0,
       totalAmount: o.totalAmount ?? 0,
+      tipAmount: o.tipAmount ?? 0,
+      tipPercent: o.tipPercent ?? 0,
       amountToPayTenant: Math.max(0, (o.totalAmount ?? 0) - (o.deliveryFee ?? 0)),
       currency: o.currency ?? 'ILS',
       status: o.status,

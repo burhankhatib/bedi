@@ -22,6 +22,8 @@ type HistoryOrder = {
   deliveryLng?: number
   deliveryFee: number
   totalAmount: number
+  tipAmount: number
+  tipPercent: number
   amountToPayTenant: number
   currency: string
   status: string
@@ -132,6 +134,9 @@ export function DriverHistoryClient() {
                 {t('Total', 'المجموع')} {o.totalAmount.toFixed(2)} {o.currency}
                 {o.deliveryFee > 0 && (
                   <span className="text-slate-500"> · {t('Fee', 'رسوم')}: {o.deliveryFee.toFixed(2)}</span>
+                )}
+                {o.tipAmount > 0 && (
+                  <span className="text-rose-400"> · 💚 {t('Tip', 'إكرامية')}: {o.tipAmount.toFixed(2)}</span>
                 )}
               </p>
               <div className="mt-3 pt-3 border-t border-slate-700/60">

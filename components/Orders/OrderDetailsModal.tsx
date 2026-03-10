@@ -92,6 +92,10 @@ interface Order {
     previousScheduledFor: string
     changedAt: string
   }>
+  tipPercent?: number
+  tipAmount?: number
+  tipSentToDriver?: boolean
+  driverArrivedAt?: string
 }
 
 interface OrderDetailsModalProps {
@@ -1385,6 +1389,22 @@ Please deliver this order to the customer.
                 </span>
               </div>
             )}
+            {(localOrder.tipAmount ?? 0) > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-rose-300 flex items-center gap-1.5">
+                  💚 {t('Tip', 'إكرامية')}
+                  {localOrder.tipPercent ? ` (${localOrder.tipPercent}%)` : ''}
+                  {localOrder.tipSentToDriver && (
+                    <span className="text-[10px] text-rose-400/70 bg-rose-500/10 px-1.5 py-0.5 rounded">
+                      {localOrder.orderType === 'delivery' ? t('→ Driver', '→ السائق') : t('→ Staff', '→ الطاقم')}
+                    </span>
+                  )}
+                </span>
+                <span className="font-bold text-lg text-rose-400">
+                  {(localOrder.tipAmount ?? 0).toFixed(2)} {formatCurrency(localOrder.currency)}
+                </span>
+              </div>
+            )}
             <div className="border-t border-slate-700 pt-2 mt-2">
               <div className="flex justify-between items-center">
                 <span className="font-bold text-xl">{t('Total', 'المجموع')}:</span>
@@ -1394,6 +1414,14 @@ Please deliver this order to the customer.
                     : localOrder.totalAmount.toFixed(2)} {formatCurrency(localOrder.currency)}
                 </span>
               </div>
+              {(localOrder.tipAmount ?? 0) > 0 && (
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-sm text-slate-400">{t('Total + Tip', 'المجموع + إكرامية')}:</span>
+                  <span className="font-bold text-lg text-slate-200">
+                    {(localOrder.totalAmount + (localOrder.tipAmount ?? 0)).toFixed(2)} {formatCurrency(localOrder.currency)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

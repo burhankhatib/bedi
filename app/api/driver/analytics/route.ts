@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
       _id: string
       orderNumber: string
       deliveryFee?: number
+      tipAmount?: number
       currency?: string
       completedAt?: string
       deliveryAreaRef?: string
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
       _id,
       orderNumber,
       deliveryFee,
+      tipAmount,
       currency,
       completedAt,
       "deliveryAreaRef": deliveryArea._ref,
@@ -73,6 +75,7 @@ export async function GET(req: NextRequest) {
     _id: o._id,
     orderNumber: o.orderNumber,
     deliveryFee: o.deliveryFee ?? 0,
+    tipAmount: o.tipAmount ?? 0,
     currency: o.currency ?? 'ILS',
     completedAt: o.completedAt ?? o._id,
     areaName: o.deliveryAreaRef ? areaMap.get(o.deliveryAreaRef) ?? '—' : '—',

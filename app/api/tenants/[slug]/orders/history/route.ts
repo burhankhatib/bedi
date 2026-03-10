@@ -29,7 +29,11 @@ const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc
   preparedAt,
   driverAcceptedAt,
   driverPickedUpAt,
-  completedAt
+  completedAt,
+  tipPercent,
+  tipAmount,
+  tipSentToDriver,
+  driverArrivedAt
 }`
 
 const TABLE_REQUESTS_GROQ = `*[_type == "tableServiceRequest" && site._ref == $siteId && defined(acknowledgedAt)] | order(createdAt desc) {

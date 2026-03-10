@@ -71,6 +71,10 @@ type TrackData = {
     estimatedDeliveryMinutes?: number | null
     tipPercent?: number
     tipAmount?: number
+    tipSentToDriver?: boolean
+    tipSentToDriverAt?: string | null
+    tipConfirmedAfterCountdown?: boolean | null
+    driverArrivedAt?: string | null
     customerRequestedAt?: string | null
     customerRequestAcknowledgedAt?: string | null
     scheduledFor?: string | null
@@ -178,6 +182,9 @@ function DeliveryETABox({
   currency,
   onTipToggle,
   onTipPercentChange,
+  onSendTipToDriver,
+  onConfirmTipAfterCountdown,
+  tipSending,
 }: {
   order: TrackData['order']
   driver: TrackData['driver']
@@ -189,6 +196,9 @@ function DeliveryETABox({
   currency: string
   onTipToggle: (enabled: boolean) => void
   onTipPercentChange: (percent: number) => void
+  onSendTipToDriver: () => void
+  onConfirmTipAfterCountdown: (keep: boolean) => void
+  tipSending: boolean
 }) {
   const { t } = useLanguage()
   const [now, setNow] = useState(() => Date.now())
@@ -199,12 +209,14 @@ function DeliveryETABox({
   const isCompleted = order.status === 'completed'
   const isOutForDelivery = order.status === 'out-for-delivery'
   const showBox = (isActive || isCompleted) && order.orderType === 'delivery'
+  const driverArrived = !!order.driverArrivedAt
+  const tipWasSentToDriver = !!order.tipSentToDriver
 
   useEffect(() => {
-    if (!isActive) return
+    if (!isActive || driverArrived) return
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
-  }, [isActive])
+  }, [isActive, driverArrived])
 
   if (!showBox) return null
 
@@ -274,7 +286,7 @@ function DeliveryETABox({
     ? new Date(order.driverPickedUpAt).getTime()
     : null
   const etaMinutes = order.estimatedDeliveryMinutes
-  const hasCountdown = isActive && pickedUpAt && etaMinutes && isOutForDelivery
+  const hasCountdown = isActive && pickedUpAt && etaMinutes && isOutForDelivery && !driverArrived
 
   let countdownMinutes = 0
   let countdownSeconds = 0
@@ -291,6 +303,11 @@ function DeliveryETABox({
     }
   }
 
+  const countdownExpired = isOutForDelivery && pickedUpAt && etaMinutes && !driverArrived &&
+    (pickedUpAt + etaMinutes * 60 * 1000) < now
+  const showTipExpiredPrompt = countdownExpired && tipWasSentToDriver && tipEnabled &&
+    order.tipConfirmedAfterCountdown == null
+
   const isDriverToStore = order.status === 'driver_on_the_way'
 
   return (
@@ -298,22 +315,33 @@ function DeliveryETABox({
       <div className="rounded-3xl overflow-hidden shadow-md border border-purple-200/80">
 
         {/* ═══ SECTION 1: COUNTDOWN (Purple header) ═══ */}
-        <div className="bg-gradient-to-b from-purple-600 to-purple-700 px-5 pt-5 pb-4 text-white relative overflow-hidden">
+        <div className={`px-5 pt-5 pb-4 text-white relative overflow-hidden ${
+          driverArrived
+            ? 'bg-gradient-to-b from-emerald-500 to-emerald-600'
+            : 'bg-gradient-to-b from-purple-600 to-purple-700'
+        }`}>
           <div className="absolute -right-6 -top-6 text-white/[0.07] pointer-events-none">
             <Truck className="w-32 h-32" />
           </div>
 
           <div className="flex items-center gap-3 mb-3 relative z-10">
             <div className="bg-white/20 p-2 rounded-xl backdrop-blur-sm">
-              <Truck className="w-5 h-5" />
+              {driverArrived ? <CheckCircle2 className="w-5 h-5" /> : <Truck className="w-5 h-5" />}
             </div>
             <div>
               <h2 className="text-lg font-black">
-                {isDriverToStore
-                  ? t('Driver heading to the store', 'السائق في الطريق إلى المتجر')
-                  : t('On the way to you', 'في الطريق إليك')}
+                {driverArrived
+                  ? t('Driver has arrived!', 'السائق وصل!')
+                  : isDriverToStore
+                    ? t('Driver heading to the store', 'السائق في الطريق إلى المتجر')
+                    : t('On the way to you', 'في الطريق إليك')}
               </h2>
-              {hasCountdown && !isOverdue && (
+              {driverArrived && (
+                <p className="text-xs text-white/80 font-medium">
+                  {t('Please prepare to receive your order', 'يرجى الاستعداد لاستلام طلبك')}
+                </p>
+              )}
+              {hasCountdown && !isOverdue && !driverArrived && (
                 <p className="text-xs text-white/75 font-medium">
                   {t('Estimated arrival', 'الوصول المتوقع')}
                 </p>
@@ -361,6 +389,39 @@ function DeliveryETABox({
             </div>
           )}
         </div>
+
+        {/* ═══ COUNTDOWN EXPIRED TIP PROMPT ═══ */}
+        {showTipExpiredPrompt && (
+          <div className="bg-amber-50 border-b border-amber-200/60 px-5 py-4">
+            <p className="font-bold text-amber-800 text-sm mb-1">
+              {t('Delivery took a bit longer', 'التوصيل استغرق وقتاً أطول')}
+            </p>
+            <p className="text-xs text-amber-600 mb-3 leading-relaxed">
+              {t(
+                'The tip you sent to the driver has been paused. Would you still like to keep it?',
+                'الإكرامية التي أرسلتها للسائق تم تعليقها. هل تود الاحتفاظ بها؟'
+              )}
+            </p>
+            <div className="flex gap-3">
+              <motion.button
+                type="button"
+                onClick={() => onConfirmTipAfterCountdown(true)}
+                whileTap={{ scale: 0.95 }}
+                className="flex-1 py-3 rounded-2xl font-bold text-sm bg-emerald-500 text-white shadow-md"
+              >
+                💚 {t('Yes, keep the tip', 'نعم، أبقِ الإكرامية')}
+              </motion.button>
+              <motion.button
+                type="button"
+                onClick={() => onConfirmTipAfterCountdown(false)}
+                whileTap={{ scale: 0.95 }}
+                className="flex-1 py-3 rounded-2xl font-bold text-sm bg-slate-200 text-slate-700"
+              >
+                {t('Remove tip', 'إزالة الإكرامية')}
+              </motion.button>
+            </div>
+          </div>
+        )}
 
         {/* ═══ SECTION 2: TOTAL PRICE (Clean white) ═══ */}
         {isOutForDelivery && (
@@ -495,6 +556,58 @@ function DeliveryETABox({
               )}
             </AnimatePresence>
 
+            {/* Send tip to driver button */}
+            <AnimatePresence>
+              {tipEnabled && tipAmount > 0 && !tipWasSentToDriver && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-3">
+                    <motion.button
+                      type="button"
+                      onClick={onSendTipToDriver}
+                      disabled={tipSending}
+                      whileTap={{ scale: 0.97 }}
+                      className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-300/30 disabled:opacity-60 transition-all"
+                    >
+                      {tipSending
+                        ? t('Sending…', 'جاري الإرسال…')
+                        : t('Send tip to driver', 'أرسل الإكرامية للسائق')} 🚀
+                    </motion.button>
+                    <p className="text-[10px] text-rose-400/70 mt-2 text-center leading-relaxed">
+                      {t(
+                        'The driver will see your tip as encouragement. You can change or remove it anytime.',
+                        'سيرى السائق الإكرامية كتشجيع. يمكنك تغييرها أو إزالتها في أي وقت.'
+                      )}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Sent confirmation */}
+            <AnimatePresence>
+              {tipEnabled && tipWasSentToDriver && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="mt-3 rounded-2xl bg-purple-100/80 border border-purple-200/60 p-3 text-center"
+                >
+                  <p className="text-xs text-purple-700 font-medium">
+                    ✅ {t(
+                      'Tip sent! Your driver can see your generous gesture.',
+                      'تم إرسال الإكرامية! يمكن للسائق رؤية لفتتك الكريمة.'
+                    )}
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* "No worries" message when tip is off */}
             <AnimatePresence>
               {!tipEnabled && (
@@ -601,6 +714,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   const [showCheckModal, setShowCheckModal] = useState(false)
   const [tipEnabled, setTipEnabled] = useState(false)
   const [tipPercent, setTipPercent] = useState(DEFAULT_TIP_PERCENT)
+  const [tipSending, setTipSending] = useState(false)
   const [splitPeople, setSplitPeople] = useState(1)
   const [restaurantOpen, setRestaurantOpen] = useState(false)
   const [driverOpen, setDriverOpen] = useState(false)
@@ -726,6 +840,61 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
       const amount = (subtotal * p) / 100
       saveTip(p, amount)
     }
+  }
+
+  const sendTipToDriver = async () => {
+    if (!token || tipSending || tipAmount <= 0) return
+    setTipSending(true)
+    try {
+      const res = await fetch(`/api/tenants/${slug}/track/${encodeURIComponent(token)}/tip-notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tipPercent, tipAmount }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      showToast(
+        t('Tip sent to driver!', 'تم إرسال الإكرامية للسائق!'),
+        t('Tip sent to driver!', 'تم إرسال الإكرامية للسائق!'),
+        'success'
+      )
+      fetchTrack(true)
+    } catch {
+      showToast(
+        t('Could not send tip. Try again.', 'تعذّر إرسال الإكرامية. حاول مرة أخرى.'),
+        t('Could not send tip. Try again.', 'تعذّر إرسال الإكرامية. حاول مرة أخرى.'),
+        'error'
+      )
+    } finally {
+      setTipSending(false)
+    }
+  }
+
+  const confirmTipAfterCountdown = async (keep: boolean) => {
+    if (!token) return
+    try {
+      await fetch(`/api/tenants/${slug}/track/${encodeURIComponent(token)}/tip`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipPercent: keep ? tipPercent : 0,
+          tipAmount: keep ? tipAmount : 0,
+          tipConfirmedAfterCountdown: keep,
+        }),
+      })
+      if (!keep) {
+        setTipEnabled(false)
+      }
+      fetchTrack(true)
+      showToast(
+        keep
+          ? t('Tip kept — the driver will appreciate it!', 'تم الاحتفاظ بالإكرامية — السائق سيقدّر ذلك!')
+          : t('Tip removed.', 'تمت إزالة الإكرامية.'),
+        keep
+          ? t('Tip kept — the driver will appreciate it!', 'تم الاحتفاظ بالإكرامية — السائق سيقدّر ذلك!')
+          : t('Tip removed.', 'تمت إزالة الإكرامية.'),
+        keep ? 'success' : 'info'
+      )
+    } catch {}
   }
 
   usePusherStream(
@@ -867,6 +1036,9 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         currency={currency}
         onTipToggle={handleTipToggle}
         onTipPercentChange={handleTipPercentChange}
+        onSendTipToDriver={sendTipToDriver}
+        onConfirmTipAfterCountdown={confirmTipAfterCountdown}
+        tipSending={tipSending}
       />
 
       {/* Dine-in: table number badge */}
@@ -1037,6 +1209,19 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                             : t('Order picked up — on the way to you', 'تم استلام الطلب — في الطريق إليك')}
                         </p>
                         <p className="text-xs text-slate-500 mt-1">{fmt(data.order.driverPickedUpAt)}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4.5 Driver arrived at customer (delivery only) */}
+                  {isDelivery && data.order.driverArrivedAt && (
+                    <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                      <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-emerald-300 bg-emerald-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                      <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-emerald-50/70 shadow-sm border border-emerald-100 flex flex-col">
+                        <p className="text-xs font-bold text-emerald-800">
+                          {t('Driver has arrived at your location', 'السائق وصل إلى موقعك')}
+                        </p>
+                        <p className="text-xs text-emerald-600 mt-1">{fmt(data.order.driverArrivedAt)}</p>
                       </div>
                     </div>
                   )}

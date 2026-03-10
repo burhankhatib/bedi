@@ -27,6 +27,7 @@ export const REPORT_CATEGORIES: Record<string, { value: string; labelEn: string;
     { value: 'customer_refused_order', labelEn: 'Customer refused to take order', labelAr: 'العميل رفض استلام الطلب' },
     { value: 'customer_abusive_driver', labelEn: 'Customer was abusive or threatening', labelAr: 'العميل كان مسيئاً أو مهدداً' },
     { value: 'customer_no_answer', labelEn: 'Customer did not answer calls', labelAr: 'العميل لم يرد على المكالمات' },
+    { value: 'customer_tip_not_paid', labelEn: 'Customer promised tip but did not pay', labelAr: 'العميل وعد بإكرامية لكن لم يدفعها' },
     { value: 'customer_other_driver', labelEn: 'Other', labelAr: 'أخرى' },
   ],
   'customer→business': [

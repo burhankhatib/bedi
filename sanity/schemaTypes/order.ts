@@ -480,6 +480,33 @@ export const orderType = defineType({
       type: 'number',
       description: 'Tip amount in order currency.',
     }),
+    defineField({
+      name: 'tipSentToDriver',
+      title: 'Tip sent to driver',
+      type: 'boolean',
+      description: 'Whether the customer has shared their tip intention with the driver.',
+    }),
+    defineField({
+      name: 'tipSentToDriverAt',
+      title: 'Tip sent to driver at',
+      type: 'datetime',
+      description: 'When the customer shared the tip with the driver.',
+      readOnly: true,
+    }),
+    defineField({
+      name: 'tipConfirmedAfterCountdown',
+      title: 'Tip confirmed after countdown',
+      type: 'boolean',
+      description: 'When countdown expired, whether the customer chose to keep the tip.',
+    }),
+    defineField({
+      name: 'driverArrivedAt',
+      title: 'Driver arrived at',
+      type: 'datetime',
+      description: 'When the driver confirmed arrival at the customer location (within 100m).',
+      hidden: ({ parent }) => parent?.orderType !== 'delivery',
+      readOnly: true,
+    }),
   ],
   preview: {
     select: {

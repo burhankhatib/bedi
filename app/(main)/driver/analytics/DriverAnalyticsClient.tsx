@@ -10,6 +10,7 @@ type DriverOrder = {
   _id: string
   orderNumber: string
   deliveryFee: number
+  tipAmount: number
   currency: string
   completedAt: string
   areaName: string
@@ -24,6 +25,7 @@ const tEn = {
   last30: 'Last 30 days',
   allTime: 'All time',
   profit: 'Profit',
+  tips: 'Tips earned',
   deliveries: 'Deliveries',
   topAreas: 'Top delivery areas',
   topBusinesses: 'Top businesses',
@@ -39,6 +41,7 @@ const tAr = {
   last30: 'آخر 30 يوم',
   allTime: 'كل الفترات',
   profit: 'الأرباح',
+  tips: 'الإكراميات',
   deliveries: 'عدد التوصيلات',
   topAreas: 'أبرز مناطق التوصيل',
   topBusinesses: 'أبرز الشركات',
@@ -76,6 +79,7 @@ export function DriverAnalyticsClient() {
 
   const filtered = useMemo(() => filterByRange(orders, dateRange), [orders, dateRange])
   const profit = useMemo(() => filtered.reduce((s, o) => s + o.deliveryFee, 0), [filtered])
+  const totalTips = useMemo(() => filtered.reduce((s, o) => s + (o.tipAmount ?? 0), 0), [filtered])
   const currency = orders[0]?.currency ?? 'ILS'
 
   const areas = useMemo(() => {
@@ -156,7 +160,7 @@ export function DriverAnalyticsClient() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-2xl border border-slate-800 bg-slate-800/80 p-5 text-white">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/20">
@@ -170,6 +174,21 @@ export function DriverAnalyticsClient() {
             </div>
           </div>
         </div>
+        {totalTips > 0 && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-800/80 p-5 text-white">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-500/20">
+                <DollarSign className="h-6 w-6 text-rose-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-400">{t.tips}</p>
+                <p className="text-2xl font-black text-rose-400">
+                  {totalTips.toFixed(2)} {formatCurrency(currency)}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="rounded-2xl border border-slate-800 bg-slate-800/80 p-5 text-white">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/20">

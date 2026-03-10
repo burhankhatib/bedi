@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { getTenantIdBySlug } from '@/lib/tenant'
+import { pusherServer } from '@/lib/pusher'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,8 +27,9 @@ export async function PATCH(
   const order = await freshClient.fetch<{
     _id: string
     site?: { _ref?: string }
+    tipSentToDriver?: boolean
   } | null>(
-    `*[_type == "order" && site._ref == $tenantId && trackingToken == $trackingToken][0]{ _id, "site": site }`,
+    `*[_type == "order" && site._ref == $tenantId && trackingToken == $trackingToken][0]{ _id, "site": site, tipSentToDriver }`,
     { tenantId, trackingToken }
   )
 
@@ -35,7 +37,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Order not found' }, { status: 404 })
   }
 
-  let body: { tipPercent?: number; tipAmount?: number }
+  let body: { tipPercent?: number; tipAmount?: number; tipConfirmedAfterCountdown?: boolean }
   try {
     body = await req.json()
   } catch {
@@ -49,14 +51,32 @@ export async function PATCH(
     return NextResponse.json({ error: 'Server config' }, { status: 500 })
   }
 
-  const patch: Record<string, number> = {}
+  const patch: Record<string, unknown> = {}
   if (tipPercent !== undefined) patch.tipPercent = tipPercent
   if (tipAmount !== undefined) patch.tipAmount = tipAmount
+  if (typeof body.tipConfirmedAfterCountdown === 'boolean') {
+    patch.tipConfirmedAfterCountdown = body.tipConfirmedAfterCountdown
+  }
+
+  const tipRemoved = (tipPercent === 0 || tipAmount === 0) && order.tipSentToDriver
+  if (tipRemoved) {
+    patch.tipSentToDriver = false
+  }
+
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ success: true })
   }
 
   await writeClient.patch(order._id).set(patch).commit()
+
+  if (order.tipSentToDriver || tipRemoved) {
+    pusherServer
+      .trigger(`order-${order._id}`, 'order-update', { type: 'tip-updated' })
+      .catch(() => {})
+    pusherServer
+      .trigger('driver-global', 'order-update', { type: 'tip-updated', orderId: order._id })
+      .catch(() => {})
+  }
 
   return NextResponse.json({ success: true })
 }

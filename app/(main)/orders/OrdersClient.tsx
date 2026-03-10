@@ -69,6 +69,8 @@ export interface Order {
   customerRequestAcknowledgedAt?: string
   tipPercent?: number
   tipAmount?: number
+  tipSentToDriver?: boolean
+  driverArrivedAt?: string
 }
 
 const STATUS_CONFIG = {

@@ -42,6 +42,8 @@ const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc
   customerRequestAcknowledgedAt,
   tipPercent,
   tipAmount,
+  tipSentToDriver,
+  driverArrivedAt,
   scheduledFor,
   acknowledgedAt,
   notifyAt,

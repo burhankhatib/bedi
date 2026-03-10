@@ -26,6 +26,7 @@ import { DriverPWAInstall } from './DriverPWAInstall'
 import { SlideToComplete } from './SlideToComplete'
 import { SlideToPickUp } from './SlideToPickUp'
 import { SlideToConfirm } from './SlideToConfirm'
+import { SlideToArrive } from './SlideToArrive'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
 import { ChangeCalculatorModal } from './ChangeCalculatorModal'
 import { DRIVER_MOTIVATIONAL_QUOTES } from './driverQuotes'
@@ -65,6 +66,10 @@ type DriverOrder = {
   estimatedDeliveryMinutes?: number
   itemsUpdatedAt?: string
   driverReconfirmedAt?: string
+  tipAmount?: number
+  tipPercent?: number
+  tipSentToDriver?: boolean
+  driverArrivedAt?: string
 }
 
 /* ─── Constants & Helpers ───────────────────────────────────────────── */
@@ -579,6 +584,72 @@ function DriverOrdersV2Content() {
     }
   }
 
+  const arrive = async (orderId: string) => {
+    const order = myDeliveries.find((x) => x.orderId === orderId)
+    if (!order) return
+    if (
+      driverLat != null &&
+      driverLng != null &&
+      order.deliveryLat != null &&
+      order.deliveryLng != null
+    ) {
+      const dist = distanceKm(
+        { lat: driverLat, lng: driverLng },
+        { lat: order.deliveryLat, lng: order.deliveryLng }
+      )
+      if (dist > 0.1) {
+        showToast(
+          t(
+            `You are ${Math.round(dist * 1000)}m away. Must be within 100m.`,
+            `أنت على بعد ${Math.round(dist * 1000)} متر. يجب أن تكون ضمن 100 متر.`
+          ),
+          t(
+            `You are ${Math.round(dist * 1000)}m away. Must be within 100m.`,
+            `أنت على بعد ${Math.round(dist * 1000)} متر. يجب أن تكون ضمن 100 متر.`
+          ),
+          'info'
+        )
+        return
+      }
+    }
+    setActionId(orderId)
+    try {
+      const res = await fetch(`/api/driver/orders/${orderId}/arrived`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: driverLat, lng: driverLng }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'Failed')
+      }
+      showToast(
+        t('Arrival confirmed!', 'تم تأكيد الوصول!'),
+        t('Arrival confirmed!', 'تم تأكيد الوصول!'),
+        'success'
+      )
+      pushDriverLocation()
+      fetchOrders()
+    } catch (e: any) {
+      const msg = e?.message || ''
+      if (msg.includes('Too far')) {
+        showToast(
+          t('Too far from customer. Get closer first.', 'بعيد عن العميل. اقترب أكثر أولاً.'),
+          t('Too far from customer. Get closer first.', 'بعيد عن العميل. اقترب أكثر أولاً.'),
+          'error'
+        )
+      } else {
+        showToast(
+          t('Failed to confirm arrival.', 'فشل تأكيد الوصول.'),
+          t('Failed to confirm arrival.', 'فشل تأكيد الوصول.'),
+          'error'
+        )
+      }
+    } finally {
+      setActionId(null)
+    }
+  }
+
   /* ── registration banner ───────────────────────────── */
   const justRegistered = searchParams.get('registered') === '1'
   const [dismissedRegistered, setDismissedRegistered] = useState(false)
@@ -1035,7 +1106,16 @@ function DriverOrdersV2Content() {
                 </div>
 
                 {/* Delivery Countdown + Motivational Quote + Safety */}
-                {activeOrder.estimatedDeliveryMinutes && activeOrder.driverPickedUpAt ? (() => {
+                {activeOrder.driverArrivedAt ? (
+                  <div className="rounded-3xl bg-gradient-to-b from-emerald-900/30 to-slate-900/40 border border-emerald-500/30 p-5 mb-4 text-center">
+                    <p className="text-emerald-400 font-black text-xl mb-1">
+                      ✅ {t('You have arrived!', 'لقد وصلت!')}
+                    </p>
+                    <p className="text-slate-400 text-sm">
+                      {t('Hand over the order and complete the delivery.', 'سلّم الطلب وأكمل التوصيل.')}
+                    </p>
+                  </div>
+                ) : activeOrder.estimatedDeliveryMinutes && activeOrder.driverPickedUpAt ? (() => {
                   const pickupMs = new Date(activeOrder.driverPickedUpAt!).getTime()
                   const targetMs = pickupMs + activeOrder.estimatedDeliveryMinutes! * 60 * 1000
                   const remainMs = targetMs - deliveryNow
@@ -1111,9 +1191,29 @@ function DriverOrdersV2Content() {
                   <p className="text-emerald-300/60 text-lg font-bold">
                     {fmtCurrency(activeOrder.currency)}
                   </p>
+
+                  {/* Tip from customer */}
+                  {activeOrder.tipSentToDriver && (activeOrder.tipAmount ?? 0) > 0 && (
+                    <div className="mt-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 p-3">
+                      <p className="text-rose-300/80 text-xs font-medium mb-1">
+                        💚 {t('Customer tip (gesture of appreciation)', 'إكرامية العميل (لفتة تقدير)')}
+                      </p>
+                      <p className="text-2xl font-black text-rose-400 tabular-nums">
+                        +{(activeOrder.tipAmount ?? 0).toFixed(2)} {fmtCurrency(activeOrder.currency)}
+                      </p>
+                      <p className="text-rose-300/50 text-[10px] mt-1 leading-relaxed">
+                        {t(
+                          'This is a voluntary gesture from the customer — not required. The customer may change their mind.',
+                          'هذه لفتة تطوعية من العميل — ليست إلزامية. يمكن للعميل أن يغيّر رأيه.'
+                        )}
+                      </p>
+                    </div>
+                  )}
+
                   <button
                     onClick={() => {
-                      setCalcOrderTotal(activeOrder.totalAmount)
+                      const total = activeOrder.totalAmount + (activeOrder.tipSentToDriver ? (activeOrder.tipAmount ?? 0) : 0)
+                      setCalcOrderTotal(total)
                       setCalcCurrency(activeOrder.currency)
                       setCalcOpen(true)
                     }}
@@ -1123,6 +1223,15 @@ function DriverOrdersV2Content() {
                     {t('Change Calculator', 'حاسبة الباقي')}
                   </button>
                 </div>
+
+                {/* Slide to arrive (when within ~100m of customer and not yet arrived) */}
+                {!activeOrder.driverArrivedAt && (
+                  <SlideToArrive
+                    orderId={activeOrder.orderId}
+                    onArrive={arrive}
+                    disabled={!!actionId}
+                  />
+                )}
 
                 <SlideToComplete
                   orderId={activeOrder.orderId}
@@ -1414,6 +1523,11 @@ function DriverOrdersV2Content() {
                         <span className="text-white font-bold">
                           {o.totalAmount.toFixed(2)} {fmtCurrency(o.currency)}
                         </span>
+                        {(o.tipAmount ?? 0) > 0 && (
+                          <span className="text-rose-400 font-semibold ml-2">
+                            💚 +{(o.tipAmount ?? 0).toFixed(2)}
+                          </span>
+                        )}
                       </p>
                       <button
                         onClick={() => setReportOrderId(o.orderId)}
