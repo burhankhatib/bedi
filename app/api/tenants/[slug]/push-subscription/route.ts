@@ -5,7 +5,7 @@ import { checkTenantAuth } from '@/lib/tenant-auth'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { auth } from '@clerk/nextjs/server'
 import { requirePermission, ORDERS_PERMISSION } from '@/lib/staff-permissions'
-import { upsertUserPushSubscription } from '@/lib/user-push-subscriptions'
+import { upsertUserPushSubscription, checkDeviceToken } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -17,7 +17,7 @@ const writeClient = client.withConfig({ token: token || undefined, useCdn: false
  */
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params
@@ -27,14 +27,35 @@ export async function GET(
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const currentToken = req.nextUrl.searchParams.get('token')
+
+  if (currentToken) {
+    // Health check logic
+    const checkResult = await checkDeviceToken({
+      clerkUserId: userId,
+      roleContext: 'tenant',
+      fcmToken: currentToken,
+    })
+
+    if (checkResult) {
+       // status can be 'ok', 'refreshed', 'not_found'
+       return NextResponse.json({ 
+         hasPush: checkResult.status === 'ok' || checkResult.status === 'refreshed',
+         needsRefresh: checkResult.status === 'not_found',
+         status: checkResult.status 
+       })
+    }
+  }
+
+  // Fallback if no token provided, just check if they have any active subscription
   // Check the central subscription table first (new system)
-  const centralSubs = await writeClient.fetch<Array<{ _id: string }> | null>(
-    `*[_type == "userPushSubscription" && clerkUserId == $userId && roleContext == "tenant" && isActive != false][0..0]{ _id }`,
+  const centralSubs = await writeClient.fetch<Array<{ _id: string, devices?: any[] }> | null>(
+    `*[_type == "userPushSubscription" && clerkUserId == $userId && roleContext == "tenant" && isActive != false][0..0]{ _id, devices }`,
     { userId }
   )
-  const hasCentralPush = !!(centralSubs && centralSubs.length > 0)
+  const hasCentralPush = !!(centralSubs && centralSubs.length > 0 && centralSubs[0].devices && centralSubs[0].devices.length > 0)
   if (hasCentralPush) {
-    return NextResponse.json({ hasPush: true, needsRefresh: false })
+    return NextResponse.json({ hasPush: true, needsRefresh: false, status: 'ok' })
   }
 
   // Fall back to legacy fields (if they have legacy, they have push but need to migrate to central)
@@ -45,7 +66,7 @@ export async function GET(
     )
     const hasFcm = !!((tenant?.fcmTokens?.length ?? 0) > 0 || tenant?.fcmToken)
     const hasPush = !!(hasFcm || tenant?.pushSubscription?.endpoint)
-    return NextResponse.json({ hasPush, needsRefresh: hasPush })
+    return NextResponse.json({ hasPush, needsRefresh: hasPush, status: hasPush ? 'needs_migration' : 'not_found' })
   }
 
   const { sessionClaims } = await auth()
@@ -57,7 +78,7 @@ export async function GET(
   )
   const hasFcm = !!((staff?.fcmTokens?.length ?? 0) > 0)
   const hasPush = !!(hasFcm || staff?.pushSubscription?.endpoint)
-  return NextResponse.json({ hasPush, needsRefresh: hasPush })
+  return NextResponse.json({ hasPush, needsRefresh: hasPush, status: hasPush ? 'needs_migration' : 'not_found' })
 }
 
 export async function POST(

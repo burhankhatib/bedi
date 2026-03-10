@@ -8,7 +8,7 @@ import { client } from '@/sanity/lib/client'
 import { token as sanityWriteToken } from '@/sanity/lib/token'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToTokenDetailed, isFCMConfigured } from '@/lib/fcm'
-import { markSubscriptionInactive } from '@/lib/user-push-subscriptions'
+import { removeDevice } from '@/lib/user-push-subscriptions'
 
 export type TenantPushPayload = {
   title: string
@@ -36,19 +36,24 @@ type StaleToken = { docId: string; token: string; docType: 'tenant' | 'tenantSta
 // ──────────────────────────────────────────────────────────
 type CentralSub = {
   _id: string
-  fcmToken?: string
-  webPush?: { endpoint: string; p256dh: string; auth: string }
+  clerkUserId: string
+  roleContext: 'tenant' | 'customer' | 'driver'
+  devices?: Array<{
+    _key: string
+    fcmToken?: string
+    webPush?: { endpoint: string; p256dh: string; auth: string }
+  }>
 }
 
 // ──────────────────────────────────────────────────────────
 // Send to one FCM token (central system) — returns whether permanent failure
 // ──────────────────────────────────────────────────────────
 async function sendCentralFcm(
-  sub: CentralSub,
+  token: string,
   payload: TenantPushPayload
 ): Promise<{ sent: boolean; permanent: boolean }> {
-  if (!sub.fcmToken || !isFCMConfigured()) return { sent: false, permanent: false }
-  const result = await sendFCMToTokenDetailed(sub.fcmToken, payload)
+  if (!token || !isFCMConfigured()) return { sent: false, permanent: false }
+  const result = await sendFCMToTokenDetailed(token, payload)
   return { sent: result.ok, permanent: !result.ok && !!result.permanent }
 }
 
@@ -81,7 +86,7 @@ async function sendToLegacyDoc(
   }
 
   const sub = doc.pushSubscription
-  if (sub?.endpoint && sub?.p256dh && sub?.auth && isPushConfigured()) {
+  if (sub?.endpoint && sub?.p256dh && sub?.auth && isPushConfigured() && !alreadySentTokens.has(sub.endpoint)) {
     const ok = await sendPushNotification(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
       payload
@@ -159,9 +164,9 @@ export async function sendTenantAndStaffPush(
       `*[
         _type == "userPushSubscription" &&
         roleContext == "tenant" &&
-        (site._ref == $tenantId || clerkUserId in $ids) &&
+        ($tenantId in sites[]._ref || clerkUserId in $ids) &&
         isActive != false
-      ]{ _id, fcmToken, "webPush": webPush }`,
+      ]{ _id, clerkUserId, roleContext, devices }`,
       { ids: clerkUserIds, tenantId }
     ).catch(() => [])
   }
@@ -169,9 +174,11 @@ export async function sendTenantAndStaffPush(
   console.log(`[tenant-push] Resolving central subs for tenant ${tenantId}. found: ${centralSubs.length}. clerkUserIds: ${clerkUserIds.join(', ')}`)
 
   let sent = false
-  const staleCentralIds: string[] = []
   // Track tokens already sent via central so we don't double-send via legacy
   const sentTokens = new Set<string>()
+
+  // Array to hold cleanup promises for central devices
+  const centralCleanupPromises: Promise<void>[] = []
 
   if (centralSubs.length === 0) {
     console.warn(`[tenant-push] No central push subscriptions found for tenant ${tenantId}`)
@@ -182,27 +189,50 @@ export async function sendTenantAndStaffPush(
 
   // Step 3: send via central subscriptions
   for (const sub of centralSubs) {
-    let fcmSent = false
-    if (sub.fcmToken) {
-      console.log(`[tenant-push] Sending to central FCM token: ${sub.fcmToken.substring(0, 10)}...`)
-      const { sent: ok, permanent } = await sendCentralFcm(sub, payload)
-      if (ok) {
-        sent = true
-        fcmSent = true
-        sentTokens.add(sub.fcmToken)
+    if (!sub.devices || sub.devices.length === 0) continue
+
+    for (const device of sub.devices) {
+      let fcmSent = false
+      if (device.fcmToken) {
+        console.log(`[tenant-push] Sending to central FCM token: ${device.fcmToken.substring(0, 10)}...`)
+        const { sent: ok, permanent } = await sendCentralFcm(device.fcmToken, payload)
+        if (ok) {
+          sent = true
+          fcmSent = true
+          sentTokens.add(device.fcmToken)
+        }
+        if (permanent) {
+          centralCleanupPromises.push(
+            removeDevice({
+              clerkUserId: sub.clerkUserId,
+              roleContext: sub.roleContext,
+              fcmToken: device.fcmToken,
+            })
+          )
+        }
       }
-      if (permanent) staleCentralIds.push(sub._id)
-    }
-    // Web push via central sub
-    if (!fcmSent) {
-      const wp = sub.webPush
-      if (wp?.endpoint && wp?.p256dh && wp?.auth && isPushConfigured()) {
-        console.log(`[tenant-push] Sending to central WebPush endpoint: ${wp.endpoint.substring(0, 20)}...`)
-        const ok = await sendPushNotification(
-          { endpoint: wp.endpoint, keys: { p256dh: wp.p256dh, auth: wp.auth } },
-          payload
-        )
-        if (ok) sent = true
+      // Web push via central sub
+      if (!fcmSent && device.webPush) {
+        const wp = device.webPush
+        if (wp.endpoint && wp.p256dh && wp.auth && isPushConfigured()) {
+          console.log(`[tenant-push] Sending to central WebPush endpoint: ${wp.endpoint.substring(0, 20)}...`)
+          const ok = await sendPushNotification(
+            { endpoint: wp.endpoint, keys: { p256dh: wp.p256dh, auth: wp.auth } },
+            payload
+          )
+          if (ok) {
+            sent = true
+            sentTokens.add(wp.endpoint)
+          } else {
+             centralCleanupPromises.push(
+                removeDevice({
+                  clerkUserId: sub.clerkUserId,
+                  roleContext: sub.roleContext,
+                  endpoint: wp.endpoint,
+                })
+             )
+          }
+        }
       }
     }
   }
@@ -227,10 +257,8 @@ export async function sendTenantAndStaffPush(
   }
 
   // Fire-and-forget cleanup
-  if (staleCentralIds.length > 0) {
-    Promise.all(
-      staleCentralIds.map((id) => markSubscriptionInactive({ id, reason: 'fcm-permanent-failure' }))
-    ).catch((e) => console.warn('[tenant-push] central prune error', e))
+  if (centralCleanupPromises.length > 0) {
+    Promise.all(centralCleanupPromises).catch((e) => console.warn('[tenant-push] central prune error', e))
   }
   if (allStaleTokens.length > 0) {
     pruneStaleTokens(allStaleTokens).catch((e) => console.warn('[tenant-push] legacy prune error', e))

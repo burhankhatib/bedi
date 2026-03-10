@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { X, Package, Truck, UtensilsCrossed, Clock, User, Phone, MapPin, ChefHat, CheckCircle2, XCircle, MessageCircle, Edit2, Plus, Trash2, Save, RotateCcw, Settings, Flag, HandHelping, CreditCard, Check } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
+import { googleMapsNavigationUrl, wazeNavigationUrl } from '@/lib/maps-utils'
 import { client } from '@/sanity/lib/client'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
@@ -58,6 +59,8 @@ interface Order {
     name_ar: string
   }
   deliveryAddress?: string
+  deliveryLat?: number
+  deliveryLng?: number
   deliveryFee?: number
   assignedDriver?: {
     _id: string
@@ -1030,10 +1033,51 @@ Please deliver this order to the customer.
                     <p className="font-bold text-slate-900">{lang === 'ar' ? localOrder.deliveryArea.name_ar : localOrder.deliveryArea.name_en}</p>
                   </div>
                 )}
-                {localOrder.deliveryAddress && (
+                {(localOrder.deliveryAddress || localOrder.deliveryLat != null) && (
                   <div>
-                    <p className="text-xs text-slate-600 uppercase font-bold mb-1">{t('Delivery Address', 'عنوان التوصيل')}</p>
-                    <p className="text-sm text-slate-800">{localOrder.deliveryAddress}</p>
+                    <p className="text-xs text-slate-600 uppercase font-bold mb-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {t('Delivery Address', 'عنوان التوصيل')}
+                    </p>
+                    {localOrder.deliveryAddress && (
+                      <p className="text-sm text-slate-800 mb-2">{localOrder.deliveryAddress}</p>
+                    )}
+                    {localOrder.deliveryLat != null && localOrder.deliveryLng != null && Number.isFinite(localOrder.deliveryLat) && Number.isFinite(localOrder.deliveryLng) && (
+                      <>
+                        <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-100 mb-2" style={{ height: 180 }}>
+                          <iframe
+                            title={t('Delivery location map', 'خريطة موقع التوصيل')}
+                            width="100%"
+                            height="100%"
+                            style={{ border: 0 }}
+                            src={`https://www.openstreetmap.org/export/embed.html?bbox=${localOrder.deliveryLng - 0.01},${localOrder.deliveryLat - 0.01},${localOrder.deliveryLng + 0.01},${localOrder.deliveryLat + 0.01}&layer=mapnik&marker=${localOrder.deliveryLat},${localOrder.deliveryLng}`}
+                            allowFullScreen
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <a
+                            href={googleMapsNavigationUrl({ lat: localOrder.deliveryLat, lng: localOrder.deliveryLng })}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold px-4 py-2.5 text-sm transition-colors"
+                          >
+                            <MapPin className="w-4 h-4" />
+                            {t('Open in Google Maps', 'فتح في خرائط جوجل')}
+                          </a>
+                          <a
+                            href={wazeNavigationUrl({ lat: localOrder.deliveryLat, lng: localOrder.deliveryLng })}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-800 font-semibold px-4 py-2.5 text-sm transition-colors"
+                          >
+                            <MapPin className="w-4 h-4" />
+                            Waze
+                          </a>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </>

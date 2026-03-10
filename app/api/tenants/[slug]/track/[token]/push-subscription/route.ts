@@ -120,7 +120,7 @@ export async function GET(
       clerkUserId: userId,
       roleContext: 'customer',
     })
-    hasPush = central.some((s) => Boolean(s.fcmToken || s.webPush?.endpoint))
+    hasPush = central.some((doc) => doc.devices && doc.devices.length > 0)
   }
   if (process.env.NODE_ENV === 'development') {
     console.info('[track-push-subscription] hasPush check', { userId: Boolean(userId), hasPush })

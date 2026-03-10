@@ -17,19 +17,28 @@ export async function GET() {
       email = await getEmailForUser(userId, (await auth()).sessionClaims as Record<string, unknown> | null)
     } catch {}
     const clerkUserEmailLower = (email || '').trim().toLowerCase()
-    const tenants = await clientNoCdn.fetch<Array<{ _id: string; fcmToken?: string; fcmTokens?: string[] }>>(
-      `*[_type == "tenant" && (
-        clerkUserId == $clerkUserId ||
-        (defined($clerkUserEmailLower) && $clerkUserEmailLower != "" && (
-          (defined(clerkUserEmail) && lower(clerkUserEmail) == $clerkUserEmailLower) ||
-          (defined(coOwnerEmails) && $clerkUserEmailLower in coOwnerEmails)
-        ))
-      )]{ _id, fcmToken, fcmTokens }`,
-      { clerkUserId: userId, clerkUserEmailLower: clerkUserEmailLower || undefined }
-    )
+    const [tenants, centralSubs] = await Promise.all([
+      clientNoCdn.fetch<Array<{ _id: string; fcmToken?: string; fcmTokens?: string[] }>>(
+        `*[_type == "tenant" && (
+          clerkUserId == $clerkUserId ||
+          (defined($clerkUserEmailLower) && $clerkUserEmailLower != "" && (
+            (defined(clerkUserEmail) && lower(clerkUserEmail) == $clerkUserEmailLower) ||
+            (defined(coOwnerEmails) && $clerkUserEmailLower in coOwnerEmails)
+          ))
+        )]{ _id, fcmToken, fcmTokens }`,
+        { clerkUserId: userId, clerkUserEmailLower: clerkUserEmailLower || undefined }
+      ),
+      clientNoCdn.fetch<Array<{ _id: string, devices?: any[] }>>(
+        `*[_type == "userPushSubscription" && clerkUserId == $clerkUserId && roleContext == "tenant" && isActive != false][0..0]{ _id, devices }`,
+        { clerkUserId: userId }
+      )
+    ])
+
     const list = Array.isArray(tenants) ? tenants : []
-    const hasAnyToken = (t: { fcmToken?: string; fcmTokens?: string[] }) => (t?.fcmTokens?.length ?? 0) > 0 || !!t?.fcmToken
-    const enabled = list.some(hasAnyToken)
+    const hasAnyLegacyToken = list.some(t => (t?.fcmTokens?.length ?? 0) > 0 || !!t?.fcmToken)
+    const hasAnyCentralToken = centralSubs && centralSubs.length > 0 && centralSubs[0].devices && centralSubs[0].devices.length > 0
+    
+    const enabled = hasAnyLegacyToken || hasAnyCentralToken
     return NextResponse.json({ enabled })
   } catch {
     return NextResponse.json({ enabled: false })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
+import { upsertUserPushSubscription } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -9,11 +10,19 @@ const writeClient = client.withConfig({ token: token || undefined, useCdn: false
 export async function GET() {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const driver = await writeClient.fetch<{ fcmToken?: string; pushSubscription?: { endpoint?: string } } | null>(
-    `*[_type == "driver" && clerkUserId == $userId][0]{ fcmToken, "pushSubscription": pushSubscription }`,
-    { userId }
-  )
-  const hasPush = !!(driver?.fcmToken || driver?.pushSubscription?.endpoint)
+  const [driver, centralSubs] = await Promise.all([
+    writeClient.fetch<{ fcmToken?: string; pushSubscription?: { endpoint?: string } } | null>(
+      `*[_type == "driver" && clerkUserId == $userId][0]{ fcmToken, "pushSubscription": pushSubscription }`,
+      { userId }
+    ),
+    writeClient.fetch<Array<{ _id: string, devices?: any[] }>>(
+      `*[_type == "userPushSubscription" && clerkUserId == $userId && roleContext == "driver" && isActive != false][0..0]{ _id, devices }`,
+      { userId }
+    )
+  ])
+  const hasLegacyPush = !!(driver?.fcmToken || driver?.pushSubscription?.endpoint)
+  const hasCentralPush = !!(centralSubs && centralSubs.length > 0 && centralSubs[0].devices && centralSubs[0].devices.length > 0)
+  const hasPush = hasLegacyPush || hasCentralPush
   return NextResponse.json({ hasPush })
 }
 
@@ -33,6 +42,15 @@ export async function POST(req: NextRequest) {
   if (!fcmToken && !hasWebPush) {
     return NextResponse.json({ error: 'fcmToken or (endpoint and keys.p256dh, keys.auth) required' }, { status: 400 })
   }
+
+  // Central Upsert
+  await upsertUserPushSubscription({
+    clerkUserId: userId,
+    roleContext: 'driver',
+    fcmToken,
+    webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : null,
+    deviceInfo: req.headers.get('user-agent') ?? undefined,
+  }).catch((e) => console.warn('[driver push] central upsert failed', e))
 
   const driver = await writeClient.fetch<{ _id: string } | null>(
     `*[_type == "driver" && clerkUserId == $userId][0]{ _id }`,

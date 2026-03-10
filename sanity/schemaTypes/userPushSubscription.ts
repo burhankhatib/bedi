@@ -2,7 +2,8 @@ import { defineField, defineType } from 'sanity'
 
 /**
  * Centralized push subscriptions for all signed-in roles.
- * One document per token per role context (customer/driver/tenant).
+ * One document per user per role context (customer/driver/tenant).
+ * Contains an array of active device tokens.
  */
 export const userPushSubscriptionType = defineType({
   name: 'userPushSubscription',
@@ -32,37 +33,53 @@ export const userPushSubscriptionType = defineType({
       readOnly: true,
     }),
     defineField({
-      name: 'site',
-      title: 'Tenant (Site)',
-      type: 'reference',
-      to: [{ type: 'tenant' }],
-      description: 'The tenant this subscription is associated with (for Tenant role).',
+      name: 'sites',
+      title: 'Tenants (Sites)',
+      type: 'array',
+      of: [{ type: 'reference', to: [{ type: 'tenant' }] }],
+      description: 'The tenants this user is subscribed to (for Tenant role).',
       readOnly: true,
     }),
     defineField({
-      name: 'fcmToken',
-      title: 'FCM Token',
-      type: 'string',
-      description: 'Device token used for Firebase Cloud Messaging.',
+      name: 'devices',
+      title: 'Devices',
+      type: 'array',
       readOnly: true,
-    }),
-    defineField({
-      name: 'webPush',
-      title: 'Web Push Subscription',
-      type: 'object',
-      readOnly: true,
-      fields: [
-        { name: 'endpoint', type: 'string', title: 'Endpoint' },
-        { name: 'p256dh', type: 'string', title: 'p256dh' },
-        { name: 'auth', type: 'string', title: 'auth' },
+      of: [
+        {
+          type: 'object',
+          fields: [
+            { name: 'fcmToken', type: 'string', title: 'FCM Token' },
+            {
+              name: 'webPush',
+              title: 'Web Push Subscription',
+              type: 'object',
+              fields: [
+                { name: 'endpoint', type: 'string', title: 'Endpoint' },
+                { name: 'p256dh', type: 'string', title: 'p256dh' },
+                { name: 'auth', type: 'string', title: 'auth' },
+              ],
+            },
+            { name: 'deviceInfo', type: 'string', title: 'Device Info' },
+            { name: 'lastRefreshedAt', type: 'datetime', title: 'Last Refreshed At' },
+            { name: 'lastError', type: 'string', title: 'Last Error' },
+          ],
+          preview: {
+            select: {
+              fcmToken: 'fcmToken',
+              endpoint: 'webPush.endpoint',
+              lastRefreshedAt: 'lastRefreshedAt',
+            },
+            prepare({ fcmToken, endpoint, lastRefreshedAt }) {
+              const shortToken = fcmToken ? `${fcmToken.slice(0, 16)}…` : endpoint ? 'web-push' : 'no-token'
+              return {
+                title: shortToken,
+                subtitle: lastRefreshedAt ? `Refreshed: ${new Date(lastRefreshedAt).toLocaleString()}` : '',
+              }
+            },
+          },
+        },
       ],
-    }),
-    defineField({
-      name: 'deviceInfo',
-      title: 'Device Info',
-      type: 'string',
-      description: 'Optional user agent or device identifier for debugging.',
-      readOnly: true,
     }),
     defineField({
       name: 'isActive',
@@ -86,28 +103,20 @@ export const userPushSubscriptionType = defineType({
       initialValue: () => new Date().toISOString(),
       readOnly: true,
     }),
-    defineField({
-      name: 'lastError',
-      title: 'Last Error',
-      type: 'string',
-      description: 'Last delivery error for this token, if any.',
-      readOnly: true,
-    }),
   ],
   preview: {
     select: {
       clerkUserId: 'clerkUserId',
       roleContext: 'roleContext',
-      fcmToken: 'fcmToken',
-      endpoint: 'webPush.endpoint',
+      devices: 'devices',
       isActive: 'isActive',
       lastSeenAt: 'lastSeenAt',
     },
-    prepare({ clerkUserId, roleContext, fcmToken, endpoint, isActive, lastSeenAt }) {
-      const shortToken = fcmToken ? `${fcmToken.slice(0, 16)}…` : endpoint ? 'web-push' : 'no-token'
+    prepare({ clerkUserId, roleContext, devices, isActive, lastSeenAt }) {
       const activeLabel = isActive === false ? 'inactive' : 'active'
+      const numDevices = devices?.length || 0
       return {
-        title: `${roleContext || 'user'} · ${shortToken}`,
+        title: `${roleContext || 'user'} · ${numDevices} device(s)`,
         subtitle: `${clerkUserId || 'unknown'} · ${activeLabel}${lastSeenAt ? ` · ${new Date(lastSeenAt).toLocaleString()}` : ''}`,
       }
     },
