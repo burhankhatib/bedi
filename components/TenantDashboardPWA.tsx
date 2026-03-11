@@ -60,7 +60,7 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
           const normalized = scope.endsWith('/') ? scope : `${scope}/`
           navigator.serviceWorker.register(`${normalized.replace(/\/$/, '')}/sw.js`, { scope: normalized }).catch(() => {})
         } else {
-          navigator.serviceWorker.register('/app-sw.js', { scope: '/' }).catch(() => {})
+          navigator.serviceWorker.register('/dashboard/sw.js', { scope: '/dashboard' }).catch(() => {})
         }
       }
 

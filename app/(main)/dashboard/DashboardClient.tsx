@@ -36,7 +36,7 @@ export function DashboardClient({
       <AppNav variant="dashboard" showAdmin={showAdmin} hasDriver={hasDriver} />
 
       <main className="mx-auto max-w-[100vw] px-4 py-6 sm:container sm:py-8 md:py-12">
-        <PWAUpdatePrompt scriptUrl="/app-sw.js" scope="/" />
+        <PWAUpdatePrompt scriptUrl="/dashboard/sw.js" scope="/dashboard" />
         <TenantDashboardPWA />
         <BusinessPushSetup />
         <div className="mb-8">

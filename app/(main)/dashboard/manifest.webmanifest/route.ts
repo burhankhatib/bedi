@@ -8,7 +8,7 @@ function getManifest(origin: string) {
     short_name: 'Bedi Business',
     description: 'Manage your businesses, menus, and orders. Get new order notifications for all your businesses.',
     start_url: `${origin}/dashboard`,
-    scope: `${origin}/`,
+    scope: `${origin}/dashboard`,
     display: 'standalone' as const,
     display_override: ['standalone', 'minimal-ui'] as const,
     background_color: '#020617',

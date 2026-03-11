@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
       { source: '/customer-sw.js', headers: [noCache] },
       { source: '/customer-track-sw.js', headers: [noCache] },
       { source: '/driver/sw.js', headers: [noCache] },
+      { source: '/dashboard/sw.js', headers: [noCache] },
       // Tenant pages (/t/*): no caching so price/content updates appear immediately
       { source: '/t/:path*', headers: [noStore] },
     ]

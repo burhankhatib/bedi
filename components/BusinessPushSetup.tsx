@@ -2,7 +2,7 @@
 
 /**
  * Unified Business PWA: enable push once to receive new-order notifications for ALL businesses the user owns.
- * Registers app-sw.js (scope /) and saves FCM token via /api/me/business-push-subscription (saved to every tenant).
+ * Registers dashboard-scoped SW and saves FCM token via /api/me/business-push-subscription (saved to every tenant).
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
@@ -39,9 +39,9 @@ export function BusinessPushSetup() {
     }
     setLoading(true)
     try {
-      await navigator.serviceWorker.register('/app-sw.js', { scope: '/' })
+      await navigator.serviceWorker.register('/dashboard/sw.js', { scope: '/dashboard' })
       await navigator.serviceWorker.ready
-      const reg = await navigator.serviceWorker.getRegistration('/')
+      const reg = await navigator.serviceWorker.getRegistration('/dashboard')
       if (!reg) throw new Error('Service worker not active')
       const perm = await Notification.requestPermission()
       if (perm !== 'granted') {
@@ -88,11 +88,11 @@ export function BusinessPushSetup() {
     let cancelled = false
     ;(async () => {
       try {
-        let reg = await navigator.serviceWorker.getRegistration('/')
+        let reg = await navigator.serviceWorker.getRegistration('/dashboard')
         if (!reg) {
-          await navigator.serviceWorker.register('/app-sw.js', { scope: '/' })
+          await navigator.serviceWorker.register('/dashboard/sw.js', { scope: '/dashboard' })
           await navigator.serviceWorker.ready
-          reg = await navigator.serviceWorker.getRegistration('/')
+          reg = await navigator.serviceWorker.getRegistration('/dashboard')
         }
         if (cancelled || !reg) return
         const { token } = await getFCMToken(reg)
