@@ -23,6 +23,7 @@ export function PWAInstall() {
   const pathname = usePathname()
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [isIOS, setIsIOS] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
   const [showInstallPrompt, setShowInstallPrompt] = useState(false)
   const [pushPermission, setPushPermission] = useState<NotificationPermission | null>(null)
@@ -33,10 +34,12 @@ export function PWAInstall() {
   const [permissionsCardDismissed, setPermissionsCardDismissed] = useState(false)
   const [isAndroid, setIsAndroid] = useState(false)
   const [dismissedUntilMs, setDismissedUntilMs] = useState<number | null>(null)
+  const [showInstallHelp, setShowInstallHelp] = useState(false)
   const lastAutoPushSyncRef = useRef<string | null>(null)
   const { t, lang } = useLanguage()
   const { showToast } = useToast()
   const isRtl = lang === 'ar'
+  const inOrderFlow = Boolean(pathname && (pathname.startsWith('/order') || /^\/t\/[^/]+(\/|$)/.test(pathname)))
 
   const STORAGE_KEY_PERMISSIONS_DISMISSED = 'bedi-pwa-permissions-dismissed'
 
@@ -87,12 +90,13 @@ export function PWAInstall() {
     if (typeof window === 'undefined') return
     const android = /Android/i.test(navigator.userAgent)
     const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: boolean }).MSStream
+    const desktop = !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
     const standalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true
-    const inOrderFlow = Boolean(pathname && (pathname.startsWith('/order') || /^\/t\/[^/]+(\/|$)/.test(pathname)))
     setIsAndroid(android)
     setIsIOS(iOS)
+    setIsDesktop(desktop)
     setIsStandalone(standalone)
     syncPermissions()
     const canPush = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
@@ -109,7 +113,7 @@ export function PWAInstall() {
     } catch {
       // ignore
     }
-  }, [pathname, syncPermissions])
+  }, [inOrderFlow, syncPermissions])
 
   const syncCustomerPushSubscription = useCallback(async (opts?: { allowPrompt?: boolean; source?: string }) => {
     const allowPrompt = opts?.allowPrompt === true
@@ -194,14 +198,13 @@ export function PWAInstall() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (!('Notification' in window)) return
-    const inOrderFlow = Boolean(pathname && (pathname.startsWith('/order') || /^\/t\/[^/]+(\/|$)/.test(pathname)))
     if (!inOrderFlow) return
     if (Notification.permission !== 'granted') return
     const key = `${pathname}|${isStandalone ? 'standalone' : 'browser'}|${isIOS ? 'ios' : 'other'}`
     if (lastAutoPushSyncRef.current === key) return
     lastAutoPushSyncRef.current = key
     void syncCustomerPushSubscription({ allowPrompt: false, source: 'order-flow-auto' })
-  }, [pathname, isStandalone, isIOS, syncCustomerPushSubscription])
+  }, [inOrderFlow, pathname, isStandalone, isIOS, syncCustomerPushSubscription])
 
   const getLocationDeniedInstructions = useCallback(() => {
     if (isIOS) {
@@ -263,8 +266,8 @@ export function PWAInstall() {
       // Listen for beforeinstallprompt event (Android)
       const handleBeforeInstallPrompt = (e: Event) => {
         try {
+          ;(e as Event & { preventDefault?: () => void }).preventDefault?.()
           setDeferredPrompt(e as BeforeInstallPromptEvent)
-          setShowInstallPrompt(true)
         } catch {
           // avoid uncaught errors in PWA install flow
         }
@@ -272,17 +275,30 @@ export function PWAInstall() {
 
       window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
 
-      // Encourage install after the user had time to explore the page.
-      const delayMs = 10000
-      const timer = setTimeout(() => setShowInstallPrompt(true), delayMs)
+      // Friendlier trigger:
+      // - Do not show during order flow
+      // - Show after user engagement (scroll) or fallback delay
+      let revealed = false
+      const reveal = () => {
+        if (revealed || inOrderFlow) return
+        revealed = true
+        setShowInstallPrompt(true)
+      }
+      const onScroll = () => {
+        if (window.scrollY > 280) reveal()
+      }
+      window.addEventListener('scroll', onScroll, { passive: true })
+      const timer = setTimeout(reveal, 18000)
+
       return () => {
         clearTimeout(timer)
+        window.removeEventListener('scroll', onScroll)
         window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
       }
     } catch {
       return undefined
     }
-  }, [])
+  }, [inOrderFlow])
 
   const [showFallbackHint, setShowFallbackHint] = useState(false)
 
@@ -307,7 +323,7 @@ export function PWAInstall() {
 
   const now = typeof window !== 'undefined' ? Date.now() : 0
   const dismissExpired = dismissedUntilMs === null || now >= dismissedUntilMs
-  const showInstallCard = !isStandalone && showInstallPrompt && dismissExpired
+  const showInstallCard = !isStandalone && !inOrderFlow && showInstallPrompt && dismissExpired
   const canPush = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
   const canLocation = typeof navigator !== 'undefined' && !!navigator.geolocation && locationState !== 'unsupported'
   const pushGranted = pushPermission === 'granted'
@@ -458,192 +474,115 @@ export function PWAInstall() {
     )
   }
 
-  const installContent = (
-    <>
-      <div className="flex items-center gap-4 min-w-0 mb-4">
-        <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner overflow-hidden p-1">
-          <img src="/customerLogo.webp" alt="" className="w-full h-full object-contain" />
-        </div>
-        <div className="min-w-0">
-          <h3 className="text-white font-black text-xl mb-1">
-            {t('Get the app', 'احصل على التطبيق')}
-          </h3>
-          <p className="text-emerald-100 text-sm leading-snug">
-            {t('Install for quick access, orders & offers right from your home screen.', 'ثبّته للوصول السريع والطلبات والعروض من الشاشة الرئيسية.')}
-          </p>
-        </div>
-      </div>
-
-      {/* Push + Location in same prompt with Enabled state */}
-      {showPermissionsSection && (
-        <div className="mb-4 rounded-xl bg-white/10 border border-white/20 p-4 space-y-3">
-          <p className="text-white font-semibold text-sm mb-3">
-            {t('Stay updated', 'ابقَ على اطلاع')}
-          </p>
-          <div className="space-y-2.5">
-            {typeof isFirebaseConfigured === 'function' && isFirebaseConfigured() && (
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                    <Bell className="w-5 h-5 text-white" />
-                  </div>
-                  <span className="text-emerald-100 text-sm font-medium">
-                    {t('Notifications', 'الإشعارات')}
-                  </span>
-                </div>
-                {pushPermission === 'granted' ? (
-                  <div className="flex items-center gap-2 shrink-0 rounded-full bg-emerald-400/30 border border-emerald-300/50 px-3 py-1.5 text-emerald-50">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-200" aria-hidden />
-                    <span className="text-sm font-semibold">{t('Enabled', 'مفعّل')}</span>
-                  </div>
-                ) : (
-                  <Button
-                    size="sm"
-                    onClick={requestPush}
-                    disabled={pushLoading || pushPermission === 'denied'}
-                    className="shrink-0 rounded-xl bg-white/20 hover:bg-white/30 text-white border border-white/30"
-                  >
-                    {pushLoading ? t('Enabling…', 'جاري التفعيل…') : t('Enable', 'تفعيل')}
-                  </Button>
-                )}
-              </div>
-            )}
-            {typeof navigator !== 'undefined' && navigator.geolocation && locationState !== 'unsupported' && (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                      <MapPin className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-emerald-100 text-sm font-medium">
-                      {t('Location', 'الموقع')}
-                    </span>
-                  </div>
-                  {locationState === 'granted' ? (
-                    <div className="flex items-center gap-2 shrink-0 rounded-full bg-emerald-400/30 border border-emerald-300/50 px-3 py-1.5 text-emerald-50">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-200" aria-hidden />
-                      <span className="text-sm font-semibold">{t('Enabled', 'مفعّل')}</span>
-                    </div>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={requestLocation}
-                      disabled={locationChecking}
-                      className="shrink-0 rounded-xl bg-white/20 hover:bg-white/30 text-white border border-white/30"
-                    >
-                      {locationChecking ? t('Checking…', 'جاري التحقق…') : locationState === 'denied' ? t('Try again', 'حاول مرة أخرى') : t('Enable', 'تفعيل')}
-                    </Button>
-                  )}
-                </div>
-                {locationState === 'denied' && (
-                  <p className="text-emerald-100/95 text-xs leading-snug px-1">
-                    {getLocationDeniedInstructions()}
-                  </p>
-                )}
-              </div>
-            )}
+  return (
+    <div
+      dir={isRtl ? 'rtl' : 'ltr'}
+      className="fixed inset-x-3 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-[90] md:inset-x-auto md:end-4 md:bottom-4 md:w-[420px]"
+      style={{ touchAction: 'manipulation' }}
+    >
+      <div className="rounded-2xl border border-emerald-300/40 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-4 shadow-xl shadow-emerald-900/25">
+        <div className="mb-3 flex items-start gap-3">
+          <div className="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/20 p-1">
+            <img src="/customerLogo.webp" alt="" className="h-full w-full object-contain" />
           </div>
-        </div>
-      )}
-
-      {isIOS ? (
-        <div className="space-y-4">
-          <div className="bg-white/10 rounded-xl p-5 border border-white/20 backdrop-blur-sm">
-            <p className="text-white font-bold text-base mb-4 text-center">
-              {t('Install on iOS:', 'التثبيت على iOS:')}
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-black text-white">
+              {t('Get Bedi on your device', 'احصل على Bedi على جهازك')}
+            </h3>
+            <p className="mt-0.5 text-xs leading-snug text-emerald-100">
+              {t('Faster access from home screen, smoother checkout, and real-time updates.', 'وصول أسرع من الشاشة الرئيسية، وتجربة طلب أسلس، وتحديثات مباشرة.')}
             </p>
-            <div className="space-y-3.5">
-              <div className="flex items-center gap-3">
-                <div className="flex-shrink-0 w-7 h-7 rounded-full bg-white/25 flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">1</span>
-                </div>
-                <div className="flex-1 flex items-center gap-2 flex-wrap">
-                  <span className="text-emerald-100 text-sm">{t('Tap the', 'اضغط على')}</span>
-                  <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-lg border border-white/30">
-                    <Share2 className="w-3.5 h-3.5 text-white" />
-                    <span className="text-white text-xs font-semibold">{t('Share', 'مشاركة')}</span>
-                  </div>
-                  <span className="text-emerald-100 text-sm">{t('button at the bottom', 'في الأسفل')}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex-shrink-0 w-7 h-7 rounded-full bg-white/25 flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">2</span>
-                </div>
-                <div className="flex-1 flex items-center gap-2 flex-wrap">
-                  <span className="text-emerald-100 text-sm">{t('Scroll and tap', 'قم بالتمرير واضغط على')}</span>
-                  <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-1.5 rounded-lg border border-white/30">
-                    <Plus className="w-3.5 h-3.5 text-white" />
-                    <span className="text-white text-xs font-semibold">{t('Add to Home Screen', 'إضافة إلى الشاشة الرئيسية')}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex-shrink-0 w-7 h-7 rounded-full bg-white/25 flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">3</span>
-                </div>
-                <div className="flex-1 flex items-center gap-2">
-                  <span className="text-emerald-100 text-sm">{t('Tap "Add" to confirm', 'اضغط "إضافة" للتأكيد')}</span>
-                </div>
-              </div>
-            </div>
           </div>
-          <div className="flex items-center justify-center gap-2 text-xs text-emerald-200/90">
-            <Smartphone className="w-4 h-4" />
-            <span>{t('Works on iPhone and iPad', 'يعمل على iPhone و iPad')}</span>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => dismissInstallModal(DISMISS_HOURS_DEFAULT)}
+            className="shrink-0 rounded-lg bg-white/15 text-white hover:bg-white/25 hover:text-white"
+            aria-label={t('Close', 'إغلاق')}
+          >
+            <X className="size-4" />
+          </Button>
         </div>
-      ) : (
-        <div className="space-y-2">
+
+        {isIOS ? (
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between rounded-xl border border-white/20 bg-white/10 px-3 py-2">
+              <div className="flex items-center gap-2 text-emerald-100">
+                <Smartphone className="size-4" />
+                <span className="text-xs font-semibold">{t('iPhone / iPad install', 'تثبيت iPhone / iPad')}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInstallHelp((v) => !v)}
+                className="text-xs font-semibold text-white underline underline-offset-2"
+              >
+                {showInstallHelp ? t('Hide steps', 'إخفاء الخطوات') : t('Show steps', 'عرض الخطوات')}
+              </button>
+            </div>
+            {showInstallHelp && (
+              <ol className="space-y-2 rounded-xl border border-white/20 bg-white/10 p-3 text-xs text-emerald-100">
+                <li className="flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-white">1</span>
+                  <span>{t('Tap', 'اضغط')}</span>
+                  <span className="inline-flex items-center gap-1 rounded bg-white/20 px-2 py-0.5 text-white">
+                    <Share2 className="size-3.5" />
+                    {t('Share', 'مشاركة')}
+                  </span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-white">2</span>
+                  <span>{t('Choose', 'اختر')}</span>
+                  <span className="inline-flex items-center gap-1 rounded bg-white/20 px-2 py-0.5 text-white">
+                    <Plus className="size-3.5" />
+                    {t('Add to Home Screen', 'إضافة إلى الشاشة الرئيسية')}
+                  </span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-white">3</span>
+                  <span>{t('Tap "Add" and open from your home screen', 'اضغط "إضافة" ثم افتح التطبيق من الشاشة الرئيسية')}</span>
+                </li>
+              </ol>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              onClick={handleInstallClick}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white text-emerald-800 shadow-md transition-colors hover:bg-emerald-50"
+            >
+              <Download className="size-4.5 shrink-0" />
+              <span className="font-bold">{t('Install app', 'تثبيت التطبيق')}</span>
+            </button>
+            {showFallbackHint && (
+              <p className="text-center text-xs text-emerald-100">
+                {isDesktop
+                  ? t('Use your browser menu to install this app (e.g. address bar install icon).', 'استخدم قائمة المتصفح لتثبيت التطبيق (مثل أيقونة التثبيت في شريط العنوان).')
+                  : t('Open browser menu (⋮) and choose Install app / Add to Home screen.', 'افتح قائمة المتصفح (⋮) واختر تثبيت التطبيق / إضافة إلى الشاشة الرئيسية.')}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="mt-3 flex items-center justify-between border-t border-white/20 pt-2">
           <button
             type="button"
-            onClick={handleInstallClick}
-            className="w-full h-12 rounded-xl font-black text-base bg-white hover:bg-emerald-50 active:bg-emerald-100 text-emerald-800 flex items-center justify-center gap-2 shadow-md touch-manipulation select-none cursor-pointer border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-700"
-            style={{ touchAction: 'manipulation' }}
+            onClick={() => dismissInstallModal(DISMISS_HOURS_EXTENDED)}
+            className="text-xs text-emerald-100 underline underline-offset-2 hover:text-white"
           >
-            <Download className="w-5 h-5 shrink-0 pointer-events-none" />
-            {t('Install app', 'تثبيت التطبيق')}
+            {t("Don't show for 7 days", 'عدم الإظهار لمدة 7 أيام')}
           </button>
-          {showFallbackHint && (
-            <p className="text-xs text-emerald-200 text-center animate-in fade-in">
-              {t('Open browser menu (⋮) → Install app', 'افتح قائمة المتصفح (⋮) → تثبيت التطبيق')}
-            </p>
-          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => dismissInstallModal(DISMISS_HOURS_DEFAULT)}
+            className="border-white/30 bg-white/15 text-white hover:bg-white/25 hover:text-white"
+          >
+            {t('Not now', 'لاحقاً')}
+          </Button>
         </div>
-      )}
-
-      <div className="mt-4 pt-3 border-t border-white/20 flex flex-wrap items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => dismissInstallModal(DISMISS_HOURS_EXTENDED)}
-          className="text-emerald-200 hover:text-white text-xs underline"
-        >
-          {t("Don't show for 7 days", 'عدم الإظهار لمدة 7 أيام')}
-        </button>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => dismissInstallModal(DISMISS_HOURS_DEFAULT)}
-          className="bg-white/20 text-white hover:bg-white/30 border-0"
-        >
-          {t('Close', 'إغلاق')}
-        </Button>
       </div>
-    </>
-  )
-
-  return (
-    <Dialog open={showInstallCard} onOpenChange={(open) => { if (!open) dismissInstallModal(DISMISS_HOURS_DEFAULT) }}>
-      <DialogContent
-        dir={isRtl ? 'rtl' : 'ltr'}
-        className="max-w-lg border-emerald-500/30 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-5 shadow-lg shadow-emerald-900/20 md:p-6 overflow-y-auto max-h-[90vh] [&_[data-slot=dialog-close]]:text-white [&_[data-slot=dialog-close]]:hover:bg-white/20"
-        contentClassName="z-[100]"
-        overlayClassName="z-[99]"
-        style={{ touchAction: 'manipulation' }}
-      >
-        {installContent}
-      </DialogContent>
-    </Dialog>
+    </div>
   )
 }

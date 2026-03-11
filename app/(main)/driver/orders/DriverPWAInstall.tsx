@@ -5,15 +5,36 @@ import { Button } from '@/components/ui/button'
 import { Download, X, Share2, Plus, Smartphone, MapPin } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 
+const DISMISS_KEY = 'bedi-driver-pwa-install-dismissed-until'
+const DISMISS_HOURS_DEFAULT = 24
+const DISMISS_HOURS_EXTENDED = 24 * 7
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
 export function DriverPWAInstall() {
   const { t } = useLanguage()
-  const [deferredPrompt, setDeferredPrompt] = useState<{ prompt: () => Promise<unknown> } | null>(null)
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [isIOS, setIsIOS] = useState(false)
-  const [showOnVisit, setShowOnVisit] = useState(false)
-  const [dismissed, setDismissed] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
+  const [showPrompt, setShowPrompt] = useState(false)
+  const [showInstallHelp, setShowInstallHelp] = useState(false)
+  const [showFallbackHint, setShowFallbackHint] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
+  const [dismissedUntilMs, setDismissedUntilMs] = useState<number | null>(null)
 
   useEffect(() => {
+    try {
+      const until = localStorage.getItem(DISMISS_KEY)
+      if (until) {
+        const ms = parseInt(until, 10)
+        if (!Number.isNaN(ms)) setDismissedUntilMs(ms)
+      }
+    } catch {
+      // ignore
+    }
     const timer = setTimeout(() => {
       try {
         const standalone = window.matchMedia('(display-mode: standalone)').matches
@@ -21,7 +42,9 @@ export function DriverPWAInstall() {
         setIsStandalone(standalone)
         const ua = window.navigator.userAgent
         const ios = /iPad|iPhone|iPod/.test(ua) && !(window as unknown as { MSStream?: boolean }).MSStream
+        const desktop = !/Android|iPhone|iPad|iPod|Mobile/i.test(ua)
         setIsIOS(ios)
+        setIsDesktop(desktop)
       } catch {
         // ignore
       }
@@ -29,18 +52,30 @@ export function DriverPWAInstall() {
     try {
       const handler = (e: Event) => {
         try {
-          setDeferredPrompt(e as unknown as { prompt: () => Promise<unknown> })
+          ;(e as Event & { preventDefault?: () => void }).preventDefault?.()
+          setDeferredPrompt(e as BeforeInstallPromptEvent)
         } catch {
           // avoid uncaught errors in PWA install flow
         }
       }
       window.addEventListener('beforeinstallprompt', handler)
-      // On Android: show install card on visit after short delay (same as customer PWA)
-      const delayMs = 1500
-      const delayTimer = setTimeout(() => setShowOnVisit(true), delayMs)
+
+      let revealed = false
+      const reveal = () => {
+        if (revealed) return
+        revealed = true
+        setShowPrompt(true)
+      }
+      const onScroll = () => {
+        if (window.scrollY > 220) reveal()
+      }
+      window.addEventListener('scroll', onScroll, { passive: true })
+      const delayTimer = setTimeout(reveal, 12000)
+
       return () => {
         clearTimeout(timer)
         clearTimeout(delayTimer)
+        window.removeEventListener('scroll', onScroll)
         window.removeEventListener('beforeinstallprompt', handler)
       }
     } catch {
@@ -49,25 +84,46 @@ export function DriverPWAInstall() {
   }, [])
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return
+    if (!deferredPrompt) {
+      setShowFallbackHint(true)
+      setTimeout(() => setShowFallbackHint(false), 4500)
+      return
+    }
     try {
       await deferredPrompt.prompt()
+      const { outcome } = await deferredPrompt.userChoice
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null)
+        setShowPrompt(false)
+      }
       setDeferredPrompt(null)
     } catch {
       // PWA install can fail; avoid breaking the driver page
     }
   }
 
-  if (dismissed || isStandalone) return null
-  if (!deferredPrompt && !isIOS && !showOnVisit) return null
+  const now = typeof window !== 'undefined' ? Date.now() : 0
+  const dismissExpired = dismissedUntilMs === null || now >= dismissedUntilMs
 
-  const title = t('Install the app', 'ثبّت التطبيق')
-  const installBtn = t('Install', 'تثبيت')
-  const dismissBtn = t('Dismiss', 'إخفاء')
+  const dismissPrompt = (forHours: number = DISMISS_HOURS_DEFAULT) => {
+    const until = Date.now() + forHours * 60 * 60 * 1000
+    setDismissedUntilMs(until)
+    setShowPrompt(false)
+    try {
+      localStorage.setItem(DISMISS_KEY, String(until))
+    } catch {
+      // ignore
+    }
+  }
+
+  if (isStandalone || !dismissExpired || !showPrompt) return null
+
+  const title = t('Get Bedi Driver app', 'احصل على تطبيق Bedi Driver')
+  const installBtn = t('Install app', 'تثبيت التطبيق')
   const fromThisPageNote = t('You’re on the right page. Installing from here gives you the Bedi Driver app.', 'أنت في الصفحة الصحيحة. التثبيت من هنا يعطيك تطبيق Bedi Driver.')
 
   return (
-    <div className="rounded-xl border border-slate-700 bg-slate-900/90 p-4 mb-4">
+    <div className="mb-4 rounded-2xl border border-emerald-600/35 bg-gradient-to-br from-emerald-900/45 to-slate-900/90 p-4 shadow-lg">
       <div className="flex items-start gap-2 rounded-lg bg-emerald-950/40 border border-emerald-600/40 p-2.5 mb-3">
         <MapPin className="h-5 w-5 shrink-0 text-emerald-400 mt-0.5" aria-hidden />
         <p className="text-sm text-emerald-200/95 font-medium">
@@ -76,65 +132,79 @@ export function DriverPWAInstall() {
       </div>
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-white mb-2">{title}</p>
-          {deferredPrompt ? (
-            <p className="text-sm text-slate-400 mb-2">
-              {t('Tap the button below to install on your device.', 'اضغط لتثبيت التطبيق على جهازك.')}
-            </p>
-          ) : isIOS ? (
-            <div className="space-y-2 text-sm text-slate-400">
-              <p className="font-semibold text-slate-300">
-                {t('On iPhone/iPad (Safari):', 'على iPhone/iPad (Safari):')}
-              </p>
-              <ol className="space-y-1.5 list-none pl-0">
-                <li className="flex items-start gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-600 text-slate-200 text-xs font-bold">1</span>
-                  <span className="flex flex-wrap items-center gap-1">
-                    {t('Tap', 'اضغط')}
-                    <span className="inline-flex items-center gap-1 rounded bg-slate-700 px-1.5 py-0.5 text-slate-200">
-                      <Share2 className="h-3 w-3" />
-                      {t('Share', 'مشاركة')}
-                    </span>
-                    {t('at the bottom', 'في الأسفل')}
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-600 text-slate-200 text-xs font-bold">2</span>
-                  <span className="flex flex-wrap items-center gap-1">
-                    {t('Tap', 'اضغط')}
-                    <span className="inline-flex items-center gap-1 rounded bg-slate-700 px-1.5 py-0.5 text-slate-200">
-                      <Plus className="h-3 w-3" />
-                      {t('Add to Home Screen', 'إضافة إلى الشاشة الرئيسية')}
-                    </span>
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-600 text-slate-200 text-xs font-bold">3</span>
-                  <span>{t('Tap "Add", then open from home screen', 'اضغط "إضافة" ثم افتح من الشاشة الرئيسية')}</span>
-                </li>
-              </ol>
-              <div className="flex items-center gap-1.5 text-slate-500 pt-1">
-                <Smartphone className="h-3.5 w-3.5" />
-                <span className="text-xs">{t('iPhone and iPad', 'iPhone و iPad')}</span>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-400 mb-2">
-              {t('The install button will appear below, or use browser menu (⋮) → Install app.', 'سيظهر زر التثبيت أدناه، أو استخدم قائمة المتصفح (⋮) ← تثبيت التطبيق.')}
-            </p>
-          )}
-          {deferredPrompt && (
+          <p className="font-bold text-white mb-1">{title}</p>
+          <p className="text-sm text-slate-300 mb-3">
+            {t('Install for faster dispatch, better reliability, and quick app launch.', 'ثبّت التطبيق لاستقبال أسرع وموثوقية أعلى وفتح سريع.')}
+          </p>
+          {!isIOS && (
             <Button
               size="sm"
-              className="mt-2 bg-green-600 hover:bg-green-700 rounded-lg font-bold"
+              className="bg-white text-emerald-900 hover:bg-emerald-50 rounded-lg font-bold"
               onClick={handleInstall}
             >
               <Download className="ml-2 h-4 w-4" />
               {installBtn}
             </Button>
           )}
+          {!isIOS && showFallbackHint && (
+            <p className="text-xs text-slate-400 mt-2">
+              {isDesktop
+                ? t('Use browser menu/address-bar install icon to install this app.', 'استخدم قائمة المتصفح/أيقونة التثبيت في شريط العنوان لتثبيت التطبيق.')
+                : t('Open browser menu (⋮) and choose Install app / Add to Home Screen.', 'افتح قائمة المتصفح (⋮) واختر تثبيت التطبيق / إضافة إلى الشاشة الرئيسية.')}
+            </p>
+          )}
+          {isIOS && (
+            <div className="rounded-xl border border-slate-700/80 bg-slate-900/55 p-3 mt-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-slate-200">
+                  <Smartphone className="h-4 w-4" />
+                  <p className="text-sm font-semibold">{t('iPhone / iPad install', 'تثبيت iPhone / iPad')}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowInstallHelp((v) => !v)}
+                  className="text-xs text-emerald-300 underline underline-offset-2"
+                >
+                  {showInstallHelp ? t('Hide steps', 'إخفاء الخطوات') : t('Show steps', 'عرض الخطوات')}
+                </button>
+              </div>
+              {showInstallHelp && (
+                <ol className="mt-3 space-y-2 text-xs text-slate-300">
+                  <li className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-700 text-slate-200">1</span>
+                    <span className="inline-flex items-center gap-1">{t('Tap', 'اضغط')} <Share2 className="h-3 w-3" /> {t('Share', 'مشاركة')}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-700 text-slate-200">2</span>
+                    <span className="inline-flex items-center gap-1">{t('Choose', 'اختر')} <Plus className="h-3 w-3" /> {t('Add to Home Screen', 'إضافة إلى الشاشة الرئيسية')}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-700 text-slate-200">3</span>
+                    <span>{t('Tap "Add" and open from your Home Screen', 'اضغط "إضافة" وافتح التطبيق من الشاشة الرئيسية')}</span>
+                  </li>
+                </ol>
+              )}
+            </div>
+          )}
+          <div className="mt-3 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => dismissPrompt(DISMISS_HOURS_EXTENDED)}
+              className="text-xs text-slate-400 hover:text-slate-200 underline underline-offset-2"
+            >
+              {t("Don't show for 7 days", 'عدم الإظهار لمدة 7 أيام')}
+            </button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-slate-300 hover:text-white"
+              onClick={() => dismissPrompt(DISMISS_HOURS_DEFAULT)}
+            >
+              {t('Not now', 'لاحقاً')}
+            </Button>
+          </div>
         </div>
-        <Button variant="ghost" size="sm" className="shrink-0 text-slate-400" onClick={() => setDismissed(true)} aria-label={dismissBtn}>
+        <Button variant="ghost" size="sm" className="shrink-0 text-slate-400" onClick={() => dismissPrompt(DISMISS_HOURS_DEFAULT)} aria-label={t('Dismiss', 'إخفاء')}>
           <X className="h-4 w-4" />
         </Button>
       </div>

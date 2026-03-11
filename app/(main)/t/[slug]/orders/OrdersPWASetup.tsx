@@ -1,10 +1,13 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Download, X, Smartphone } from 'lucide-react'
+import { Download, X, Smartphone, Share2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useLanguage } from '@/components/LanguageContext'
 
-const DISMISS_KEY = 'bedi-orders-pwa-install-dismissed'
+const DISMISS_KEY = 'bedi-orders-pwa-install-dismissed-until'
+const DISMISS_HOURS_DEFAULT = 24
+const DISMISS_HOURS_EXTENDED = 24 * 7
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -31,10 +34,15 @@ function isIOS(): boolean {
  * Already-installed (standalone) users see nothing.
  */
 export function OrdersPWASetup({ slug }: { slug: string }) {
+  const { t, lang } = useLanguage()
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
-  const [showBanner, setShowBanner] = useState(false)
-  const [showIOSBanner, setShowIOSBanner] = useState(false)
+  const [showPrompt, setShowPrompt] = useState(false)
+  const [showInstallHelp, setShowInstallHelp] = useState(false)
+  const [showFallbackHint, setShowFallbackHint] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
   const [installing, setInstalling] = useState(false)
+  const [dismissedUntilMs, setDismissedUntilMs] = useState<number | null>(null)
+  const isRtl = lang === 'ar'
 
   // Register SW
   useEffect(() => {
@@ -47,38 +55,84 @@ export function OrdersPWASetup({ slug }: { slug: string }) {
     }
   }, [slug])
 
-  // Capture native install prompt (Android/Desktop)
+  // Capture native install prompt (Android/Desktop) and reveal softly.
   useEffect(() => {
+    if (typeof window === 'undefined') return
     if (isStandalone()) return
-    const dismissed = (() => { try { return sessionStorage.getItem(DISMISS_KEY) === '1' } catch { return false } })()
-    if (dismissed) return
+
+    try {
+      const until = localStorage.getItem(DISMISS_KEY)
+      if (until) {
+        const ms = parseInt(until, 10)
+        if (!Number.isNaN(ms)) setDismissedUntilMs(ms)
+      }
+    } catch {
+      // ignore
+    }
+
+    const ua = navigator.userAgent
+    setIsDesktop(!/Android|iPhone|iPad|iPod|Mobile/i.test(ua))
 
     const handler = (e: Event) => {
       e.preventDefault()
       setDeferredPrompt(e as BeforeInstallPromptEvent)
-      setShowBanner(true)
     }
+
+    let revealed = false
+    const reveal = () => {
+      if (revealed) return
+      revealed = true
+      setShowPrompt(true)
+    }
+    const onScroll = () => {
+      if (window.scrollY > 240) reveal()
+    }
+
     window.addEventListener('beforeinstallprompt', handler)
-    return () => window.removeEventListener('beforeinstallprompt', handler)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    const timer = setTimeout(reveal, 12000)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('beforeinstallprompt', handler)
+    }
   }, [])
 
-  // iOS Safari: show manual instructions when not standalone
+  // iOS Safari: allow manual instructions when not standalone
   useEffect(() => {
+    if (typeof window === 'undefined') return
     if (isStandalone()) return
     if (!isIOS()) return
-    const dismissed = (() => { try { return sessionStorage.getItem(DISMISS_KEY) === '1' } catch { return false } })()
-    if (dismissed) return
-    setShowIOSBanner(true)
+
+    let revealed = false
+    const reveal = () => {
+      if (revealed) return
+      revealed = true
+      setShowPrompt(true)
+    }
+    const onScroll = () => {
+      if (window.scrollY > 240) reveal()
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    const timer = setTimeout(reveal, 12000)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('scroll', onScroll)
+    }
   }, [])
 
   const handleInstall = useCallback(async () => {
-    if (!deferredPrompt) return
+    if (!deferredPrompt) {
+      setShowFallbackHint(true)
+      setTimeout(() => setShowFallbackHint(false), 4500)
+      return
+    }
     setInstalling(true)
     try {
       await deferredPrompt.prompt()
       const { outcome } = await deferredPrompt.userChoice
       if (outcome === 'accepted') {
-        setShowBanner(false)
+        setShowPrompt(false)
         setDeferredPrompt(null)
       }
     } finally {
@@ -86,82 +140,127 @@ export function OrdersPWASetup({ slug }: { slug: string }) {
     }
   }, [deferredPrompt])
 
-  const handleDismiss = useCallback(() => {
-    try { sessionStorage.setItem(DISMISS_KEY, '1') } catch { /* ignore */ }
-    setShowBanner(false)
-    setShowIOSBanner(false)
+  const handleDismiss = useCallback((forHours: number = DISMISS_HOURS_DEFAULT) => {
+    const until = Date.now() + forHours * 60 * 60 * 1000
+    try { localStorage.setItem(DISMISS_KEY, String(until)) } catch { /* ignore */ }
+    setDismissedUntilMs(until)
+    setShowPrompt(false)
     setDeferredPrompt(null)
   }, [])
 
-  if (!showBanner && !showIOSBanner) return null
+  const now = typeof window !== 'undefined' ? Date.now() : 0
+  const dismissExpired = dismissedUntilMs === null || now >= dismissedUntilMs
+  const ios = isIOS()
+
+  if (!showPrompt || !dismissExpired || isStandalone()) return null
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-amber-500/30 bg-slate-900/95 px-4 pb-safe-area-inset-bottom shadow-2xl backdrop-blur-md"
-      role="region"
-      aria-label="Install app / تثبيت التطبيق"
+      className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-50 md:inset-x-auto md:end-4 md:w-[420px]"
+      role="dialog"
+      aria-label={t('Install business app', 'تثبيت تطبيق المتجر')}
+      dir={isRtl ? 'rtl' : 'ltr'}
     >
-      <div className="mx-auto max-w-2xl py-4">
-        {/* Header row */}
+      <div className="rounded-2xl border border-amber-500/30 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-md">
         <div className="mb-3 flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20">
             <Smartphone className="h-5 w-5 text-amber-400" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-white">
-              Install this business app&nbsp;·&nbsp;ثبّت تطبيق هذا المتجر
+              {t('Install this business app', 'ثبّت تطبيق هذا المتجر')}
             </p>
-            <p className="mt-0.5 text-sm text-slate-400">
-              Receive instant order alerts even when this page is closed
-              &nbsp;·&nbsp;
-              استلم تنبيهات الطلبات فوراً حتى عند إغلاق الصفحة
+            <p className="mt-0.5 text-xs text-slate-400">
+              {t('Get instant order alerts and one-tap launch from your Home Screen.', 'احصل على تنبيهات الطلبات فوراً وتشغيل سريع من الشاشة الرئيسية.')}
             </p>
           </div>
-          <button
+          <Button
             type="button"
-            onClick={handleDismiss}
-            aria-label="Dismiss / إغلاق"
-            className="shrink-0 rounded-lg p-1 text-slate-500 hover:bg-slate-800 hover:text-slate-300"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => handleDismiss(DISMISS_HOURS_DEFAULT)}
+            aria-label={t('Dismiss', 'إغلاق')}
+            className="shrink-0 text-slate-500 hover:bg-slate-800 hover:text-slate-300"
           >
-            <X className="h-5 w-5" />
-          </button>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
 
-        {/* Why install bullets */}
-        <ul className="mb-4 space-y-1 text-xs text-slate-400">
-          <li>✓ FCM push notifications for new orders &amp; status changes · إشعارات فورية للطلبات الجديدة وتغييرات الحالة</li>
-          <li>✓ Your business logo &amp; name on the Home Screen · شعار ومسمى متجرك على الشاشة الرئيسية</li>
-          <li>✓ Each business installs as a separate app · كل متجر كتطبيق مستقل منفصل</li>
-          <li>✓ Works when your screen is off · يعمل عند إغلاق الشاشة</li>
-        </ul>
+        {!ios && (
+          <div className="space-y-2.5">
+            <Button
+              onClick={handleInstall}
+              disabled={installing}
+              className="w-full gap-2 bg-amber-500 font-semibold text-slate-950 hover:bg-amber-400"
+              size="lg"
+            >
+              <Download className="h-5 w-5 shrink-0" />
+              {installing
+                ? t('Installing…', 'جاري التثبيت…')
+                : t('Install app', 'تثبيت التطبيق')}
+            </Button>
 
-        {showBanner && deferredPrompt && (
-          <Button
-            onClick={handleInstall}
-            disabled={installing}
-            className="w-full gap-2 bg-amber-500 font-semibold text-slate-950 hover:bg-amber-400"
-            size="lg"
-          >
-            <Download className="h-5 w-5 shrink-0" />
-            {installing
-              ? 'Installing… · جاري التثبيت…'
-              : 'Install App · تثبيت التطبيق'}
-          </Button>
-        )}
-
-        {showIOSBanner && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-950/40 p-3 text-sm text-amber-200">
-            <p className="font-medium mb-1">
-              iPhone / iPad — افتح في Safari واضغط:
-            </p>
-            <p>
-              Tap the <strong>Share</strong> button (□↑) → <strong>Add to Home Screen</strong> → <strong>Add</strong>
-            </p>
-            <p className="mt-1 text-amber-300/80">
-              اضغط زر <strong>المشاركة</strong> (□↑) ← <strong>إضافة إلى الشاشة الرئيسية</strong> ← <strong>إضافة</strong>
-            </p>
+            {showFallbackHint && (
+              <p className="text-xs text-slate-400">
+                {isDesktop
+                  ? t('Use your browser install icon/menu to install this app.', 'استخدم أيقونة/قائمة التثبيت في المتصفح لتثبيت التطبيق.')
+                  : t('Open browser menu (⋮) and choose Install app / Add to Home Screen.', 'افتح قائمة المتصفح (⋮) واختر تثبيت التطبيق / إضافة إلى الشاشة الرئيسية.')}
+              </p>
+            )}
           </div>
         )}
+
+        {ios && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-950/30 p-3 text-sm text-amber-200">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="font-medium">
+                {t('iPhone / iPad install', 'تثبيت iPhone / iPad')}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowInstallHelp((v) => !v)}
+                className="text-xs text-amber-300 underline underline-offset-2"
+              >
+                {showInstallHelp ? t('Hide steps', 'إخفاء الخطوات') : t('Show steps', 'عرض الخطوات')}
+              </button>
+            </div>
+            {showInstallHelp && (
+              <ol className="space-y-2 text-xs text-amber-100/90">
+                <li className="flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-900/70 text-[11px] font-bold">1</span>
+                  <span>{t('Tap', 'اضغط')} <Share2 className="inline h-3.5 w-3.5" /> {t('Share', 'مشاركة')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-900/70 text-[11px] font-bold">2</span>
+                  <span>{t('Choose', 'اختر')} <Plus className="inline h-3.5 w-3.5" /> {t('Add to Home Screen', 'إضافة إلى الشاشة الرئيسية')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-900/70 text-[11px] font-bold">3</span>
+                  <span>{t('Tap "Add"', 'اضغط "إضافة"')}</span>
+                </li>
+              </ol>
+            )}
+          </div>
+        )}
+
+        <div className="mt-3 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => handleDismiss(DISMISS_HOURS_EXTENDED)}
+            className="text-xs text-slate-400 underline underline-offset-2 hover:text-slate-300"
+          >
+            {t("Don't show for 7 days", 'عدم الإظهار لمدة 7 أيام')}
+          </button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => handleDismiss(DISMISS_HOURS_DEFAULT)}
+            className="text-slate-300 hover:text-white"
+          >
+            {t('Not now', 'لاحقاً')}
+          </Button>
+        </div>
       </div>
     </div>
   )

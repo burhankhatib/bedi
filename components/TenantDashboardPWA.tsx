@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { Download, X, Smartphone, Share2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/components/LanguageContext'
 
-const DISMISS_KEY = 'bedi-dashboard-pwa-dismissed'
+const DISMISS_KEY = 'bedi-dashboard-pwa-dismissed-until'
+const DISMISS_HOURS_DEFAULT = 24
+const DISMISS_HOURS_EXTENDED = 24 * 7
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => void
@@ -23,8 +24,12 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
   const { t, lang } = useLanguage()
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [isIOS, setIsIOS] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
-  const [dismissed, setDismissed] = useState(false)
+  const [showPrompt, setShowPrompt] = useState(false)
+  const [showInstallHelp, setShowInstallHelp] = useState(false)
+  const [showFallbackHint, setShowFallbackHint] = useState(false)
+  const [dismissedUntilMs, setDismissedUntilMs] = useState<number | null>(null)
   const [mounted, setMounted] = useState(false)
   const isRtl = lang === 'ar'
 
@@ -48,65 +53,89 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
       setIsStandalone(standalone)
 
       try {
-        const stored = sessionStorage.getItem(DISMISS_KEY)
-        if (stored === '1') setDismissed(true)
+        const until = localStorage.getItem(DISMISS_KEY)
+        if (until) {
+          const ms = parseInt(until, 10)
+          if (!Number.isNaN(ms)) setDismissedUntilMs(ms)
+        }
       } catch {
-        // sessionStorage can throw in private mode or when disabled
+        // localStorage can throw in private mode or when disabled
       }
 
       const ua = window.navigator.userAgent
       const ios = /iPad|iPhone|iPod/.test(ua) && !(window as unknown as { MSStream?: boolean }).MSStream
+      const desktop = !/Android|iPhone|iPad|iPod|Mobile/i.test(ua)
       setIsIOS(ios)
+      setIsDesktop(desktop)
 
       const handler = (e: Event) => {
         try {
+          ;(e as Event & { preventDefault?: () => void }).preventDefault?.()
           setDeferredPrompt(e as unknown as BeforeInstallPromptEvent)
         } catch {
           // avoid uncaught errors in PWA install flow
         }
       }
       window.addEventListener('beforeinstallprompt', handler)
-      return () => window.removeEventListener('beforeinstallprompt', handler)
+
+      let revealed = false
+      const reveal = () => {
+        if (revealed) return
+        revealed = true
+        setShowPrompt(true)
+      }
+      const onScroll = () => {
+        if (window.scrollY > 220) reveal()
+      }
+      window.addEventListener('scroll', onScroll, { passive: true })
+      const timer = setTimeout(reveal, 12000)
+
+      return () => {
+        clearTimeout(timer)
+        window.removeEventListener('scroll', onScroll)
+        window.removeEventListener('beforeinstallprompt', handler)
+      }
     } catch {
       return undefined
     }
   }, [scope])
 
-  const handleDismiss = () => {
-    setDismissed(true)
+  const handleDismiss = (forHours: number = DISMISS_HOURS_DEFAULT) => {
+    const until = Date.now() + forHours * 60 * 60 * 1000
+    setDismissedUntilMs(until)
+    setShowPrompt(false)
     try {
-      if (typeof window !== 'undefined') sessionStorage.setItem(DISMISS_KEY, '1')
+      if (typeof window !== 'undefined') localStorage.setItem(DISMISS_KEY, String(until))
     } catch {
-      // sessionStorage can throw when disabled or in private mode
+      // localStorage can throw when disabled or in private mode
     }
   }
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return
+    if (!deferredPrompt) {
+      setShowFallbackHint(true)
+      setTimeout(() => setShowFallbackHint(false), 4500)
+      return
+    }
     try {
       deferredPrompt.prompt()
       const { outcome } = await deferredPrompt.userChoice
       if (outcome === 'accepted') {
         setDeferredPrompt(null)
-        setDismissed(true)
+        setShowPrompt(false)
       }
     } catch {
       // PWA install can fail; avoid breaking the dashboard
     }
   }
 
-  if (!mounted || isStandalone || dismissed) return null
+  const now = typeof window !== 'undefined' ? Date.now() : 0
+  const dismissExpired = dismissedUntilMs === null || now >= dismissedUntilMs
+
+  if (!mounted || isStandalone || !dismissExpired || !showPrompt) return null
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, height: 0 }}
-        transition={{ duration: 0.25 }}
-        className="mb-6 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-slate-900/90 p-5 shadow-lg"
-        dir={isRtl ? 'rtl' : 'ltr'}
-      >
+      <div className="mb-6 rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-slate-900/90 p-5 shadow-lg" dir={isRtl ? 'rtl' : 'ltr'}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 flex-1 items-start gap-4">
             <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-amber-500/20">
@@ -114,50 +143,58 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
             </div>
             <div className="min-w-0 flex-1">
               <h2 className="font-bold text-white">
-                {t('Install dashboard on your phone', 'ثبّت لوحة التحكم على هاتفك')}
+                {t('Install your business dashboard app', 'ثبّت تطبيق لوحة التحكم')}
               </h2>
               <p className="mt-0.5 text-sm text-slate-400">
                 {t(
-                  'Open the dashboard quickly from your home screen. Install the app below.',
-                  'افتح لوحة التحكم بسرعة من الشاشة الرئيسية. ثبّت التطبيق أدناه.'
+                  'Open your dashboard in one tap with better reliability and notifications.',
+                  'افتح لوحة التحكم بلمسة واحدة مع موثوقية أعلى وإشعارات أفضل.'
                 )}
               </p>
 
-              {/* Android: Install button or short instruction */}
-              <div className="mt-4">
-                {deferredPrompt ? (
+              {!isIOS && (
+                <div className="mt-4">
                   <Button
                     onClick={handleInstall}
                     size="lg"
                     className="w-full gap-2 rounded-xl bg-amber-500 font-semibold text-slate-950 hover:bg-amber-400 sm:w-auto"
                   >
                     <Download className="size-5" />
-                    {t('Install on Android', 'التثبيت على أندرويد')}
+                    {t('Install dashboard app', 'تثبيت تطبيق لوحة التحكم')}
                   </Button>
-                ) : (
-                  <p className="text-sm text-slate-400">
-                    <strong className="text-slate-300">{t('Android:', 'أندرويد:')}</strong>{' '}
-                    {t(
-                      'Open this page on your Android phone in Chrome, then tap the menu (⋮) → "Install app" or "Add to Home screen".',
-                      'افتح هذه الصفحة على هاتفك الأندرويد في Chrome، ثم اضغط القائمة (⋮) ← "تثبيت التطبيق" أو "إضافة إلى الشاشة الرئيسية".'
-                    )}
-                  </p>
-                )}
-              </div>
+                  {showFallbackHint && (
+                    <p className="mt-2 text-xs text-slate-400">
+                      {isDesktop
+                        ? t('Use your browser install icon/menu to install this app.', 'استخدم أيقونة/قائمة التثبيت في المتصفح لتثبيت التطبيق.')
+                        : t('Open browser menu (⋮) and choose Install app / Add to Home screen.', 'افتح قائمة المتصفح (⋮) واختر تثبيت التطبيق / إضافة إلى الشاشة الرئيسية.')}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* iOS: Instructions */}
               {isIOS && (
                 <div className="mt-4 rounded-lg border border-slate-700 bg-slate-800/50 p-4">
-                  <p className="mb-3 font-semibold text-white">
-                    {t('Install on iPhone / iPad (Safari)', 'التثبيت على iPhone / iPad (Safari)')}
-                  </p>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <p className="font-semibold text-white">
+                      {t('Install on iPhone / iPad', 'التثبيت على iPhone / iPad')}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowInstallHelp((v) => !v)}
+                      className="text-xs text-amber-300 underline underline-offset-2"
+                    >
+                      {showInstallHelp ? t('Hide steps', 'إخفاء الخطوات') : t('Show steps', 'عرض الخطوات')}
+                    </button>
+                  </div>
+                  {showInstallHelp && (
                   <ol className="space-y-2.5 text-sm text-slate-300">
                     <li className="flex gap-3">
                       <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-600 text-xs font-bold text-white">
                         1
                       </span>
                       <span>
-                        {t('Open this page in Safari (not Chrome).', 'افتح هذه الصفحة في Safari (وليس Chrome).')}
+                        {t('Open this page in Safari.', 'افتح هذه الصفحة في Safari.')}
                       </span>
                     </li>
                     <li className="flex gap-3">
@@ -165,7 +202,7 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
                         2
                       </span>
                       <span>
-                        {t('Tap the Share button at the bottom of Safari.', 'اضغط زر المشاركة في أسفل Safari.')}
+                        {t('Tap Share', 'اضغط مشاركة')} <Share2 className="inline h-3.5 w-3.5" />.
                       </span>
                     </li>
                     <li className="flex gap-3">
@@ -173,42 +210,38 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
                         3
                       </span>
                       <span>
-                        {t('Scroll and tap Add to Home Screen.', 'قم بالتمرير واضغط إضافة إلى الشاشة الرئيسية.')}
-                      </span>
-                    </li>
-                    <li className="flex gap-3">
-                      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-600 text-xs font-bold text-white">
-                        4
-                      </span>
-                      <span>
-                        {t('Tap Add to confirm.', 'اضغط إضافة للتأكيد.')}
+                        {t('Tap Add to Home Screen', 'اضغط إضافة إلى الشاشة الرئيسية')} <Plus className="inline h-3.5 w-3.5" />.
                       </span>
                     </li>
                   </ol>
+                  )}
                 </div>
               )}
 
-              {!isIOS && deferredPrompt && (
-                <p className="mt-3 text-xs text-slate-500">
-                  {t(
-                    "If the button doesn't appear, use your browser menu (⋮) → Install app / Add to Home screen.",
-                    'إذا لم يظهر الزر، استخدم قائمة المتصفح (⋮) ← تثبيت التطبيق / إضافة إلى الشاشة الرئيسية.'
-                  )}
-                </p>
-              )}
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleDismiss(DISMISS_HOURS_EXTENDED)}
+                  className="text-xs text-slate-400 underline underline-offset-2 hover:text-slate-200"
+                >
+                  {t("Don't show for 7 days", 'عدم الإظهار لمدة 7 أيام')}
+                </button>
+                <Button variant="ghost" size="sm" className="text-slate-300 hover:text-white" onClick={() => handleDismiss(DISMISS_HOURS_DEFAULT)}>
+                  {t('Not now', 'لاحقاً')}
+                </Button>
+              </div>
             </div>
           </div>
           <Button
             variant="ghost"
             size="icon"
-            onClick={handleDismiss}
+            onClick={() => handleDismiss(DISMISS_HOURS_DEFAULT)}
             className="shrink-0 text-slate-400 hover:text-white"
             aria-label={t('Dismiss', 'إخفاء')}
           >
             <X className="size-5" />
           </Button>
         </div>
-      </motion.div>
-    </AnimatePresence>
+      </div>
   )
 }
