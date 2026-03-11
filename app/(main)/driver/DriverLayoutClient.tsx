@@ -18,7 +18,7 @@ import { DriverStatusPushReminder } from './DriverStatusPushReminder'
 import { DriverLocationTracker } from './DriverLocationTracker'
 import { DriverInviteInMenu } from './DriverInviteInMenu'
 import { DriverSidebarActions } from './DriverSidebarActions'
-import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
+import { PWAManager } from '@/components/pwa/PWAManager'
 import { PREFER_DRIVER_KEY } from '@/components/StandaloneDriverRedirect'
 
 const NAV_ITEMS = [
@@ -205,15 +205,7 @@ export function DriverLayoutClient({
       </Sheet>
 
       <main className="mx-auto max-w-lg px-4 py-4 sm:py-6 sm:max-w-[100vw]">
-        <PWAUpdatePrompt
-          scriptUrl="/driver/sw.js"
-          scope="/driver"
-          rtl={isRtl}
-          titleEn="New version available"
-          titleAr="يتوفر إصدار جديد"
-          reloadEn="Reload to update"
-          reloadAr="تحديث الآن"
-        />
+        <PWAManager role="driver" variant="inline" />
         {pathname !== '/driver/profile' && <DriverPushSetup />}
         <DriverOrdersGate>
           {children}

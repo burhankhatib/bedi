@@ -5,9 +5,8 @@ import { getTenantBySlug, isTenantSubscriptionExpired } from '@/lib/tenant'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { AppNav } from '@/components/saas/AppNav'
-import { TenantDashboardPWA } from '@/components/TenantDashboardPWA'
 import { TenantPushSetup } from '@/components/TenantPushSetup'
-import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
+import { PWAManager } from '@/components/pwa/PWAManager'
 import { ManageNavClient } from './ManageNavClient'
 import { SubscriptionBanner } from './SubscriptionBanner'
 import { ManageLanguageSync } from './ManageLanguageSync'
@@ -78,15 +77,7 @@ export default async function ManageLayout({
         <TenantBusinessProvider slug={slug}>
         <div className="flex-1 mx-auto w-full max-w-[1400px] flex flex-col">
           {/* Utility Components out of the flex-row flow */}
-          <PWAUpdatePrompt
-            scriptUrl={`/t/${slug}/sw.js`}
-            scope={`/t/${slug}/`}
-            titleEn="New version available"
-            titleAr="يتوفر إصدار جديد"
-            reloadEn="Reload to update"
-            reloadAr="تحديث الآن"
-          />
-          <TenantDashboardPWA slug={slug} scope={`/t/${slug}/`} />
+          <PWAManager role="business-manage" slug={slug} variant="inline" />
           <ManageLanguageSync slug={slug} />
           <TenantPushSetup slug={slug} scope={`/t/${slug}/`} />
 

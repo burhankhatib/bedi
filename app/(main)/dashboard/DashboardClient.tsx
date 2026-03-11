@@ -3,9 +3,8 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { AppNav } from '@/components/saas/AppNav'
-import { TenantDashboardPWA } from '@/components/TenantDashboardPWA'
 import { BusinessPushSetup } from '@/components/BusinessPushSetup'
-import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
+import { PWAManager } from '@/components/pwa/PWAManager'
 import { useLanguage } from '@/components/LanguageContext'
 import type { Tenant } from '@/lib/tenant'
 import { Store, ExternalLink, LayoutGrid, Plus, ArrowRight } from 'lucide-react'
@@ -36,8 +35,7 @@ export function DashboardClient({
       <AppNav variant="dashboard" showAdmin={showAdmin} hasDriver={hasDriver} />
 
       <main className="mx-auto max-w-[100vw] px-4 py-6 sm:container sm:py-8 md:py-12">
-        <PWAUpdatePrompt scriptUrl="/dashboard/sw.js" scope="/dashboard" />
-        <TenantDashboardPWA />
+        <PWAManager role="tenant-dashboard" variant="inline" />
         <BusinessPushSetup />
         <div className="mb-8">
           <h1 className="text-2xl font-bold md:text-3xl">{t('Dashboard', 'لوحة التحكم')}</h1>

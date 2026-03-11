@@ -4,8 +4,7 @@ import { Suspense } from 'react'
 import { usePathname } from 'next/navigation'
 import { MobileBottomNav } from './MobileBottomNav'
 import { CartSlider } from '@/components/Cart/CartSlider'
-import { CustomerPWASetup } from './CustomerPWASetup'
-import { PWAInstall } from '@/components/PWAInstall'
+import { PWAManager } from '@/components/pwa/PWAManager'
 import { useLocation } from '@/components/LocationContext'
 
 /** Paths where the customer bottom nav is shown (home, search, tenant menu, order flow, my orders). */
@@ -33,16 +32,8 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
 
   return (
     <>
-      {canRenderCustomerShell && <CustomerPWASetup />}
       {canRenderCustomerShell && (
-        <div
-          className="container mx-auto px-4 pb-2 md:pb-4"
-          style={{
-            paddingTop: 'max(1rem, calc(env(safe-area-inset-top, 0px) + 0.5rem))',
-          }}
-        >
-          <PWAInstall />
-        </div>
+        <PWAManager role="customer" variant="fixed" showPermissions />
       )}
       <div className={canRenderCustomerShell ? 'pb-20 md:pb-0' : ''}>
         {children}

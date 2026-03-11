@@ -22,7 +22,7 @@ import {
 } from '@/lib/maps-utils'
 import { getCityDisplayName } from '@/lib/registration-translations'
 import dynamic from 'next/dynamic'
-import { DriverPWAInstall } from './DriverPWAInstall'
+
 import { SlideToComplete } from './SlideToComplete'
 import { SlideToPickUp } from './SlideToPickUp'
 import { SlideToConfirm } from './SlideToConfirm'
@@ -874,7 +874,7 @@ function DriverOrdersV2Content() {
         </div>
       )}
 
-      <DriverPWAInstall />
+
 
       {/* ─── Header ─────────────────────────────────────── */}
       <div className="flex items-center justify-between">
