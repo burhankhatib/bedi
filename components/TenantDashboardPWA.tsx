@@ -38,10 +38,27 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
     if (typeof window === 'undefined') return
 
     try {
+      // Force the correct manifest for this context:
+      // - /dashboard => unified Bedi Business
+      // - /t/[slug]/manage => per-business app that starts at /orders
+      const targetManifest = slug
+        ? `/t/${slug}/orders/manifest.webmanifest`
+        : '/dashboard/manifest.webmanifest'
+      let link = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null
+      if (!link) {
+        link = document.createElement('link')
+        link.setAttribute('rel', 'manifest')
+        document.head.appendChild(link)
+      }
+      if (link.getAttribute('href') !== targetManifest) {
+        link.setAttribute('href', targetManifest)
+      }
+
       // Register SW so Android can show install prompt. When on manage, use tenant-scoped SW for separate PWA install.
       if ('serviceWorker' in navigator) {
         if (scope) {
-          navigator.serviceWorker.register(`${scope}/sw.js`).catch(() => {})
+          const normalized = scope.endsWith('/') ? scope : `${scope}/`
+          navigator.serviceWorker.register(`${normalized.replace(/\/$/, '')}/sw.js`, { scope: normalized }).catch(() => {})
         } else {
           navigator.serviceWorker.register('/app-sw.js', { scope: '/' }).catch(() => {})
         }

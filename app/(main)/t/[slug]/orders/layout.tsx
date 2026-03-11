@@ -8,6 +8,10 @@ export async function generateMetadata({
   const { slug } = await params
   return {
     manifest: `/t/${slug}/orders/manifest.webmanifest`,
+    icons: {
+      icon: `/t/${slug}/icon/192`,
+      apple: `/t/${slug}/icon/192`,
+    },
   }
 }
 

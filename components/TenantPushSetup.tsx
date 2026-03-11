@@ -117,7 +117,9 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
     let cancelled = false
     // Use the scope as-is — no forced trailing slash (same reason as subscribe()).
     const scopeForReg = scope
-    const swScript = scope.endsWith('/orders') || scope.endsWith('/manage') || scope.endsWith('/orders/') ? `${scope.replace(/\/?$/, '')}/sw.js` : '/tenant-sw.js'
+    const swScript = scope.startsWith('/t/')
+      ? `${scope.replace(/\/$/, '')}/sw.js`
+      : '/tenant-sw.js'
     ;(async () => {
       try {
         await navigator.serviceWorker.register(swScript, { scope: scopeForReg })

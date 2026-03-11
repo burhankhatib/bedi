@@ -8,7 +8,7 @@ const FALLBACK_ICONS = [
   { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
 ]
 
-/** PWA manifest for Orders page ("B Cafe Orders"). Push notifications for new orders. Install separately from Menu and Dashboard. */
+/** Per-business PWA manifest. Used from both /manage and /orders; always opens Orders by default. */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -35,8 +35,8 @@ export async function GET(
   const protocol = host.includes('localhost') ? 'http' : 'https'
   const origin = `${protocol}://${host}`
 
-  const businessName = restaurantInfo?.name_en || tenant.name || 'Orders'
-  const name = `${businessName} Orders`
+  const businessName = restaurantInfo?.name_en || tenant.name || 'Business'
+  const name = `${businessName} Dashboard`
   const shortName = name.length > 12 ? name.slice(0, 11) + '…' : name
   const startUrl = `${origin}/t/${slug}/orders`
   const scope = `${origin}/t/${slug}/`
@@ -58,7 +58,7 @@ export async function GET(
     id: `${origin}/t/${slug}/orders`,
     name,
     short_name: shortName,
-    description: `${businessName} — New orders & push notifications`,
+    description: `${businessName} — Standalone business dashboard with order alerts`,
     start_url: startUrl,
     scope,
     display: 'standalone',

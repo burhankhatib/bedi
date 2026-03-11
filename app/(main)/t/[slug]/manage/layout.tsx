@@ -22,7 +22,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   return {
-    manifest: `/t/${slug}/manage/manifest.webmanifest`,
+    // Use the same per-business manifest as Orders so install always opens /orders by default.
+    manifest: `/t/${slug}/orders/manifest.webmanifest`,
+    icons: {
+      icon: `/t/${slug}/icon/192`,
+      apple: `/t/${slug}/icon/192`,
+    },
   }
 }
 
@@ -74,16 +79,16 @@ export default async function ManageLayout({
         <div className="flex-1 mx-auto w-full max-w-[1400px] flex flex-col">
           {/* Utility Components out of the flex-row flow */}
           <PWAUpdatePrompt
-            scriptUrl={`/t/${slug}/manage/sw.js`}
-            scope={`/t/${slug}/manage`}
+            scriptUrl={`/t/${slug}/sw.js`}
+            scope={`/t/${slug}/`}
             titleEn="New version available"
             titleAr="يتوفر إصدار جديد"
             reloadEn="Reload to update"
             reloadAr="تحديث الآن"
           />
-          <TenantDashboardPWA slug={slug} scope={`/t/${slug}/manage`} />
+          <TenantDashboardPWA slug={slug} scope={`/t/${slug}/`} />
           <ManageLanguageSync slug={slug} />
-          <TenantPushSetup slug={slug} scope={`/t/${slug}/manage`} />
+          <TenantPushSetup slug={slug} scope={`/t/${slug}/`} />
 
           <div className="flex-1 flex flex-col md:flex-row w-full">
             {/* Sidebar / Mobile Nav */}

@@ -39,6 +39,8 @@ type LocationContextValue = LocationState & {
   detectedCityName: string | null
   /** Retry geolocation (e.g. after user denied, or "Try again" on error). */
   retryAutoDetect: () => void
+  /** User-gesture-triggered geolocation request (best chance to show iOS prompt). */
+  requestLocationPermission: () => void
 }
 
 const LocationContext = createContext<LocationContextValue | null>(null)
@@ -127,6 +129,90 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     setAutoDetectTrigger((t) => t + 1)
   }, [])
 
+  const resolveCoordinates = useCallback(async (latitude: number, longitude: number) => {
+    const cities = availableCitiesRef.current
+
+    const geofenceCity = getCityFromCoordinates(longitude, latitude)
+    if (geofenceCity) {
+      const match = cities.find((c) => c.toLowerCase() === geofenceCity.toLowerCase())
+      if (match) {
+        setCity(match)
+        setIsChosen(true)
+        setLocationStatus('in_service')
+        return
+      }
+    }
+
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
+      { headers: { 'Accept-Language': 'en' } }
+    )
+    const data = await res.json()
+    const address = data.address || {}
+    const addressValues: string[] = [
+      address.city,
+      address.town,
+      address.village,
+      address.municipality,
+      address.suburb,
+      address.county,
+      address.state,
+    ].filter(Boolean)
+
+    let foundCity = ''
+    for (const val of addressValues) {
+      const normalized = (val as string).toLowerCase().trim()
+      if (GEO_CITY_ALIASES[normalized]) {
+        foundCity = GEO_CITY_ALIASES[normalized]
+        break
+      }
+    }
+    if (!foundCity && addressValues.length > 0) {
+      foundCity = addressValues[0] as string
+    }
+
+    if (foundCity) {
+      const match = cities.find((c) => {
+        const enMatch =
+          c.toLowerCase() === foundCity.toLowerCase() ||
+          foundCity.toLowerCase().includes(c.toLowerCase())
+        return enMatch
+      })
+      if (match) {
+        setCity(match)
+        setIsChosen(true)
+        setLocationStatus('in_service')
+        return
+      }
+    }
+
+    setDetectedCityName(geofenceCity || foundCity || null)
+    setLocationStatus('out_of_service')
+  }, [])
+
+  const requestLocationPermission = useCallback(() => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      setLocationStatus('error')
+      return
+    }
+
+    setLocationStatus('detecting')
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          await resolveCoordinates(position.coords.latitude, position.coords.longitude)
+        } catch {
+          setLocationStatus('error')
+        }
+      },
+      (err) => {
+        if (err.code === 1) setLocationStatus('denied')
+        else setLocationStatus('error')
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
+    )
+  }, [resolveCoordinates])
+
   // Auto-detect location on first visit when no saved city (skip modal when in service area).
   // Gated on citiesLoaded so the async callback never matches against an empty list.
   useEffect(() => {
@@ -153,66 +239,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       settled = true
       clearTimeout(forceTimeout)
       try {
-        const { latitude, longitude } = position.coords
-        // Read from ref so we always get the latest cities, not a stale closure
-        const cities = availableCitiesRef.current
-
-        const geofenceCity = getCityFromCoordinates(longitude, latitude)
-        if (geofenceCity) {
-          const match = cities.find((c) => c.toLowerCase() === geofenceCity.toLowerCase())
-          if (match) {
-            setCity(match)
-            setIsChosen(true)
-            setLocationStatus('in_service')
-            return
-          }
-        }
-
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
-          { headers: { 'Accept-Language': 'en' } }
-        )
-        const data = await res.json()
-        const address = data.address || {}
-        const addressValues: string[] = [
-          address.city,
-          address.town,
-          address.village,
-          address.municipality,
-          address.suburb,
-          address.county,
-          address.state,
-        ].filter(Boolean)
-
-        let foundCity = ''
-        for (const val of addressValues) {
-          const normalized = (val as string).toLowerCase().trim()
-          if (GEO_CITY_ALIASES[normalized]) {
-            foundCity = GEO_CITY_ALIASES[normalized]
-            break
-          }
-        }
-        if (!foundCity && addressValues.length > 0) {
-          foundCity = addressValues[0] as string
-        }
-
-        if (foundCity) {
-          const match = cities.find((c) => {
-            const enMatch =
-              c.toLowerCase() === foundCity.toLowerCase() ||
-              foundCity.toLowerCase().includes(c.toLowerCase())
-            return enMatch
-          })
-          if (match) {
-            setCity(match)
-            setIsChosen(true)
-            setLocationStatus('in_service')
-            return
-          }
-        }
-
-        setDetectedCityName(geofenceCity || foundCity || null)
-        setLocationStatus('out_of_service')
+        await resolveCoordinates(position.coords.latitude, position.coords.longitude)
       } catch {
         setLocationStatus('error')
       }
@@ -239,7 +266,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       settled = true
       clearTimeout(forceTimeout)
     }
-  }, [isInitialized, citiesLoaded, city, autoDetectTrigger])
+  }, [isInitialized, citiesLoaded, city, autoDetectTrigger, resolveCoordinates])
 
   const value: LocationContextValue = {
     city,
@@ -252,6 +279,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     locationStatus,
     detectedCityName,
     retryAutoDetect,
+    requestLocationPermission,
   }
 
   return (

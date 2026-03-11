@@ -388,7 +388,7 @@ export function PWAInstall() {
             </Button>
             <div className="flex items-center gap-4 mb-4">
               <div className="w-12 h-12 shrink-0 rounded-xl bg-white/20 flex items-center justify-center overflow-hidden p-1">
-                <img src="/customerLogo.webp" alt="" className="w-full h-full object-contain" />
+                <img src="/customersLogo.webp" alt="" className="w-full h-full object-contain" />
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-white font-black text-lg">
@@ -483,7 +483,7 @@ export function PWAInstall() {
       <div className="rounded-2xl border border-emerald-300/40 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-4 shadow-xl shadow-emerald-900/25">
         <div className="mb-3 flex items-start gap-3">
           <div className="mt-0.5 flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/20 p-1">
-            <img src="/customerLogo.webp" alt="" className="h-full w-full object-contain" />
+            <img src="/customersLogo.webp" alt="" className="h-full w-full object-contain" />
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-black text-white">

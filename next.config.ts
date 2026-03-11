@@ -88,16 +88,20 @@ const nextConfig: NextConfig = {
         destination: '/customersLogo.webp',
       },
       {
+        source: '/adminsLogo.webp',
+        destination: '/adminslogo.webp',
+      },
+      {
         source: '/favicon.ico',
-        destination: '/customerLogo.webp',
+        destination: '/customersLogo.webp',
       },
       {
         source: '/apple-touch-icon.png',
-        destination: '/customerLogo.webp',
+        destination: '/customersLogo.webp',
       },
       {
         source: '/apple-touch-icon-precomposed.png',
-        destination: '/customerLogo.webp',
+        destination: '/customersLogo.webp',
       },
     ];
   },

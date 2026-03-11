@@ -21,10 +21,9 @@ export const metadata: Metadata = {
     : undefined,
   title: "Bedi Delivery",
   description: "I want a delivery — menu & delivery for your business.",
-  manifest: "/manifest.json",
   icons: {
-    icon: "/customerLogo.webp",
-    apple: "/customerLogo.webp",
+    icon: "/logo.webp",
+    apple: "/logo.webp",
   },
   appleWebApp: {
     capable: true,

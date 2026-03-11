@@ -120,8 +120,8 @@ export default async function TenantOrdersPage({
         <main className="mx-auto max-w-[100vw] px-4 py-4 sm:container sm:py-6">
           <SubscriptionBanner slug={slug} />
           <PWAUpdatePrompt
-            scriptUrl="/app-sw.js"
-            scope="/"
+            scriptUrl={`/t/${slug}/sw.js`}
+            scope={`/t/${slug}/`}
             titleEn="New version available"
             titleAr="يتوفر إصدار جديد"
             reloadEn="Reload to update"

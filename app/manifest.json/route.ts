@@ -22,10 +22,10 @@ export function GET(req: NextRequest) {
     theme_color: '#0f172a',
     orientation: 'portrait-primary' as const,
     icons: [
-      { src: `${origin}/customerLogo.webp`, sizes: '192x192', type: 'image/webp', purpose: 'any' as const },
-      { src: `${origin}/customerLogo.webp`, sizes: '512x512', type: 'image/webp', purpose: 'any' as const },
-      { src: `${origin}/customerLogo.webp`, sizes: '192x192', type: 'image/webp', purpose: 'maskable' as const },
-      { src: `${origin}/customerLogo.webp`, sizes: '512x512', type: 'image/webp', purpose: 'maskable' as const },
+      { src: `${origin}/customersLogo.webp`, sizes: '192x192', type: 'image/webp', purpose: 'any' as const },
+      { src: `${origin}/customersLogo.webp`, sizes: '512x512', type: 'image/webp', purpose: 'any' as const },
+      { src: `${origin}/customersLogo.webp`, sizes: '192x192', type: 'image/webp', purpose: 'maskable' as const },
+      { src: `${origin}/customersLogo.webp`, sizes: '512x512', type: 'image/webp', purpose: 'maskable' as const },
     ],
     categories: ['food', 'shopping', 'lifestyle'],
   }

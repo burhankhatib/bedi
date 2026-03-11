@@ -20,6 +20,7 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
     setOpenLocationModal,
     openLocationModal,
     locationStatus,
+    requestLocationPermission,
   } = useLocation()
   const isRtl = lang === 'ar'
 
@@ -58,15 +59,26 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
               )}
             </p>
             <div className="mt-2 w-full">
-              <Button
-                type="button"
-                size="lg"
-                onClick={() => setOpenLocationModal(true)}
-                className="h-11 w-full rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-500"
-              >
-                <MapPin className="size-5" />
-                {t('Choose city manually', 'اختيار المدينة يدوياً')}
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  size="lg"
+                  onClick={requestLocationPermission}
+                  className="h-11 w-full rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-500"
+                >
+                  <MapPin className="size-5" />
+                  {t('Enable my location', 'تفعيل موقعي')}
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  onClick={() => setOpenLocationModal(true)}
+                  className="h-11 w-full rounded-xl border-2 border-slate-200 bg-white font-bold text-slate-900 hover:bg-slate-50"
+                >
+                  {t('Choose city manually', 'اختيار المدينة يدوياً')}
+                </Button>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -125,16 +137,28 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
               )}
             </p>
             <div className="mt-8">
-              <Button
-                type="button"
-                size="lg"
-                className="relative z-10 h-14 w-full touch-manipulation cursor-pointer gap-2 rounded-2xl bg-emerald-600 text-lg font-bold text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-500"
-                onClick={() => setOpenLocationModal(true)}
-                aria-label={t('Choose location', 'اختر الموقع')}
-              >
-                <MapPin className="size-6" />
-                {t('Pick your area', 'اختر الموقع')}
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  size="lg"
+                  className="relative z-10 h-14 w-full touch-manipulation cursor-pointer gap-2 rounded-2xl bg-emerald-600 text-lg font-bold text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-500"
+                  onClick={requestLocationPermission}
+                  aria-label={t('Enable location', 'تفعيل الموقع')}
+                >
+                  <MapPin className="size-6" />
+                  {t('Enable my location', 'تفعيل موقعي')}
+                </Button>
+                <Button
+                  type="button"
+                  size="lg"
+                  variant="outline"
+                  className="h-12 w-full rounded-2xl border-2 border-slate-200 bg-white font-bold text-slate-900 hover:bg-slate-50"
+                  onClick={() => setOpenLocationModal(true)}
+                  aria-label={t('Choose location manually', 'اختر الموقع يدوياً')}
+                >
+                  {t('Choose city manually', 'اختيار المدينة يدوياً')}
+                </Button>
+              </div>
             </div>
           </motion.div>
         </motion.div>

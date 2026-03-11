@@ -29,6 +29,18 @@ export function DriverPWAInstall() {
 
   useEffect(() => {
     try {
+      // Force driver manifest on driver pages so install always maps to Driver app.
+      const targetManifest = '/driver/manifest.webmanifest'
+      let link = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null
+      if (!link) {
+        link = document.createElement('link')
+        link.setAttribute('rel', 'manifest')
+        document.head.appendChild(link)
+      }
+      if (link.getAttribute('href') !== targetManifest) {
+        link.setAttribute('href', targetManifest)
+      }
+
       const until = localStorage.getItem(DISMISS_KEY)
       if (until) {
         const ms = parseInt(until, 10)
@@ -39,6 +51,10 @@ export function DriverPWAInstall() {
     }
     const timer = setTimeout(() => {
       try {
+        // Ensure a dedicated /driver/ SW controls this app context.
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('/driver/sw.js', { scope: '/driver/' }).catch(() => {})
+        }
         const standalone = window.matchMedia('(display-mode: standalone)').matches
           || (window.navigator as unknown as { standalone?: boolean }).standalone === true
         setIsStandalone(standalone)

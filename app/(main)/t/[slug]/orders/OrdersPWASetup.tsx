@@ -48,8 +48,19 @@ export function OrdersPWASetup({ slug }: { slug: string }) {
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !slug) return
     try {
-      const scope = `/t/${slug}/orders`
-      navigator.serviceWorker.register(`/t/${slug}/orders/sw.js`, { scope }).catch(() => {})
+      const targetManifest = `/t/${slug}/orders/manifest.webmanifest`
+      let link = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null
+      if (!link) {
+        link = document.createElement('link')
+        link.setAttribute('rel', 'manifest')
+        document.head.appendChild(link)
+      }
+      if (link.getAttribute('href') !== targetManifest) {
+        link.setAttribute('href', targetManifest)
+      }
+
+      const scope = `/t/${slug}/`
+      navigator.serviceWorker.register(`/t/${slug}/sw.js`, { scope }).catch(() => {})
     } catch {
       // avoid uncaught errors
     }

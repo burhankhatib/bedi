@@ -2,6 +2,15 @@ import { Suspense } from 'react'
 import { SanityLiveGate } from '@/components/SanityLiveGate'
 import { CustomerAreaWrapper } from '@/components/customer/CustomerAreaWrapper'
 import { StandaloneDriverRedirect, StandaloneTenantRedirect } from '@/components/StandaloneDriverRedirect'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/customersLogo.webp',
+    apple: '/customersLogo.webp',
+  },
+}
 
 /**
  * (main) layout: structure + SanityLive. ClerkProvider etc. are in root layout.

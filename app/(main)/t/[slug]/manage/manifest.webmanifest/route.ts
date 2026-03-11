@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { getTenantBySlug } from '@/lib/tenant'
 import { client } from '@/sanity/lib/client'
 
-/** PWA manifest for Tenant Dashboard (manage business, orders, analytics). Uses business logo when set, else admins fallback. */
+/** Legacy per-business manifest endpoint kept for compatibility. Mirrors Orders manifest behavior. */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -31,7 +31,7 @@ export async function GET(
 
   const name = restaurantInfo?.name_en || tenant.name || 'Dashboard'
   const shortName = name.length > 12 ? name.slice(0, 11) + '…' : name
-  const startUrl = `${origin}/t/${slug}/manage`
+  const startUrl = `${origin}/t/${slug}/orders`
   const scope = `${origin}/t/${slug}/`
 
   let icons: Array<{ src: string; sizes: string; type: string; purpose: string }>
@@ -48,10 +48,10 @@ export async function GET(
   }
 
   const manifest = {
-    id: `${origin}/t/${slug}/manage`,
-    name,
+    id: `${origin}/t/${slug}/orders`,
+    name: `${name} Dashboard`,
     short_name: shortName,
-    description: `${name} — Manage business, menu, orders & analytics`,
+    description: `${name} — Standalone business dashboard`,
     start_url: startUrl,
     scope,
     display: 'standalone',

@@ -34,7 +34,7 @@ const PWA_APPS: PwaItem[] = [
     nameAr: 'بيدي',
     description: 'Order from restaurants and stores. Get order updates and track your delivery.',
     descriptionAr: 'اطلب من المطاعم والمتاجر. احصل على تحديثات الطلب وتتبع توصيلك.',
-    icon: '/customerLogo.webp',
+    icon: '/customersLogo.webp',
     installUrl: '/',
     installHint: 'Open the homepage, then add to Home Screen or use the browser install prompt.',
     installHintAr: 'افتح الصفحة الرئيسية، ثم أضف إلى الشاشة الرئيسية أو استخدم خيار التثبيت في المتصفح.',

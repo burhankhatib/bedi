@@ -49,8 +49,8 @@ self.addEventListener('push', function (event) {
   const path = data.url && data.url.startsWith('http') ? data.url : (self.location.origin + (data.url && data.url.startsWith('/') ? data.url : '/' + (data.url || '')))
   const options = {
     body: data.body || 'Tap to open.',
-    icon: '/customerLogo.webp',
-    badge: '/customerLogo.webp',
+    icon: '/customersLogo.webp',
+    badge: '/customersLogo.webp',
     data: { url: path },
     tag: 'bedi-customer',
     renotify: true,
