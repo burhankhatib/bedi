@@ -100,7 +100,7 @@ function FilterPanelContent({ meta, category, section, area, setFilter, lang, t 
             <button
               onClick={() => setFilter(undefined, '', undefined)}
               className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                !section ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                !section ? 'bg-brand-yellow text-brand-black shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               {t('All', 'الكل')}
@@ -110,7 +110,7 @@ function FilterPanelContent({ meta, category, section, area, setFilter, lang, t 
                 key={s.key}
                 onClick={() => setFilter(undefined, s.key, undefined)}
                 className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  section === s.key ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  section === s.key ? 'bg-brand-yellow text-brand-black shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 {lang === 'ar' ? s.ar : s.en}
@@ -128,7 +128,7 @@ function FilterPanelContent({ meta, category, section, area, setFilter, lang, t 
             <button
               onClick={() => setFilter(undefined, undefined, '')}
               className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                !area ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                !area ? 'bg-brand-yellow text-brand-black shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               {t('Any', 'أي منطقة')}
@@ -139,7 +139,7 @@ function FilterPanelContent({ meta, category, section, area, setFilter, lang, t 
                 onClick={() => setFilter(undefined, undefined, lang === 'ar' ? a.name_ar : a.name_en)}
                 className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition ${
                   area && (area === a.name_en || area === a.name_ar)
-                    ? 'bg-amber-500 text-white'
+                    ? 'bg-brand-yellow text-brand-black shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
@@ -370,13 +370,13 @@ export function SearchPageClient() {
             {/* M3 Search Header */}
             <div className="mb-6 flex gap-3 items-center">
               <div className="relative min-w-0 flex-1 group">
-                <Search className="absolute start-4 top-1/2 size-5 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+                <Search className="absolute start-4 top-1/2 size-5 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
                 <Input
                   type="search"
                   placeholder={t('Search businesses or items...', 'ابحث عن أعمال أو أصناف...')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-14 rounded-full border-0 bg-slate-100/80 px-12 text-base shadow-inner focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-emerald-500/50 transition-all font-medium placeholder:text-slate-400 placeholder:font-normal"
+                  className="h-14 rounded-full border-0 bg-slate-100/80 px-12 text-base shadow-inner focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-brand-red/50 transition-all font-medium placeholder:text-slate-400 placeholder:font-normal"
                 />
               </div>
               <button
@@ -384,7 +384,7 @@ export function SearchPageClient() {
                 onClick={() => setFiltersExpanded(!filtersExpanded)}
                 className={`flex size-14 shrink-0 items-center justify-center rounded-full transition-all duration-300 md:size-14 ${
                   filtersExpanded
-                    ? 'bg-emerald-100 text-emerald-700 shadow-sm'
+                    ? 'bg-brand-yellow text-brand-black shadow-sm'
                     : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200 shadow-sm'
                 }`}
                 aria-label={t('Filters', 'الفلاتر')}
@@ -472,7 +472,7 @@ export function SearchPageClient() {
                   >
                     <Link
                       href={t.slug ? `/t/${t.slug}` : '#'}
-                      className="group flex items-center gap-4 overflow-hidden rounded-[20px] bg-white p-4 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-emerald-100"
+                      className="group flex items-center gap-4 overflow-hidden rounded-[20px] bg-white p-4 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
                     >
                       {/* Logo - Circular elevated avatar M3 */}
                       <div className="relative size-[72px] shrink-0 overflow-hidden rounded-full bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300">
@@ -492,7 +492,7 @@ export function SearchPageClient() {
                       </div>
                       {/* Details - Right stack */}
                       <div className="min-w-0 flex-1 flex flex-col justify-center">
-                        <h2 className="font-bold text-slate-900 text-[17px] tracking-tight truncate group-hover:text-emerald-700 transition-colors">
+                        <h2 className="font-bold text-slate-900 text-[17px] tracking-tight truncate group-hover:text-brand-yellow transition-colors">
                           {(lang === 'ar' ? t.name_ar : t.name_en) || t.name}
                         </h2>
                         

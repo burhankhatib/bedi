@@ -4,6 +4,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --color-brand-red: #aa1f23;
+  --color-brand-yellow: #ef9f20;
+  --color-brand-black: #231f20;
+  
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-cairo), ui-sans-serif, system-ui, sans-serif;

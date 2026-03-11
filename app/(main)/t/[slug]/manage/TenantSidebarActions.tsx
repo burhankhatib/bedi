@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { MapPin, RefreshCw } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
+import { detectCityAndCountry } from '@/lib/geofencing-utils'
 import { useTenantPush } from './TenantPushContext'
 
 export function TenantSidebarActions({ slug }: { slug: string }) {
@@ -52,7 +53,12 @@ export function TenantSidebarActions({ slug }: { slug: string }) {
             body: JSON.stringify({ lat, lng }),
           })
           if (!res.ok) throw new Error('Failed to save location')
-          showToast('تم حفظ موقع العمل بنجاح!', 'Business location saved successfully!', 'success')
+          const detected = detectCityAndCountry(lng, lat)
+          showToast(
+            'تم حفظ موقع العمل بنجاح!' + (detected ? ` (${detected.city})` : ''),
+            'Business location saved successfully!' + (detected ? ` (${detected.city})` : ''),
+            'success'
+          )
         } catch {
           showToast('فشل حفظ الموقع. حاول مرة أخرى.', 'Failed to save location. Try again.', 'error')
         } finally {

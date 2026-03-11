@@ -28,8 +28,9 @@ export function DriverInviteInMenu() {
     }
 
     const shareText = t(
-      'Join me as a delivery driver! 🚗',
-      'انضم إلي كسائق توصيل! 🚗'
+      `Join me as a delivery driver on the Bedi app!\n${inviteUrl}\n\nWhy will you love the new app?\n🚗 Receive live orders and track your route in real-time\n⏰ Freedom to work on your own schedule (work whenever you want)\n💰 Track your earnings and trips easily and transparently\n📞 Easy and direct communication with restaurants and customers\n💯 And most importantly, no one shares or takes any commissions from you, your hard work is 100% yours!`,
+      
+      `إنضم معي ككابتن توصيل على تطبيق بدي !\n${inviteUrl}\n\nليش رح يعجبك التطبيق الجديد ؟\n🚗 استلام الطلبات المباشرة وتتبع المسار لحظياً\n⏰ حرية اختيار أوقات العمل اللي بتناسبك (اشتغل وقت ما تحب)\n💰 تتبع أرباحك ورحلاتك بكل سهولة وشفافية\n📞 تواصل سهل ومباشر مع المطاعم والعملاء من خلال التطبيق\n💯 و الأهم مافي ولا حد بشاركك او بياخد منك اي عمولات، يعني تعبك برجعلك الك وحدك و بس !`
     )
 
     if (navigator.share) {
@@ -37,7 +38,6 @@ export function DriverInviteInMenu() {
         await navigator.share({
           title: t('Driver Invite', 'دعوة سائق'),
           text: shareText,
-          url: inviteUrl,
         })
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {

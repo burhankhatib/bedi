@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { motion } from 'motion/react'
-import { MapPin, ChevronDown, User, LogIn, Store, Truck, Menu, ClipboardList, LogOut } from 'lucide-react'
+import { MapPin, ChevronDown, User, LogIn, Store, Truck, Menu, ClipboardList, LogOut, Search, Bell, ShoppingCart } from 'lucide-react'
 import { useUser, useClerk } from '@clerk/nextjs'
 import { useLocation } from '@/components/LocationContext'
 import { getCityDisplayName } from '@/lib/registration-translations'
@@ -14,7 +14,9 @@ import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { UserButton } from '@clerk/nextjs'
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog'
 import { PREFER_DRIVER_KEY, PREFER_TENANT_KEY } from '@/components/StandaloneDriverRedirect'
+import { useCart } from '@/components/Cart/CartContext'
 
 interface SiteHeaderProps {
   /** For homepage: show location + auth. For other pages: optional overrides. */
@@ -54,27 +56,54 @@ function HamburgerAuthSection({
   )
 }
 
-/** Sign in / Sign up — single flow; everyone lands on homepage (/) after auth; role choice after login. */
-function AuthDropdowns({ t, isRtl, onNavigate }: { t: (en: string, ar: string) => string; isRtl: boolean; onNavigate?: () => void }) {
+/** Desktop: 1 clear button for Signup/Signin Modal */
+function AuthModalButton({ t, isRtl }: { t: (en: string, ar: string) => string; isRtl: boolean }) {
+  const [open, setOpen] = useState(false)
   return (
-    <div className="flex items-center gap-2">
-      <Link
-        href="/sign-in?redirect_url=/"
-        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-        onClick={() => onNavigate?.()}
-      >
-        <LogIn className="size-4" />
-        {t('Sign in', 'تسجيل الدخول')}
-      </Link>
-      <Link
-        href="/sign-up?redirect_url=/"
-        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500"
-        onClick={() => onNavigate?.()}
-      >
-        <User className="size-4" />
-        {t('Sign up', 'إنشاء حساب')}
-      </Link>
-    </div>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button className="inline-flex shrink-0 items-center justify-center size-10 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 transition-colors outline-none focus:ring-2 focus:ring-brand-black/20" aria-label={t('Log in', 'تسجيل الدخول')}>
+          <User className="size-5" />
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md rounded-3xl p-6 sm:p-8 border-none" dir={isRtl ? 'rtl' : 'ltr'} overlayClassName="z-[500]" contentClassName="z-[500] shadow-2xl">
+        <DialogHeader className="mb-6">
+          <div className="flex justify-center mb-4">
+            <div className="size-16 rounded-full bg-brand-yellow/20 flex items-center justify-center">
+              <User className="size-8 text-brand-yellow" />
+            </div>
+          </div>
+          <DialogTitle className="text-2xl font-black text-center text-slate-900 tracking-tight">
+            {t('Welcome to Bedi Delivery', 'مرحباً بك في تطبيق بدي')}
+          </DialogTitle>
+          <DialogDescription className="text-center text-slate-500 mt-2 text-base">
+            {t('Choose how you would like to proceed.', 'اختر كيف تود المتابعة.')}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <Link
+            href="/sign-in?redirect_url=/"
+            onClick={() => setOpen(false)}
+            className="group flex w-full items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white px-5 py-4 font-bold text-slate-900 transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm"
+          >
+            <div className="bg-slate-100 p-2 rounded-full group-hover:bg-white transition-colors">
+              <LogIn className="size-5" />
+            </div>
+            {t('Log in to your account', 'تسجيل الدخول لحسابك')}
+          </Link>
+          <Link
+            href="/sign-up?redirect_url=/"
+            onClick={() => setOpen(false)}
+            className="group flex w-full items-center gap-3 rounded-2xl bg-brand-black px-5 py-4 font-bold text-white transition-all hover:bg-brand-black/90 hover:shadow-md hover:-translate-y-0.5"
+          >
+            <div className="bg-white/10 p-2 rounded-full group-hover:bg-white/20 transition-colors">
+              <User className="size-5" />
+            </div>
+            {t('Create a new account', 'إنشاء حساب جديد')}
+          </Link>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -133,6 +162,28 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
   const { signOut } = useClerk()
   const isRtl = lang === 'ar'
   const [menuOpen, setMenuOpen] = useState(false)
+
+  const router = useRouter()
+  const { totalItems, setIsOpen } = useCart()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [globalOrderType, setGlobalOrderType] = useState<'delivery' | 'pickup'>('delivery')
+
+  useEffect(() => {
+    const saved = localStorage.getItem('global_order_type')
+    if (saved === 'pickup') setGlobalOrderType('pickup')
+  }, [])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim()) {
+      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`)
+    }
+  }
+
+  const handleToggleOrderType = (type: 'delivery' | 'pickup') => {
+    setGlobalOrderType(type)
+    localStorage.setItem('global_order_type', type)
+  }
 
   const locationLabel = city ? getCityDisplayName(city, lang) : t('Choose location', 'اختر الموقع')
 
@@ -236,10 +287,10 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-sm"
+      className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-sm pt-[env(safe-area-inset-top)]"
       dir={isRtl ? 'rtl' : 'ltr'}
     >
-      <div className="mx-auto flex h-16 min-h-[64px] max-w-[100vw] items-center justify-between gap-4 px-4 sm:container sm:px-6">
+      <div className="mx-auto flex h-[72px] min-h-[72px] max-w-[100vw] items-center justify-between gap-3 md:gap-6 px-4 sm:container sm:px-6">
         <Link
           href="/"
           className="flex min-w-0 shrink items-center gap-2 font-bold text-slate-900 transition-opacity hover:opacity-80"
@@ -251,40 +302,80 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
         {/* Desktop: full inline controls */}
         {variant === 'home' && (
           <>
+            {/* 1. Address button - DoorDash style gray pill */}
             <button
               type="button"
               onClick={() => setOpenLocationModal(true)}
-              className="hidden md:flex min-w-0 shrink items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-left transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              className="hidden lg:flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-900 transition-colors hover:bg-slate-200"
             >
-              <MapPin className="size-4 shrink-0 text-emerald-600" />
-              <span className="truncate text-sm font-medium text-slate-700">{locationLabel}</span>
-              <ChevronDown className="size-4 shrink-0 text-slate-500" />
+              <MapPin className="size-4 shrink-0 text-slate-900" />
+              <span className="max-w-[140px] truncate">{locationLabel}</span>
+              <ChevronDown className="size-4 shrink-0 text-slate-600" />
             </button>
 
-            <div className="hidden md:flex items-center gap-2">
-              {isSignedIn && (
-                <>
-                  <DesktopRoleSwitcher t={t} isRtl={isRtl} />
-                  <Link
-                    href="/my-orders"
-                    className="inline-flex items-center gap-1.5 rounded-full h-9 px-3 border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-sm font-medium"
-                  >
-                    <ClipboardList className="w-4 h-4 shrink-0" />
-                    {t('My orders', 'طلباتي')}
-                  </Link>
-                </>
-              )}
-              <LanguageSwitcher />
-              {isSignedIn ? (
-                <UserButton
-                  afterSignOutUrl="/"
-                  appearance={{
-                    elements: { avatarBox: 'size-9' },
-                  }}
-                />
-              ) : (
-                <AuthDropdowns t={t} isRtl={isRtl} />
-              )}
+            {/* 2. Global Search (flex-1 so it expands) */}
+            <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-xl relative group">
+              <Search className="absolute start-4 top-1/2 size-5 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
+              <input
+                type="search"
+                placeholder={t('Search Bedi Delivery', 'ابحث في بدي')}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-full bg-slate-100 px-11 py-3 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-500 focus:bg-white focus:ring-2 focus:ring-brand-yellow/50 focus:shadow-sm"
+              />
+            </form>
+
+            <div className="flex items-center gap-2 lg:gap-3 shrink-0">
+              {/* 3. Delivery / Pickup Toggle - Segmented pill */}
+              <div className="hidden md:flex shrink-0 items-center rounded-full bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => handleToggleOrderType('delivery')}
+                  className={`rounded-full px-5 py-2 text-sm font-bold transition-all ${
+                    globalOrderType === 'delivery' ? 'bg-brand-black text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t('Delivery', 'توصيل')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleOrderType('pickup')}
+                  className={`rounded-full px-5 py-2 text-sm font-bold transition-all ${
+                    globalOrderType === 'pickup' ? 'bg-brand-black text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t('Pickup', 'استلام')}
+                </button>
+              </div>
+
+              {/* Account Dropdown & Language */}
+              <div className="hidden md:flex items-center gap-2 ms-2">
+                <LanguageSwitcher />
+                {isSignedIn ? (
+                  <UserButton
+                    afterSignOutUrl="/"
+                    appearance={{ elements: { avatarBox: 'size-[42px]' } }}
+                  />
+                ) : (
+                  <AuthModalButton t={t} isRtl={isRtl} />
+                )}
+              </div>
+
+              {/* 4. Notification Placeholder (Visually hidden pending feature) */}
+              <button type="button" className="hidden relative p-2 text-slate-600 hover:text-slate-900 transition-colors" aria-label="Notifications">
+                <Bell className="size-6" />
+                <span className="absolute top-1.5 right-1.5 size-2.5 rounded-full bg-brand-red border-2 border-white" />
+              </button>
+
+              {/* 5. Minimal Cart Button (Red like DoorDash) */}
+              <button
+                type="button"
+                onClick={() => setIsOpen(true)}
+                className="flex items-center gap-2 rounded-full bg-brand-red px-4 py-2.5 text-white hover:bg-brand-red/90 transition-all font-bold shadow-sm"
+              >
+                <ShoppingCart className="size-[22px] shrink-0" />
+                <span className="text-[15px]">{totalItems}</span>
+              </button>
             </div>
           </>
         )}
@@ -295,26 +386,29 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
           </div>
         )}
 
-        {/* Mobile: hamburger menu */}
-        <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
-          <SheetTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden shrink-0 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              aria-label={t('Menu', 'القائمة')}
+        {/* Mobile controls: Search & Mobile actions */}
+        <div className="md:hidden flex flex-1 items-center justify-end gap-2">
+          {!isSignedIn && <AuthModalButton t={t} isRtl={isRtl} />}
+          
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="shrink-0 rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                aria-label={t('Menu', 'القائمة')}
+              >
+                <Menu className="size-6" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent
+              side={isRtl ? 'left' : 'right'}
+              className="w-[min(340px,92vw)] flex flex-col gap-0 overflow-y-auto p-0"
+              onInteractOutside={(e) => {
+                const target = e.target as HTMLElement
+                if (target.closest('[class*="cl-"]')) e.preventDefault()
+              }}
             >
-              <Menu className="size-6" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent
-            side={isRtl ? 'left' : 'right'}
-            className="w-[min(340px,92vw)] flex flex-col gap-0 overflow-y-auto p-0"
-            onInteractOutside={(e) => {
-              const target = e.target as HTMLElement
-              if (target.closest('[class*="cl-"]')) e.preventDefault()
-            }}
-          >
             <div
               className="sticky top-0 z-10 border-b border-slate-100 bg-white pb-4 pt-[max(1.5rem,env(safe-area-inset-top))]"
               style={{ paddingLeft: 'max(1.25rem, env(safe-area-inset-left))', paddingRight: 'max(1.25rem, env(safe-area-inset-right))' }}
@@ -333,6 +427,7 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
             </div>
           </SheetContent>
         </Sheet>
+        </div>
       </div>
     </motion.header>
   )

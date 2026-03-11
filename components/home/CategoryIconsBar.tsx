@@ -61,7 +61,7 @@ export function CategoryIconsBar({ activeSection, category = 'restaurant', class
 
   return (
     <div className={`py-6 w-full ${className}`}>
-      <div className="flex justify-start md:justify-center gap-4 sm:gap-6 md:gap-8 overflow-x-auto no-scrollbar px-4 pb-4">
+      <div className="flex justify-start gap-4 sm:gap-6 md:gap-8 overflow-x-auto no-scrollbar px-4 pb-4">
         {sections.map((s, i) => {
           const Icon = getSectionIcon(s.key)
           const isActive = activeSection === s.key
@@ -81,7 +81,7 @@ export function CategoryIconsBar({ activeSection, category = 'restaurant', class
                 <div
                   className={`relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] shadow-sm
                     ${isActive
-                      ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-200/80 ring-offset-2'
+                      ? 'bg-brand-yellow text-brand-black ring-2 ring-brand-yellow/30 ring-offset-2'
                       : 'bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-100'
                     }
                   `}
@@ -90,7 +90,7 @@ export function CategoryIconsBar({ activeSection, category = 'restaurant', class
                 </div>
                 <span
                   className={`text-[11px] sm:text-[13px] font-medium text-center transition-colors line-clamp-2 leading-tight px-1
-                    ${isActive ? 'text-emerald-800 font-bold' : 'text-slate-600 group-hover:text-slate-900'}
+                    ${isActive ? 'text-brand-black font-bold' : 'text-slate-600 group-hover:text-brand-black'}
                   `}
                 >
                   {lang === 'ar' ? s.title_ar : s.title_en}

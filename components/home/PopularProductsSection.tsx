@@ -46,7 +46,7 @@ export function PopularProductsSection() {
     return (
       <section className="py-12">
         <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-900 md:text-2xl tracking-tight">
-          <Flame className="size-6 text-amber-500" />
+          <Flame className="size-6 text-brand-yellow" />
           {t('Popular dishes', 'أطباق شائعة')}
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -65,7 +65,7 @@ export function PopularProductsSection() {
   return (
     <section className="py-12">
       <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-900 md:text-2xl tracking-tight">
-        <Flame className="size-6 text-amber-500" />
+        <Flame className="size-6 text-brand-yellow" />
         {t('Popular items from businesses', 'أصناف شائعة من الأعمال')}
       </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-2">
@@ -78,7 +78,7 @@ export function PopularProductsSection() {
           >
             <Link
               href={item.restaurant.slug ? `/t/${item.restaurant.slug}` : '#'}
-              className="group flex flex-col overflow-hidden rounded-[20px] bg-white transition-all duration-300 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-emerald-100"
+              className="group flex flex-col overflow-hidden rounded-[20px] bg-white transition-all duration-300 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
             >
               <div className="relative aspect-[4/3] overflow-hidden bg-slate-50">
                 {item.imageUrl ? (
@@ -98,7 +98,7 @@ export function PopularProductsSection() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
               </div>
               <div className="flex flex-col gap-2 p-4 bg-white z-10">
-                <h3 className="font-bold text-slate-900 text-[17px] tracking-tight line-clamp-1 group-hover:text-emerald-700 transition-colors">
+                <h3 className="font-bold text-slate-900 text-[17px] tracking-tight line-clamp-1 group-hover:text-brand-yellow transition-colors">
                   {lang === 'ar' ? item.title_ar || item.title_en : item.title_en || item.title_ar}
                 </h3>
                 <div className="flex items-center gap-2.5 mt-1 text-slate-500 font-medium">

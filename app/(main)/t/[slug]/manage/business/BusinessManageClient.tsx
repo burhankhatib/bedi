@@ -9,6 +9,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { BUSINESS_TYPES } from '@/lib/constants'
 import { getCountryNameAr, getCityNameAr } from '@/lib/registration-translations'
 import { toEnglishDigits } from '@/lib/phone'
+import { detectCityAndCountry } from '@/lib/geofencing-utils'
 import { Upload, ImageIcon, Volume2, Play, AlertTriangle, Trash2, Store, UtensilsCrossed, Clock, MapPin, Save, LocateFixed } from 'lucide-react'
 import { TenantQRCode } from '@/components/TenantQRCode'
 import { useTenantBusiness } from '../TenantBusinessContext'
@@ -63,7 +64,7 @@ type BusinessData = {
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024 // 4 MB
 
 /** Small inline component: share device GPS as business location. */
-function BusinessLocationShare({ slug, onSuccess }: { slug: string; onSuccess?: (lat: number, lng: number) => void }) {
+function BusinessLocationShare({ slug, onSuccess, onCityDetected }: { slug: string; onSuccess?: (lat: number, lng: number) => void; onCityDetected?: (countryCode: string, city: string) => void }) {
   const { t } = useLanguage()
   const { showToast } = useToast()
   const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle')
@@ -89,7 +90,10 @@ function BusinessLocationShare({ slug, onSuccess }: { slug: string; onSuccess?: 
           setSaved({ lat, lng })
           setState('done')
           if (onSuccess) onSuccess(lat, lng)
-          showToast('تم حفظ موقع العمل بنجاح!', undefined, 'success')
+          // Auto-detect city from GPS polygon boundaries
+          const detected = detectCityAndCountry(lng, lat)
+          if (detected && onCityDetected) onCityDetected(detected.countryCode, detected.city)
+          showToast('تم حفظ موقع العمل بنجاح!' + (detected ? ` (${detected.city})` : ''), undefined, 'success')
         } catch {
           setState('idle')
           showToast('فشل حفظ الموقع. حاول مرة أخرى.', undefined, 'error')
@@ -1280,6 +1284,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
               <BusinessLocationShare 
                 slug={slug} 
                 onSuccess={(lat, lng) => setForm(f => ({ ...f, locationLat: lat, locationLng: lng }))}
+                onCityDetected={(countryCode, city) => setForm(f => ({ ...f, country: f.country || countryCode, city: f.city || city }))}
               />
 
               <div className="relative flex items-center py-2">
