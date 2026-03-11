@@ -51,7 +51,7 @@ export default function RootLayout({
           id="customer-pwa-sw"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
-            __html: `(function(){var p=typeof location!=='undefined'&&location.pathname||'';var ok=p==='/'||p==='/search'||p==='/my-orders'||p.indexOf('/order')===0||p.indexOf('/resolve')===0||p.indexOf('/join')===0||/^\\/t\\/[^/]+$/.test(p);if(ok&&'serviceWorker' in navigator){navigator.serviceWorker.register('/customer-sw.js',{scope:'/'}).catch(function(){});}})();`,
+            __html: `(function(){var p=typeof location!=='undefined'&&location.pathname||'';if(!('serviceWorker' in navigator))return;var m=p.match(/^\\/t\\/([^/]+)\\/?$/);if(m){var slug=m[1];navigator.serviceWorker.register('/t/'+slug+'/customer-sw.js',{scope:'/t/'+slug}).catch(function(){});return;}var ok=p==='/'||p==='/search'||p==='/my-orders'||p.indexOf('/order')===0||p.indexOf('/resolve')===0||p.indexOf('/join')===0;if(ok){navigator.serviceWorker.register('/customer-sw.js',{scope:'/'}).catch(function(){});}})();`,
           }}
         />
         <ClientProviders>{children}</ClientProviders>

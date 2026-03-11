@@ -15,11 +15,16 @@ export async function registerServiceWorker(
 ): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null
   try {
-    const scope = config.scope.endsWith('/') ? config.scope : `${config.scope}/`
-    const registration = await navigator.serviceWorker.register(config.swUrl, { scope })
-    return registration
+    // Register with the exact configured scope first (important for scopes like /t/[slug]).
+    return await navigator.serviceWorker.register(config.swUrl, { scope: config.scope })
   } catch {
-    return null
+    // Fallback for legacy configs that expect trailing slash scopes.
+    try {
+      const fallbackScope = config.scope.endsWith('/') ? config.scope : `${config.scope}/`
+      return await navigator.serviceWorker.register(config.swUrl, { scope: fallbackScope })
+    } catch {
+      return null
+    }
   }
 }
 

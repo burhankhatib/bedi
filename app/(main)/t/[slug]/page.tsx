@@ -6,6 +6,7 @@ import { client } from '@/sanity/lib/client'
 import { MENU_QUERY_TENANT } from '@/sanity/lib/queries'
 import MenuClient from '@/components/Menu/MenuClient'
 import { InitialData } from '@/app/types/menu'
+import { MANIFEST_VERSION } from '@/lib/pwa/constants'
 
 export const revalidate = 60
 
@@ -43,6 +44,7 @@ export async function generateMetadata({
   return {
     title: name,
     description,
+    manifest: `/t/${slug}/manifest.webmanifest?v=${MANIFEST_VERSION}`,
     icons: {
       icon: `/t/${slug}/icon/48`,
       apple: `/t/${slug}/icon/192`,

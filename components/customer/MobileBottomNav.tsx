@@ -9,7 +9,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
 import { UtensilsCrossed, Store, ShoppingCart, Search, Package } from 'lucide-react'
 
-const NAV_HEIGHT = 64
+const NAV_HEIGHT = 72
 const SAFE_BOTTOM = 'env(safe-area-inset-bottom, 0px)'
 
 /** M3 Standard Easing — 200–300ms for UI feedback */
@@ -163,7 +163,7 @@ export function MobileBottomNav() {
         paddingBottom: SAFE_BOTTOM,
       }}
     >
-      <div className="flex h-16 items-stretch justify-around gap-1 px-1" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="flex h-[72px] items-stretch justify-around gap-1 px-1" dir={isRtl ? 'rtl' : 'ltr'}>
         {items.map((item, i) => (
           <motion.div key={item.href} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03, ...M3_SPRING }}>
             <NavItem href={item.href} active={item.active} highlight={item.highlight} label={item.label} icon={item.icon} isRtl={isRtl} />

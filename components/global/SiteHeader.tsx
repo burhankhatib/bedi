@@ -371,7 +371,7 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
               <button
                 type="button"
                 onClick={() => setIsOpen(true)}
-                className="flex items-center gap-2 rounded-full bg-brand-red px-4 py-2.5 text-white hover:bg-brand-red/90 transition-all font-bold shadow-sm"
+                className="hidden md:flex items-center gap-2 rounded-full bg-brand-red px-4 py-2.5 text-white hover:bg-brand-red/90 transition-all font-bold shadow-sm"
               >
                 <ShoppingCart className="size-[22px] shrink-0" />
                 <span className="text-[15px]">{totalItems}</span>

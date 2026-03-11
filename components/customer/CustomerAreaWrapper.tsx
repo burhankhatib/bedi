@@ -61,7 +61,7 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
       )}
       {/* Per-business customer PWA on /t/[slug] pages */}
       {canRenderCustomerShell && isBusinessPage && (
-        <PWAManager role="customer-business" slug={slug} variant="fixed" />
+        <PWAManager role="customer-business" slug={slug} variant="fixed" showPermissions />
       )}
       <div className={canRenderCustomerShell ? 'pb-20 md:pb-0' : ''}>
         {children}

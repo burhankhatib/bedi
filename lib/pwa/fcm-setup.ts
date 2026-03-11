@@ -74,6 +74,7 @@ export function useFCMSetup(
         body: JSON.stringify({
           fcmToken: token,
           source: `pwa-${config.role}`,
+          tenantSlug: config.slug || null,
           isIOS: os.isIOS,
           standalone: os.isStandalone,
         }),

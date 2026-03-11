@@ -51,9 +51,8 @@ export function getCustomerBusinessPWAConfig(
     icon: businessIcon || `${origin}/t/${slug}/icon/192`,
     startUrl: `${origin}/t/${slug}`,
     scope: `/t/${slug}`,
-    // Empty swUrl = skip SW registration. This PWA only needs the unique manifest
-    // so Chrome treats it as a separate installable app from the main Bedi customer PWA.
-    swUrl: '',
+    // Dedicated per-business SW to keep installs independent from homepage PWA.
+    swUrl: `/t/${slug}/customer-sw.js`,
     manifestUrl: `/t/${slug}/manifest.webmanifest`,
     fcmEndpoint: '/api/customer/push-subscription',
     themeColor: ROLE_THEME_COLORS['customer-business'],

@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const fcmToken = body?.fcmToken && typeof body.fcmToken === 'string' ? body.fcmToken.trim() : null
   const source = body?.source && typeof body.source === 'string' ? body.source : 'unknown'
+  const tenantSlug = body?.tenantSlug && typeof body.tenantSlug === 'string' ? body.tenantSlug.trim() : null
   const isIOS = body?.isIOS === true
   const standalone = body?.standalone === true
   if (!fcmToken) {
@@ -30,14 +31,14 @@ export async function POST(req: NextRequest) {
     )
     if (existing) {
       await writeClient.patch(existing._id).set({ createdAt: new Date().toISOString() }).commit()
-      console.info('[customer-push-subscription] refreshed legacy token record', { source, isIOS, standalone })
+      console.info('[customer-push-subscription] refreshed legacy token record', { source, tenantSlug, isIOS, standalone })
     } else {
       await writeClient.create({
         _type: 'customerPushSubscription',
         fcmToken,
         createdAt: new Date().toISOString(),
       })
-      console.info('[customer-push-subscription] created legacy token record', { source, isIOS, standalone })
+      console.info('[customer-push-subscription] created legacy token record', { source, tenantSlug, isIOS, standalone })
     }
 
     if (userId) {
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
         userId,
         created: result?.created ?? false,
         source,
+        tenantSlug,
         isIOS,
         standalone,
       })
