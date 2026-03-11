@@ -202,7 +202,7 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
                         2
                       </span>
                       <span>
-                        {t('Tap Share', 'اضغط مشاركة')} <Share2 className="inline h-3.5 w-3.5" />.
+                        {t('Tap', 'اضغط')} <Share2 className="inline h-3.5 w-3.5" /> {t('Share', 'مشاركة')}.
                       </span>
                     </li>
                     <li className="flex gap-3">
@@ -210,7 +210,15 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
                         3
                       </span>
                       <span>
-                        {t('Tap Add to Home Screen', 'اضغط إضافة إلى الشاشة الرئيسية')} <Plus className="inline h-3.5 w-3.5" />.
+                        {t('Choose', 'اختر')} <Plus className="inline h-3.5 w-3.5" /> {t('Add to Home Screen', 'إضافة إلى الشاشة الرئيسية')}.
+                      </span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-600 text-xs font-bold text-white">
+                        4
+                      </span>
+                      <span>
+                        {t('Tap "Add", then open the app from your Home Screen.', 'اضغط "إضافة"، ثم افتح التطبيق من الشاشة الرئيسية.')}
                       </span>
                     </li>
                   </ol>

@@ -15,7 +15,9 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function DriverPWAInstall() {
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
+  const isRtl = lang === 'ar'
+
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [isIOS, setIsIOS] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
@@ -123,7 +125,10 @@ export function DriverPWAInstall() {
   const fromThisPageNote = t('You’re on the right page. Installing from here gives you the Bedi Driver app.', 'أنت في الصفحة الصحيحة. التثبيت من هنا يعطيك تطبيق Bedi Driver.')
 
   return (
-    <div className="mb-4 rounded-2xl border border-emerald-600/35 bg-gradient-to-br from-emerald-900/45 to-slate-900/90 p-4 shadow-lg">
+    <div
+      className="mb-4 rounded-2xl border border-emerald-600/35 bg-gradient-to-br from-emerald-900/45 to-slate-900/90 p-4 shadow-lg"
+      dir={isRtl ? 'rtl' : 'ltr'}
+    >
       <div className="flex items-start gap-2 rounded-lg bg-emerald-950/40 border border-emerald-600/40 p-2.5 mb-3">
         <MapPin className="h-5 w-5 shrink-0 text-emerald-400 mt-0.5" aria-hidden />
         <p className="text-sm text-emerald-200/95 font-medium">
@@ -172,15 +177,19 @@ export function DriverPWAInstall() {
                 <ol className="mt-3 space-y-2 text-xs text-slate-300">
                   <li className="flex items-center gap-2">
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-700 text-slate-200">1</span>
-                    <span className="inline-flex items-center gap-1">{t('Tap', 'اضغط')} <Share2 className="h-3 w-3" /> {t('Share', 'مشاركة')}</span>
+                    <span>{t('Open this page in Safari.', 'افتح هذه الصفحة في Safari.')}</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-700 text-slate-200">2</span>
-                    <span className="inline-flex items-center gap-1">{t('Choose', 'اختر')} <Plus className="h-3 w-3" /> {t('Add to Home Screen', 'إضافة إلى الشاشة الرئيسية')}</span>
+                    <span className="inline-flex items-center gap-1">{t('Tap', 'اضغط')} <Share2 className="h-3 w-3" /> {t('Share', 'مشاركة')}</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-700 text-slate-200">3</span>
-                    <span>{t('Tap "Add" and open from your Home Screen', 'اضغط "إضافة" وافتح التطبيق من الشاشة الرئيسية')}</span>
+                    <span className="inline-flex items-center gap-1">{t('Choose', 'اختر')} <Plus className="h-3 w-3" /> {t('Add to Home Screen', 'إضافة إلى الشاشة الرئيسية')}</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-700 text-slate-200">4</span>
+                    <span>{t('Tap "Add", then open the app from your Home Screen.', 'اضغط "إضافة"، ثم افتح التطبيق من الشاشة الرئيسية.')}</span>
                   </li>
                 </ol>
               )}

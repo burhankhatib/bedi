@@ -523,6 +523,10 @@ export function PWAInstall() {
               <ol className="space-y-2 rounded-xl border border-white/20 bg-white/10 p-3 text-xs text-emerald-100">
                 <li className="flex items-center gap-2">
                   <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-white">1</span>
+                  <span>{t('Open this page in Safari.', 'افتح هذه الصفحة في Safari.')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-white">2</span>
                   <span>{t('Tap', 'اضغط')}</span>
                   <span className="inline-flex items-center gap-1 rounded bg-white/20 px-2 py-0.5 text-white">
                     <Share2 className="size-3.5" />
@@ -530,16 +534,16 @@ export function PWAInstall() {
                   </span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-white">2</span>
-                  <span>{t('Choose', 'اختر')}</span>
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-white">3</span>
+                  <span>{t('Select', 'اختر')}</span>
                   <span className="inline-flex items-center gap-1 rounded bg-white/20 px-2 py-0.5 text-white">
                     <Plus className="size-3.5" />
                     {t('Add to Home Screen', 'إضافة إلى الشاشة الرئيسية')}
                   </span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-white">3</span>
-                  <span>{t('Tap "Add" and open from your home screen', 'اضغط "إضافة" ثم افتح التطبيق من الشاشة الرئيسية')}</span>
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/25 text-white">4</span>
+                  <span>{t('Tap "Add", then open the app from your Home Screen.', 'اضغط "إضافة"، ثم افتح التطبيق من الشاشة الرئيسية.')}</span>
                 </li>
               </ol>
             )}

@@ -228,15 +228,19 @@ export function OrdersPWASetup({ slug }: { slug: string }) {
               <ol className="space-y-2 text-xs text-amber-100/90">
                 <li className="flex items-center gap-2">
                   <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-900/70 text-[11px] font-bold">1</span>
-                  <span>{t('Tap', 'اضغط')} <Share2 className="inline h-3.5 w-3.5" /> {t('Share', 'مشاركة')}</span>
+                  <span>{t('Open this page in Safari.', 'افتح هذه الصفحة في Safari.')}</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-900/70 text-[11px] font-bold">2</span>
-                  <span>{t('Choose', 'اختر')} <Plus className="inline h-3.5 w-3.5" /> {t('Add to Home Screen', 'إضافة إلى الشاشة الرئيسية')}</span>
+                  <span>{t('Tap', 'اضغط')} <Share2 className="inline h-3.5 w-3.5" /> {t('Share', 'مشاركة')}</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-900/70 text-[11px] font-bold">3</span>
-                  <span>{t('Tap "Add"', 'اضغط "إضافة"')}</span>
+                  <span>{t('Choose', 'اختر')} <Plus className="inline h-3.5 w-3.5" /> {t('Add to Home Screen', 'إضافة إلى الشاشة الرئيسية')}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-900/70 text-[11px] font-bold">4</span>
+                  <span>{t('Tap "Add".', 'اضغط "إضافة".')}</span>
                 </li>
               </ol>
             )}
