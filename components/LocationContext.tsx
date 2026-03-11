@@ -5,11 +5,22 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
+import { getCityFromCoordinates } from '@/lib/geofencing'
+import { GEO_CITY_ALIASES } from '@/lib/registration-translations'
 
 const STORAGE_CITY = 'home_city'
+
+export type LocationStatus =
+  | 'idle'       // Not yet determined (e.g. no saved city, auto-detect not run)
+  | 'detecting'  // Geolocation in progress
+  | 'in_service' // User in service area or chose a city
+  | 'out_of_service' // User's location is outside our service areas
+  | 'denied'    // User denied geolocation
+  | 'error'     // Geolocation/geocoding failed
 
 export type LocationState = {
   city: string | null
@@ -22,6 +33,12 @@ type LocationContextValue = LocationState & {
   openLocationModal: boolean
   setOpenLocationModal: (open: boolean) => void
   availableCities: string[]
+  /** Status of auto-detection; used by LocationGate to show the right screen. */
+  locationStatus: LocationStatus
+  /** When out_of_service, the detected city name for the apology message. */
+  detectedCityName: string | null
+  /** Retry geolocation (e.g. after user denied, or "Try again" on error). */
+  retryAutoDetect: () => void
 }
 
 const LocationContext = createContext<LocationContextValue | null>(null)
@@ -52,6 +69,10 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [openLocationModal, setOpenLocationModal] = useState(false)
   const [availableCities, setAvailableCities] = useState<string[]>([])
   const [isInitialized, setIsInitialized] = useState(false)
+  const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle')
+  const [detectedCityName, setDetectedCityName] = useState<string | null>(null)
+  const [autoDetectTrigger, setAutoDetectTrigger] = useState(0)
+  const hasTriedAutoDetect = useRef(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -78,15 +99,114 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     setCity(c?.trim() || null)
     setIsChosen(!!c?.trim())
     setOpenLocationModal(false)
+    setLocationStatus('in_service')
   }, [])
 
   const clearLocation = useCallback(() => {
     setCity(null)
     setIsChosen(false)
+    setLocationStatus('idle')
+    setDetectedCityName(null)
     if (typeof window !== 'undefined') {
       localStorage.removeItem(STORAGE_CITY)
     }
   }, [])
+
+  const retryAutoDetect = useCallback(() => {
+    hasTriedAutoDetect.current = false
+    setDetectedCityName(null)
+    setLocationStatus('idle')
+    setAutoDetectTrigger((t) => t + 1)
+  }, [])
+
+  // Auto-detect location on first visit when no saved city (skip modal when in service area)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!isInitialized || city) return
+    if (!navigator.geolocation) {
+      setLocationStatus('error')
+      return
+    }
+    if (hasTriedAutoDetect.current) return
+    hasTriedAutoDetect.current = true
+    setLocationStatus('detecting')
+
+    const onSuccess = async (position: GeolocationPosition) => {
+      try {
+        const { latitude, longitude } = position.coords
+        const cities = availableCities
+
+        const geofenceCity = getCityFromCoordinates(longitude, latitude)
+        if (geofenceCity) {
+          const match = cities.find((c) => c.toLowerCase() === geofenceCity.toLowerCase())
+          if (match) {
+            setCity(match)
+            setIsChosen(true)
+            setLocationStatus('in_service')
+            return
+          }
+        }
+
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
+          { headers: { 'Accept-Language': 'en' } }
+        )
+        const data = await res.json()
+        const address = data.address || {}
+        const addressValues: string[] = [
+          address.city,
+          address.town,
+          address.village,
+          address.municipality,
+          address.suburb,
+          address.county,
+          address.state,
+        ].filter(Boolean)
+
+        let foundCity = ''
+        for (const val of addressValues) {
+          const normalized = (val as string).toLowerCase().trim()
+          if (GEO_CITY_ALIASES[normalized]) {
+            foundCity = GEO_CITY_ALIASES[normalized]
+            break
+          }
+        }
+        if (!foundCity && addressValues.length > 0) {
+          foundCity = addressValues[0] as string
+        }
+
+        if (foundCity) {
+          const match = cities.find((c) => {
+            const enMatch =
+              c.toLowerCase() === foundCity.toLowerCase() ||
+              foundCity.toLowerCase().includes(c.toLowerCase())
+            return enMatch
+          })
+          if (match) {
+            setCity(match)
+            setIsChosen(true)
+            setLocationStatus('in_service')
+            return
+          }
+        }
+
+        setDetectedCityName(geofenceCity || foundCity || null)
+        setLocationStatus('out_of_service')
+      } catch {
+        setLocationStatus('error')
+      }
+    }
+
+    const onError = (err: GeolocationPositionError) => {
+      if (err.code === 1) {
+        setLocationStatus('denied')
+      } else {
+        setLocationStatus('error')
+      }
+    }
+
+    navigator.geolocation.getCurrentPosition(onSuccess, onError)
+  }, [isInitialized, city, availableCities.length, autoDetectTrigger])
 
   const value: LocationContextValue = {
     city,
@@ -96,6 +216,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     openLocationModal,
     setOpenLocationModal,
     availableCities,
+    locationStatus,
+    detectedCityName,
+    retryAutoDetect,
   }
 
   return (
