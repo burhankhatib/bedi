@@ -69,10 +69,15 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [openLocationModal, setOpenLocationModal] = useState(false)
   const [availableCities, setAvailableCities] = useState<string[]>([])
   const [isInitialized, setIsInitialized] = useState(false)
+  const [citiesLoaded, setCitiesLoaded] = useState(false)
   const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle')
   const [detectedCityName, setDetectedCityName] = useState<string | null>(null)
   const [autoDetectTrigger, setAutoDetectTrigger] = useState(0)
   const hasTriedAutoDetect = useRef(false)
+  const availableCitiesRef = useRef<string[]>([])
+
+  // Keep ref in sync so async callbacks always read the latest value
+  availableCitiesRef.current = availableCities
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -92,7 +97,10 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   }, [isInitialized, city])
 
   useEffect(() => {
-    fetchCities().then(setAvailableCities)
+    fetchCities().then((c) => {
+      setAvailableCities(c)
+      setCitiesLoaded(true)
+    })
   }, [])
 
   const setLocation = useCallback((c: string) => {
@@ -119,10 +127,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     setAutoDetectTrigger((t) => t + 1)
   }, [])
 
-  // Auto-detect location on first visit when no saved city (skip modal when in service area)
+  // Auto-detect location on first visit when no saved city (skip modal when in service area).
+  // Gated on citiesLoaded so the async callback never matches against an empty list.
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (!isInitialized || city) return
+    if (!isInitialized || !citiesLoaded || city) return
     if (!navigator.geolocation) {
       setLocationStatus('error')
       return
@@ -134,7 +143,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     const onSuccess = async (position: GeolocationPosition) => {
       try {
         const { latitude, longitude } = position.coords
-        const cities = availableCities
+        // Read from ref so we always get the latest cities, not a stale closure
+        const cities = availableCitiesRef.current
 
         const geofenceCity = getCityFromCoordinates(longitude, latitude)
         if (geofenceCity) {
@@ -206,7 +216,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     }
 
     navigator.geolocation.getCurrentPosition(onSuccess, onError)
-  }, [isInitialized, city, availableCities.length, autoDetectTrigger])
+  }, [isInitialized, citiesLoaded, city, autoDetectTrigger])
 
   const value: LocationContextValue = {
     city,
