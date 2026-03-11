@@ -43,14 +43,31 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
-          className="fixed inset-0 z-[400] flex flex-col items-center justify-center bg-gradient-to-b from-white to-emerald-50/40 px-6"
+          className={`fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-white to-emerald-50/40 px-6 ${openLocationModal ? 'z-0' : 'z-[400]'}`}
           dir={isRtl ? 'rtl' : 'ltr'}
         >
-          <div className="flex flex-col items-center gap-4">
+          <div className="flex max-w-md flex-col items-center gap-4 rounded-3xl border border-emerald-100 bg-white/90 p-6 text-center shadow-[0_10px_30px_rgba(16,185,129,0.12)]">
             <Loader2 className="size-10 animate-spin text-emerald-600" aria-hidden />
             <p className="text-center text-slate-600">
               {t('Detecting your location...', 'جاري تحديد موقعك...')}
             </p>
+            <p className="text-sm text-slate-500">
+              {t(
+                "If this takes too long, you can choose your city manually.",
+                'إذا استغرق هذا وقتاً طويلاً، يمكنك اختيار مدينتك يدوياً.'
+              )}
+            </p>
+            <div className="mt-2 w-full">
+              <Button
+                type="button"
+                size="lg"
+                onClick={() => setOpenLocationModal(true)}
+                className="h-11 w-full rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-500"
+              >
+                <MapPin className="size-5" />
+                {t('Choose city manually', 'اختيار المدينة يدوياً')}
+              </Button>
+            </div>
           </div>
         </motion.div>
       </>

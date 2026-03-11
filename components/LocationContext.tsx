@@ -139,8 +139,19 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     if (hasTriedAutoDetect.current) return
     hasTriedAutoDetect.current = true
     setLocationStatus('detecting')
+    let settled = false
+    const forceTimeout = window.setTimeout(() => {
+      if (settled) return
+      settled = true
+      // iOS Safari can occasionally stall geolocation without firing callbacks.
+      // Fall back to manual city selection screen instead of trapping users in loading.
+      setLocationStatus('error')
+    }, 12000)
 
     const onSuccess = async (position: GeolocationPosition) => {
+      if (settled) return
+      settled = true
+      clearTimeout(forceTimeout)
       try {
         const { latitude, longitude } = position.coords
         // Read from ref so we always get the latest cities, not a stale closure
@@ -208,6 +219,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     }
 
     const onError = (err: GeolocationPositionError) => {
+      if (settled) return
+      settled = true
+      clearTimeout(forceTimeout)
       if (err.code === 1) {
         setLocationStatus('denied')
       } else {
@@ -215,7 +229,16 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    navigator.geolocation.getCurrentPosition(onSuccess, onError)
+    navigator.geolocation.getCurrentPosition(onSuccess, onError, {
+      enableHighAccuracy: false,
+      timeout: 10000,
+      maximumAge: 0,
+    })
+
+    return () => {
+      settled = true
+      clearTimeout(forceTimeout)
+    }
   }, [isInitialized, citiesLoaded, city, autoDetectTrigger])
 
   const value: LocationContextValue = {
