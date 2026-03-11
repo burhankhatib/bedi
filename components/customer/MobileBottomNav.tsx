@@ -4,12 +4,16 @@ import { useState, useEffect } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
+import { motion } from 'motion/react'
 import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
 import { UtensilsCrossed, Store, ShoppingCart, Search, Package } from 'lucide-react'
 
 const NAV_HEIGHT = 64
 const SAFE_BOTTOM = 'env(safe-area-inset-bottom, 0px)'
+
+/** M3 Standard Easing — 200–300ms for UI feedback */
+const M3_SPRING = { type: 'spring' as const, stiffness: 400, damping: 30 }
 
 /** Paths where the customer bottom nav is shown (home, search, tenant menu, order flow, my orders). */
 function isCustomerPath(pathname: string): boolean {
@@ -34,6 +38,74 @@ const FALLBACK = {
   cart: 'Cart',
   search: 'Search',
 } as const
+
+function NavItem({
+  href,
+  isButton,
+  onClick,
+  active,
+  highlight,
+  label,
+  icon,
+  isRtl,
+}: {
+  href?: string
+  isButton?: boolean
+  onClick?: () => void
+  active: boolean
+  highlight?: boolean
+  label: string
+  icon: React.ReactNode
+  isRtl: boolean
+}) {
+  const content = (
+    <>
+      <motion.span
+        className={`relative flex h-10 w-10 items-center justify-center rounded-full ${active || highlight ? 'bg-amber-100 dark:bg-amber-950/50' : ''} ${highlight && !active ? 'animate-pulse' : ''}`}
+        whileTap={{ scale: 0.88 }}
+        transition={M3_SPRING}
+      >
+        {icon}
+        {active && (
+          <motion.span
+            layoutId="nav-indicator"
+            className="absolute inset-0 rounded-full bg-amber-500/15"
+            transition={M3_SPRING}
+            style={{ originX: 0.5, originY: 0.5 }}
+          />
+        )}
+      </motion.span>
+      <motion.span
+        animate={{ opacity: active || highlight ? 1 : 0.7 }}
+        transition={{ duration: 0.2 }}
+        className={`text-[11px] font-medium ${active || highlight ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}
+      >
+        {label}
+      </motion.span>
+    </>
+  )
+
+  const baseClass = 'flex flex-col items-center justify-center gap-1 py-2.5 min-w-0 flex-1 touch-manipulation select-none rounded-xl active:bg-slate-100/60 dark:active:bg-slate-800/40'
+  if (isButton && onClick) {
+    return (
+      <motion.button
+        type="button"
+        onClick={onClick}
+        className={baseClass}
+        aria-label={label}
+        whileTap={{ scale: 0.98 }}
+        transition={M3_SPRING}
+      >
+        {content}
+      </motion.button>
+    )
+  }
+  return (
+    <Link href={href!} className={baseClass} aria-current={active ? 'page' : undefined}>
+      {content}
+    </Link>
+  )
+}
 
 export function MobileBottomNav() {
   const pathname = usePathname()
@@ -64,11 +136,6 @@ export function MobileBottomNav() {
   const ordersActive = pathname === '/my-orders'
   const searchActive = pathname === '/search'
 
-  const linkClass = (active: boolean) =>
-    `flex flex-col items-center justify-center gap-1 py-2.5 min-w-0 flex-1 text-[11px] font-medium transition-colors touch-manipulation select-none ${
-      active ? 'text-emerald-600' : 'text-slate-500 active:bg-slate-100/80 active:text-slate-700'
-    }`
-
   const isRtl = mounted && lang === 'ar'
   const ariaLabel = mounted ? t('Main navigation', 'التنقل الرئيسي') : FALLBACK.ariaLabel
   const homeLabel = mounted ? t('Home', 'الرئيسية') : FALLBACK.home
@@ -78,104 +145,60 @@ export function MobileBottomNav() {
   const cartLabel = mounted ? t('Cart', 'السلة') : FALLBACK.cart
   const searchLabel = mounted ? t('Search', 'بحث') : FALLBACK.search
 
+  const items = [
+    { href: '/', active: homeActive, label: homeLabel, icon: <Image src="/logo.webp" alt="Bedi" width={28} height={28} className="h-7 w-7 object-contain" /> },
+    { href: '/search?category=restaurant', active: restaurantsActive, label: restaurantsLabel, icon: <UtensilsCrossed className="size-6" strokeWidth={2} /> },
+    { href: '/search?category=retail', active: storesActive, label: storesLabel, icon: <Store className="size-6" strokeWidth={2} /> },
+    { href: '/my-orders', active: ordersActive, highlight: activeOrderCount > 0, label: ordersLabel, icon: <Package className="size-6" strokeWidth={2} /> },
+  ]
+
   return (
-    <nav
+    <motion.nav
       role="navigation"
       aria-label={ariaLabel}
-      className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-slate-200/90 bg-white/95 backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.06)]"
+      initial={false}
+      className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-slate-200/90 dark:border-slate-800/80 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.3)]"
       style={{
         height: `calc(${NAV_HEIGHT}px + ${SAFE_BOTTOM})`,
         paddingBottom: SAFE_BOTTOM,
       }}
     >
-      <div className="flex h-16 items-stretch justify-around gap-0" dir={isRtl ? 'rtl' : 'ltr'}>
-        {/* Home */}
-        <Link
-          href="/"
-          className={linkClass(homeActive)}
-          aria-current={homeActive ? 'page' : undefined}
-        >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full transition-colors">
-            <Image src="/logo.webp" alt="Bedi" width={28} height={28} className="h-7 w-7 object-contain" />
-          </span>
-          <span>{homeLabel}</span>
-        </Link>
+      <div className="flex h-16 items-stretch justify-around gap-1 px-1" dir={isRtl ? 'rtl' : 'ltr'}>
+        {items.map((item, i) => (
+          <motion.div key={item.href} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03, ...M3_SPRING }}>
+            <NavItem href={item.href} active={item.active} highlight={item.highlight} label={item.label} icon={item.icon} isRtl={isRtl} />
+          </motion.div>
+        ))}
 
-        {/* Restaurants */}
-        <Link
-          href="/search?category=restaurant"
-          className={linkClass(restaurantsActive)}
-          aria-current={restaurantsActive ? 'page' : undefined}
-        >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full transition-colors">
-            <UtensilsCrossed className="size-6" strokeWidth={2} />
-          </span>
-          <span>{restaurantsLabel}</span>
-        </Link>
-
-        {/* Stores */}
-        <Link
-          href="/search?category=retail"
-          className={linkClass(storesActive)}
-          aria-current={storesActive ? 'page' : undefined}
-        >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full transition-colors">
-            <Store className="size-6" strokeWidth={2} />
-          </span>
-          <span>{storesLabel}</span>
-        </Link>
-
-        {/* Orders — pulse + emerald when there are active orders */}
-        <Link
-          href="/my-orders"
-          className={`${linkClass(ordersActive)} ${activeOrderCount > 0 ? 'text-emerald-600' : ''}`}
-          aria-current={ordersActive ? 'page' : undefined}
-        >
-          <span
-            className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-              activeOrderCount > 0 ? 'bg-emerald-100 text-emerald-600 animate-pulse' : ''
-            }`}
-          >
-            <Package className="size-6" strokeWidth={2} />
-          </span>
-          <span>{ordersLabel}</span>
-        </Link>
-
-        {/* Cart */}
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          className={`${linkClass(false)} relative`}
-          aria-label={cartLabel}
-        >
-          <span className="relative flex h-8 w-8 items-center justify-center rounded-full transition-colors">
-            <ShoppingCart className="size-6" strokeWidth={2} />
-            {mounted && totalItems > 0 && (
-              <span
-                className={`absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white ${
-                  isRtl ? 'left-0 top-0' : 'right-0 top-0'
-                }`}
-              >
-                {totalItems > 99 ? '99+' : totalItems}
+        <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12, ...M3_SPRING }}>
+          <NavItem
+            isButton
+            onClick={() => setIsOpen(true)}
+            active={false}
+            label={cartLabel}
+            icon={
+              <span className="relative flex h-10 w-10 items-center justify-center">
+                <ShoppingCart className="size-6" strokeWidth={2} />
+                {mounted && totalItems > 0 && (
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className={`absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-slate-950 ${isRtl ? 'left-0 top-0' : 'right-0 top-0'}`}
+                  >
+                    {totalItems > 99 ? '99+' : totalItems}
+                  </motion.span>
+                )}
               </span>
-            )}
-          </span>
-          <span>{cartLabel}</span>
-        </button>
+            }
+            isRtl={isRtl}
+          />
+        </motion.div>
 
-        {/* Search — expand=1 so filters are open by default when user taps Search */}
-        <Link
-          href="/search?expand=1"
-          className={linkClass(searchActive && !restaurantsActive && !storesActive)}
-          aria-current={searchActive ? 'page' : undefined}
-        >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full transition-colors">
-            <Search className="size-6" strokeWidth={2} />
-          </span>
-          <span>{searchLabel}</span>
-        </Link>
+        <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, ...M3_SPRING }}>
+          <NavItem href="/search?expand=1" active={searchActive && !restaurantsActive && !storesActive} label={searchLabel} icon={<Search className="size-6" strokeWidth={2} />} isRtl={isRtl} />
+        </motion.div>
       </div>
-    </nav>
+    </motion.nav>
   )
 }
 

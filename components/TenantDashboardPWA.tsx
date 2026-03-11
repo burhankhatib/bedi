@@ -10,7 +10,7 @@ const DISMISS_HOURS_DEFAULT = 24
 const DISMISS_HOURS_EXTENDED = 24 * 7
 
 interface BeforeInstallPromptEvent extends Event {
-  prompt: () => void
+  prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
@@ -89,33 +89,42 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
         try {
           ;(e as Event & { preventDefault?: () => void }).preventDefault?.()
           setDeferredPrompt(e as unknown as BeforeInstallPromptEvent)
+          // On Android/Desktop, only show the card when native install is actually available.
+          if (!ios) {
+            setShowPrompt(true)
+          }
         } catch {
           // avoid uncaught errors in PWA install flow
         }
       }
       window.addEventListener('beforeinstallprompt', handler)
 
-      let revealed = false
-      const reveal = () => {
-        if (revealed) return
-        revealed = true
-        setShowPrompt(true)
+      // iOS has no beforeinstallprompt: reveal instructions after engagement.
+      let onScroll: (() => void) | null = null
+      let timer: ReturnType<typeof setTimeout> | null = null
+      if (ios) {
+        let revealed = false
+        const reveal = () => {
+          if (revealed) return
+          revealed = true
+          setShowPrompt(true)
+        }
+        onScroll = () => {
+          if (window.scrollY > 220) reveal()
+        }
+        window.addEventListener('scroll', onScroll, { passive: true })
+        timer = setTimeout(reveal, 12000)
       }
-      const onScroll = () => {
-        if (window.scrollY > 220) reveal()
-      }
-      window.addEventListener('scroll', onScroll, { passive: true })
-      const timer = setTimeout(reveal, 12000)
 
       return () => {
-        clearTimeout(timer)
-        window.removeEventListener('scroll', onScroll)
+        if (timer) clearTimeout(timer)
+        if (onScroll) window.removeEventListener('scroll', onScroll)
         window.removeEventListener('beforeinstallprompt', handler)
       }
     } catch {
       return undefined
     }
-  }, [scope])
+  }, [scope, slug])
 
   const handleDismiss = (forHours: number = DISMISS_HOURS_DEFAULT) => {
     const until = Date.now() + forHours * 60 * 60 * 1000
@@ -135,10 +144,10 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
       return
     }
     try {
-      deferredPrompt.prompt()
+      await deferredPrompt.prompt()
       const { outcome } = await deferredPrompt.userChoice
+      setDeferredPrompt(null)
       if (outcome === 'accepted') {
-        setDeferredPrompt(null)
         setShowPrompt(false)
       }
     } catch {

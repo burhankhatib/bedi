@@ -576,8 +576,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
               embedded
             />
           </div>
+          {/* Cart in menu bar: hidden on mobile — bottom nav has cart there */}
           {!catalogOnly && (
-            <div className="shrink-0 flex items-center pr-3 pl-2 py-2 border-l border-slate-100 bg-white">
+            <div className="hidden md:flex shrink-0 items-center pr-3 pl-2 py-2 border-l border-slate-100 bg-white">
               <Button
                 variant="outline"
                 size="icon"
@@ -1008,16 +1009,16 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
 
       <CartToast />
 
-      {/* Floating Cart Action - Only visible when items are in cart */}
+      {/* Floating Cart Action - Desktop only; on mobile, bottom nav has cart */}
       {!catalogOnly && totalItems > 0 && (
-        <div className="fixed bottom-6 left-0 right-0 z-40 px-4 pointer-events-none pb-[calc(env(safe-area-inset-bottom,0px)+4rem)] md:pb-0">
+        <div className="fixed bottom-6 left-0 right-0 z-40 px-4 pointer-events-none pb-6 hidden md:block">
           <div className="max-w-md mx-auto pointer-events-auto">
             <Button
               onClick={() => setIsOpen(true)}
-              className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-xl shadow-emerald-600/20 font-bold text-base flex items-center justify-between px-6 transition-transform active:scale-[0.98]"
+              className="w-full h-14 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xl shadow-amber-500/25 font-bold text-base flex items-center justify-between px-6 transition-transform active:scale-[0.98]"
             >
               <div className="flex items-center gap-3">
-                <div className="flex h-8 min-w-[2rem] items-center justify-center rounded-full bg-white/20 px-2 text-sm font-bold backdrop-blur-sm">
+                <div className="flex h-8 min-w-[2rem] items-center justify-center rounded-full bg-slate-950/15 px-2 text-sm font-bold backdrop-blur-sm">
                   {totalItems}
                 </div>
                 <span>{t('View Cart', 'عرض السلة')}</span>
