@@ -22,7 +22,7 @@ export async function GET() {
       headers: {
         'Content-Type': 'application/javascript; charset=utf-8',
         'Cache-Control': 'public, max-age=0, must-revalidate',
-        'Service-Worker-Allowed': '/dashboard',
+        'Service-Worker-Allowed': '/dashboard/',
       },
     })
   } catch {
@@ -30,7 +30,7 @@ export async function GET() {
       status: 200,
       headers: {
         'Content-Type': 'application/javascript; charset=utf-8',
-        'Service-Worker-Allowed': '/dashboard',
+        'Service-Worker-Allowed': '/dashboard/',
       },
     })
   }

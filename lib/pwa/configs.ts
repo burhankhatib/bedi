@@ -50,7 +50,7 @@ export function getCustomerBusinessPWAConfig(
     description: `${name} — Menu & order`,
     icon: businessIcon || `${origin}/t/${slug}/icon/192`,
     startUrl: `${origin}/t/${slug}`,
-    scope: `/t/${slug}`,
+    scope: `/t/${slug}/`,
     // Dedicated per-business SW to keep installs independent from homepage PWA.
     swUrl: `/t/${slug}/customer-sw.js`,
     manifestUrl: `/t/${slug}/manifest.webmanifest`,
@@ -93,7 +93,7 @@ export function getTenantDashboardPWAConfig(): PWAConfig {
     description: 'Manage your businesses, menus, and orders. Get new order notifications for all your businesses.',
     icon: ROLE_ICONS['tenant-dashboard'],
     startUrl: `${origin}/dashboard`,
-    scope: '/dashboard',
+    scope: '/dashboard/',
     swUrl: '/dashboard/sw.js',
     manifestUrl: '/dashboard/manifest.webmanifest',
     fcmEndpoint: '/api/me/business-push-subscription',

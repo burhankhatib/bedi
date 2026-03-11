@@ -16,7 +16,7 @@ function isCustomerPath(pathname: string): boolean {
   if (pathname.startsWith('/order')) return true
   if (pathname.startsWith('/resolve')) return true
   if (pathname.startsWith('/join')) return true
-  if (/^\/t\/[^/]+$/.test(pathname)) return true
+  if (/^\/t\/[^/]+\/?$/.test(pathname)) return true
   return false
 }
 
@@ -34,7 +34,7 @@ function isCustomerPWAPath(pathname: string): boolean {
 
 /** Extract slug from /t/[slug] paths */
 function extractSlug(pathname: string): string | null {
-  const match = pathname.match(/^\/t\/([^/]+)$/)
+  const match = pathname.match(/^\/t\/([^/]+)\/?$/)
   return match ? match[1] : null
 }
 
@@ -52,6 +52,7 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
   const isCustomerPWA = isCustomerPWAPath(pathname ?? '')
   const slug = extractSlug(pathname ?? '')
   const isBusinessPage = !!slug
+  const shouldRenderBusinessPWA = isBusinessPage
 
   return (
     <>
@@ -60,7 +61,7 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
         <PWAManager role="customer" variant="fixed" showPermissions />
       )}
       {/* Per-business customer PWA on /t/[slug] pages */}
-      {canRenderCustomerShell && isBusinessPage && (
+      {shouldRenderBusinessPWA && (
         <PWAManager role="customer-business" slug={slug} variant="fixed" showPermissions />
       )}
       <div className={canRenderCustomerShell ? 'pb-20 md:pb-0' : ''}>

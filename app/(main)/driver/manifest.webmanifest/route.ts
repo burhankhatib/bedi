@@ -8,7 +8,7 @@ function getManifest(origin: string) {
     short_name: 'Bedi Driver',
     description: 'Receive and manage delivery orders.',
     start_url: `${origin}/driver`,
-    scope: `${origin}/driver`,
+    scope: `${origin}/driver/`,
     display: 'standalone' as const,
     display_override: ['standalone', 'minimal-ui'] as const,
     background_color: '#020617',

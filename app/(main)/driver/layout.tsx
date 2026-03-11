@@ -6,11 +6,13 @@ import { getDriverIdByClerkUserId } from '@/lib/driver'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { DriverLayoutClient } from './DriverLayoutClient'
 import { enforcePhoneVerification } from '@/lib/enforce-phone'
+import { MANIFEST_VERSION } from '@/lib/pwa/constants'
 
 export const dynamic = 'force-dynamic'
 
 export const metadata = {
   title: 'Bedi Driver',
+  manifest: `/driver/manifest.webmanifest?v=${MANIFEST_VERSION}`,
   icons: {
     icon: '/driversLogo.webp',
     apple: '/driversLogo.webp',
