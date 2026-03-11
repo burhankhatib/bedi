@@ -64,7 +64,7 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
       {shouldRenderBusinessPWA && (
         <PWAManager role="customer-business" slug={slug} variant="fixed" showPermissions />
       )}
-      <div className={canRenderCustomerShell ? 'pb-20 md:pb-0' : ''}>
+      <div className={canRenderCustomerShell ? 'pb-24 md:pb-0' : ''}>
         {children}
       </div>
       <Suspense fallback={null}>

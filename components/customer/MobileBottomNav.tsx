@@ -10,7 +10,8 @@ import { useCart } from '@/components/Cart/CartContext'
 import { UtensilsCrossed, Store, ShoppingCart, Search, Package } from 'lucide-react'
 
 const NAV_HEIGHT = 72
-const SAFE_BOTTOM = 'env(safe-area-inset-bottom, 0px)'
+/** Extra padding so nav text is not flush with the screen bottom (M3 thumb-zone). */
+const BOTTOM_PADDING = 'max(16px, env(safe-area-inset-bottom, 0px))'
 
 /** M3 Standard Easing — 200–300ms for UI feedback */
 const M3_SPRING = { type: 'spring' as const, stiffness: 400, damping: 30 }
@@ -159,8 +160,8 @@ export function MobileBottomNav() {
       initial={false}
       className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t border-slate-200/90 dark:border-slate-800/80 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.3)]"
       style={{
-        height: `calc(${NAV_HEIGHT}px + ${SAFE_BOTTOM})`,
-        paddingBottom: SAFE_BOTTOM,
+        height: `calc(${NAV_HEIGHT}px + ${BOTTOM_PADDING})`,
+        paddingBottom: BOTTOM_PADDING,
       }}
     >
       <div className="flex h-[72px] items-stretch justify-around gap-1 px-1" dir={isRtl ? 'rtl' : 'ltr'}>

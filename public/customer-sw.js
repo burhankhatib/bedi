@@ -30,8 +30,8 @@ self.addEventListener('fetch', function (event) {
     if (p.startsWith('/driver')) return
     if (p.startsWith('/dashboard')) return
     if (p.startsWith('/studio')) return
-    // Skip per-business management & orders paths: /t/[slug]/orders, /t/[slug]/manage
-    if (/^\/t\/[^/]+\/(orders|manage)(\/|$)/.test(p)) return
+    // Skip all per-business paths: /t/[slug]
+    if (p.startsWith('/t/')) return
     // Respond so this SW controls the page (required for Chrome installability)
     event.respondWith(fetch(event.request))
   } catch (_) {
