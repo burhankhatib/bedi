@@ -17,15 +17,22 @@ self.addEventListener('activate', function (event) {
   event.waitUntil(self.clients.claim())
 })
 
-// Handle all same-origin requests so this SW controls the scope and start_url (Chrome installability)
+// Handle same-origin requests ONLY for customer-owned paths.
+// CRITICAL: We must NOT respond to paths belonging to other PWAs, otherwise
+// Chrome considers those pages "already installed" under the customer PWA.
 self.addEventListener('fetch', function (event) {
-  const url = event.request.url
+  var url = event.request.url
   try {
-    const reqUrl = new URL(url)
+    var reqUrl = new URL(url)
     if (reqUrl.origin !== self.location.origin) return
-    // Do not control studio (different app)
-    if (reqUrl.pathname.startsWith('/studio')) return
-    // Respond so this SW is the controller for this request
+    var p = reqUrl.pathname
+    // Skip paths owned by other PWAs — let their own SWs handle them
+    if (p.startsWith('/driver')) return
+    if (p.startsWith('/dashboard')) return
+    if (p.startsWith('/studio')) return
+    // Skip per-business management & orders paths: /t/[slug]/orders, /t/[slug]/manage
+    if (/^\/t\/[^/]+\/(orders|manage)(\/|$)/.test(p)) return
+    // Respond so this SW controls the page (required for Chrome installability)
     event.respondWith(fetch(event.request))
   } catch (_) {
     // Ignore invalid URLs
