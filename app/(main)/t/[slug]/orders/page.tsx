@@ -21,7 +21,7 @@ export const revalidate = 0
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  return { manifest: `/t/${slug}/orders/manifest.webmanifest` }
+  return {}
 }
 
 export default async function TenantOrdersPage({

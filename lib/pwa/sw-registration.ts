@@ -25,7 +25,10 @@ export async function registerServiceWorker(
 
 /**
  * Idempotently inject or update the <link rel="manifest"> tag.
- * Removes any duplicate manifest links.
+ * CRITICAL: Removes ALL existing manifest links first, then creates
+ * a fresh one with the correct URL. This prevents Chrome from seeing
+ * a stale/inherited manifest (e.g. the customer manifest on /t/[slug])
+ * and reporting "This app is already installed."
  */
 export function injectManifest(manifestUrl: string): void {
   if (typeof document === 'undefined') return
@@ -33,22 +36,19 @@ export function injectManifest(manifestUrl: string): void {
     ? `${manifestUrl}&v=${MANIFEST_VERSION}`
     : `${manifestUrl}?v=${MANIFEST_VERSION}`
 
+  // Remove ALL existing manifest links (including Next.js server-rendered ones)
   const existingLinks = Array.from(
     document.querySelectorAll('link[rel="manifest"]')
   ) as HTMLLinkElement[]
-
-  const primaryLink = existingLinks[0] ?? document.createElement('link')
-  primaryLink.setAttribute('rel', 'manifest')
-  primaryLink.setAttribute('href', url)
-
-  if (!existingLinks[0]) {
-    document.head.appendChild(primaryLink)
+  for (const link of existingLinks) {
+    link.remove()
   }
 
-  // Remove duplicates
-  for (let i = 1; i < existingLinks.length; i++) {
-    existingLinks[i].remove()
-  }
+  // Create a fresh manifest link
+  const newLink = document.createElement('link')
+  newLink.setAttribute('rel', 'manifest')
+  newLink.setAttribute('href', url)
+  document.head.appendChild(newLink)
 }
 
 /**

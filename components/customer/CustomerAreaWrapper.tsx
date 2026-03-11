@@ -20,9 +20,27 @@ function isCustomerPath(pathname: string): boolean {
   return false
 }
 
+/** Paths where the CUSTOMER PWA (scope /) should register. Excludes /t/[slug] since those get their own per-business PWA. */
+function isCustomerPWAPath(pathname: string): boolean {
+  if (!pathname) return false
+  if (pathname === '/') return true
+  if (pathname === '/search') return true
+  if (pathname === '/my-orders') return true
+  if (pathname.startsWith('/order')) return true
+  if (pathname.startsWith('/resolve')) return true
+  if (pathname.startsWith('/join')) return true
+  return false
+}
+
+/** Extract slug from /t/[slug] paths */
+function extractSlug(pathname: string): string | null {
+  const match = pathname.match(/^\/t\/([^/]+)$/)
+  return match ? match[1] : null
+}
+
 /**
  * Wraps (main) layout children: on customer paths adds bottom padding for the sticky mobile nav,
- * registers the single Customer PWA SW, shows install + push/location prompts, and CartSlider.
+ * registers the Customer or per-business PWA, shows install + push/location prompts, and CartSlider.
  */
 export function CustomerAreaWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -30,10 +48,20 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
   const { isChosen } = useLocation()
   const canRenderCustomerShell = showNav && isChosen
 
+  // Determine which PWA to show
+  const isCustomerPWA = isCustomerPWAPath(pathname ?? '')
+  const slug = extractSlug(pathname ?? '')
+  const isBusinessPage = !!slug
+
   return (
     <>
-      {canRenderCustomerShell && (
+      {/* Main customer PWA on homepage/search/my-orders/orders */}
+      {canRenderCustomerShell && isCustomerPWA && (
         <PWAManager role="customer" variant="fixed" showPermissions />
+      )}
+      {/* Per-business customer PWA on /t/[slug] pages */}
+      {canRenderCustomerShell && isBusinessPage && (
+        <PWAManager role="customer-business" slug={slug} variant="fixed" />
       )}
       <div className={canRenderCustomerShell ? 'pb-20 md:pb-0' : ''}>
         {children}
@@ -47,3 +75,4 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
     </>
   )
 }
+

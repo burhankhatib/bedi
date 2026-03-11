@@ -5,7 +5,6 @@ import { StandaloneDriverRedirect, StandaloneTenantRedirect } from '@/components
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  manifest: '/manifest.json',
   icons: {
     icon: '/customersLogo.webp',
     apple: '/customersLogo.webp',

@@ -49,13 +49,15 @@ export function usePWA(config: PWAConfig): UsePWAResult {
   useEffect(() => {
     if (typeof window === 'undefined') return
 
-    // Inject manifest
+    // Inject manifest (always)
     injectManifest(config.manifestUrl)
 
-    // Register service worker
-    registerServiceWorker(config).then((reg) => {
-      if (reg) setRegistration(reg)
-    })
+    // Register service worker (skip if no swUrl — e.g. customer-business role)
+    if (config.swUrl) {
+      registerServiceWorker(config).then((reg) => {
+        if (reg) setRegistration(reg)
+      })
+    }
   }, [config.manifestUrl, config.swUrl, config.scope]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Compose hooks
