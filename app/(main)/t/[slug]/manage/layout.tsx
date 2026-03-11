@@ -23,7 +23,7 @@ export async function generateMetadata({
   const { slug } = await params
   return {
     // Use the same per-business manifest as Orders so install always opens /orders by default.
-    manifest: `/t/${slug}/orders/manifest.webmanifest`,
+    manifest: `/t/${slug}/orders/manifest.webmanifest?v=20260311`,
     icons: {
       icon: `/t/${slug}/icon/192`,
       apple: `/t/${slug}/icon/192`,

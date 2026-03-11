@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  manifest: '/dashboard/manifest.webmanifest',
+  manifest: '/dashboard/manifest.webmanifest?v=20260311',
   title: 'Bedi Business',
   icons: {
     icon: '/adminslogo.webp',

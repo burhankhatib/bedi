@@ -7,7 +7,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params
   return {
-    manifest: `/t/${slug}/orders/manifest.webmanifest`,
+    manifest: `/t/${slug}/orders/manifest.webmanifest?v=20260311`,
     icons: {
       icon: `/t/${slug}/icon/192`,
       apple: `/t/${slug}/icon/192`,

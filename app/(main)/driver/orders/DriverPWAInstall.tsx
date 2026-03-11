@@ -8,6 +8,7 @@ import { useLanguage } from '@/components/LanguageContext'
 const DISMISS_KEY = 'bedi-driver-pwa-install-dismissed-until'
 const DISMISS_HOURS_DEFAULT = 24
 const DISMISS_HOURS_EXTENDED = 24 * 7
+const MANIFEST_VERSION = '20260311'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -30,15 +31,16 @@ export function DriverPWAInstall() {
   useEffect(() => {
     try {
       // Force driver manifest on driver pages so install always maps to Driver app.
-      const targetManifest = '/driver/manifest.webmanifest'
-      let link = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null
-      if (!link) {
-        link = document.createElement('link')
-        link.setAttribute('rel', 'manifest')
-        document.head.appendChild(link)
+      const targetManifest = `/driver/manifest.webmanifest?v=${MANIFEST_VERSION}`
+      const existingManifestLinks = Array.from(document.querySelectorAll('link[rel="manifest"]')) as HTMLLinkElement[]
+      const primaryLink = existingManifestLinks[0] ?? document.createElement('link')
+      primaryLink.setAttribute('rel', 'manifest')
+      primaryLink.setAttribute('href', targetManifest)
+      if (!existingManifestLinks[0]) {
+        document.head.appendChild(primaryLink)
       }
-      if (link.getAttribute('href') !== targetManifest) {
-        link.setAttribute('href', targetManifest)
+      for (let i = 1; i < existingManifestLinks.length; i += 1) {
+        existingManifestLinks[i].remove()
       }
 
       const until = localStorage.getItem(DISMISS_KEY)

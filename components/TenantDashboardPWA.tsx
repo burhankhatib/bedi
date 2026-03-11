@@ -8,6 +8,7 @@ import { useLanguage } from '@/components/LanguageContext'
 const DISMISS_KEY = 'bedi-dashboard-pwa-dismissed-until'
 const DISMISS_HOURS_DEFAULT = 24
 const DISMISS_HOURS_EXTENDED = 24 * 7
+const MANIFEST_VERSION = '20260311'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -41,17 +42,19 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
       // Force the correct manifest for this context:
       // - /dashboard => unified Bedi Business
       // - /t/[slug]/manage => per-business app that starts at /orders
-      const targetManifest = slug
+      const targetManifestBase = slug
         ? `/t/${slug}/orders/manifest.webmanifest`
         : '/dashboard/manifest.webmanifest'
-      let link = document.querySelector('link[rel="manifest"]') as HTMLLinkElement | null
-      if (!link) {
-        link = document.createElement('link')
-        link.setAttribute('rel', 'manifest')
-        document.head.appendChild(link)
+      const targetManifest = `${targetManifestBase}?v=${MANIFEST_VERSION}`
+      const existingManifestLinks = Array.from(document.querySelectorAll('link[rel="manifest"]')) as HTMLLinkElement[]
+      const primaryLink = existingManifestLinks[0] ?? document.createElement('link')
+      primaryLink.setAttribute('rel', 'manifest')
+      primaryLink.setAttribute('href', targetManifest)
+      if (!existingManifestLinks[0]) {
+        document.head.appendChild(primaryLink)
       }
-      if (link.getAttribute('href') !== targetManifest) {
-        link.setAttribute('href', targetManifest)
+      for (let i = 1; i < existingManifestLinks.length; i += 1) {
+        existingManifestLinks[i].remove()
       }
 
       // Register SW so Android can show install prompt. When on manage, use tenant-scoped SW for separate PWA install.
@@ -60,6 +63,13 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
           const normalized = scope.endsWith('/') ? scope : `${scope}/`
           navigator.serviceWorker.register(`${normalized.replace(/\/$/, '')}/sw.js`, { scope: normalized }).catch(() => {})
         } else {
+          navigator.serviceWorker.getRegistrations().then((regs) => {
+            regs
+              .filter((reg) => reg.active?.scriptURL.includes('/app-sw.js'))
+              .forEach((reg) => {
+                reg.unregister().catch(() => {})
+              })
+          }).catch(() => {})
           navigator.serviceWorker.register('/dashboard/sw.js', { scope: '/dashboard' }).catch(() => {})
         }
       }

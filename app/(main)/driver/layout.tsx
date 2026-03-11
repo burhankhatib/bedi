@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 export const metadata = {
   title: 'Bedi Driver',
-  manifest: '/driver/manifest.webmanifest',
+  manifest: '/driver/manifest.webmanifest?v=20260311',
   icons: {
     icon: '/driversLogo.webp',
     apple: '/driversLogo.webp',

@@ -29,7 +29,7 @@ export function GET(req: NextRequest) {
   return NextResponse.json(getManifest(origin), {
     headers: {
       'Content-Type': 'application/manifest+json',
-      'Cache-Control': 'public, max-age=86400',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
     },
   })
 }
