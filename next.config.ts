@@ -31,11 +31,6 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      // Customer PWA manifest: serve with correct Content-Type and id so app is installable (not just shortcut)
-      {
-        source: '/manifest.json',
-        destination: '/api/manifest',
-      },
       // Handle /listings/* requests (likely from bots/crawlers or Sanity Studio references)
       {
         source: '/listings/:path*',

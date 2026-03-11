@@ -68,22 +68,22 @@ export function DashboardClient({
 
               <div className="mt-6 flex flex-wrap gap-2">
                 <Button asChild size="sm" className="border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white">
-                  <Link href={`/t/${tenant.slug}`} target="_blank" rel="noopener noreferrer">
+                  <a href={`/t/${tenant.slug}`} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="mr-1.5 size-3.5" />
                     {t('View menu', 'عرض القائمة')}
-                  </Link>
+                  </a>
                 </Button>
                 <Button asChild size="sm" className="border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white">
-                  <Link href={`/t/${tenant.slug}/manage`}>
+                  <a href={`/t/${tenant.slug}/manage`}>
                     <LayoutGrid className="mr-1.5 size-3.5" />
                     {t('Manage', 'إدارة')}
-                  </Link>
+                  </a>
                 </Button>
                 <Button asChild size="sm" className="bg-amber-500 text-slate-950 hover:bg-amber-400">
-                  <Link href={`/t/${tenant.slug}/orders`}>
+                  <a href={`/t/${tenant.slug}/orders`}>
                     {t('Orders', 'الطلبات')}
                     <ArrowRight className="ml-1.5 size-3.5" />
-                  </Link>
+                  </a>
                 </Button>
               </div>
             </div>

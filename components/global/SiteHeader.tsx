@@ -124,7 +124,7 @@ function DesktopRoleSwitcher({ t, isRtl }: { t: (en: string, ar: string) => stri
       role="group"
       aria-label={t('Switch role', 'تبديل الدور')}
     >
-      <Link
+      <a
         href="/"
         onClick={() => { try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.removeItem(PREFER_TENANT_KEY) } catch { /* ignore */ } }}
         className={`${base} ${isCustomer ? active : inactive}`}
@@ -132,8 +132,8 @@ function DesktopRoleSwitcher({ t, isRtl }: { t: (en: string, ar: string) => stri
       >
         <User className="size-4 shrink-0" aria-hidden />
         <span className="hidden lg:inline">{t('Customer', 'زبون')}</span>
-      </Link>
-      <Link
+      </a>
+      <a
         href="/driver"
         onClick={() => { try { localStorage.setItem(PREFER_DRIVER_KEY, '1'); localStorage.removeItem(PREFER_TENANT_KEY) } catch { /* ignore */ } }}
         className={`${base} ${isDriver ? active : inactive}`}
@@ -141,8 +141,8 @@ function DesktopRoleSwitcher({ t, isRtl }: { t: (en: string, ar: string) => stri
       >
         <Truck className="size-4 shrink-0" aria-hidden />
         <span className="hidden lg:inline">{t('Driver', 'سائق')}</span>
-      </Link>
-      <Link
+      </a>
+      <a
         href="/dashboard"
         onClick={() => { try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.setItem(PREFER_TENANT_KEY, '1') } catch { /* ignore */ } }}
         className={`${base} ${isTenant ? active : inactive}`}
@@ -150,7 +150,7 @@ function DesktopRoleSwitcher({ t, isRtl }: { t: (en: string, ar: string) => stri
       >
         <Store className="size-4 shrink-0" aria-hidden />
         <span className="hidden lg:inline">{t('Business', 'أعمال')}</span>
-      </Link>
+      </a>
     </div>
   )
 }
@@ -226,36 +226,36 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
           </div>
           <p className="text-xs text-slate-500">{t('Switch to', 'التبديل إلى')}</p>
           <div className="flex flex-wrap gap-2">
-            <Link
+            <a
               href="/"
               onClick={() => {
                 try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.removeItem(PREFER_TENANT_KEY) } catch { /* ignore */ }
-                setMenuOpen(false)
               }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100"
             >
               <User className="size-3.5" />
               {t('Browse as Customer', 'التصفح كزبون')}
-            </Link>
-            <Link
+            </a>
+            <a
               href="/driver"
               onClick={() => {
                 try { localStorage.setItem(PREFER_DRIVER_KEY, '1') } catch { /* ignore */ }
-                setMenuOpen(false)
               }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
             >
               <Truck className="size-3.5" />
               {t('Switch to Driver', 'التبديل إلى سائق')}
-            </Link>
-            <Link
+            </a>
+            <a
               href="/dashboard"
-              onClick={() => setMenuOpen(false)}
+              onClick={() => {
+                try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.setItem(PREFER_TENANT_KEY, '1') } catch { /* ignore */ }
+              }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-200"
             >
               <Store className="size-3.5" />
               {t('Switch to Business', 'التبديل إلى أعمال')}
-            </Link>
+            </a>
           </div>
           <button
             type="button"

@@ -143,17 +143,16 @@ export function DriverLayoutClient({
             </div>
             
             <div className="flex flex-col px-3 space-y-1 flex-1">
-              <Link
+              <a
                 href="/"
                 onClick={() => {
                   try { localStorage.removeItem(PREFER_DRIVER_KEY) } catch { /* ignore */ }
-                  setMenuOpen(false)
                 }}
                 className="flex items-center gap-4 px-4 py-3.5 rounded-2xl text-slate-300 hover:bg-slate-800/80 hover:text-white transition-colors"
               >
                 <Home className="size-6 text-slate-400" />
                 <span className="font-medium text-[15px]">{t('Switch to Customer', 'التبديل إلى زبون')}</span>
-              </Link>
+              </a>
 
               <div className="my-2 border-t border-slate-800/60 mx-2"></div>
 

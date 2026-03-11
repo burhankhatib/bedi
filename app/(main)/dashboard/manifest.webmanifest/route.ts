@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 /** Unified Business PWA manifest — one app for all businesses. Install from dashboard; push for new orders from any business. */
 function getManifest(origin: string) {
   return {
-    id: `${origin}/dashboard`,
+    id: `${origin}/dashboard/`,
     name: 'Bedi Business',
     short_name: 'Bedi Business',
     description: 'Manage your businesses, menus, and orders. Get new order notifications for all your businesses.',

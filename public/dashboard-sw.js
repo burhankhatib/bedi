@@ -27,6 +27,9 @@ self.addEventListener('fetch', function (event) {
     var reqUrl = new URL(event.request.url)
     if (reqUrl.origin !== self.location.origin) return
     if (reqUrl.pathname.startsWith('/studio')) return
+    // Skip specific static resources that could confuse the cache
+    if (reqUrl.pathname.endsWith('.webmanifest')) return
+    if (reqUrl.pathname.endsWith('.js') && reqUrl.pathname.includes('sw')) return
     if (event.request.mode === 'navigate') {
       event.respondWith(fetch(event.request))
     }

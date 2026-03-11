@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 /** Driver PWA manifest — unique id so it installs separately from tenant menu/dashboard. */
 function getManifest(origin: string) {
   return {
-    id: `${origin}/driver`,
+    id: `${origin}/driver/`,
     name: 'Bedi Driver',
     short_name: 'Bedi Driver',
     description: 'Receive and manage delivery orders.',

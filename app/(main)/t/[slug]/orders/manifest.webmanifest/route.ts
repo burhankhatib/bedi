@@ -55,12 +55,12 @@ export async function GET(
   }
 
   const manifest = {
-    id: `${origin}/t/${slug}/orders`,
+    id: `${origin}/t/${slug}/orders/`,
     name,
     short_name: shortName,
     description: `${businessName} — Standalone business dashboard with order alerts`,
     start_url: startUrl,
-    scope,
+    scope: `${origin}/t/${slug}/orders/`,
     display: 'standalone',
     background_color: '#0f172a',
     theme_color: '#0f172a',

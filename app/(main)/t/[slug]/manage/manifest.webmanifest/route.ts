@@ -48,12 +48,12 @@ export async function GET(
   }
 
   const manifest = {
-    id: `${origin}/t/${slug}/orders`,
+    id: `${origin}/t/${slug}/orders/`,
     name: `${name} Dashboard`,
     short_name: shortName,
     description: `${name} — Standalone business dashboard`,
     start_url: startUrl,
-    scope,
+    scope: `${origin}/t/${slug}/orders/`,
     display: 'standalone',
     display_override: ['standalone', 'minimal-ui'],
     background_color: '#0f172a',

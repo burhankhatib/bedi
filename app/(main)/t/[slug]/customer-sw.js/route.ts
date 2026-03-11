@@ -37,6 +37,9 @@ self.addEventListener('fetch', function (event) {
     var p = reqUrl.pathname
     // Ensure we only control this specific business
     if (!p.startsWith('/t/${slug}')) return
+    // Skip specific static resources that could confuse the cache
+    if (p.endsWith('.webmanifest')) return
+    if (p.endsWith('.js') && p.includes('sw')) return
     if (event.request.mode === 'navigate') {
       event.respondWith(fetch(event.request))
     }

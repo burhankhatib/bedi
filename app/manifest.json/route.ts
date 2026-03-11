@@ -11,8 +11,8 @@ export function GET(req: NextRequest) {
 
   const manifest = {
     id: `${origin}/`,
-    name: 'Bedi',
-    short_name: 'Bedi',
+    name: 'Bedi Delivery',
+    short_name: 'Bedi Delivery',
     description: 'Order from your favorite restaurants and stores. Get order updates and offers.',
     start_url: `${origin}/`,
     scope: `${origin}/`,

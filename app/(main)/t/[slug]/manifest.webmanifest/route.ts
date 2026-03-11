@@ -80,12 +80,12 @@ export async function GET(
   }
 
   const manifest = {
-    id: `${origin}/t/${slug}`,
+    id: `${origin}/t/${slug}/`,
     name,
     short_name: shortName,
     description: `${name} — Menu & order`,
     start_url: startUrl,
-    scope: `${origin}/t/${slug}`,
+    scope: `${origin}/t/${slug}/`,
     display: 'standalone',
     background_color: '#0f172a',
     theme_color: '#0f172a',

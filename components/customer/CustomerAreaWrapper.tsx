@@ -58,11 +58,11 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
     <>
       {/* Main customer PWA on homepage/search/my-orders/orders */}
       {canRenderCustomerShell && isCustomerPWA && (
-        <PWAManager role="customer" variant="fixed" showPermissions />
+        <PWAManager key="pwa-customer" role="customer" variant="fixed" showPermissions />
       )}
       {/* Per-business customer PWA on /t/[slug] pages */}
       {shouldRenderBusinessPWA && (
-        <PWAManager role="customer-business" slug={slug} variant="fixed" showPermissions />
+        <PWAManager key={`pwa-biz-${slug}`} role="customer-business" slug={slug!} variant="fixed" showPermissions />
       )}
       <div className={canRenderCustomerShell ? 'pb-24 md:pb-0' : ''}>
         {children}

@@ -32,6 +32,9 @@ self.addEventListener('fetch', function (event) {
     if (p.startsWith('/studio')) return
     // Skip all per-business paths: /t/[slug]
     if (p.startsWith('/t/')) return
+    // Skip specific static resources that could confuse the cache
+    if (p.endsWith('.webmanifest')) return
+    if (p.endsWith('.js') && p.includes('sw')) return
     // Respond so this SW controls the page (required for Chrome installability)
     event.respondWith(fetch(event.request))
   } catch (_) {

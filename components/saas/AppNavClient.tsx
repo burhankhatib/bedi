@@ -100,13 +100,13 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
                   </Link>
                 </Button>
                 <Button asChild variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-                  <Link
+                  <a
                     href="/"
                     onClick={() => { try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.removeItem(PREFER_TENANT_KEY) } catch { /* ignore */ } }}
                   >
                     <Home className="mr-1.5 size-4" />
                     {dashboardNavLabels.switchToCustomer}
-                  </Link>
+                  </a>
                 </Button>
                 <Button asChild variant="ghost" size="sm" className="text-slate-400 hover:text-white" title="Download app">
                   <Link href="/download-app">
@@ -116,13 +116,13 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
                 </Button>
                 {hasDriver && (
                   <Button asChild variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-                    <Link
+                    <a
                       href="/driver"
                       onClick={() => { try { localStorage.setItem(PREFER_DRIVER_KEY, '1') } catch { /* ignore */ } }}
                     >
                       <Truck className="mr-1.5 size-4" />
                       {dashboardNavLabels.switchToDriver}
-                    </Link>
+                    </a>
                   </Button>
                 )}
                 {showAdmin && (
@@ -194,14 +194,14 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
               <LayoutDashboard className="size-5 shrink-0" />
               {dashboardNavLabels.dashboard}
             </Link>
-            <Link
+            <a
               href="/"
               className="flex items-center gap-3 px-6 py-3.5 text-slate-200 hover:bg-slate-800/80 hover:text-white"
               onClick={() => { try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.removeItem(PREFER_TENANT_KEY) } catch { /* ignore */ }; setOpen(false) }}
             >
               <Home className="size-5 shrink-0" />
               {dashboardNavLabels.switchToCustomer}
-            </Link>
+            </a>
             <Link
               href="/download-app"
               className="flex items-center gap-3 px-6 py-3.5 text-slate-200 hover:bg-slate-800/80 hover:text-white"
@@ -211,14 +211,14 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
               Download App
             </Link>
             {hasDriver && (
-              <Link
+              <a
                 href="/driver"
                 className="flex items-center gap-3 px-6 py-3.5 text-slate-200 hover:bg-slate-800/80 hover:text-white"
                 onClick={() => { try { localStorage.setItem(PREFER_DRIVER_KEY, '1') } catch { /* ignore */ }; setOpen(false) }}
               >
                 <Truck className="size-5 shrink-0" />
                 {dashboardNavLabels.switchToDriver}
-              </Link>
+              </a>
             )}
             {showAdmin && (
               <>
