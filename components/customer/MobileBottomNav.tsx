@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -16,7 +16,7 @@ const BOTTOM_PADDING = 'max(16px, env(safe-area-inset-bottom, 0px))'
 /** M3 Standard Easing — 200–300ms for UI feedback */
 const M3_SPRING = { type: 'spring' as const, stiffness: 400, damping: 30 }
 
-/** Paths where the customer bottom nav is shown (home, search, tenant menu, order flow, my orders). */
+/** Paths where the customer bottom nav is shown (home, search, tenant menu, order flow, my orders, track page). */
 function isCustomerPath(pathname: string): boolean {
   if (!pathname) return false
   if (pathname === '/') return true
@@ -25,7 +25,8 @@ function isCustomerPath(pathname: string): boolean {
   if (pathname.startsWith('/order')) return true
   if (pathname.startsWith('/resolve')) return true
   if (pathname.startsWith('/join')) return true
-  if (/^\/t\/[^/]+$/.test(pathname)) return true
+  if (/^\/t\/[^/]+\/?$/.test(pathname)) return true
+  if (/^\/t\/[^/]+\/track\/[^/]+$/.test(pathname)) return true
   return false
 }
 
@@ -120,13 +121,25 @@ export function MobileBottomNav() {
     setMounted(true)
   }, [])
 
-  useEffect(() => {
+  const fetchActiveCount = useCallback(() => {
     if (!isCustomerPath(pathname ?? '')) return
-    fetch('/api/me/orders/active-count', { credentials: 'include' })
+    fetch('/api/me/orders/active-count', { credentials: 'include', cache: 'no-store' })
       .then((r) => r.json())
       .then((data) => setActiveOrderCount(typeof data?.count === 'number' ? data.count : 0))
       .catch(() => setActiveOrderCount(0))
   }, [pathname])
+
+  useEffect(() => {
+    fetchActiveCount()
+  }, [fetchActiveCount])
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') fetchActiveCount()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [fetchActiveCount])
 
   if (!isCustomerPath(pathname ?? '')) return null
 
@@ -136,6 +149,8 @@ export function MobileBottomNav() {
   const storesActive = pathname === '/search' && category === 'retail'
   const ordersActive = pathname === '/my-orders'
   const searchActive = pathname === '/search'
+  const onTrackPage = !!pathname && /^\/t\/[^/]+\/track\/[^/]+$/.test(pathname)
+  const ordersHighlight = activeOrderCount > 0 || onTrackPage
 
   const isRtl = mounted && lang === 'ar'
   const ariaLabel = mounted ? t('Main navigation', 'التنقل الرئيسي') : FALLBACK.ariaLabel
@@ -150,7 +165,7 @@ export function MobileBottomNav() {
     { href: '/', active: homeActive, label: homeLabel, icon: <Image src="/logo.webp" alt="Bedi" width={28} height={28} className="h-7 w-7 object-contain" /> },
     { href: '/search?category=restaurant', active: restaurantsActive, label: restaurantsLabel, icon: <UtensilsCrossed className="size-6" strokeWidth={2} /> },
     { href: '/search?category=retail', active: storesActive, label: storesLabel, icon: <Store className="size-6" strokeWidth={2} /> },
-    { href: '/my-orders', active: ordersActive, highlight: activeOrderCount > 0, label: ordersLabel, icon: <Package className="size-6" strokeWidth={2} /> },
+    { href: '/my-orders', active: ordersActive, highlight: ordersHighlight, label: ordersLabel, icon: <Package className="size-6" strokeWidth={2} /> },
   ]
 
   return (

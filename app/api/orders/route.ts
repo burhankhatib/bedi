@@ -272,22 +272,22 @@ export async function POST(request: NextRequest) {
       status: result.status,
     })
 
+    let siteSlug: string | undefined = typeof tenantSlug === 'string' ? tenantSlug.trim() || undefined : undefined
     if (siteRef?._ref) {
       try {
         // Fetch tenant to get the proper name for the notification
-        const tenantDoc = await writeClient.fetch<{ name?: string; name_ar?: string; slug?: { current?: string }, ownerPhone?: string, prioritizeWhatsapp?: boolean } | null>(
+        const tenantDoc = await writeClient.fetch<{ name?: string; name_ar?: string; slug?: { current?: string }; ownerPhone?: string; prioritizeWhatsapp?: boolean } | null>(
           `*[_type == "tenant" && _id == $id][0]{ name, name_ar, slug, ownerPhone, prioritizeWhatsapp }`,
           { id: siteRef._ref }
         )
-        
-        const resolvedSlug = tenantDoc?.slug?.current || (typeof tenantSlug === 'string' ? tenantSlug : null)
-        
+        siteSlug = (tenantDoc?.slug?.current || siteSlug)?.trim() || undefined
+
         // Fire centralized notification service (handles Pusher, FCM, and WhatsApp)
         await NotificationService.onNewOrder({
           orderId: result._id,
           orderNumber: result.orderNumber,
           tenantId: siteRef._ref,
-          tenantSlug: resolvedSlug || '',
+          tenantSlug: siteSlug || '',
           tenantName: tenantDoc?.name,
           tenantNameAr: tenantDoc?.name_ar,
           tenantPhone: tenantDoc?.ownerPhone,
@@ -303,6 +303,7 @@ export async function POST(request: NextRequest) {
       orderId: result._id,
       orderNumber: result.orderNumber,
       trackingToken,
+      siteSlug,
     })
 
   } catch (error) {

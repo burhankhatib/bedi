@@ -32,13 +32,20 @@ function setBypass(slug: string, token: string, value: boolean) {
   }
 }
 
-type Props = { slug: string; token: string; children: React.ReactNode }
+type Props = {
+  slug: string
+  token: string
+  children: React.ReactNode
+  /** When true, skip the gate so the customer can respond to critical flows (e.g. tip confirmation when driver arrived). */
+  forceBypass?: boolean
+}
 
 /**
  * Gates the order tracking content until FCM/push is enabled.
  * When permission is denied, shows "Continue without notifications" so the user can still view their order.
+ * When forceBypass (e.g. pending tip confirmation at arrival), always show content.
  */
-export function CustomerTrackPushGate({ slug, token, children }: Props) {
+export function CustomerTrackPushGate({ slug, token, children, forceBypass = false }: Props) {
   const { t } = useLanguage()
   const [userBypass, setUserBypass] = useState(() => getBypass(slug, token))
   const {
@@ -51,7 +58,7 @@ export function CustomerTrackPushGate({ slug, token, children }: Props) {
     subscribe,
   } = useCustomerTrackPush(slug, token)
 
-  const showGate = !userBypass && checked && !hasPush
+  const showGate = !forceBypass && !userBypass && checked && !hasPush
   const handleBypass = () => {
     setBypass(slug, token, true)
     setUserBypass(true)

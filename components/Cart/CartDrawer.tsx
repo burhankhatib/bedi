@@ -386,7 +386,7 @@ export function CartDrawer() {
       clearCart()
       setIsOpen(false)
 
-      const slugForRedirect = tenantSlug ?? cartTenant?.slug
+      const slugForRedirect = tenantSlug ?? cartTenant?.slug ?? result.siteSlug
       if (result.trackingToken && slugForRedirect) {
         router.push(`/t/${slugForRedirect}/track/${result.trackingToken}`)
       } else if (result.orderId && slugForRedirect && customerPhone?.trim()) {

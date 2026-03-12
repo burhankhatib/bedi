@@ -7,7 +7,7 @@ import { CartSlider } from '@/components/Cart/CartSlider'
 import { PWAManager } from '@/components/pwa/PWAManager'
 import { useLocation } from '@/components/LocationContext'
 
-/** Paths where the customer bottom nav is shown (home, search, tenant menu, order flow, my orders). */
+/** Paths where the customer bottom nav is shown (home, search, tenant menu, order flow, my orders, track page). */
 function isCustomerPath(pathname: string): boolean {
   if (!pathname) return false
   if (pathname === '/') return true
@@ -17,6 +17,7 @@ function isCustomerPath(pathname: string): boolean {
   if (pathname.startsWith('/resolve')) return true
   if (pathname.startsWith('/join')) return true
   if (/^\/t\/[^/]+\/?$/.test(pathname)) return true
+  if (/^\/t\/[^/]+\/track\/[^/]+$/.test(pathname)) return true
   return false
 }
 

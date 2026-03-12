@@ -263,14 +263,18 @@ function DeliveryETABox({
     setShowRemoveReason(true)
   }
 
-  const submitRemoveReason = () => {
+  const submitRemoveReason = async () => {
+    if (!acknowledgeChecked || removeReason.trim().split(/\s+/).filter(Boolean).length < 5) return
     setRemoveSending(true)
     setArrivalPopupVisible(false)
     setArrivalPopupDismissed(true)
     setShowRemoveReason(false)
     setAcknowledgeChecked(false)
-    onConfirmTipIncludedInTotal(false, removeReason.trim())
-    setRemoveSending(false)
+    try {
+      await onConfirmTipIncludedInTotal(false, removeReason.trim())
+    } finally {
+      setRemoveSending(false)
+    }
   }
 
   if (!showBox) return null
@@ -1266,7 +1270,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   const confirmTipIncludedInTotal = async (keep: boolean, reason?: string) => {
     if (!token) return
     try {
-      await fetch(`/api/tenants/${slug}/track/${encodeURIComponent(token)}/tip`, {
+      const res = await fetch(`/api/tenants/${slug}/track/${encodeURIComponent(token)}/tip`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1275,6 +1279,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
           ...(reason ? { removeTipReason: reason } : {}),
         }),
       })
+      if (!res.ok) throw new Error('Update failed')
       if (!keep) {
         setTipEnabled(false)
       }
@@ -1288,7 +1293,13 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
           : t('Tip removed.', 'تمت إزالة الإكرامية.'),
         keep ? 'success' : 'info'
       )
-    } catch {}
+    } catch {
+      showToast(
+        t('Could not update tip. Please try again.', 'تعذّر تحديث الإكرامية. حاول مرة أخرى.'),
+        t('Could not update tip. Please try again.', 'تعذّر تحديث الإكرامية. حاول مرة أخرى.'),
+        'error'
+      )
+    }
   }
 
   usePusherStream(
@@ -1383,8 +1394,16 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   })()
   const deliveryFee = data.order.deliveryFee ?? 0
 
+  const hasPendingTipConfirmation =
+    isDelivery &&
+    !!data.order.driverArrivedAt &&
+    !!data.order.tipSentToDriver &&
+    (data.order.tipAmount ?? 0) > 0 &&
+    !data.order.tipIncludedInTotal &&
+    !data.order.tipRemovedByDriver
+
   return (
-    <CustomerTrackPushGate slug={slug} token={token}>
+    <CustomerTrackPushGate slug={slug} token={token} forceBypass={hasPendingTipConfirmation}>
     <div className="mx-auto max-w-lg pb-24">
       <div className="px-4 pt-4 pb-2">
         <Link
