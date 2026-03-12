@@ -7,7 +7,7 @@ var PWA_DEFAULT_ICON = '/driversLogo.webp';
 var PWA_TAG = 'bedi-driver-delivery';
 var PWA_DEFAULT_TITLE = 'New delivery request';
 var PWA_DEFAULT_DIR = 'ltr';
-var PWA_SKIP_WAITING = false;
+var PWA_SKIP_WAITING = true;
 
 // ─── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener('install', function (event) {

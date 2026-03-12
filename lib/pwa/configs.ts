@@ -78,7 +78,7 @@ export function getDriverPWAConfig(): PWAConfig {
     fcmEndpoint: '/api/driver/push-subscription',
     themeColor: ROLE_THEME_COLORS['driver'],
     backgroundColor: ROLE_THEME_COLORS['driver'],
-    swSkipWaiting: false,
+    swSkipWaiting: true,
     variant: 'inline',
   }
 }
@@ -99,7 +99,7 @@ export function getTenantDashboardPWAConfig(): PWAConfig {
     fcmEndpoint: '/api/me/business-push-subscription',
     themeColor: '#f59e0b',
     backgroundColor: ROLE_THEME_COLORS['tenant-dashboard'],
-    swSkipWaiting: false,
+    swSkipWaiting: true,
     variant: 'inline',
   }
 }
@@ -122,13 +122,13 @@ export function getBusinessManagePWAConfig(
     description: `${baseName} — Standalone business dashboard`,
     icon: businessIcon || `${origin}/t/${slug}/icon/192`,
     startUrl: `${origin}/t/${slug}/orders`,
-    scope: `/t/${slug}/`,
-    swUrl: `/t/${slug}/sw.js`,
+    scope: `/t/${slug}/orders/`,
+    swUrl: `/t/${slug}/orders/sw.js`,
     manifestUrl: `/t/${slug}/orders/manifest.webmanifest`,
     fcmEndpoint: `/api/tenants/${slug}/push-subscription`,
     themeColor: ROLE_THEME_COLORS['business-manage'],
     backgroundColor: ROLE_THEME_COLORS['business-manage'],
-    swSkipWaiting: false,
+    swSkipWaiting: true,
     variant: 'inline',
   }
 }
@@ -151,13 +151,13 @@ export function getBusinessOrdersPWAConfig(
     description: `${baseName} — Standalone business dashboard with order alerts`,
     icon: businessIcon || `${origin}/t/${slug}/icon/192`,
     startUrl: `${origin}/t/${slug}/orders`,
-    scope: `/t/${slug}/`,
+    scope: `/t/${slug}/orders/`,
     swUrl: `/t/${slug}/orders/sw.js`,
     manifestUrl: `/t/${slug}/orders/manifest.webmanifest`,
     fcmEndpoint: `/api/tenants/${slug}/push-subscription`,
     themeColor: ROLE_THEME_COLORS['business-orders'],
     backgroundColor: ROLE_THEME_COLORS['business-orders'],
-    swSkipWaiting: false,
+    swSkipWaiting: true,
     variant: 'inline',
   }
 }

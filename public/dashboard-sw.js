@@ -7,7 +7,7 @@ var PWA_DEFAULT_ICON = '/adminslogo.webp';
 var PWA_TAG = 'bedi-business-new-order';
 var PWA_DEFAULT_TITLE = 'New order';
 var PWA_DEFAULT_DIR = 'ltr';
-var PWA_SKIP_WAITING = false;
+var PWA_SKIP_WAITING = true;
 
 // ─── Install ───────────────────────────────────────────────────────────────────
 self.addEventListener('install', function (event) {
