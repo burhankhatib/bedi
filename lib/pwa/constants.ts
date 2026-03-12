@@ -4,7 +4,7 @@
  */
 
 /** Manifest version string appended as ?v= to manifest URLs */
-export const MANIFEST_VERSION = '20260311'
+export const MANIFEST_VERSION = '20260312'
 
 /** Default dismiss durations */
 export const DISMISS_HOURS_DEFAULT = 24
@@ -72,8 +72,18 @@ export const ROLE_DEFAULT_URLS: Record<string, string> = {
   'business-orders': '/',
 }
 
-/** Roles where SW should skipWaiting immediately on install */
-export const SKIP_WAITING_ROLES = new Set(['customer', 'customer-business'])
+/** Roles where SW should skipWaiting immediately on install — all roles now skip waiting
+ * so dedicated SWs immediately displace the root customer SW (scope /) and take control
+ * of their specific scope. Without this Chrome keeps the root SW as controller and shows
+ * "This app is already installed" for any sub-scope page. */
+export const SKIP_WAITING_ROLES = new Set([
+  'customer',
+  'customer-business',
+  'driver',
+  'tenant-dashboard',
+  'business-manage',
+  'business-orders',
+])
 
 /** Default notification direction per role */
 export const ROLE_DEFAULT_DIR: Record<string, 'ltr' | 'rtl'> = {

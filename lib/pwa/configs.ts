@@ -24,7 +24,7 @@ export function getCustomerPWAConfig(): PWAConfig {
     startUrl: `${origin}/`,
     scope: '/',
     swUrl: '/customer-sw.js',
-    manifestUrl: '/manifest.json',
+    manifestUrl: '/manifest.webmanifest',
     fcmEndpoint: '/api/customer/push-subscription',
     themeColor: ROLE_THEME_COLORS['customer'],
     backgroundColor: ROLE_THEME_COLORS['customer'],
