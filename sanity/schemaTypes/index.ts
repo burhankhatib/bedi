@@ -27,7 +27,8 @@ import { broadcastHistoryType } from './broadcastHistory'
 import { bopProcessedPaymentType } from './bopProcessedPayment'
 import { catalogCategoryType } from './catalogCategory'
 import { catalogProductType } from './catalogProduct'
+import { masterCatalogProductType } from '../../schemas/masterCatalog'
 
 export const schema: { types: SchemaTypeDefinition[] } = {
-  types: [tenantType, categoryType, catalogCategoryType, catalogProductType, productType, restaurantInfoType, aboutUsType, areaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType, broadcastHistoryType, bopProcessedPaymentType],
+  types: [tenantType, categoryType, catalogCategoryType, catalogProductType, masterCatalogProductType, productType, restaurantInfoType, aboutUsType, areaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType, broadcastHistoryType, bopProcessedPaymentType],
 }

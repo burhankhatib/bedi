@@ -35,6 +35,15 @@ type CatalogProduct = {
 
 type CatalogCategory = { _id: string; title_en: string; title_ar: string }
 type MenuCategory = { _id: string; title_en: string; title_ar: string }
+type MasterCatalogProduct = {
+  _id: string
+  nameEn?: string
+  nameAr?: string
+  category?: string
+  searchQuery?: string
+  unitType?: 'kg' | 'piece' | 'pack'
+  alreadyAdded?: boolean
+}
 
 export function CatalogProductsModal({
   open,
@@ -42,12 +51,14 @@ export function CatalogProductsModal({
   categories,
   slug,
   onAdded,
+  businessType,
 }: {
   open: boolean
   onClose: () => void
   categories: MenuCategory[]
   slug: string
   onAdded: () => void
+  businessType?: string
 }) {
   const { t, lang } = useLanguage()
   const [q, setQ] = useState('')
@@ -55,7 +66,11 @@ export function CatalogProductsModal({
   const [selectedCatalogCategoryId, setSelectedCatalogCategoryId] = useState('')
   const [selectedMenuCategoryId, setSelectedMenuCategoryId] = useState('')
   const [products, setProducts] = useState<CatalogProduct[]>([])
+  const [masterProducts, setMasterProducts] = useState<MasterCatalogProduct[]>([])
   const [loading, setLoading] = useState(false)
+  const [masterLoading, setMasterLoading] = useState(false)
+  const [masterImageUrls, setMasterImageUrls] = useState<Record<string, string>>({})
+  const [addingMasterId, setAddingMasterId] = useState<string | null>(null)
   const [customizing, setCustomizing] = useState<CatalogProduct | null>(null)
   const [titleEn, setTitleEn] = useState('')
   const [titleAr, setTitleAr] = useState('')
@@ -99,10 +114,51 @@ export function CatalogProductsModal({
     }
   }, [open, slug, q, selectedCatalogCategoryId])
 
+  const fetchMasterProducts = useCallback(async () => {
+    if (!open || !slug || !businessType) return
+    setMasterLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (q.trim()) params.set('q', q.trim())
+      params.set('category', businessType)
+      params.set('limit', '24')
+      const res = await fetch(`/api/tenants/${slug}/master-catalog?${params}`, { credentials: 'include' })
+      const data = await res.json()
+      const list = Array.isArray(data) ? (data as MasterCatalogProduct[]) : []
+      setMasterProducts(list)
+
+      // Load preview image URLs through the local proxy.
+      const pairs = await Promise.all(
+        list.map(async (item) => {
+          const query = item.searchQuery?.trim()
+          if (!query) return [item._id, ''] as const
+          try {
+            const r = await fetch(`/api/catalog/image?query=${encodeURIComponent(query)}`)
+            const j = await r.json()
+            return [item._id, (j?.imageUrlSmall || j?.imageUrl || '') as string] as const
+          } catch {
+            return [item._id, ''] as const
+          }
+        })
+      )
+      setMasterImageUrls(Object.fromEntries(pairs.filter(([, url]) => !!url)))
+    } catch {
+      setMasterProducts([])
+      setMasterImageUrls({})
+    } finally {
+      setMasterLoading(false)
+    }
+  }, [open, slug, q, businessType])
+
   useEffect(() => {
     const debounce = setTimeout(fetchProducts, 300)
     return () => clearTimeout(debounce)
   }, [fetchProducts])
+
+  useEffect(() => {
+    const debounce = setTimeout(fetchMasterProducts, 300)
+    return () => clearTimeout(debounce)
+  }, [fetchMasterProducts])
 
   const startCustomize = (product: CatalogProduct) => {
     setCustomizing(product)
@@ -170,6 +226,35 @@ export function CatalogProductsModal({
       }
     } finally {
       setAdding(false)
+    }
+  }
+
+  const handleQuickAddMaster = async (item: MasterCatalogProduct) => {
+    if (!menuCategoryId || !item._id || addingMasterId) return
+    setAddingMasterId(item._id)
+    try {
+      const res = await fetch(`/api/tenants/${slug}/products/from-catalog`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          masterCatalogId: item._id,
+          categoryId: menuCategoryId,
+          title_en: item.nameEn,
+          title_ar: item.nameAr,
+          saleUnit: item.unitType || 'piece',
+          unsplashImageUrl: masterImageUrls[item._id] || undefined,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setMasterProducts((prev) => prev.map((p) => (p._id === item._id ? { ...p, alreadyAdded: true } : p)))
+        onAdded()
+      } else {
+        alert((data as { error?: string }).error ?? 'Failed to quick add product')
+      }
+    } finally {
+      setAddingMasterId(null)
     }
   }
 
@@ -293,47 +378,110 @@ export function CatalogProductsModal({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto min-h-0 rounded-lg border border-slate-700 bg-slate-800/50 p-3">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="size-8 animate-spin text-amber-500" />
+            <div className="flex-1 overflow-y-auto min-h-0 rounded-lg border border-slate-700 bg-slate-800/50 p-3 space-y-6">
+              <section>
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-emerald-300">
+                    {t('Master catalog quick add', 'إضافة سريعة من الكتالوج الرئيسي')}
+                  </h3>
+                  {masterLoading && <Loader2 className="size-4 animate-spin text-emerald-400" />}
                 </div>
-              ) : products.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-slate-500">
-                  <Package className="size-12 mb-3 opacity-50" />
-                  <p className="text-sm text-center">
-                    {q ? t('No matching products found.', 'لم يُعثَر على منتجات مطابقة.') : t('No products yet. Seed the catalog (admin) or add products from other markets.', 'لا توجد منتجات بعد. قم بتهيئة الكتالوج (مشرف) أو أضف منتجات من أسواق أخرى.')}
+                {masterProducts.length === 0 && !masterLoading ? (
+                  <p className="text-xs text-slate-500">
+                    {t('No master catalog items found.', 'لا توجد عناصر في الكتالوج الرئيسي.')}
                   </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {products.map((p) => {
-                    const imgRef = (p.images?.[0] ?? p.image)?.asset?._ref
-                    return (
-                      <button
-                        key={`${p._id}-${p.source}`}
-                        type="button"
-                        onClick={() => startCustomize(p)}
-                        className="flex flex-col rounded-xl border border-slate-600 bg-slate-800 overflow-hidden text-left hover:border-amber-500/50 transition-colors"
-                      >
-                        <div className="relative aspect-square bg-slate-700">
-                          {imgRef ? (
-                            <Image src={urlFor({ _type: 'image', asset: { _ref: imgRef } }).width(200).height(200).url()} alt={title(p) ?? ''} fill className="object-cover" sizes="120px" />
-                          ) : (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <Package className="size-10 text-slate-500" />
-                            </div>
-                          )}
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {masterProducts.map((item) => {
+                      const imageUrl = masterImageUrls[item._id]
+                      const displayName = lang === 'ar' ? (item.nameAr || item.nameEn) : (item.nameEn || item.nameAr)
+                      const isAdded = item.alreadyAdded === true
+                      const isAdding = addingMasterId === item._id
+                      return (
+                        <div
+                          key={item._id}
+                          className="rounded-xl border border-slate-600 bg-slate-800 overflow-hidden"
+                        >
+                          <div className="relative aspect-square bg-slate-700">
+                            {imageUrl ? (
+                              <Image src={imageUrl} alt={displayName || ''} fill className="object-cover" sizes="120px" />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <Package className="size-10 text-slate-500" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-2 space-y-1">
+                            <p className="text-sm font-bold text-white line-clamp-2">{displayName}</p>
+                            {item.unitType && <p className="text-[10px] text-slate-400 uppercase">{item.unitType}</p>}
+                            {isAdded ? (
+                              <span className="inline-flex rounded-full border border-emerald-500/50 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                                {t('Added', 'تمت الإضافة')}
+                              </span>
+                            ) : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => handleQuickAddMaster(item)}
+                                disabled={isAdding || !menuCategoryId}
+                                className="h-7 w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs"
+                              >
+                                {isAdding ? <Loader2 className="size-3.5 animate-spin" /> : t('Quick Add', 'إضافة سريعة')}
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        <div className="p-2">
-                          <p className="text-sm font-bold text-white line-clamp-2">{title(p)}</p>
-                          {p.brand && <p className="text-[10px] text-slate-500 mt-0.5">{p.brand}</p>}
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+
+              <section>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  {t('Catalog browser (customize)', 'متصفح الكتالوج (تخصيص)')}
+                </h3>
+                {loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="size-8 animate-spin text-amber-500" />
+                  </div>
+                ) : products.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+                    <Package className="size-12 mb-3 opacity-50" />
+                    <p className="text-sm text-center">
+                      {q ? t('No matching products found.', 'لم يُعثَر على منتجات مطابقة.') : t('No products yet. Seed the catalog (admin) or add products from other markets.', 'لا توجد منتجات بعد. قم بتهيئة الكتالوج (مشرف) أو أضف منتجات من أسواق أخرى.')}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {products.map((p) => {
+                      const imgRef = (p.images?.[0] ?? p.image)?.asset?._ref
+                      return (
+                        <button
+                          key={`${p._id}-${p.source}`}
+                          type="button"
+                          onClick={() => startCustomize(p)}
+                          className="flex flex-col rounded-xl border border-slate-600 bg-slate-800 overflow-hidden text-left hover:border-amber-500/50 transition-colors"
+                        >
+                          <div className="relative aspect-square bg-slate-700">
+                            {imgRef ? (
+                              <Image src={urlFor({ _type: 'image', asset: { _ref: imgRef } }).width(200).height(200).url()} alt={title(p) ?? ''} fill className="object-cover" sizes="120px" />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <Package className="size-10 text-slate-500" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-2">
+                            <p className="text-sm font-bold text-white line-clamp-2">{title(p)}</p>
+                            {p.brand && <p className="text-[10px] text-slate-500 mt-0.5">{p.brand}</p>}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
             </div>
           </div>
         )}

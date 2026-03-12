@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
+import { uploadImageFromUrl, type ClientWithUpload } from '@/lib/sanity-upload'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 const GROCERY_BUSINESS_TYPES = ['grocery', 'supermarket', 'greengrocer']
@@ -9,11 +10,13 @@ const GROCERY_BUSINESS_TYPES = ['grocery', 'supermarket', 'greengrocer']
 type Body = {
   productId: string
   categoryId: string
+  masterCatalogId?: string
   price?: number
   saleUnit?: string
   title_en?: string
   title_ar?: string
   imageAssetId?: string
+  unsplashImageUrl?: string
   contributeImage?: boolean
 }
 
@@ -35,22 +38,39 @@ export async function POST(
   }
   const productId = body.productId?.trim()
   const categoryId = body.categoryId?.trim()
+  const masterCatalogId = body.masterCatalogId?.trim()
   const priceOverride = typeof body.price === 'number' && body.price >= 0 ? body.price : undefined
   const saleUnitOverride = typeof body.saleUnit === 'string' && body.saleUnit.trim() ? body.saleUnit.trim() : undefined
   const titleEn = typeof body.title_en === 'string' ? body.title_en.trim() : undefined
   const titleAr = typeof body.title_ar === 'string' ? body.title_ar.trim() : undefined
   const imageAssetId = typeof body.imageAssetId === 'string' ? body.imageAssetId.trim() : undefined
+  const unsplashImageUrl = typeof body.unsplashImageUrl === 'string' ? body.unsplashImageUrl.trim() : undefined
   const contributeImage = body.contributeImage === true
 
-  if (!productId || !categoryId) {
-    return NextResponse.json({ error: 'productId and categoryId required' }, { status: 400 })
+  if (!categoryId || (!productId && !masterCatalogId)) {
+    return NextResponse.json({ error: 'categoryId and productId or masterCatalogId required' }, { status: 400 })
   }
 
-  const [categoryCheck, catalogProduct, tenantProduct] = await Promise.all([
+  const [categoryCheck, masterCatalogProduct, catalogProduct, tenantProduct] = await Promise.all([
     writeClient.fetch<{ _id: string } | null>(
       `*[_type == "category" && _id == $catId && site._ref == $siteId][0]{ _id }`,
       { catId: categoryId, siteId: auth.tenantId }
     ),
+    masterCatalogId
+      ? writeClient.fetch<{
+          _id: string
+          nameEn?: string
+          nameAr?: string
+          category?: string
+          searchQuery?: string
+          unitType?: string
+        } | null>(
+          `*[_type == "masterCatalogProduct" && _id == $id][0]{
+            _id, nameEn, nameAr, category, searchQuery, unitType
+          }`,
+          { id: masterCatalogId }
+        )
+      : Promise.resolve(null),
     writeClient.fetch<{
       _id: string
       title_en?: string
@@ -98,6 +118,44 @@ export async function POST(
   ])
 
   if (!categoryCheck) return NextResponse.json({ error: 'Category not found or not yours' }, { status: 404 })
+
+  if (masterCatalogProduct) {
+    const title_en = titleEn || masterCatalogProduct.nameEn || 'Product'
+    const title_ar = titleAr || masterCatalogProduct.nameAr || 'منتج'
+    const price = priceOverride ?? 0
+    const saleUnit = saleUnitOverride ?? masterCatalogProduct.unitType ?? 'piece'
+
+    // Upload remote image URL to Sanity asset so the tenant owns a stable copy.
+    let resolvedImageAssetId: string | undefined = imageAssetId
+    if (!resolvedImageAssetId && unsplashImageUrl) {
+      const uploaded = await uploadImageFromUrl(writeClient as ClientWithUpload, unsplashImageUrl)
+      resolvedImageAssetId = uploaded ?? undefined
+    }
+
+    const doc: Record<string, unknown> = {
+      _type: 'product',
+      site: { _type: 'reference', _ref: auth.tenantId },
+      masterCatalogRef: { _type: 'reference', _ref: masterCatalogProduct._id },
+      title_en,
+      title_ar,
+      price,
+      saleUnit,
+      currency: 'ILS',
+      category: { _type: 'reference', _ref: categoryId },
+      sortOrder: 0,
+      isPopular: false,
+      isAvailable: true,
+    }
+    if (resolvedImageAssetId) {
+      doc.image = { _type: 'image', asset: { _type: 'reference', _ref: resolvedImageAssetId } }
+    } else if (unsplashImageUrl) {
+      // Fallback if upload fails unexpectedly.
+      doc.tempImageUrl = unsplashImageUrl
+    }
+
+    const created = await writeClient.create(doc as { _type: 'product'; [key: string]: unknown })
+    return NextResponse.json(created)
+  }
 
   if (catalogProduct) {
     const title_en = titleEn || catalogProduct.title_en || 'Product'

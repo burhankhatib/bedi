@@ -6,7 +6,9 @@ import { Loader2, Package, CheckCircle } from 'lucide-react'
 
 export default function AdminCatalogPage() {
   const [loading, setLoading] = useState(false)
+  const [loadingMaster, setLoadingMaster] = useState(false)
   const [result, setResult] = useState<{ ok: boolean; categoriesCreated?: number; productsCreated?: number; message?: string } | null>(null)
+  const [masterResult, setMasterResult] = useState<{ ok: boolean; productsCreated?: number; message?: string } | null>(null)
 
   const handleSeed = async () => {
     setLoading(true)
@@ -19,6 +21,20 @@ export default function AdminCatalogPage() {
       setResult({ ok: false, message: 'Request failed' })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSeedMaster = async () => {
+    setLoadingMaster(true)
+    setMasterResult(null)
+    try {
+      const res = await fetch('/api/admin/seed-master-catalog', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      setMasterResult(data)
+    } catch {
+      setMasterResult({ ok: false, message: 'Request failed' })
+    } finally {
+      setLoadingMaster(false)
     }
   }
 
@@ -55,6 +71,38 @@ export default function AdminCatalogPage() {
               {result.ok
                 ? `Catalog seeded: ${result.categoriesCreated} categories, ${result.productsCreated} products.`
                 : result.message ?? 'Failed to seed.'}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/50 p-6">
+        <div className="flex items-start gap-4">
+          <div className="shrink-0 rounded-full bg-emerald-500/20 p-3">
+            <Package className="size-6 text-emerald-400" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-white">Seed Master Catalog</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Creates bilingual quick-add templates (`masterCatalogProduct`) with Arabic/English names, search prompts for Unsplash, and unit type defaults.
+            </p>
+            <Button
+              onClick={handleSeedMaster}
+              disabled={loadingMaster}
+              className="mt-4 bg-emerald-600 hover:bg-emerald-500"
+            >
+              {loadingMaster ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+              {loadingMaster ? 'Seeding…' : 'Seed master catalog'}
+            </Button>
+          </div>
+        </div>
+        {masterResult && (
+          <div className={`mt-6 flex items-center gap-2 rounded-lg p-4 ${masterResult.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+            {masterResult.ok ? <CheckCircle className="size-5 shrink-0" /> : null}
+            <span>
+              {masterResult.ok
+                ? `Master catalog seeded: ${masterResult.productsCreated} products.`
+                : masterResult.message ?? 'Failed to seed master catalog.'}
             </span>
           </div>
         )}

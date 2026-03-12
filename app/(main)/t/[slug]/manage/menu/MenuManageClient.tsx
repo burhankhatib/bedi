@@ -1127,6 +1127,7 @@ export function MenuManageClient({
           onClose={() => setCatalogOpen(false)}
           categories={categories}
           slug={slug}
+          businessType={businessType}
           onAdded={refreshMenu}
         />
       )}

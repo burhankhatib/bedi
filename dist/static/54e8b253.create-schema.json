@@ -1,0 +1,5263 @@
+[
+  {
+    "fields": [
+      {
+        "options": {
+          "source": "name",
+          "maxLength": 96
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "custom"
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "URL slug for this site (e.g. my-restaurant). Used in /t/[slug]",
+        "name": "slug",
+        "type": "slug"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "name",
+        "type": "string",
+        "title": "Business Name"
+      },
+      {
+        "description": "Arabic name for the business (e.g. for driver push notifications and RTL display).",
+        "name": "name_ar",
+        "type": "string",
+        "title": "Business Name (Arabic)"
+      },
+      {
+        "description": "Required for delivery: used to manage and share drivers by area.",
+        "name": "country",
+        "type": "string"
+      },
+      {
+        "description": "Required for delivery: used to manage and share drivers in this city.",
+        "name": "city",
+        "type": "string"
+      },
+      {
+        "description": "GPS latitude of the business location. Used by drivers and customers to navigate here. Set via \"Share Location\" in the business settings.",
+        "name": "locationLat",
+        "type": "number",
+        "title": "Business latitude"
+      },
+      {
+        "description": "GPS longitude of the business location.",
+        "name": "locationLng",
+        "type": "number",
+        "title": "Business longitude"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Restaurant",
+              "value": "restaurant"
+            },
+            {
+              "title": "Cafe",
+              "value": "cafe"
+            },
+            {
+              "title": "Bakery",
+              "value": "bakery"
+            },
+            {
+              "title": "Grocery / Market",
+              "value": "grocery"
+            },
+            {
+              "title": "Supermarket",
+              "value": "supermarket"
+            },
+            {
+              "title": "Greengrocer",
+              "value": "greengrocer"
+            },
+            {
+              "title": "Retail / Shop",
+              "value": "retail"
+            },
+            {
+              "title": "Pharmacy",
+              "value": "pharmacy"
+            },
+            {
+              "title": "Other",
+              "value": "other"
+            }
+          ]
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "restaurant",
+                  "cafe",
+                  "bakery",
+                  "grocery",
+                  "supermarket",
+                  "greengrocer",
+                  "retail",
+                  "pharmacy",
+                  "other"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "businessType",
+        "type": "string"
+      },
+      {
+        "description": "Optional. A business can have multiple specialties (e.g. Burgers, Sandwiches, Pizza). Only sub-categories for the selected Business Type are shown.",
+        "of": [
+          {
+            "to": [
+              {
+                "type": "businessSubcategory"
+              }
+            ],
+            "type": "reference",
+            "title": "Reference to business sub-category (specialty)"
+          }
+        ],
+        "name": "businessSubcategories",
+        "type": "array",
+        "title": "Sub-categories (Specialties)"
+      },
+      {
+        "initialValue": false,
+        "description": "If enabled, WhatsApp notifications will be sent instantly for new orders instead of waiting 3 minutes.",
+        "name": "prioritizeWhatsapp",
+        "type": "boolean",
+        "title": "Prioritize WhatsApp"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Manual Areas (Default)",
+              "value": "areas"
+            },
+            {
+              "title": "Distance-based (Automatic)",
+              "value": "distance"
+            }
+          ]
+        },
+        "initialValue": "areas",
+        "description": "How delivery fees are calculated. If Distance-based, it uses business and customer coordinates.",
+        "name": "deliveryPricingMode",
+        "type": "string"
+      },
+      {
+        "description": "Minimum fee for distance-based delivery (e.g. 10).",
+        "hidden": "conditional",
+        "name": "deliveryFeeMin",
+        "type": "number",
+        "title": "Minimum Delivery Fee"
+      },
+      {
+        "description": "Maximum fee for distance-based delivery (e.g. 25).",
+        "hidden": "conditional",
+        "name": "deliveryFeeMax",
+        "type": "number",
+        "title": "Maximum Delivery Fee"
+      },
+      {
+        "description": "Distance at which the fee reaches the maximum (e.g. 15).",
+        "hidden": "conditional",
+        "name": "deliveryMaxDistanceKm",
+        "type": "number",
+        "title": "Maximum Distance (km) for Fee Scaling"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Owner: Clerk user ID who created this tenant",
+        "name": "clerkUserId",
+        "type": "string",
+        "title": "Clerk User ID"
+      },
+      {
+        "description": "Primary owner email from Clerk. Set automatically when creating a tenant from the app (onboarding or Super Admin). Used for display and for dashboard/access by email.",
+        "name": "clerkUserEmail",
+        "type": "string",
+        "title": "Owner Email"
+      },
+      {
+        "description": "Owner’s mobile/WhatsApp number. Required at signup so the tenant can place orders without Clerk phone verification. Stored in E.164 or with country code (e.g. +972501234567).",
+        "name": "ownerPhone",
+        "type": "string"
+      },
+      {
+        "description": "Digits-only form for matching when placing orders. Set automatically.",
+        "readOnly": true,
+        "hidden": true,
+        "name": "normalizedOwnerPhone",
+        "type": "string",
+        "title": "Normalized owner phone (digits)"
+      },
+      {
+        "description": "Other people who can manage this business (store lowercase). Same access as primary owner.",
+        "of": [
+          {
+            "type": "string"
+          }
+        ],
+        "name": "coOwnerEmails",
+        "type": "array",
+        "title": "Additional owner emails"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Trial",
+              "value": "trial"
+            },
+            {
+              "title": "Active",
+              "value": "active"
+            },
+            {
+              "title": "Past Due",
+              "value": "past_due"
+            },
+            {
+              "title": "Cancelled",
+              "value": "cancelled"
+            }
+          ]
+        },
+        "initialValue": "trial",
+        "name": "subscriptionStatus",
+        "type": "string"
+      },
+      {
+        "name": "createdAt",
+        "type": "datetime"
+      },
+      {
+        "description": "Set when the business profile (restaurantInfo) is first submitted. Used to start the 30-day trial.",
+        "name": "businessCreatedAt",
+        "type": "datetime"
+      },
+      {
+        "description": "Tracks when the last FCM expiration reminder was sent to avoid spamming.",
+        "name": "lastSubscriptionReminderAt",
+        "type": "datetime",
+        "title": "Last subscription reminder sent at"
+      },
+      {
+        "description": "End of 30-day trial (from site creation) or paid period. Business is hidden from customers when past this date. Set to createdAt + 30 days on create; extended when tenant subscribes or pays.",
+        "name": "subscriptionExpiresAt",
+        "type": "datetime",
+        "title": "Subscription expires at"
+      },
+      {
+        "description": "Stored when tenant approves a PayPal recurring subscription. Used for webhooks to extend on each billing cycle.",
+        "readOnly": true,
+        "name": "paypalSubscriptionId",
+        "type": "string",
+        "title": "PayPal subscription ID"
+      },
+      {
+        "description": "Set when subscription is extended (approve or webhook). Used for display (last payment date).",
+        "readOnly": true,
+        "name": "subscriptionLastPaymentAt",
+        "type": "datetime",
+        "title": "Last subscription payment at"
+      },
+      {
+        "initialValue": false,
+        "description": "When true, the business is temporarily hidden (menu unavailable) until re-enabled or until deactivateUntil.",
+        "name": "deactivated",
+        "type": "boolean"
+      },
+      {
+        "description": "Optional. When set, the business will automatically become active again at this date and time (like product availability).",
+        "name": "deactivateUntil",
+        "type": "datetime",
+        "title": "Re-enable at (date & time)"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Arabic",
+              "value": "ar"
+            },
+            {
+              "title": "English",
+              "value": "en"
+            }
+          ]
+        },
+        "description": "Default language for your business dashboard (manage pages). Does not change the customer menu language.",
+        "name": "defaultLanguage",
+        "type": "string",
+        "title": "Default language (dashboard)"
+      },
+      {
+        "initialValue": false,
+        "description": "When catalog mode is active (no delivery, no pickup, no dine-in), hide all product prices.",
+        "name": "catalogHidePrices",
+        "type": "boolean",
+        "title": "Hide Prices in Catalog Mode"
+      },
+      {
+        "description": "When on, customers can choose \"Dine-in\" (table) when ordering. When off, only Receive in Person and Delivery (if you have delivery areas) are shown.",
+        "name": "supportsDineIn",
+        "type": "boolean",
+        "title": "Accept Dine-in orders"
+      },
+      {
+        "initialValue": true,
+        "description": "When on, customers can choose \"Receive in Person\" (pickup). When off with Dine-in off and no delivery, the menu acts as a catalog only (no Add to Cart).",
+        "name": "supportsReceiveInPerson",
+        "type": "boolean",
+        "title": "Accept Receive in Person (pickup) orders"
+      },
+      {
+        "initialValue": true,
+        "description": "When on and you have at least one delivery area, customers see the Delivery option. When off, customers never see Delivery even if you have areas. When on but no delivery areas, Delivery is still hidden until you add areas.",
+        "name": "supportsDelivery",
+        "type": "boolean",
+        "title": "Offer Delivery"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "description": "Used in Order list preview to identify the business. Synced from Business Info when you save there, or set here in Studio.",
+        "name": "businessLogo",
+        "type": "image",
+        "title": "Business logo"
+      },
+      {
+        "description": "Web Push subscription for new order notifications (set when tenant enables push on orders page).",
+        "fields": [
+          {
+            "name": "endpoint",
+            "type": "string"
+          },
+          {
+            "name": "p256dh",
+            "type": "string",
+            "title": "p256dh key"
+          },
+          {
+            "name": "auth",
+            "type": "string",
+            "title": "Auth key"
+          }
+        ],
+        "hidden": "conditional",
+        "name": "pushSubscription",
+        "type": "object",
+        "title": "Push subscription"
+      },
+      {
+        "description": "Legacy: single FCM token. Prefer fcmTokens for multi-device support.",
+        "hidden": "conditional",
+        "name": "fcmToken",
+        "type": "string",
+        "title": "FCM token (legacy single)"
+      },
+      {
+        "description": "One FCM token per device. When a device enables notifications, its token is added here so all devices receive new order and table-request notifications.",
+        "of": [
+          {
+            "type": "string"
+          }
+        ],
+        "hidden": "conditional",
+        "name": "fcmTokens",
+        "type": "array",
+        "title": "FCM tokens (all devices)"
+      },
+      {
+        "initialValue": false,
+        "description": "Super admin only: when true, this business cannot access the control panel or receive new orders. They cannot override this.",
+        "name": "blockedBySuperAdmin",
+        "type": "boolean",
+        "title": "Blocked by Super Admin"
+      },
+      {
+        "initialValue": false,
+        "description": "When enabled, the driver collects items at the store (e.g. supermarkets, greengrocers) instead of receiving a pre-packed order. A shopper fee is added to delivery orders.",
+        "name": "requiresPersonalShopper",
+        "type": "boolean"
+      },
+      {
+        "initialValue": 10,
+        "description": "Fee added to delivery orders when Requires Personal Shopper is enabled. Displayed as a time-saving service for the customer.",
+        "hidden": "conditional",
+        "name": "shopperFee",
+        "type": "number",
+        "title": "Personal Shopper Fee (ILS)"
+      }
+    ],
+    "name": "tenant",
+    "type": "document",
+    "title": "Tenant (Site)"
+  },
+  {
+    "fields": [
+      {
+        "description": "Which business/site this belongs to",
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "name": "site",
+        "type": "reference"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "title_en",
+        "type": "string",
+        "title": "Title (English)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "title_ar",
+        "type": "string",
+        "title": "Title (Arabic)"
+      },
+      {
+        "options": {
+          "source": "title_en",
+          "maxLength": 96
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "custom"
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "slug",
+        "type": "slug"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "name": "image",
+        "type": "image",
+        "title": "Icon/Image"
+      },
+      {
+        "name": "sortOrder",
+        "type": "number"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Manual (drag & drop)",
+              "value": "manual"
+            },
+            {
+              "title": "By name",
+              "value": "name"
+            },
+            {
+              "title": "By price",
+              "value": "price"
+            }
+          ],
+          "layout": "dropdown"
+        },
+        "description": "How products are ordered in this category on the customer menu. Manual = use sortOrder.",
+        "name": "productSortMode",
+        "type": "string",
+        "title": "Product sort mode"
+      },
+      {
+        "description": "Optional. Links this menu section to a business sub-category for better search and discovery. Set when picking from suggestions.",
+        "to": [
+          {
+            "type": "businessSubcategory"
+          }
+        ],
+        "name": "subcategoryRef",
+        "type": "reference",
+        "title": "Sub-category (for search)"
+      }
+    ],
+    "name": "category",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "title_en",
+        "type": "string",
+        "title": "Title (English)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "title_ar",
+        "type": "string",
+        "title": "Title (Arabic)"
+      },
+      {
+        "options": {
+          "source": "title_en",
+          "maxLength": 64
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "custom"
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "slug",
+        "type": "slug"
+      },
+      {
+        "initialValue": 0,
+        "name": "sortOrder",
+        "type": "number"
+      }
+    ],
+    "name": "catalogCategory",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "title_en",
+        "type": "string",
+        "title": "Title (English)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "title_ar",
+        "type": "string",
+        "title": "Title (Arabic)"
+      },
+      {
+        "description": "e.g. Coca Cola, Tnuva, Osem",
+        "name": "brand",
+        "type": "string",
+        "title": "Brand (optional)"
+      },
+      {
+        "options": {
+          "source": "title_en",
+          "maxLength": 96
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "custom"
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "slug",
+        "type": "slug"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "to": [
+          {
+            "type": "catalogCategory"
+          }
+        ],
+        "name": "category",
+        "type": "reference"
+      },
+      {
+        "description": "Product images. Tenants can contribute new images when adding this product to their menu.",
+        "of": [
+          {
+            "options": {
+              "hotspot": true
+            },
+            "type": "image"
+          }
+        ],
+        "name": "images",
+        "type": "array"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Piece / Each",
+              "value": "piece"
+            },
+            {
+              "title": "Per kg",
+              "value": "kg"
+            },
+            {
+              "title": "Per 100g",
+              "value": "g"
+            },
+            {
+              "title": "Per liter",
+              "value": "liter"
+            },
+            {
+              "title": "Per bottle/can",
+              "value": "ml"
+            },
+            {
+              "title": "Per pack",
+              "value": "pack"
+            },
+            {
+              "title": "Per box",
+              "value": "box"
+            },
+            {
+              "title": "Per bottle",
+              "value": "bottle"
+            },
+            {
+              "title": "Per can",
+              "value": "can"
+            },
+            {
+              "title": "Per bag",
+              "value": "bag"
+            },
+            {
+              "title": "Per dozen",
+              "value": "dozen"
+            },
+            {
+              "title": "Per jar",
+              "value": "jar"
+            }
+          ]
+        },
+        "description": "How this product is typically sold. Used when tenants add from catalog.",
+        "name": "defaultUnit",
+        "type": "string",
+        "title": "Default sale unit"
+      },
+      {
+        "rows": 2,
+        "name": "description_en",
+        "type": "text",
+        "title": "Description (English)"
+      },
+      {
+        "rows": 2,
+        "name": "description_ar",
+        "type": "text",
+        "title": "Description (Arabic)"
+      },
+      {
+        "initialValue": 0,
+        "name": "sortOrder",
+        "type": "number"
+      }
+    ],
+    "name": "catalogProduct",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "nameEn",
+        "type": "string",
+        "title": "Name (English)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "nameAr",
+        "type": "string",
+        "title": "Name (Arabic)"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Restaurant",
+              "value": "restaurant"
+            },
+            {
+              "title": "Cafe",
+              "value": "cafe"
+            },
+            {
+              "title": "Bakery",
+              "value": "bakery"
+            },
+            {
+              "title": "Grocery / Market",
+              "value": "grocery"
+            },
+            {
+              "title": "Retail / Shop",
+              "value": "retail"
+            },
+            {
+              "title": "Pharmacy",
+              "value": "pharmacy"
+            },
+            {
+              "title": "Other",
+              "value": "other"
+            }
+          ]
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "restaurant",
+                  "cafe",
+                  "bakery",
+                  "grocery",
+                  "retail",
+                  "pharmacy",
+                  "other"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "category",
+        "type": "string"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              },
+              {
+                "flag": "min",
+                "constraint": 2
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "English term used to fetch image from Unsplash (e.g. \"carton of eggs\").",
+        "name": "searchQuery",
+        "type": "string",
+        "title": "Image Search Query"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "kg",
+              "value": "kg"
+            },
+            {
+              "title": "piece",
+              "value": "piece"
+            },
+            {
+              "title": "pack",
+              "value": "pack"
+            }
+          ]
+        },
+        "initialValue": "piece",
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "kg",
+                  "piece",
+                  "pack"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "unitType",
+        "type": "string"
+      }
+    ],
+    "name": "masterCatalogProduct",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "description": "Which business/site this belongs to",
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "name": "site",
+        "type": "reference"
+      },
+      {
+        "description": "When set, this product came from the catalog. Tenant can override name, image, and price.",
+        "to": [
+          {
+            "type": "catalogProduct"
+          }
+        ],
+        "name": "catalogRef",
+        "type": "reference",
+        "title": "Catalog Product (optional)"
+      },
+      {
+        "description": "When set, this product was quick-added from the master catalog.",
+        "to": [
+          {
+            "type": "masterCatalogProduct"
+          }
+        ],
+        "name": "masterCatalogRef",
+        "type": "reference",
+        "title": "Master Catalog Product (optional)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "title_en",
+        "type": "string",
+        "title": "Title (English)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "title_ar",
+        "type": "string",
+        "title": "Title (Arabic)"
+      },
+      {
+        "rows": 3,
+        "name": "description_en",
+        "type": "text",
+        "title": "Description (English)"
+      },
+      {
+        "rows": 3,
+        "name": "description_ar",
+        "type": "text",
+        "title": "Description (Arabic)"
+      },
+      {
+        "of": [
+          {
+            "type": "string"
+          }
+        ],
+        "name": "ingredients_en",
+        "type": "array",
+        "title": "Ingredients (English)"
+      },
+      {
+        "of": [
+          {
+            "type": "string"
+          }
+        ],
+        "name": "ingredients_ar",
+        "type": "array",
+        "title": "Ingredients (Arabic)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              },
+              {
+                "flag": "min",
+                "constraint": 0
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Base price. Use 0 for free items or when price is determined by variants.",
+        "name": "price",
+        "type": "number"
+      },
+      {
+        "initialValue": false,
+        "description": "Hide this specific product's price when the menu is in catalog mode.",
+        "name": "hidePrice",
+        "type": "boolean",
+        "title": "Hide Price in Catalog Mode"
+      },
+      {
+        "description": "Optional sale price",
+        "name": "specialPrice",
+        "type": "number"
+      },
+      {
+        "description": "When the special price should stop being displayed",
+        "name": "specialPriceExpires",
+        "type": "datetime",
+        "title": "Special Price Expires At"
+      },
+      {
+        "initialValue": "ILS",
+        "name": "currency",
+        "type": "string"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Piece / Each",
+              "value": "piece"
+            },
+            {
+              "title": "Per kg",
+              "value": "kg"
+            },
+            {
+              "title": "Per 100g",
+              "value": "g"
+            },
+            {
+              "title": "Per liter",
+              "value": "liter"
+            },
+            {
+              "title": "Per bottle/can",
+              "value": "ml"
+            },
+            {
+              "title": "Per pack",
+              "value": "pack"
+            },
+            {
+              "title": "Per box",
+              "value": "box"
+            },
+            {
+              "title": "Per bottle",
+              "value": "bottle"
+            },
+            {
+              "title": "Per can",
+              "value": "can"
+            },
+            {
+              "title": "Per bag",
+              "value": "bag"
+            },
+            {
+              "title": "Per dozen",
+              "value": "dozen"
+            },
+            {
+              "title": "Per jar",
+              "value": "jar"
+            }
+          ]
+        },
+        "description": "How this item is sold (piece, per kg, per bottle, etc.)",
+        "name": "saleUnit",
+        "type": "string",
+        "title": "Sold by"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "name": "image",
+        "type": "image",
+        "title": "Product Image"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "uri",
+                "constraint": {
+                  "options": {
+                    "scheme": [
+                      "/^http$/",
+                      "/^https$/"
+                    ],
+                    "allowRelative": false,
+                    "relativeOnly": false,
+                    "allowCredentials": false
+                  }
+                }
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Fallback temporary URL before image is uploaded to assets.",
+        "name": "tempImageUrl",
+        "type": "url",
+        "title": "Temporary image URL (optional)"
+      },
+      {
+        "description": "Additional images that will show on hover (second image will be used for hover effect)",
+        "of": [
+          {
+            "options": {
+              "hotspot": true
+            },
+            "type": "image"
+          }
+        ],
+        "name": "additionalImages",
+        "type": "array"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "to": [
+          {
+            "type": "category"
+          }
+        ],
+        "name": "category",
+        "type": "reference"
+      },
+      {
+        "initialValue": 0,
+        "name": "sortOrder",
+        "type": "number"
+      },
+      {
+        "initialValue": false,
+        "name": "isPopular",
+        "type": "boolean",
+        "title": "Popular Product"
+      },
+      {
+        "initialValue": true,
+        "description": "By default all items are available. Turn off when the item is unavailable; set \"Available again at\" to when it will be back.",
+        "name": "isAvailable",
+        "type": "boolean",
+        "title": "Available"
+      },
+      {
+        "options": {
+          "dateFormat": "YYYY-MM-DD",
+          "timeFormat": "HH:mm",
+          "timeStep": 1
+        },
+        "description": "When this item will be available again. The item will automatically reappear in the menu after this date and time.",
+        "hidden": "conditional",
+        "name": "availableAgainAt",
+        "type": "datetime",
+        "title": "Available again at"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Vegan",
+              "value": "vegan"
+            },
+            {
+              "title": "Vegetarian",
+              "value": "vegetarian"
+            },
+            {
+              "title": "Spicy",
+              "value": "spicy"
+            },
+            {
+              "title": "Gluten-free",
+              "value": "gluten-free"
+            },
+            {
+              "title": "Contains Nuts",
+              "value": "nuts"
+            },
+            {
+              "title": "Halal",
+              "value": "halal"
+            }
+          ]
+        },
+        "of": [
+          {
+            "type": "string"
+          }
+        ],
+        "name": "dietaryTags",
+        "type": "array"
+      },
+      {
+        "description": "Optional add-ons for this product (e.g., \"Chicken\" +5 ILS)",
+        "of": [
+          {
+            "fields": [
+              {
+                "validation": [
+                  {
+                    "rules": [
+                      {
+                        "flag": "presence",
+                        "constraint": "required"
+                      }
+                    ],
+                    "level": "error"
+                  }
+                ],
+                "name": "name_en",
+                "type": "string",
+                "title": "Name (English)"
+              },
+              {
+                "validation": [
+                  {
+                    "rules": [
+                      {
+                        "flag": "presence",
+                        "constraint": "required"
+                      }
+                    ],
+                    "level": "error"
+                  }
+                ],
+                "name": "name_ar",
+                "type": "string",
+                "title": "Name (Arabic)"
+              },
+              {
+                "initialValue": 0,
+                "description": "Price to add (0 for free add-on)",
+                "name": "price",
+                "type": "number"
+              }
+            ],
+            "type": "object",
+            "name": "addOn",
+            "title": "Add-on"
+          }
+        ],
+        "name": "addOns",
+        "type": "array",
+        "title": "Add-ons"
+      },
+      {
+        "description": "Option groups (e.g. Size, Make it a Meal). Mark \"Required\" only when the customer must pick one; leave unchecked for optional groups like meal upgrades.",
+        "of": [
+          {
+            "fields": [
+              {
+                "validation": [
+                  {
+                    "rules": [
+                      {
+                        "flag": "presence",
+                        "constraint": "required"
+                      }
+                    ],
+                    "level": "error"
+                  }
+                ],
+                "description": "e.g. Size, Color",
+                "name": "name_en",
+                "type": "string",
+                "title": "Group name (English)"
+              },
+              {
+                "validation": [
+                  {
+                    "rules": [
+                      {
+                        "flag": "presence",
+                        "constraint": "required"
+                      }
+                    ],
+                    "level": "error"
+                  }
+                ],
+                "name": "name_ar",
+                "type": "string",
+                "title": "Group name (Arabic)"
+              },
+              {
+                "initialValue": false,
+                "description": "If unchecked, the customer can add the product without choosing from this group (e.g. \"Make it a Meal\" is optional).",
+                "name": "required",
+                "type": "boolean"
+              },
+              {
+                "validation": [
+                  {
+                    "rules": [
+                      {
+                        "flag": "min",
+                        "constraint": 1
+                      }
+                    ],
+                    "level": "error"
+                  }
+                ],
+                "of": [
+                  {
+                    "fields": [
+                      {
+                        "validation": [
+                          {
+                            "rules": [
+                              {
+                                "flag": "presence",
+                                "constraint": "required"
+                              }
+                            ],
+                            "level": "error"
+                          }
+                        ],
+                        "name": "label_en",
+                        "type": "string",
+                        "title": "Label (English)"
+                      },
+                      {
+                        "validation": [
+                          {
+                            "rules": [
+                              {
+                                "flag": "presence",
+                                "constraint": "required"
+                              }
+                            ],
+                            "level": "error"
+                          }
+                        ],
+                        "name": "label_ar",
+                        "type": "string",
+                        "title": "Label (Arabic)"
+                      },
+                      {
+                        "initialValue": 0,
+                        "description": "Added to base price (e.g. +5 for Large). Use 0 for no change. When base price is 0, this is the option price.",
+                        "name": "priceModifier",
+                        "type": "number",
+                        "title": "Price modifier"
+                      },
+                      {
+                        "description": "Optional sale price for this option. When set and not expired, used instead of Price modifier.",
+                        "name": "specialPriceModifier",
+                        "type": "number",
+                        "title": "Special price modifier"
+                      },
+                      {
+                        "options": {
+                          "dateFormat": "YYYY-MM-DD",
+                          "timeFormat": "HH:mm",
+                          "timeStep": 1
+                        },
+                        "description": "When the special price for this option should stop being used.",
+                        "name": "specialPriceModifierExpires",
+                        "type": "datetime",
+                        "title": "Special price expires at"
+                      },
+                      {
+                        "options": {
+                          "hotspot": true
+                        },
+                        "description": "Optional. When the customer selects this option, this image is shown instead of the product image (e.g. color swatch).",
+                        "name": "image",
+                        "type": "image",
+                        "title": "Option image"
+                      },
+                      {
+                        "initialValue": false,
+                        "description": "When checked, this option is pre-selected when the customer opens the product. Only one option per group should be default.",
+                        "name": "isDefault",
+                        "type": "boolean",
+                        "title": "Default option"
+                      }
+                    ],
+                    "type": "object",
+                    "name": "variantOption"
+                  }
+                ],
+                "name": "options",
+                "type": "array"
+              }
+            ],
+            "type": "object",
+            "name": "variantGroup",
+            "title": "Variant group"
+          }
+        ],
+        "name": "variants",
+        "type": "array"
+      }
+    ],
+    "name": "product",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "description": "Which business/site this belongs to",
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "name": "site",
+        "type": "reference"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "name_en",
+        "type": "string",
+        "title": "Name (English)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "name_ar",
+        "type": "string",
+        "title": "Name (Arabic)"
+      },
+      {
+        "name": "tagline_en",
+        "type": "string",
+        "title": "Tagline (English)"
+      },
+      {
+        "name": "tagline_ar",
+        "type": "string",
+        "title": "Tagline (Arabic)"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "description": "Used for PWA icon and manifest. Recommended for new businesses.",
+        "name": "logo",
+        "type": "image"
+      },
+      {
+        "name": "address_en",
+        "type": "string",
+        "title": "Address (English)"
+      },
+      {
+        "name": "address_ar",
+        "type": "string",
+        "title": "Address (Arabic)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "uri",
+                "constraint": {
+                  "options": {
+                    "scheme": [
+                      "/^http$/",
+                      "/^https$/"
+                    ],
+                    "allowRelative": false,
+                    "relativeOnly": false,
+                    "allowCredentials": false
+                  }
+                }
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Link to open your location in Google Maps or Apple Maps (e.g. from Share in Google Maps). When set, the \"Visit us\" section is shown with this link.",
+        "name": "mapsLink",
+        "type": "url",
+        "title": "Maps link (optional)"
+      },
+      {
+        "description": "How to get it: 1) Open Google Maps and find your location. 2) Click Share → Embed a map. 3) Copy the iframe code, then paste either the full iframe HTML or just the src URL (the part inside src=\"...\"). When set, an embedded map is shown on your menu page.",
+        "name": "mapEmbedUrl",
+        "type": "string",
+        "title": "Embed Google Maps (optional)"
+      },
+      {
+        "fields": [
+          {
+            "validation": [
+              {
+                "rules": [
+                  {
+                    "flag": "uri",
+                    "constraint": {
+                      "options": {
+                        "scheme": [
+                          "/^http$/",
+                          "/^https$/"
+                        ],
+                        "allowRelative": false,
+                        "relativeOnly": false,
+                        "allowCredentials": false
+                      }
+                    }
+                  }
+                ],
+                "level": "error"
+              }
+            ],
+            "name": "facebook",
+            "type": "url",
+            "title": "Facebook URL"
+          },
+          {
+            "validation": [
+              {
+                "rules": [
+                  {
+                    "flag": "uri",
+                    "constraint": {
+                      "options": {
+                        "scheme": [
+                          "/^http$/",
+                          "/^https$/"
+                        ],
+                        "allowRelative": false,
+                        "relativeOnly": false,
+                        "allowCredentials": false
+                      }
+                    }
+                  }
+                ],
+                "level": "error"
+              }
+            ],
+            "name": "instagram",
+            "type": "url",
+            "title": "Instagram URL"
+          },
+          {
+            "validation": [
+              {
+                "rules": [
+                  {
+                    "flag": "uri",
+                    "constraint": {
+                      "options": {
+                        "scheme": [
+                          "/^http$/",
+                          "/^https$/"
+                        ],
+                        "allowRelative": false,
+                        "relativeOnly": false,
+                        "allowCredentials": false
+                      }
+                    }
+                  }
+                ],
+                "level": "error"
+              }
+            ],
+            "name": "tiktok",
+            "type": "url",
+            "title": "TikTok URL"
+          },
+          {
+            "validation": [
+              {
+                "rules": [
+                  {
+                    "flag": "uri",
+                    "constraint": {
+                      "options": {
+                        "scheme": [
+                          "/^http$/",
+                          "/^https$/"
+                        ],
+                        "allowRelative": false,
+                        "relativeOnly": false,
+                        "allowCredentials": false
+                      }
+                    }
+                  }
+                ],
+                "level": "error"
+              }
+            ],
+            "name": "snapchat",
+            "type": "url",
+            "title": "Snapchat URL"
+          },
+          {
+            "description": "Phone number with country code (e.g. 972501234567). Used for \"Contact us\" link.",
+            "name": "whatsapp",
+            "type": "string",
+            "title": "WhatsApp Number"
+          },
+          {
+            "validation": [
+              {
+                "rules": [
+                  {
+                    "flag": "uri",
+                    "constraint": {
+                      "options": {
+                        "scheme": [
+                          "/^http$/",
+                          "/^https$/"
+                        ],
+                        "allowRelative": false,
+                        "relativeOnly": false,
+                        "allowCredentials": false
+                      }
+                    }
+                  }
+                ],
+                "level": "error"
+              }
+            ],
+            "name": "website",
+            "type": "url",
+            "title": "Website URL"
+          }
+        ],
+        "name": "socials",
+        "type": "object",
+        "title": "Social Media"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "max",
+                "constraint": 7
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Hours per day (index 0 = Sunday, 6 = Saturday). Empty open/close = closed that day.",
+        "of": [
+          {
+            "fields": [
+              {
+                "validation": [
+                  {
+                    "rules": [
+                      {
+                        "flag": "max",
+                        "constraint": 5
+                      }
+                    ],
+                    "level": "error"
+                  }
+                ],
+                "name": "open",
+                "type": "string",
+                "title": "Open (e.g. 09:00)"
+              },
+              {
+                "validation": [
+                  {
+                    "rules": [
+                      {
+                        "flag": "max",
+                        "constraint": 5
+                      }
+                    ],
+                    "level": "error"
+                  }
+                ],
+                "name": "close",
+                "type": "string",
+                "title": "Close (e.g. 22:00)"
+              },
+              {
+                "description": "Optional: specify multiple opening periods for this day (e.g., 09:00-14:00, 18:00-23:00)",
+                "of": [
+                  {
+                    "fields": [
+                      {
+                        "name": "open",
+                        "type": "string",
+                        "title": "Open (e.g. 09:00)"
+                      },
+                      {
+                        "name": "close",
+                        "type": "string",
+                        "title": "Close (e.g. 14:00)"
+                      }
+                    ],
+                    "type": "object"
+                  }
+                ],
+                "name": "shifts",
+                "type": "array",
+                "title": "Multiple Shifts"
+              }
+            ],
+            "type": "object"
+          }
+        ],
+        "name": "openingHours",
+        "type": "array",
+        "title": "Opening & Closing Hours"
+      },
+      {
+        "description": "Override hours for specific dates (e.g. holidays).",
+        "of": [
+          {
+            "fields": [
+              {
+                "name": "date",
+                "type": "string",
+                "title": "Date (YYYY-MM-DD)"
+              },
+              {
+                "name": "open",
+                "type": "string"
+              },
+              {
+                "name": "close",
+                "type": "string"
+              },
+              {
+                "description": "Optional: specify multiple opening periods for this date",
+                "of": [
+                  {
+                    "fields": [
+                      {
+                        "name": "open",
+                        "type": "string",
+                        "title": "Open (e.g. 09:00)"
+                      },
+                      {
+                        "name": "close",
+                        "type": "string",
+                        "title": "Close (e.g. 14:00)"
+                      }
+                    ],
+                    "type": "object"
+                  }
+                ],
+                "name": "shifts",
+                "type": "array",
+                "title": "Multiple Shifts"
+              }
+            ],
+            "type": "object"
+          }
+        ],
+        "name": "customDateHours",
+        "type": "array",
+        "title": "Custom hours (specific dates)"
+      },
+      {
+        "initialValue": "1.wav",
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Choose the sound that plays when a new order is received on the Orders page. Click \"Play\" to preview each sound.",
+        "name": "notificationSound",
+        "type": "string",
+        "title": "Order Notification Sound"
+      }
+    ],
+    "name": "restaurantInfo",
+    "type": "document",
+    "title": "Business Info"
+  },
+  {
+    "fields": [
+      {
+        "description": "Which business/site this belongs to",
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "name": "site",
+        "type": "reference"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "title_en",
+        "type": "string",
+        "title": "Title (English)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "title_ar",
+        "type": "string",
+        "title": "Title (Arabic)"
+      },
+      {
+        "rows": 5,
+        "name": "content_en",
+        "type": "text",
+        "title": "Content (English)"
+      },
+      {
+        "rows": 5,
+        "name": "content_ar",
+        "type": "text",
+        "title": "Content (Arabic)"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "name": "image",
+        "type": "image"
+      }
+    ],
+    "name": "aboutUs",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "description": "Which business/site this belongs to",
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "name": "site",
+        "type": "reference"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "name_en",
+        "type": "string",
+        "title": "Area Name (English)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "name_ar",
+        "type": "string",
+        "title": "Area Name (Arabic)"
+      },
+      {
+        "initialValue": 0,
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              },
+              {
+                "flag": "min",
+                "constraint": 0
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Delivery fee for this area. Set to 0 for free delivery.",
+        "name": "deliveryPrice",
+        "type": "number"
+      },
+      {
+        "initialValue": "ILS",
+        "description": "Currency for delivery price",
+        "name": "currency",
+        "type": "string"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "min",
+                "constraint": 0
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Estimated delivery time in minutes",
+        "name": "estimatedTime",
+        "type": "number",
+        "title": "Estimated Delivery Time (minutes)"
+      },
+      {
+        "initialValue": true,
+        "description": "Enable or disable delivery to this area",
+        "name": "isActive",
+        "type": "boolean",
+        "title": "Active"
+      },
+      {
+        "initialValue": 0,
+        "description": "Order in which areas appear in the list",
+        "name": "sortOrder",
+        "type": "number"
+      }
+    ],
+    "name": "area",
+    "type": "document",
+    "title": "Delivery Area"
+  },
+  {
+    "fields": [
+      {
+        "description": "Legacy: if set, driver was created by this tenant. New drivers use country/city and are shared.",
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "name": "site",
+        "type": "reference",
+        "title": "Site (legacy)"
+      },
+      {
+        "description": "Country (e.g. PS, IL). Drivers are shared with tenants in the same country and city.",
+        "name": "country",
+        "type": "string",
+        "title": "Country code"
+      },
+      {
+        "description": "City name. Used for “drivers in your area” quick-add.",
+        "name": "city",
+        "type": "string"
+      },
+      {
+        "description": "Set when driver joins via “Join as a driver”; links profile to their account.",
+        "readOnly": true,
+        "name": "clerkUserId",
+        "type": "string",
+        "title": "Clerk user ID"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "name",
+        "type": "string",
+        "title": "Full Name"
+      },
+      {
+        "description": "Name to display (e.g. for orders). Leave empty to use full name.",
+        "name": "nickname",
+        "type": "string",
+        "title": "Preferred Nickname"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "min",
+                "constraint": 18
+              },
+              {
+                "flag": "max",
+                "constraint": 120
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "age",
+        "type": "number"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "name": "picture",
+        "type": "image",
+        "title": "Personal Picture"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Male",
+              "value": "male"
+            },
+            {
+              "title": "Female",
+              "value": "female"
+            }
+          ]
+        },
+        "name": "gender",
+        "type": "string"
+      },
+      {
+        "placeholder": "+972501234567",
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              },
+              {
+                "flag": "custom"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Phone number with country code (e.g., +972501234567)",
+        "name": "phoneNumber",
+        "type": "string",
+        "title": "WhatsApp Phone Number"
+      },
+      {
+        "description": "Set automatically for matching when a driver registers with the same number as a tenant-added placeholder.",
+        "readOnly": true,
+        "hidden": true,
+        "name": "normalizedPhone",
+        "type": "string",
+        "title": "Normalized phone (digits only)"
+      },
+      {
+        "initialValue": false,
+        "description": "Super admin must verify the driver after calling them before they can go online.",
+        "name": "isVerifiedByAdmin",
+        "type": "boolean",
+        "title": "Verified by Admin"
+      },
+      {
+        "initialValue": false,
+        "description": "Tracks if the welcome push notification was sent upon admin verification.",
+        "readOnly": true,
+        "hidden": true,
+        "name": "welcomeFcmSent",
+        "type": "boolean",
+        "title": "Welcome FCM Sent"
+      },
+      {
+        "initialValue": true,
+        "description": "Enable or disable this driver",
+        "name": "isActive",
+        "type": "boolean",
+        "title": "Active"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Car",
+              "value": "car"
+            },
+            {
+              "title": "Motorcycle",
+              "value": "motorcycle"
+            },
+            {
+              "title": "Bicycle",
+              "value": "bicycle"
+            },
+            {
+              "title": "Scooter",
+              "value": "scooter"
+            }
+          ]
+        },
+        "name": "vehicleType",
+        "type": "string"
+      },
+      {
+        "description": "License plate or vehicle registration number.",
+        "name": "vehicleNumber",
+        "type": "string",
+        "title": "Vehicle Number (if applicable)"
+      },
+      {
+        "initialValue": false,
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              },
+              {
+                "flag": "custom"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Driver confirmed they read and agree to the website rules and rights.",
+        "name": "rulesAcknowledged",
+        "type": "boolean",
+        "title": "Rules & rights acknowledged"
+      },
+      {
+        "description": "Areas this driver can deliver to",
+        "of": [
+          {
+            "to": [
+              {
+                "type": "area"
+              }
+            ],
+            "type": "reference",
+            "title": "Reference to delivery area"
+          }
+        ],
+        "name": "deliveryAreas",
+        "type": "array"
+      },
+      {
+        "rows": 3,
+        "description": "Internal notes about the driver",
+        "name": "notes",
+        "type": "text"
+      },
+      {
+        "initialValue": false,
+        "description": "Driver must be online to receive delivery requests. Visible to tenants in same country/city.",
+        "name": "isOnline",
+        "type": "boolean",
+        "title": "Online status"
+      },
+      {
+        "initialValue": true,
+        "description": "If true, driver receives WhatsApp alerts for unassigned orders while offline.",
+        "name": "receiveOfflineWhatsapp",
+        "type": "boolean",
+        "title": "Receive Offline WhatsApp Reminders"
+      },
+      {
+        "description": "Tracks when the last offline WhatsApp reminder was sent.",
+        "readOnly": true,
+        "hidden": true,
+        "name": "lastOfflineWhatsappAt",
+        "type": "datetime",
+        "title": "Last Offline WhatsApp Sent At"
+      },
+      {
+        "description": "Updated when driver toggles status or opens the app",
+        "readOnly": true,
+        "name": "lastSeenAt",
+        "type": "datetime",
+        "title": "Last seen at"
+      },
+      {
+        "description": "Set when driver goes online; cleared when going offline. Used for online duration.",
+        "readOnly": true,
+        "name": "onlineSince",
+        "type": "datetime",
+        "title": "Online since"
+      },
+      {
+        "description": "Web Push subscription for delivery notifications (set by driver app). Used when FCM is not configured.",
+        "fields": [
+          {
+            "name": "endpoint",
+            "type": "string"
+          },
+          {
+            "name": "p256dh",
+            "type": "string"
+          },
+          {
+            "name": "auth",
+            "type": "string"
+          }
+        ],
+        "readOnly": true,
+        "hidden": true,
+        "name": "pushSubscription",
+        "type": "object",
+        "title": "Push subscription (Web Push)"
+      },
+      {
+        "description": "Firebase Cloud Messaging token for push notifications (set by driver app when Firebase is configured).",
+        "readOnly": true,
+        "hidden": true,
+        "name": "fcmToken",
+        "type": "string",
+        "title": "FCM token"
+      },
+      {
+        "description": "Last shared location latitude. Updated when driver shares location while online.",
+        "readOnly": true,
+        "hidden": true,
+        "name": "lastKnownLat",
+        "type": "number",
+        "title": "Last known latitude"
+      },
+      {
+        "description": "Last shared location longitude.",
+        "readOnly": true,
+        "hidden": true,
+        "name": "lastKnownLng",
+        "type": "number",
+        "title": "Last known longitude"
+      },
+      {
+        "description": "When the driver last shared their location.",
+        "readOnly": true,
+        "hidden": true,
+        "name": "lastLocationAt",
+        "type": "datetime",
+        "title": "Last location updated at"
+      },
+      {
+        "description": "Tracks when the last \"go online\" FCM reminder was sent. Used to throttle reminders to once per 4 hours.",
+        "readOnly": true,
+        "hidden": true,
+        "name": "lastOfflineReminderAt",
+        "type": "datetime",
+        "title": "Last offline reminder sent at"
+      },
+      {
+        "initialValue": false,
+        "description": "Super admin only: when true, this driver cannot sign in or receive delivery requests. They cannot override this.",
+        "name": "blockedBySuperAdmin",
+        "type": "boolean",
+        "title": "Blocked by Super Admin"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "New",
+              "value": "new"
+            },
+            {
+              "title": "Read",
+              "value": "read"
+            }
+          ]
+        },
+        "initialValue": "new",
+        "description": "Internal state tracking for super admin reports dashboard.",
+        "hidden": true,
+        "name": "pendingTaskStatus",
+        "type": "string"
+      },
+      {
+        "initialValue": false,
+        "description": "Internal state tracking for super admin reports dashboard.",
+        "hidden": true,
+        "name": "pendingTaskArchived",
+        "type": "boolean"
+      },
+      {
+        "description": "Unique code for this driver to invite others.",
+        "readOnly": true,
+        "hidden": true,
+        "name": "referralCode",
+        "type": "string"
+      },
+      {
+        "description": "The driver who invited this person.",
+        "to": [
+          {
+            "type": "driver"
+          }
+        ],
+        "readOnly": true,
+        "name": "recommendedBy",
+        "type": "reference"
+      }
+    ],
+    "name": "driver",
+    "type": "document",
+    "title": "Driver (Captain)"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "name": "site",
+        "type": "reference",
+        "title": "Tenant"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "to": [
+          {
+            "type": "driver"
+          }
+        ],
+        "name": "driver",
+        "type": "reference"
+      },
+      {
+        "description": "Name to show for this driver in your business. Leave empty to use the driver’s default name.",
+        "name": "customName",
+        "type": "string",
+        "title": "Display name (optional)"
+      },
+      {
+        "initialValue": true,
+        "name": "isActive",
+        "type": "boolean",
+        "title": "Active"
+      },
+      {
+        "description": "Areas this driver can deliver to for your business",
+        "of": [
+          {
+            "to": [
+              {
+                "type": "area"
+              }
+            ],
+            "type": "reference",
+            "title": "Reference to delivery area"
+          }
+        ],
+        "name": "deliveryAreas",
+        "type": "array",
+        "title": "Delivery areas (for this tenant)"
+      }
+    ],
+    "name": "tenantDriver",
+    "type": "document",
+    "title": "Tenant Driver (Captain in fleet)"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Clerk auth user ID. One platformUser per Clerk account.",
+        "name": "clerkUserId",
+        "type": "string",
+        "title": "Clerk User ID"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Driver only",
+              "value": "driver"
+            },
+            {
+              "title": "Business (Tenant) only",
+              "value": "tenant"
+            }
+          ]
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "driver",
+                  "tenant"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Mutually exclusive: driver = Driver dashboard only; tenant = Business dashboard only. Set on first create (business or driver).",
+        "name": "accountType",
+        "type": "string"
+      },
+      {
+        "initialValue": false,
+        "description": "True if this user owns at least one tenant. Kept in sync for Studio.",
+        "readOnly": true,
+        "name": "isTenant",
+        "type": "boolean"
+      },
+      {
+        "initialValue": false,
+        "description": "True if this user has a driver profile. Kept in sync for Studio.",
+        "readOnly": true,
+        "name": "isDriver",
+        "type": "boolean"
+      }
+    ],
+    "name": "platformUser",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "description": "Which business/site this order belongs to",
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "name": "site",
+        "type": "reference"
+      },
+      {
+        "description": "Auto-generated unique order number",
+        "readOnly": true,
+        "name": "orderNumber",
+        "type": "string"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Receive in Person",
+              "value": "receive-in-person"
+            },
+            {
+              "title": "Dine-in",
+              "value": "dine-in"
+            },
+            {
+              "title": "Delivery",
+              "value": "delivery"
+            }
+          ]
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "receive-in-person",
+                  "dine-in",
+                  "delivery"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "orderType",
+        "type": "string"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "🆕 New",
+              "value": "new"
+            },
+            {
+              "title": "👍 Acknowledged",
+              "value": "acknowledged"
+            },
+            {
+              "title": "👨‍🍳 Preparing",
+              "value": "preparing"
+            },
+            {
+              "title": "⏳ Waiting for Delivery",
+              "value": "waiting_for_delivery"
+            },
+            {
+              "title": "🚗 Driver is on the way to the restaurant",
+              "value": "driver_on_the_way"
+            },
+            {
+              "title": "📦 Driver on the way to you",
+              "value": "out-for-delivery"
+            },
+            {
+              "title": "✅ Delivered & COMPLETED",
+              "value": "completed"
+            },
+            {
+              "title": "🍽️ Served (Dine-in)",
+              "value": "served"
+            },
+            {
+              "title": "❌ Cancelled",
+              "value": "cancelled"
+            },
+            {
+              "title": "💰 Refunded",
+              "value": "refunded"
+            }
+          ]
+        },
+        "initialValue": "new",
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "new",
+                  "acknowledged",
+                  "preparing",
+                  "waiting_for_delivery",
+                  "driver_on_the_way",
+                  "out-for-delivery",
+                  "completed",
+                  "served",
+                  "cancelled",
+                  "refunded"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "status",
+        "type": "string",
+        "title": "Order Status"
+      },
+      {
+        "description": "Registered customer (Clerk user). Set when order is placed.",
+        "to": [
+          {
+            "type": "customer"
+          }
+        ],
+        "readOnly": true,
+        "name": "customer",
+        "type": "reference"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "customerName",
+        "type": "string"
+      },
+      {
+        "description": "For dine-in orders only",
+        "hidden": "conditional",
+        "name": "tableNumber",
+        "type": "string"
+      },
+      {
+        "description": "Required for dine-in and receive-in-person (tenant may contact customer). Also used for delivery.",
+        "name": "customerPhone",
+        "type": "string",
+        "title": "Customer Phone / WhatsApp"
+      },
+      {
+        "description": "Selected delivery area",
+        "to": [
+          {
+            "type": "area"
+          }
+        ],
+        "hidden": "conditional",
+        "name": "deliveryArea",
+        "type": "reference"
+      },
+      {
+        "rows": 3,
+        "description": "Specific location details for delivery",
+        "hidden": "conditional",
+        "name": "deliveryAddress",
+        "type": "text",
+        "title": "Delivery Address Details"
+      },
+      {
+        "description": "Customer shared location (for driver navigation). Optional.",
+        "hidden": "conditional",
+        "name": "deliveryLat",
+        "type": "number",
+        "title": "Delivery latitude"
+      },
+      {
+        "description": "Customer shared location (for driver navigation). Optional.",
+        "hidden": "conditional",
+        "name": "deliveryLng",
+        "type": "number",
+        "title": "Delivery longitude"
+      },
+      {
+        "description": "Delivery fee charged for this order",
+        "hidden": "conditional",
+        "name": "deliveryFee",
+        "type": "number"
+      },
+      {
+        "description": "Driver must collect items at the store (e.g. supermarket) instead of receiving pre-packed order.",
+        "hidden": "conditional",
+        "name": "requiresPersonalShopper",
+        "type": "boolean"
+      },
+      {
+        "description": "Fee for personal shopping service (driver collects items at store).",
+        "hidden": "conditional",
+        "name": "shopperFee",
+        "type": "number",
+        "title": "Personal Shopper Fee (ILS)"
+      },
+      {
+        "description": "Log of driver locations and events during the delivery",
+        "of": [
+          {
+            "fields": [
+              {
+                "name": "at",
+                "type": "datetime",
+                "title": "Timestamp"
+              },
+              {
+                "name": "lat",
+                "type": "number",
+                "title": "Latitude"
+              },
+              {
+                "name": "lng",
+                "type": "number",
+                "title": "Longitude"
+              },
+              {
+                "name": "label",
+                "type": "string",
+                "title": "Event Label"
+              },
+              {
+                "name": "source",
+                "type": "string",
+                "title": "Source (e.g. driver, system)"
+              }
+            ],
+            "type": "object",
+            "name": "journeyLogEntry"
+          }
+        ],
+        "readOnly": true,
+        "hidden": "conditional",
+        "name": "deliveryJourneyLog",
+        "type": "array"
+      },
+      {
+        "description": "Driver assigned to deliver this order",
+        "to": [
+          {
+            "type": "driver"
+          }
+        ],
+        "hidden": "conditional",
+        "name": "assignedDriver",
+        "type": "reference"
+      },
+      {
+        "description": "When set, order is shown to online drivers in the same area. Cleared when a driver accepts.",
+        "hidden": "conditional",
+        "name": "deliveryRequestedAt",
+        "type": "datetime",
+        "title": "Delivery requested at"
+      },
+      {
+        "description": "Updated by the retry-delivery-requests cron job each time it re-sends push to online drivers (every 3 min).",
+        "readOnly": true,
+        "hidden": true,
+        "name": "lastDeliveryRequestPingAt",
+        "type": "datetime",
+        "title": "Last delivery request ping at"
+      },
+      {
+        "description": "When the business was notified via WhatsApp about an unaccepted order.",
+        "readOnly": true,
+        "hidden": true,
+        "name": "businessWhatsappNotifiedAt",
+        "type": "datetime",
+        "title": "Business WhatsApp Notified At"
+      },
+      {
+        "description": "When the available drivers in the city were notified via WhatsApp about this unaccepted delivery.",
+        "readOnly": true,
+        "hidden": true,
+        "name": "driversWhatsappNotifiedAt",
+        "type": "datetime",
+        "title": "Drivers WhatsApp Notified At"
+      },
+      {
+        "description": "Number of times drivers were notified via WhatsApp (max 3).",
+        "readOnly": true,
+        "hidden": true,
+        "name": "driversWhatsappNotifiedCount",
+        "type": "number",
+        "title": "Drivers WhatsApp Notified Count"
+      },
+      {
+        "description": "Whether the new order FCM push notification has been sent to the business owner and staff.",
+        "readOnly": true,
+        "hidden": true,
+        "name": "tenantNewOrderPushSent",
+        "type": "boolean"
+      },
+      {
+        "description": "Drivers who declined this order; they will not see it again in the pool unless the restaurant assigns it to them.",
+        "of": [
+          {
+            "to": [
+              {
+                "type": "driver"
+              }
+            ],
+            "type": "reference",
+            "title": "Reference to driver (captain)"
+          }
+        ],
+        "readOnly": true,
+        "hidden": "conditional",
+        "name": "declinedByDriverIds",
+        "type": "array",
+        "title": "Declined by drivers"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              },
+              {
+                "flag": "min",
+                "constraint": 1
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "of": [
+          {
+            "fields": [
+              {
+                "to": [
+                  {
+                    "type": "product"
+                  }
+                ],
+                "name": "product",
+                "type": "reference"
+              },
+              {
+                "description": "Stored name at time of order",
+                "name": "productName",
+                "type": "string"
+              },
+              {
+                "validation": [
+                  {
+                    "rules": [
+                      {
+                        "flag": "presence",
+                        "constraint": "required"
+                      },
+                      {
+                        "flag": "min",
+                        "constraint": 1
+                      }
+                    ],
+                    "level": "error"
+                  }
+                ],
+                "name": "quantity",
+                "type": "number"
+              },
+              {
+                "description": "Price per unit at time of order",
+                "name": "price",
+                "type": "number",
+                "title": "Unit Price"
+              },
+              {
+                "description": "Total price for this item",
+                "name": "total",
+                "type": "number"
+              },
+              {
+                "rows": 2,
+                "name": "notes",
+                "type": "text",
+                "title": "Special Requests"
+              },
+              {
+                "description": "Selected add-ons for this item",
+                "name": "addOns",
+                "type": "string",
+                "title": "Add-ons"
+              }
+            ],
+            "type": "object",
+            "name": "orderItem"
+          }
+        ],
+        "name": "items",
+        "type": "array",
+        "title": "Order Items"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Total before delivery fee",
+        "name": "subtotal",
+        "type": "number"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Total including delivery fee",
+        "name": "totalAmount",
+        "type": "number"
+      },
+      {
+        "initialValue": "ILS",
+        "name": "currency",
+        "type": "string"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "createdAt",
+        "type": "datetime",
+        "title": "Order Date & Time"
+      },
+      {
+        "description": "When set, this is an upfront/scheduled order to be prepared for this date/time.",
+        "name": "scheduledFor",
+        "type": "datetime"
+      },
+      {
+        "description": "History of changes to the scheduled time",
+        "of": [
+          {
+            "fields": [
+              {
+                "name": "previousScheduledFor",
+                "type": "datetime"
+              },
+              {
+                "name": "changedAt",
+                "type": "datetime"
+              }
+            ],
+            "type": "object",
+            "name": "scheduleEdit"
+          }
+        ],
+        "readOnly": true,
+        "name": "scheduleEditHistory",
+        "type": "array"
+      },
+      {
+        "description": "When the restaurant acknowledged a scheduled order",
+        "name": "acknowledgedAt",
+        "type": "datetime"
+      },
+      {
+        "description": "When the business should be reminded to start preparing this scheduled order",
+        "name": "notifyAt",
+        "type": "datetime"
+      },
+      {
+        "description": "Whether the reminder notification has been successfully sent",
+        "name": "reminderSent",
+        "type": "boolean"
+      },
+      {
+        "description": "When the order was marked as preparing or waiting for delivery",
+        "name": "preparedAt",
+        "type": "datetime"
+      },
+      {
+        "description": "When the driver accepted or was assigned the order",
+        "name": "driverAcceptedAt",
+        "type": "datetime"
+      },
+      {
+        "description": "When the driver picked up the order (out for delivery)",
+        "name": "driverPickedUpAt",
+        "type": "datetime"
+      },
+      {
+        "description": "Estimated minutes from pickup to customer (OSRM route + 5 min buffer). Set when driver picks up.",
+        "readOnly": true,
+        "hidden": "conditional",
+        "name": "estimatedDeliveryMinutes",
+        "type": "number"
+      },
+      {
+        "description": "When the order was completed",
+        "name": "completedAt",
+        "type": "datetime"
+      },
+      {
+        "description": "When the order was cancelled or refunded (by business or customer)",
+        "name": "cancelledAt",
+        "type": "datetime"
+      },
+      {
+        "description": "When a driver cancelled the delivery (order goes back to preparing, available for other drivers)",
+        "hidden": "conditional",
+        "name": "driverCancelledAt",
+        "type": "datetime"
+      },
+      {
+        "rows": 3,
+        "description": "Internal notes for restaurant staff",
+        "name": "notes",
+        "type": "text",
+        "title": "Internal Notes"
+      },
+      {
+        "description": "Set when business updates order items (add/remove). Driver must reconfirm.",
+        "hidden": "conditional",
+        "name": "itemsUpdatedAt",
+        "type": "datetime",
+        "title": "Items updated at"
+      },
+      {
+        "description": "When driver reconfirmed after items were updated.",
+        "hidden": "conditional",
+        "name": "driverReconfirmedAt",
+        "type": "datetime",
+        "title": "Driver reconfirmed at"
+      },
+      {
+        "description": "Secret token for customer order tracking URL. Generated on order create.",
+        "readOnly": true,
+        "name": "trackingToken",
+        "type": "string",
+        "title": "Tracking token"
+      },
+      {
+        "description": "Web Push subscription for order status notifications (set when customer enables on tracking page).",
+        "fields": [
+          {
+            "name": "endpoint",
+            "type": "string"
+          },
+          {
+            "name": "p256dh",
+            "type": "string",
+            "title": "p256dh"
+          },
+          {
+            "name": "auth",
+            "type": "string",
+            "title": "auth"
+          }
+        ],
+        "readOnly": true,
+        "hidden": "conditional",
+        "name": "customerPushSubscription",
+        "type": "object",
+        "title": "Customer push subscription"
+      },
+      {
+        "description": "Firebase Cloud Messaging token for order status push (when customer enables on tracking page).",
+        "readOnly": true,
+        "hidden": true,
+        "name": "customerFcmToken",
+        "type": "string",
+        "title": "Customer FCM token"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Call waiter",
+              "value": "call_waiter"
+            },
+            {
+              "title": "Request check",
+              "value": "request_check"
+            }
+          ]
+        },
+        "description": "Set when dine-in customer taps \"Call waiter\" or \"Ask for check\" on tracking page.",
+        "hidden": "conditional",
+        "name": "customerRequestType",
+        "type": "string",
+        "title": "Customer request type"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Cash",
+              "value": "cash"
+            },
+            {
+              "title": "Card",
+              "value": "card"
+            }
+          ]
+        },
+        "description": "When customer requested check, preferred payment method.",
+        "hidden": "conditional",
+        "name": "customerRequestPaymentMethod",
+        "type": "string",
+        "title": "Requested payment method"
+      },
+      {
+        "description": "When the customer requested waiter or check (triggers notification at restaurant).",
+        "hidden": "conditional",
+        "name": "customerRequestedAt",
+        "type": "datetime",
+        "title": "Customer requested at"
+      },
+      {
+        "description": "When staff acknowledged the table request (stops notification).",
+        "hidden": "conditional",
+        "name": "customerRequestAcknowledgedAt",
+        "type": "datetime",
+        "title": "Customer request acknowledged at"
+      },
+      {
+        "description": "Tip percentage chosen by customer (e.g. 10).",
+        "name": "tipPercent",
+        "type": "number",
+        "title": "Tip percentage"
+      },
+      {
+        "description": "Tip amount in order currency.",
+        "name": "tipAmount",
+        "type": "number",
+        "title": "Tip amount"
+      },
+      {
+        "description": "Whether the customer has shared their tip intention with the driver.",
+        "name": "tipSentToDriver",
+        "type": "boolean",
+        "title": "Tip sent to driver"
+      },
+      {
+        "description": "When the customer shared the tip with the driver.",
+        "readOnly": true,
+        "name": "tipSentToDriverAt",
+        "type": "datetime",
+        "title": "Tip sent to driver at"
+      },
+      {
+        "description": "When countdown expired, whether the customer chose to keep the tip.",
+        "name": "tipConfirmedAfterCountdown",
+        "type": "boolean",
+        "title": "Tip confirmed after countdown"
+      },
+      {
+        "description": "Customer confirmed the tip should be added to the total amount the driver collects.",
+        "name": "tipIncludedInTotal",
+        "type": "boolean",
+        "title": "Tip included in total"
+      },
+      {
+        "description": "Driver chose to remove the tip from the total before completing the order.",
+        "name": "tipRemovedByDriver",
+        "type": "boolean",
+        "title": "Tip removed by driver"
+      },
+      {
+        "description": "When the driver confirmed arrival at the customer location (within 100m).",
+        "readOnly": true,
+        "hidden": "conditional",
+        "name": "driverArrivedAt",
+        "type": "datetime",
+        "title": "Driver arrived at"
+      }
+    ],
+    "name": "order",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Clerk user ID; links to the registered account.",
+        "readOnly": true,
+        "name": "clerkUserId",
+        "type": "string",
+        "title": "Clerk User ID"
+      },
+      {
+        "description": "Name used on orders (from Clerk or first order).",
+        "name": "name",
+        "type": "string",
+        "title": "Display Name"
+      },
+      {
+        "description": "From Clerk account.",
+        "readOnly": true,
+        "name": "email",
+        "type": "string"
+      },
+      {
+        "description": "Verified phone used for orders (E.164 or normalized).",
+        "name": "primaryPhone",
+        "type": "string"
+      },
+      {
+        "description": "When they placed their first order.",
+        "readOnly": true,
+        "name": "firstOrderAt",
+        "type": "datetime"
+      },
+      {
+        "description": "When they placed their most recent order.",
+        "readOnly": true,
+        "name": "lastOrderAt",
+        "type": "datetime"
+      },
+      {
+        "initialValue": 0,
+        "description": "Total number of orders across all businesses.",
+        "readOnly": true,
+        "name": "orderCount",
+        "type": "number"
+      },
+      {
+        "initialValue": false,
+        "description": "Super admin only: when true, this customer cannot place orders. They cannot override this.",
+        "name": "blockedBySuperAdmin",
+        "type": "boolean",
+        "title": "Blocked by Super Admin"
+      }
+    ],
+    "name": "customer",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Firebase Cloud Messaging token for this device.",
+        "readOnly": true,
+        "name": "fcmToken",
+        "type": "string",
+        "title": "FCM Token"
+      },
+      {
+        "description": "When this subscription was first recorded.",
+        "readOnly": true,
+        "name": "createdAt",
+        "type": "datetime"
+      }
+    ],
+    "name": "customerPushSubscription",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "readOnly": true,
+        "name": "clerkUserId",
+        "type": "string",
+        "title": "Clerk User ID"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Customer",
+              "value": "customer"
+            },
+            {
+              "title": "Driver",
+              "value": "driver"
+            },
+            {
+              "title": "Tenant",
+              "value": "tenant"
+            }
+          ]
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "customer",
+                  "driver",
+                  "tenant"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "readOnly": true,
+        "name": "roleContext",
+        "type": "string"
+      },
+      {
+        "description": "The tenants this user is subscribed to (for Tenant role).",
+        "of": [
+          {
+            "to": [
+              {
+                "type": "tenant"
+              }
+            ],
+            "type": "reference",
+            "title": "Reference to tenant (site)"
+          }
+        ],
+        "readOnly": true,
+        "name": "sites",
+        "type": "array",
+        "title": "Tenants (Sites)"
+      },
+      {
+        "of": [
+          {
+            "fields": [
+              {
+                "name": "fcmToken",
+                "type": "string",
+                "title": "FCM Token"
+              },
+              {
+                "fields": [
+                  {
+                    "name": "endpoint",
+                    "type": "string"
+                  },
+                  {
+                    "name": "p256dh",
+                    "type": "string",
+                    "title": "p256dh"
+                  },
+                  {
+                    "name": "auth",
+                    "type": "string",
+                    "title": "auth"
+                  }
+                ],
+                "name": "webPush",
+                "type": "object",
+                "title": "Web Push Subscription"
+              },
+              {
+                "name": "deviceInfo",
+                "type": "string"
+              },
+              {
+                "name": "lastRefreshedAt",
+                "type": "datetime"
+              },
+              {
+                "name": "lastError",
+                "type": "string"
+              }
+            ],
+            "type": "object"
+          }
+        ],
+        "readOnly": true,
+        "name": "devices",
+        "type": "array"
+      },
+      {
+        "initialValue": true,
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "readOnly": true,
+        "name": "isActive",
+        "type": "boolean"
+      },
+      {
+        "readOnly": true,
+        "name": "createdAt",
+        "type": "datetime"
+      },
+      {
+        "readOnly": true,
+        "name": "lastSeenAt",
+        "type": "datetime"
+      }
+    ],
+    "name": "userPushSubscription",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "description": "Name this banner (e.g. \"Summer promo\", \"New restaurant\"). Shown in the Studio list.",
+        "name": "title",
+        "type": "string",
+        "title": "Banner name"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Arabic",
+              "value": "ar"
+            },
+            {
+              "title": "English",
+              "value": "en"
+            }
+          ]
+        },
+        "initialValue": "ar",
+        "description": "Banner language. Default is Arabic. If no English banner exists, Arabic is shown.",
+        "name": "language",
+        "type": "string"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "description": "Desktop banner in Arabic. Fallback for all if only this is set.",
+        "name": "imageDesktopAr",
+        "type": "image",
+        "title": "Desktop Image (Arabic)"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "description": "Desktop banner in English. Falls back to Arabic if empty.",
+        "name": "imageDesktopEn",
+        "type": "image",
+        "title": "Desktop Image (English)"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "description": "Mobile banner in Arabic. Falls back to desktop if empty.",
+        "name": "imageMobileAr",
+        "type": "image",
+        "title": "Mobile Image (Arabic)"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "description": "Mobile banner in English. Falls back to Arabic, then desktop.",
+        "name": "imageMobileEn",
+        "type": "image",
+        "title": "Mobile Image (English)"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "description": "Old single image. Used only when none of the 4 size/language images exist.",
+        "hidden": true,
+        "name": "image",
+        "type": "image",
+        "title": "Legacy Image (fallback)"
+      },
+      {
+        "options": {
+          "accept": "video/mp4,video/webm,video/ogg"
+        },
+        "description": "Desktop banner video in Arabic. Same fallback order as images. Shown muted, autoplay, loop. Prefer MP4 for compatibility.",
+        "name": "videoDesktopAr",
+        "type": "file",
+        "title": "Desktop Video (Arabic)"
+      },
+      {
+        "options": {
+          "accept": "video/mp4,video/webm,video/ogg"
+        },
+        "description": "Desktop banner video in English. Falls back to Arabic if empty.",
+        "name": "videoDesktopEn",
+        "type": "file",
+        "title": "Desktop Video (English)"
+      },
+      {
+        "options": {
+          "accept": "video/mp4,video/webm,video/ogg"
+        },
+        "description": "Mobile banner video in Arabic. Falls back to desktop if empty.",
+        "name": "videoMobileAr",
+        "type": "file",
+        "title": "Mobile Video (Arabic)"
+      },
+      {
+        "options": {
+          "accept": "video/mp4,video/webm,video/ogg"
+        },
+        "description": "Mobile banner video in English. Falls back to Arabic, then desktop.",
+        "name": "videoMobileEn",
+        "type": "file",
+        "title": "Mobile Video (English)"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Business (tenant)",
+              "value": "tenant"
+            },
+            {
+              "title": "External URL",
+              "value": "url"
+            },
+            {
+              "title": "None",
+              "value": "none"
+            }
+          ]
+        },
+        "initialValue": "none",
+        "name": "linkType",
+        "type": "string"
+      },
+      {
+        "description": "Link to this business menu (e.g. /t/[slug])",
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "hidden": "conditional",
+        "name": "tenant",
+        "type": "reference",
+        "title": "Business"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "uri",
+                "constraint": {
+                  "options": {
+                    "scheme": [
+                      "/^http$/",
+                      "/^https$/"
+                    ],
+                    "allowRelative": false,
+                    "relativeOnly": false,
+                    "allowCredentials": false
+                  }
+                }
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Full URL when clicked (e.g. https://...)",
+        "hidden": "conditional",
+        "name": "url",
+        "type": "url",
+        "title": "External URL"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Palestine",
+              "value": "palestine"
+            },
+            {
+              "title": "Jerusalem",
+              "value": "jerusalem"
+            }
+          ]
+        },
+        "description": "Leave empty to show in all locations. Otherwise, only show when user country matches.",
+        "of": [
+          {
+            "type": "string"
+          }
+        ],
+        "name": "countries",
+        "type": "array",
+        "title": "Countries (filter)"
+      },
+      {
+        "description": "Leave empty to show in all cities. Otherwise, only show when user city matches.",
+        "of": [
+          {
+            "type": "string"
+          }
+        ],
+        "name": "cities",
+        "type": "array",
+        "title": "Cities (filter)"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Small (420px)",
+              "value": "small"
+            },
+            {
+              "title": "Medium (560px)",
+              "value": "medium"
+            },
+            {
+              "title": "Large (780px)",
+              "value": "large"
+            },
+            {
+              "title": "Full (1080px)",
+              "value": "full"
+            }
+          ]
+        },
+        "initialValue": "medium",
+        "description": "Used when preferred dimensions are not set. Height on desktop. Mobile fallback 420px.",
+        "name": "height",
+        "type": "string",
+        "title": "Banner Height (fallback)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "min",
+                "constraint": 1
+              },
+              {
+                "flag": "max",
+                "constraint": 4096
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Display width in pixels for desktop. Banner is shown at 100% viewport width; this is used for aspect ratio so nothing is cropped.",
+        "name": "preferredDesktopWidth",
+        "type": "number"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "min",
+                "constraint": 1
+              },
+              {
+                "flag": "max",
+                "constraint": 4096
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Display height in pixels for desktop. With width, sets aspect ratio (height/width).",
+        "name": "preferredDesktopHeight",
+        "type": "number"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "min",
+                "constraint": 1
+              },
+              {
+                "flag": "max",
+                "constraint": 2048
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Display width in pixels for mobile. Used for aspect ratio on small screens.",
+        "name": "preferredMobileWidth",
+        "type": "number"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "min",
+                "constraint": 1
+              },
+              {
+                "flag": "max",
+                "constraint": 2048
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Display height in pixels for mobile. With width, sets aspect ratio.",
+        "name": "preferredMobileHeight",
+        "type": "number"
+      },
+      {
+        "initialValue": 0,
+        "description": "Lower = first. Use for controlling rotation order.",
+        "name": "sortOrder",
+        "type": "number"
+      },
+      {
+        "description": "When to start showing this banner. Leave empty to show immediately.",
+        "name": "startDate",
+        "type": "datetime",
+        "title": "Start Date & Time"
+      },
+      {
+        "description": "When to stop showing this banner. Leave empty to show indefinitely.",
+        "name": "endDate",
+        "type": "datetime",
+        "title": "End Date & Time"
+      }
+    ],
+    "name": "heroBanner",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "initialValue": 10,
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "min",
+                "constraint": 3
+              },
+              {
+                "flag": "max",
+                "constraint": 120
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "How long each image banner is shown before auto-advancing to the next. Video banners advance when the video ends. Default: 10.",
+        "name": "imageDurationSeconds",
+        "type": "number",
+        "title": "Image banner duration (seconds)"
+      }
+    ],
+    "name": "bannerSettings",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Restaurant",
+              "value": "restaurant"
+            },
+            {
+              "title": "Cafe",
+              "value": "cafe"
+            },
+            {
+              "title": "Bakery",
+              "value": "bakery"
+            },
+            {
+              "title": "Grocery / Market",
+              "value": "grocery"
+            },
+            {
+              "title": "Retail / Shop",
+              "value": "retail"
+            },
+            {
+              "title": "Pharmacy",
+              "value": "pharmacy"
+            },
+            {
+              "title": "Other",
+              "value": "other"
+            }
+          ]
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "restaurant",
+                  "cafe",
+                  "bakery",
+                  "grocery",
+                  "retail",
+                  "pharmacy",
+                  "other"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Must match the businessType tenants choose. Category only shows when businesses exist.",
+        "name": "value",
+        "type": "string",
+        "title": "Value (matches tenant businessType)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "name_en",
+        "type": "string",
+        "title": "Name (English)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "name_ar",
+        "type": "string",
+        "title": "Name (Arabic)"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Square or landscape recommended. Shown on homepage category grid.",
+        "name": "image",
+        "type": "image",
+        "title": "Category Image"
+      },
+      {
+        "initialValue": 0,
+        "description": "Lower = first in grid.",
+        "name": "sortOrder",
+        "type": "number"
+      }
+    ],
+    "name": "businessCategory",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "options": {
+          "maxLength": 64
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "custom"
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Unique ID (e.g. burgers, shawarma). Used in URLs and filters.",
+        "name": "slug",
+        "type": "slug"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "title_en",
+        "type": "string",
+        "title": "Title (English)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "title_ar",
+        "type": "string",
+        "title": "Title (Arabic)"
+      },
+      {
+        "options": {
+          "hotspot": true
+        },
+        "description": "Image representing this sub-category (e.g. for filters or listing).",
+        "name": "image",
+        "type": "image"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Restaurant",
+              "value": "restaurant"
+            },
+            {
+              "title": "Cafe",
+              "value": "cafe"
+            },
+            {
+              "title": "Bakery",
+              "value": "bakery"
+            },
+            {
+              "title": "Grocery / Market",
+              "value": "grocery"
+            },
+            {
+              "title": "Retail / Shop",
+              "value": "retail"
+            },
+            {
+              "title": "Pharmacy",
+              "value": "pharmacy"
+            },
+            {
+              "title": "Other",
+              "value": "other"
+            }
+          ]
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "restaurant",
+                  "cafe",
+                  "bakery",
+                  "grocery",
+                  "retail",
+                  "pharmacy",
+                  "other"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "This sub-category appears when a tenant chooses this business type.",
+        "name": "businessType",
+        "type": "string",
+        "title": "Business Type (main category)"
+      },
+      {
+        "initialValue": 0,
+        "description": "Lower = first when listing sub-categories.",
+        "name": "sortOrder",
+        "type": "number"
+      }
+    ],
+    "name": "businessSubcategory",
+    "type": "document",
+    "title": "Business Sub-category (Specialty)"
+  },
+  {
+    "fields": [
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Business",
+              "value": "business"
+            },
+            {
+              "title": "Driver",
+              "value": "driver"
+            },
+            {
+              "title": "Customer",
+              "value": "customer"
+            }
+          ]
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "business",
+                  "driver",
+                  "customer"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "readOnly": true,
+        "name": "reporterType",
+        "type": "string",
+        "title": "Reporter type"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Business / Restaurant",
+              "value": "business"
+            },
+            {
+              "title": "Driver",
+              "value": "driver"
+            },
+            {
+              "title": "Customer",
+              "value": "customer"
+            }
+          ]
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "business",
+                  "driver",
+                  "customer"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "readOnly": true,
+        "name": "reportedType",
+        "type": "string",
+        "title": "Reported type"
+      },
+      {
+        "description": "Order related to this report",
+        "to": [
+          {
+            "type": "order"
+          }
+        ],
+        "readOnly": true,
+        "name": "order",
+        "type": "reference"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Driver was late",
+              "value": "driver_late"
+            },
+            {
+              "title": "Driver not well behaved",
+              "value": "driver_bad_conduct"
+            },
+            {
+              "title": "Driver cancelled order without reason",
+              "value": "driver_cancelled_no_reason"
+            },
+            {
+              "title": "Driver did not show up",
+              "value": "driver_no_show"
+            },
+            {
+              "title": "Other (driver)",
+              "value": "driver_other"
+            },
+            {
+              "title": "Customer not cooperative",
+              "value": "customer_not_nice"
+            },
+            {
+              "title": "Customer cancelled after order was prepared",
+              "value": "customer_cancelled_after_prep"
+            },
+            {
+              "title": "Customer no-show / did not pick up",
+              "value": "customer_no_show"
+            },
+            {
+              "title": "Other (customer)",
+              "value": "customer_other"
+            },
+            {
+              "title": "Customer late to receive order",
+              "value": "customer_late_receive"
+            },
+            {
+              "title": "Customer bad behaviour",
+              "value": "customer_bad_conduct"
+            },
+            {
+              "title": "Customer not at location",
+              "value": "customer_not_at_location"
+            },
+            {
+              "title": "Other (customer)",
+              "value": "customer_other_driver"
+            },
+            {
+              "title": "Food quality / cold or wrong",
+              "value": "restaurant_food_quality"
+            },
+            {
+              "title": "Bad packaging",
+              "value": "restaurant_bad_packaging"
+            },
+            {
+              "title": "Missing items",
+              "value": "restaurant_missing_items"
+            },
+            {
+              "title": "Very late preparation",
+              "value": "restaurant_late_prep"
+            },
+            {
+              "title": "Other (restaurant)",
+              "value": "restaurant_other"
+            },
+            {
+              "title": "Driver was late",
+              "value": "driver_late_customer"
+            },
+            {
+              "title": "Driver rude / bad behaviour",
+              "value": "driver_rude"
+            },
+            {
+              "title": "Driver did not deliver properly",
+              "value": "driver_delivery_issue"
+            },
+            {
+              "title": "Customer cancelled tip",
+              "value": "customer_removed_tip_after_arrival"
+            },
+            {
+              "title": "Other (driver)",
+              "value": "driver_other_customer"
+            }
+          ]
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "driver_late",
+                  "driver_bad_conduct",
+                  "driver_cancelled_no_reason",
+                  "driver_no_show",
+                  "driver_other",
+                  "customer_not_nice",
+                  "customer_cancelled_after_prep",
+                  "customer_no_show",
+                  "customer_other",
+                  "customer_late_receive",
+                  "customer_bad_conduct",
+                  "customer_not_at_location",
+                  "customer_other_driver",
+                  "restaurant_food_quality",
+                  "restaurant_bad_packaging",
+                  "restaurant_missing_items",
+                  "restaurant_late_prep",
+                  "restaurant_other",
+                  "driver_late_customer",
+                  "driver_rude",
+                  "driver_delivery_issue",
+                  "customer_removed_tip_after_arrival",
+                  "driver_other_customer"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Predefined reason category",
+        "name": "category",
+        "type": "string"
+      },
+      {
+        "rows": 4,
+        "description": "Additional details",
+        "name": "description",
+        "type": "text"
+      },
+      {
+        "description": "When reporter is business: tenant _id",
+        "readOnly": true,
+        "hidden": "conditional",
+        "name": "reporterTenantId",
+        "type": "string",
+        "title": "Reporter tenant ID"
+      },
+      {
+        "description": "When reporter is driver: driver _id",
+        "readOnly": true,
+        "hidden": "conditional",
+        "name": "reporterDriverId",
+        "type": "string",
+        "title": "Reporter driver ID"
+      },
+      {
+        "readOnly": true,
+        "hidden": "conditional",
+        "name": "reportedTenantId",
+        "type": "string",
+        "title": "Reported tenant ID"
+      },
+      {
+        "readOnly": true,
+        "hidden": "conditional",
+        "name": "reportedDriverId",
+        "type": "string",
+        "title": "Reported driver ID"
+      },
+      {
+        "description": "Customer name/phone when reported",
+        "readOnly": true,
+        "hidden": "conditional",
+        "name": "reportedCustomerInfo",
+        "type": "string",
+        "title": "Reported customer info"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "New",
+              "value": "new"
+            },
+            {
+              "title": "Read",
+              "value": "read"
+            },
+            {
+              "title": "Reviewed",
+              "value": "reviewed"
+            },
+            {
+              "title": "Resolved",
+              "value": "resolved"
+            }
+          ]
+        },
+        "initialValue": "new",
+        "name": "status",
+        "type": "string"
+      },
+      {
+        "initialValue": false,
+        "description": "When true, report is marked as read and can be hidden from the main list.",
+        "name": "archived",
+        "type": "boolean",
+        "title": "Archived (read / hidden)"
+      }
+    ],
+    "name": "report",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "readOnly": true,
+        "name": "tenant",
+        "type": "reference",
+        "title": "Business (Tenant)"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Current owner who initiated the transfer",
+        "readOnly": true,
+        "name": "requestedByClerkId",
+        "type": "string",
+        "title": "Requested by (Clerk User ID)"
+      },
+      {
+        "description": "For display in admin",
+        "readOnly": true,
+        "name": "requestedByEmail",
+        "type": "string",
+        "title": "Current owner email"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "The new owner must already be registered on the system",
+        "readOnly": true,
+        "name": "newOwnerEmail",
+        "type": "string",
+        "title": "New owner email"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Pending",
+              "value": "pending"
+            },
+            {
+              "title": "Approved",
+              "value": "approved"
+            },
+            {
+              "title": "Rejected",
+              "value": "rejected"
+            }
+          ]
+        },
+        "initialValue": "pending",
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "pending",
+                  "approved",
+                  "rejected"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "status",
+        "type": "string"
+      },
+      {
+        "readOnly": true,
+        "name": "createdAt",
+        "type": "datetime",
+        "title": "Requested at"
+      },
+      {
+        "readOnly": true,
+        "name": "reviewedByClerkId",
+        "type": "string",
+        "title": "Reviewed by (Super Admin Clerk ID)"
+      },
+      {
+        "readOnly": true,
+        "name": "reviewedAt",
+        "type": "datetime",
+        "title": "Reviewed at"
+      },
+      {
+        "description": "Shown to the requester if rejected",
+        "name": "rejectionReason",
+        "type": "string",
+        "title": "Rejection reason (optional)"
+      }
+    ],
+    "name": "tenantTransferRequest",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Business",
+              "value": "business"
+            },
+            {
+              "title": "Driver",
+              "value": "driver"
+            },
+            {
+              "title": "Customer",
+              "value": "customer"
+            }
+          ]
+        },
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "business",
+                  "driver",
+                  "customer"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "readOnly": true,
+        "name": "type",
+        "type": "string",
+        "title": "Account type"
+      },
+      {
+        "description": "Set when submitted from the app so we can resolve driver/tenant/customer for actions.",
+        "readOnly": true,
+        "name": "clerkUserId",
+        "type": "string",
+        "title": "Clerk User ID"
+      },
+      {
+        "readOnly": true,
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "readOnly": true,
+        "name": "email",
+        "type": "string"
+      },
+      {
+        "readOnly": true,
+        "name": "message",
+        "type": "text"
+      },
+      {
+        "readOnly": true,
+        "name": "createdAt",
+        "type": "datetime",
+        "title": "Submitted at"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "New",
+              "value": "new"
+            },
+            {
+              "title": "Read",
+              "value": "read"
+            },
+            {
+              "title": "Resolved",
+              "value": "resolved"
+            }
+          ]
+        },
+        "initialValue": "new",
+        "name": "status",
+        "type": "string"
+      },
+      {
+        "initialValue": false,
+        "description": "When true, item is marked as archived and hidden from the main list.",
+        "name": "archived",
+        "type": "boolean"
+      }
+    ],
+    "name": "suspendedContact",
+    "type": "document",
+    "title": "Suspended account contact"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Which business this table belongs to",
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "name": "site",
+        "type": "reference"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Table identifier shown to customers (e.g. 1, 2, A1)",
+        "name": "tableNumber",
+        "type": "string",
+        "title": "Table number"
+      },
+      {
+        "initialValue": 0,
+        "description": "Order in list and for display",
+        "name": "sortOrder",
+        "type": "number",
+        "title": "Sort order"
+      }
+    ],
+    "name": "tenantTable",
+    "type": "document",
+    "title": "Dine-in Table"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "name": "site",
+        "type": "reference",
+        "title": "Business"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "description": "Staff sign-in email (must match their Clerk account). Stored lowercase.",
+        "name": "email",
+        "type": "string"
+      },
+      {
+        "description": "Optional name shown in the staff list (e.g. \"Ahmad\", \"Sarah\").",
+        "name": "displayName",
+        "type": "string",
+        "title": "Display name"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Waiter",
+              "value": "waiter"
+            },
+            {
+              "title": "Cashier",
+              "value": "cashier"
+            },
+            {
+              "title": "Manager",
+              "value": "manager"
+            },
+            {
+              "title": "Custom",
+              "value": "custom"
+            }
+          ]
+        },
+        "initialValue": "waiter",
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "valid",
+                "constraint": [
+                  "waiter",
+                  "cashier",
+                  "manager",
+                  "custom"
+                ]
+              },
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "role",
+        "type": "string"
+      },
+      {
+        "options": {
+          "list": [
+            {
+              "title": "Orders (view & edit)",
+              "value": "orders"
+            },
+            {
+              "title": "Order history",
+              "value": "history"
+            },
+            {
+              "title": "Manage staff",
+              "value": "staff_manage"
+            },
+            {
+              "title": "Billing",
+              "value": "billing"
+            },
+            {
+              "title": "Business profile",
+              "value": "settings_business"
+            },
+            {
+              "title": "Menu",
+              "value": "settings_menu"
+            },
+            {
+              "title": "Tables",
+              "value": "settings_tables"
+            },
+            {
+              "title": "Delivery areas",
+              "value": "settings_areas"
+            },
+            {
+              "title": "Drivers",
+              "value": "settings_drivers"
+            },
+            {
+              "title": "Analytics",
+              "value": "analytics"
+            },
+            {
+              "title": "Transfer ownership",
+              "value": "transfer"
+            }
+          ]
+        },
+        "description": "Leave empty to use role defaults. For Custom role, set explicitly. Owner can override any role.",
+        "of": [
+          {
+            "type": "string"
+          }
+        ],
+        "hidden": "conditional",
+        "name": "permissions",
+        "type": "array",
+        "title": "Permission overrides"
+      },
+      {
+        "description": "Push notification tokens for this staff member (mobile).",
+        "of": [
+          {
+            "type": "string"
+          }
+        ],
+        "readOnly": true,
+        "hidden": true,
+        "name": "fcmTokens",
+        "type": "array",
+        "title": "FCM tokens"
+      },
+      {
+        "description": "Web Push for desktop. Set when staff enables notifications on orders page.",
+        "fields": [
+          {
+            "name": "endpoint",
+            "type": "string"
+          },
+          {
+            "name": "p256dh",
+            "type": "string",
+            "title": "p256dh key"
+          },
+          {
+            "name": "auth",
+            "type": "string",
+            "title": "Auth key"
+          }
+        ],
+        "readOnly": true,
+        "hidden": true,
+        "name": "pushSubscription",
+        "type": "object",
+        "title": "Web Push subscription"
+      },
+      {
+        "readOnly": true,
+        "name": "createdAt",
+        "type": "datetime",
+        "title": "Added at"
+      }
+    ],
+    "name": "tenantStaff",
+    "type": "document",
+    "title": "Staff member"
+  },
+  {
+    "description": "Standalone \"call waiter\" from table QR when customer has no order yet",
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "to": [
+          {
+            "type": "tenant"
+          }
+        ],
+        "name": "site",
+        "type": "reference"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "tableNumber",
+        "type": "string",
+        "title": "Table number"
+      },
+      {
+        "initialValue": "call_waiter",
+        "options": {
+          "list": [
+            {
+              "title": "Call waiter",
+              "value": "call_waiter"
+            }
+          ]
+        },
+        "readOnly": true,
+        "name": "type",
+        "type": "string",
+        "title": "Request type"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "createdAt",
+        "type": "datetime",
+        "title": "Created at"
+      },
+      {
+        "description": "When staff acknowledged the request (stops notification)",
+        "name": "acknowledgedAt",
+        "type": "datetime",
+        "title": "Acknowledged at"
+      }
+    ],
+    "name": "tableServiceRequest",
+    "type": "document",
+    "title": "Table service request"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "phoneNumber",
+        "type": "string"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "code",
+        "type": "string",
+        "title": "Verification Code"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "expiresAt",
+        "type": "datetime"
+      }
+    ],
+    "name": "otpVerification",
+    "type": "document",
+    "title": "OTP Verification"
+  },
+  {
+    "fields": [
+      {
+        "description": "The message that was sent (template parameter {{2}})",
+        "name": "message",
+        "type": "text",
+        "title": "Message Content"
+      },
+      {
+        "of": [
+          {
+            "type": "string"
+          }
+        ],
+        "name": "targets",
+        "type": "array",
+        "title": "Target Audiences"
+      },
+      {
+        "name": "countries",
+        "type": "string",
+        "title": "Country Filters"
+      },
+      {
+        "name": "cities",
+        "type": "string",
+        "title": "City Filters"
+      },
+      {
+        "name": "specificNumbers",
+        "type": "text"
+      },
+      {
+        "name": "sentCount",
+        "type": "number"
+      },
+      {
+        "name": "failedCount",
+        "type": "number"
+      },
+      {
+        "of": [
+          {
+            "type": "string"
+          }
+        ],
+        "name": "successfulNumbers",
+        "type": "array"
+      },
+      {
+        "of": [
+          {
+            "type": "string"
+          }
+        ],
+        "name": "failedNumbers",
+        "type": "array"
+      },
+      {
+        "name": "totalFound",
+        "type": "number",
+        "title": "Total Recipients Found"
+      },
+      {
+        "description": "Details about failed messages",
+        "name": "errors",
+        "type": "text"
+      },
+      {
+        "name": "createdAt",
+        "type": "datetime"
+      }
+    ],
+    "name": "broadcastHistory",
+    "type": "document"
+  },
+  {
+    "fields": [
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "instructionId",
+        "type": "string",
+        "title": "Instruction ID"
+      },
+      {
+        "validation": [
+          {
+            "rules": [
+              {
+                "flag": "presence",
+                "constraint": "required"
+              }
+            ],
+            "level": "error"
+          }
+        ],
+        "name": "processedAt",
+        "type": "datetime"
+      },
+      {
+        "name": "tenantSlug",
+        "type": "string"
+      },
+      {
+        "name": "planId",
+        "type": "string",
+        "title": "Plan ID"
+      }
+    ],
+    "readOnly": true,
+    "name": "bopProcessedPayment",
+    "type": "document",
+    "title": "BOP Processed Payment"
+  }
+]

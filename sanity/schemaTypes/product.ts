@@ -20,6 +20,13 @@ export const productType = defineType({
       description: 'When set, this product came from the catalog. Tenant can override name, image, and price.',
     }),
     defineField({
+      name: 'masterCatalogRef',
+      title: 'Master Catalog Product (optional)',
+      type: 'reference',
+      to: [{ type: 'masterCatalogProduct' }],
+      description: 'When set, this product was quick-added from the master catalog.',
+    }),
+    defineField({
       name: 'title_en',
       title: 'Title (English)',
       type: 'string',
@@ -116,6 +123,12 @@ export const productType = defineType({
       options: {
         hotspot: true,
       },
+    }),
+    defineField({
+      name: 'tempImageUrl',
+      title: 'Temporary image URL (optional)',
+      type: 'url',
+      description: 'Fallback temporary URL before image is uploaded to assets.',
     }),
     defineField({
       name: 'additionalImages',
