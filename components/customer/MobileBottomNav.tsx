@@ -146,9 +146,9 @@ export function MobileBottomNav() {
   const category = searchParams?.get('category') ?? ''
   const homeActive = pathname === '/'
   const restaurantsActive = pathname === '/search' && category === 'restaurant'
-  const storesActive = pathname === '/search' && category === 'retail'
   const ordersActive = pathname === '/my-orders'
   const searchActive = pathname === '/search'
+  const storesActive = pathname === '/search' && category === 'stores'
   const onTrackPage = !!pathname && /^\/t\/[^/]+\/track\/[^/]+$/.test(pathname)
   const ordersHighlight = activeOrderCount > 0 || onTrackPage
 
@@ -164,7 +164,7 @@ export function MobileBottomNav() {
   const items = [
     { href: '/', active: homeActive, label: homeLabel, icon: <Image src="/logo.webp" alt="Bedi" width={28} height={28} className="h-7 w-7 object-contain" /> },
     { href: '/search?category=restaurant', active: restaurantsActive, label: restaurantsLabel, icon: <UtensilsCrossed className="size-6" strokeWidth={2} /> },
-    { href: '/search?category=retail', active: storesActive, label: storesLabel, icon: <Store className="size-6" strokeWidth={2} /> },
+    { href: '/search?category=stores', active: storesActive, label: storesLabel, icon: <Store className="size-6" strokeWidth={2} /> },
     { href: '/my-orders', active: ordersActive, highlight: ordersHighlight, label: ordersLabel, icon: <Package className="size-6" strokeWidth={2} /> },
   ]
 

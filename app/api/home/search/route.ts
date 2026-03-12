@@ -26,14 +26,30 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: 'city is required' }, { status: 400 })
   }
 
+  const lang = (searchParams.get('lang') ?? 'en').toLowerCase() === 'ar' ? 'ar' : 'en'
   const q = qRaw.toLowerCase()
-  const matchPattern = q ? `*${q.split(/\s+/).filter(Boolean).join('*')}*` : ''
+  const terms = q.split(/\s+/).filter(Boolean)
+
+  // For multi-word (e.g. "3 pieces"), require each term to match (AND logic) for products.
+  const productMatchFilter =
+    terms.length > 0
+      ? terms
+          .map(
+            (_, i) =>
+              `(title_en match $term${i} || title_ar match $term${i} || category->title_en match $term${i} || category->title_ar match $term${i})`
+          )
+          .join(' && ')
+      : 'true'
 
   const countryFilter = country ? '&& (country == $country || lower(country) == lower($country))' : ''
+  const termParams: Record<string, string> = {}
+  terms.forEach((t, i) => {
+    termParams[`term${i}`] = `*${t}*`
+  })
   const params: Record<string, string | number> = {
     city,
     ...(country ? { country } : {}),
-    ...(matchPattern ? { matchPattern } : {}),
+    ...termParams,
   }
 
   type TenantRow = {
@@ -77,9 +93,9 @@ export async function GET(req: NextRequest) {
       }`,
       params
     ),
-    matchPattern
+    terms.length
       ? client.fetch<ProductRow[]>(
-          `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}]._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && (title_en match $matchPattern || title_ar match $matchPattern || category->title_en match $matchPattern || category->title_ar match $matchPattern)] | order(site->name asc) [0...50] {
+          `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}]._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && ${productMatchFilter}] | order(site->name asc) [0...50] {
             _id,
             title_en,
             title_ar,
@@ -101,13 +117,12 @@ export async function GET(req: NextRequest) {
 
   const tenants = rawTenants ?? []
 
-  const businesses = (matchPattern
+  const businesses = (terms.length
     ? tenants.filter((t) => {
         const name = (t.name ?? '').toLowerCase()
         const nameEn = (t.name_en ?? '').toLowerCase()
         const nameAr = (t.name_ar ?? '').toLowerCase()
-        const terms = q.split(/\s+/).filter(Boolean)
-        return terms.some(
+        return terms.every(
           (term) =>
             name.includes(term) ||
             nameEn.includes(term) ||
@@ -171,17 +186,21 @@ export async function GET(req: NextRequest) {
     const businessItems: SearchableItem[] = tenants.map((t) => ({
       id: t._id,
       text: [t.name, t.name_en, t.name_ar].filter(Boolean).join(' ') || t._id,
+      textEn: (t.name_en ?? t.name) || undefined,
+      textAr: (t.name_ar ?? t.name) || undefined,
     }))
     const productItems: SearchableItem[] = (products ?? []).map((p) => ({
       id: p._id,
       text: [p.title_en, p.title_ar, p.categoryTitleEn, p.categoryTitleAr].filter(Boolean).join(' ') || p._id,
       textSecondary: undefined as string | undefined,
+      textEn: (p.title_en ?? p.title_ar) || undefined,
+      textAr: (p.title_ar ?? p.title_en) || undefined,
     }))
     let pool = [...businessItems, ...productItems]
     if (pool.length < 20) {
       const extra = await client.fetch<Array<{ _id: string; title_en?: string | null; title_ar?: string | null }>>(
         `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}]._id)] | order(site->name asc) [0...80] { _id, title_en, title_ar }`,
-        { ...params }
+        { city, ...(country ? { country } : {}) }
       )
       pool = [
         ...pool,
@@ -189,11 +208,13 @@ export async function GET(req: NextRequest) {
           id: p._id,
           text: [p.title_en, p.title_ar].filter(Boolean).join(' ') || p._id,
           textSecondary: undefined as string | undefined,
+          textEn: (p.title_en ?? p.title_ar) || undefined,
+          textAr: (p.title_ar ?? p.title_en) || undefined,
         })),
       ]
     }
     if (pool.length > 0) {
-      didYouMean = suggestCorrection(qRaw, pool, { threshold: 0.5, limit: 5 })
+      didYouMean = suggestCorrection(qRaw, pool, { threshold: 0.5, limit: 5, preferLang: lang })
     }
   }
 

@@ -42,13 +42,17 @@ export function MenuSearch({ categories, popularProducts, onProductClick, restau
       id: p._id,
       text: [p.title_en, p.title_ar].filter(Boolean).join(' '),
       textSecondary: [p.description_en, p.description_ar].filter(Boolean).join(' ') || undefined,
+      textEn: p.title_en || undefined,
+      textAr: p.title_ar || undefined,
     }))
     const matched = fuzzySearch(q, searchable, { threshold: 0.45, limit: 50 })
     const ids = new Set(matched.map((m) => m.id))
     const filtered = uniqueProducts.filter((p) => ids.has(p._id))
-    const suggestion = filtered.length === 0 && searchable.length > 0 ? suggestCorrection(q, searchable, { threshold: 0.5 }) : null
+    const suggestion = filtered.length === 0 && searchable.length > 0
+      ? suggestCorrection(q, searchable, { threshold: 0.5, preferLang: lang === 'ar' ? 'ar' : 'en' })
+      : null
     return { filteredProducts: filtered, didYouMean: suggestion }
-  }, [searchQuery, uniqueProducts])
+  }, [searchQuery, uniqueProducts, lang])
 
   // Close dropdown when clicking outside
   useEffect(() => {

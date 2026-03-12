@@ -72,6 +72,17 @@ function FilterPanelContent({ meta, category, section, area, setFilter, lang, t 
           >
             {t('All', 'الكل')}
           </button>
+          {/* Stores = markets, pharmacies, retail, bakery, other (excludes restaurant/cafe) */}
+          {(meta?.categoryCounts?.stores ?? 0) > 0 && (
+            <button
+              onClick={() => setFilter('stores', undefined, undefined)}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                category === 'stores' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {t('Stores', 'متاجر')}
+            </button>
+          )}
           {BUSINESS_TYPES.filter(
             (b) => !meta?.categoryCounts || (meta.categoryCounts[b.value] ?? 0) > 0
           ).map((b) => (
@@ -236,7 +247,7 @@ export function SearchPageClient() {
     }
     if (debouncedQuery) {
       setLoading(true)
-      const params = new URLSearchParams({ city, q: debouncedQuery })
+      const params = new URLSearchParams({ city, q: debouncedQuery, lang: lang === 'ar' ? 'ar' : 'en' })
       fetch(`/api/home/search?${params}`)
         .then((res) => res.json())
         .then((data) => {
@@ -274,7 +285,7 @@ export function SearchPageClient() {
         setMeta(data?.meta ?? null)
       })
       .finally(() => setLoading(false))
-  }, [isChosen, city, category, section, area, debouncedQuery])
+  }, [isChosen, city, category, section, area, debouncedQuery, lang])
 
   useEffect(() => {
     if (!isChosen || !city) {

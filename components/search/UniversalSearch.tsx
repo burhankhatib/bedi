@@ -76,7 +76,7 @@ export function UniversalSearch({
     setLoading(true)
     try {
       if (tenantSlug) {
-        const res = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/search?q=${encodeURIComponent(q)}&limit=20`)
+        const res = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/search?q=${encodeURIComponent(q)}&limit=20&lang=${lang === 'ar' ? 'ar' : 'en'}`)
         const data = await res.json()
         setResults({
           businesses: [],
@@ -88,7 +88,7 @@ export function UniversalSearch({
           setResults(null)
           return
         }
-        const params = new URLSearchParams({ city, q })
+        const params = new URLSearchParams({ city, q, lang: lang === 'ar' ? 'ar' : 'en' })
         const res = await fetch(`/api/home/search?${params}`)
         const data = await res.json()
         setResults({
@@ -102,7 +102,7 @@ export function UniversalSearch({
     } finally {
       setLoading(false)
     }
-  }, [tenantSlug, city, isChosen])
+  }, [tenantSlug, city, isChosen, lang])
 
   useEffect(() => {
     fetchResults(debouncedQuery)

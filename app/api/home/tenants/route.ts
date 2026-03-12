@@ -62,9 +62,16 @@ export async function GET(req: NextRequest) {
   const area = searchParams.get('area') ?? ''
 
   const subcategoryFilter = subcategory ? '&& $subcategory in businessSubcategories[]._ref' : ''
+  // "stores" = everything except restaurant and cafe (markets, pharmacies, retail, bakery, other)
+  const isStoresCategory = category === 'stores'
+  const categoryFilter = category
+    ? isStoresCategory
+      ? '&& businessType != "restaurant" && businessType != "cafe"'
+      : '&& businessType == $category'
+    : ''
   const params: Record<string, string> = {
     city,
-    ...(category ? { category } : {}),
+    ...(category && !isStoresCategory ? { category } : {}),
     ...(subcategory ? { subcategory } : {}),
   }
 
@@ -85,9 +92,7 @@ export async function GET(req: NextRequest) {
       areas?: Array<{ name_en?: string; name_ar?: string }>
     }>
   >(
-    `*[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now()))) ${
-      category ? '&& businessType == $category' : ''
-    } ${subcategoryFilter}] | order(name asc) {
+    `*[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now()))) ${categoryFilter} ${subcategoryFilter}] | order(name asc) {
       _id,
       name,
       "name_en": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_en,
@@ -135,10 +140,15 @@ export async function GET(req: NextRequest) {
   }
 
   const categoryCounts: Record<string, number> = {}
+  let storesCount = 0
   for (const t of rawTenants ?? []) {
     const bt = t.businessType ?? ''
-    if (bt) categoryCounts[bt] = (categoryCounts[bt] ?? 0) + 1
+    if (bt) {
+      categoryCounts[bt] = (categoryCounts[bt] ?? 0) + 1
+      if (bt !== 'restaurant' && bt !== 'cafe') storesCount++
+    }
   }
+  if (storesCount > 0) categoryCounts['stores'] = storesCount
 
   const availableSections = new Map<string, { en: string; ar: string }>()
   for (const t of rawTenants ?? []) {

@@ -383,9 +383,8 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
           </div>
         )}
 
-        {/* Mobile controls: Search & Mobile actions */}
+        {/* Mobile controls: PWA icon next to logo (in desktop block), menu on right. Hide PWA from this block to avoid duplicate. */}
         <div className="md:hidden flex flex-1 items-center justify-end gap-2">
-          <PWAInstallIcon config={getCustomerPWAConfig()} className="text-emerald-600 ring-emerald-400/30 hover:bg-emerald-500/25" />
           {!isSignedIn && <AuthModalButton t={t} isRtl={isRtl} />}
           
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>

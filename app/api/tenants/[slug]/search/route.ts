@@ -22,6 +22,7 @@ export async function GET(
   const { slug } = await params
   const qRaw = (req.nextUrl.searchParams.get('q') ?? '').trim()
   const limit = Math.min(Number(req.nextUrl.searchParams.get('limit')) || 30, 50)
+  const lang = (req.nextUrl.searchParams.get('lang') ?? 'en').toLowerCase() === 'ar' ? 'ar' : 'en'
 
   const tenant = await getTenantBySlug(slug)
   if (!tenant) return NextResponse.json({ error: 'Business not found' }, { status: 404 })
@@ -89,6 +90,8 @@ export async function GET(
       .filter(Boolean)
       .join(' '),
     textSecondary: [p.description_en, p.description_ar].filter(Boolean).join(' ') || undefined,
+    textEn: (p.title_en ?? p.title_ar) || undefined,
+    textAr: (p.title_ar ?? p.title_en) || undefined,
   }))
 
   const fuzzyMatched = fuzzySearch(qRaw, searchableItems, { threshold: 0.45, limit })
@@ -116,7 +119,7 @@ export async function GET(
 
   let didYouMean: string | null = null
   if (productResult.length === 0 && searchableItems.length > 0) {
-    didYouMean = suggestCorrection(qRaw, searchableItems, { threshold: 0.5, limit: 3 })
+    didYouMean = suggestCorrection(qRaw, searchableItems, { threshold: 0.5, limit: 3, preferLang: lang })
   }
 
   return NextResponse.json({ products: productResult, didYouMean })

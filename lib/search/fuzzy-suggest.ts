@@ -8,22 +8,29 @@ import { normalizeForSearch } from './normalize'
 
 export interface SearchableItem {
   id: string
-  /** Primary search text (e.g. product title, business name) */
+  /** Primary search text (e.g. product title, business name) — used for matching */
   text: string
   /** Secondary text for search (e.g. description, alternate name) */
   textSecondary?: string
+  /** Display text in English — when preferLang is 'en', return this */
+  textEn?: string
+  /** Display text in Arabic — when preferLang is 'ar', return this */
+  textAr?: string
 }
 
 /**
  * Find the best fuzzy match from a list of searchable items.
  * Returns the suggested text if similarity is above threshold.
+ * When preferLang is set, returns only the language matching the UI.
  */
 export function suggestCorrection(
   query: string,
   items: SearchableItem[],
   options?: {
-    threshold?: number // 0 = exact, 1 = match anything. Default 0.4 allows typos
+    threshold?: number
     limit?: number
+    /** Return suggestion in UI language only */
+    preferLang?: 'en' | 'ar'
   }
 ): string | null {
   const q = query.trim()
@@ -31,6 +38,7 @@ export function suggestCorrection(
 
   const threshold = options?.threshold ?? 0.45
   const limit = options?.limit ?? 5
+  const preferLang = options?.preferLang
 
   const fuse = new Fuse(items, {
     keys: ['text', 'textSecondary'],
@@ -50,7 +58,10 @@ export function suggestCorrection(
   const best = results[0]
   if (!best || (best.score ?? 1) > threshold) return null
 
-  return best.item.text
+  const item = best.item
+  if (preferLang === 'en' && item.textEn) return item.textEn
+  if (preferLang === 'ar' && item.textAr) return item.textAr
+  return item.text
 }
 
 /**
