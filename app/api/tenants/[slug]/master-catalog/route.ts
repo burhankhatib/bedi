@@ -27,7 +27,10 @@ export async function GET(
   if (!auth.ok) return NextResponse.json({ error: 'Forbidden' }, { status: auth.status })
 
   const qRaw = (req.nextUrl.searchParams.get('q') ?? '').trim()
-  const category = (req.nextUrl.searchParams.get('category') ?? '').trim()
+  const categoryRaw = (req.nextUrl.searchParams.get('category') ?? '').trim()
+  // Map supermarket, greengrocer (vegetable & fruit stores) → grocery so they see grocery catalog items
+  const category =
+    categoryRaw === 'supermarket' || categoryRaw === 'greengrocer' ? 'grocery' : categoryRaw
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '100', 10) || 100, 200)
   const qNormalized = normalizeForSearch(qRaw)
   const qTerms = qNormalized.split(/\s+/).filter(Boolean)

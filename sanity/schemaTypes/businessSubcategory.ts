@@ -7,7 +7,7 @@ import { defineField, defineType } from 'sanity'
  * home-cooked, broasted, healthy, toasts, grills, oriental-sweets, gateau, drinks, asian.
  * Cafe: coffee, tea, smoothies, desserts, light-meals, breakfast.
  * Bakery: bread, pastries, cakes, oriental-sweets, savory.
- * Grocery: supermarket, mini-market, organic, dairy, fruits-vegetables.
+ * Grocery / Supermarket / Greengrocer: supermarket, mini-market, organic, dairy, fruits-vegetables.
  * Retail: clothing, electronics, gifts, other.
  * Pharmacy: full, mini, other.
  */
@@ -55,6 +55,8 @@ export const businessSubcategoryType = defineType({
           { title: 'Cafe', value: 'cafe' },
           { title: 'Bakery', value: 'bakery' },
           { title: 'Grocery / Market', value: 'grocery' },
+          { title: 'Supermarket', value: 'supermarket' },
+          { title: 'Greengrocer (Vegetables & Fruits)', value: 'greengrocer' },
           { title: 'Retail / Shop', value: 'retail' },
           { title: 'Pharmacy', value: 'pharmacy' },
           { title: 'Other', value: 'other' },
