@@ -81,7 +81,10 @@ self.addEventListener('notificationclick', function (event) {
       for (let i = 0; i < clientList.length; i++) {
         const c = clientList[i]
         if (c.url && c.url.indexOf(self.location.origin) !== -1 && 'focus' in c) {
-          if ('navigate' in c && typeof c.navigate === 'function') c.navigate(fullUrl)
+          const needsNav = c.url !== fullUrl && 'navigate' in c && typeof c.navigate === 'function'
+          if (needsNav) {
+            return c.navigate(fullUrl).then(function () { return c.focus() }).catch(function () { return c.focus() })
+          }
           return c.focus()
         }
       }

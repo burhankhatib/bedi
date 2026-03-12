@@ -768,7 +768,7 @@ function DeliveryETABox({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-              className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/40"
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
               onClick={handleArrivalOkay}
             >
               <motion.div
@@ -776,7 +776,7 @@ function DeliveryETABox({
                 animate={{ scale: 1 }}
                 exit={{ scale: 0.9 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl overflow-hidden"
+                className="relative w-full max-w-md max-h-[min(560px,calc(100dvh-6rem))] overflow-y-auto rounded-3xl bg-white shadow-2xl my-auto"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="bg-gradient-to-b from-emerald-500 to-emerald-600 px-6 pt-6 pb-5 text-white text-center relative overflow-hidden">

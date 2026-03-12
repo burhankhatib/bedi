@@ -104,15 +104,13 @@ self.addEventListener('notificationclick', function (event) {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
       for (var i = 0; i < clientList.length; i++) {
         var client = clientList[i]
-        if (client.url === fullUrl && 'focus' in client) {
-          return client.focus()
-        }
+        if (client.url === fullUrl && 'focus' in client) return client.focus()
       }
       for (var j = 0; j < clientList.length; j++) {
         var c = clientList[j]
         if (c.url && c.url.indexOf(self.location.origin) !== -1 && 'focus' in c) {
-          c.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
-          if ('navigate' in c && c.url !== fullUrl) c.navigate(fullUrl)
+          var needsNav = c.url !== fullUrl && 'navigate' in c && typeof c.navigate === 'function'
+          if (needsNav) return c.navigate(fullUrl).then(function () { return c.focus() }).catch(function () { return c.focus() })
           return c.focus()
         }
       }
