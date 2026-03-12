@@ -54,69 +54,73 @@ export async function POST(
     }
 
     const [categoryCheck, masterCatalogProduct, catalogProduct, tenantProduct] = await Promise.all([
-    writeClient.fetch<{ _id: string } | null>(
-      `*[_type == "category" && _id == $catId && site._ref == $siteId][0]{ _id }`,
-      { catId: categoryId, siteId: auth.tenantId }
-    ),
-    masterCatalogId
-      ? writeClient.fetch<{
-          _id: string
-          nameEn?: string
-          nameAr?: string
-          category?: string
-          searchQuery?: string
-          unitType?: string
-        } | null>(
-          `*[_type == "masterCatalogProduct" && _id == $id][0]{
-            _id, nameEn, nameAr, category, searchQuery, unitType
-          }`,
-          { id: masterCatalogId }
-        )
-      : Promise.resolve(null),
-    writeClient.fetch<{
-      _id: string
-      title_en?: string
-      title_ar?: string
-      brand?: string
-      description_en?: string
-      description_ar?: string
-      defaultUnit?: string
-      images?: Array<{ asset?: { _ref?: string } }>
-      category?: { _ref: string }
-    } | null>(`*[_type == "catalogProduct" && _id == $id][0]`, { id: productId }),
-    writeClient.fetch<{
-      _id: string
-      site: { _ref: string }
-      siteBusinessType?: string
-      title_en?: string
-      title_ar?: string
-      description_en?: string
-      description_ar?: string
-      ingredients_en?: string[]
-      ingredients_ar?: string[]
-      price?: number
-      specialPrice?: number
-      specialPriceExpires?: string
-      currency?: string
-      saleUnit?: string
-      sortOrder?: number
-      isPopular?: boolean
-      isAvailable?: boolean
-      dietaryTags?: string[]
-      addOns?: unknown[]
-      variants?: unknown[]
-      image?: { asset?: { _ref?: string } }
-      additionalImages?: Array<{ asset?: { _ref?: string } }>
-    } | null>(
-      `*[_type == "product" && _id == $id][0]{
-        _id, "site": site, "siteBusinessType": site->businessType,
-        title_en, title_ar, description_en, description_ar,
-        ingredients_en, ingredients_ar, price, specialPrice, specialPriceExpires, currency,
-        saleUnit, sortOrder, isPopular, isAvailable, dietaryTags, addOns, variants,
-        image, additionalImages
-      }`,
-      { id: productId }
-    ),
+      writeClient.fetch<{ _id: string } | null>(
+        `*[_type == "category" && _id == $catId && site._ref == $siteId][0]{ _id }`,
+        { catId: categoryId, siteId: auth.tenantId }
+      ),
+      masterCatalogId
+        ? writeClient.fetch<{
+            _id: string
+            nameEn?: string
+            nameAr?: string
+            category?: string
+            searchQuery?: string
+            unitType?: string
+          } | null>(
+            `*[_type == "masterCatalogProduct" && _id == $id][0]{
+              _id, nameEn, nameAr, category, searchQuery, unitType
+            }`,
+            { id: masterCatalogId }
+          )
+        : Promise.resolve(null),
+      productId
+        ? writeClient.fetch<{
+            _id: string
+            title_en?: string
+            title_ar?: string
+            brand?: string
+            description_en?: string
+            description_ar?: string
+            defaultUnit?: string
+            images?: Array<{ asset?: { _ref?: string } }>
+            category?: { _ref: string }
+          } | null>(`*[_type == "catalogProduct" && _id == $id][0]`, { id: productId })
+        : Promise.resolve(null),
+      productId
+        ? writeClient.fetch<{
+            _id: string
+            site: { _ref: string }
+            siteBusinessType?: string
+            title_en?: string
+            title_ar?: string
+            description_en?: string
+            description_ar?: string
+            ingredients_en?: string[]
+            ingredients_ar?: string[]
+            price?: number
+            specialPrice?: number
+            specialPriceExpires?: string
+            currency?: string
+            saleUnit?: string
+            sortOrder?: number
+            isPopular?: boolean
+            isAvailable?: boolean
+            dietaryTags?: string[]
+            addOns?: unknown[]
+            variants?: unknown[]
+            image?: { asset?: { _ref?: string } }
+            additionalImages?: Array<{ asset?: { _ref?: string } }>
+          } | null>(
+            `*[_type == "product" && _id == $id][0]{
+              _id, "site": site, "siteBusinessType": site->businessType,
+              title_en, title_ar, description_en, description_ar,
+              ingredients_en, ingredients_ar, price, specialPrice, specialPriceExpires, currency,
+              saleUnit, sortOrder, isPopular, isAvailable, dietaryTags, addOns, variants,
+              image, additionalImages
+            }`,
+            { id: productId }
+          )
+        : Promise.resolve(null),
     ])
 
     if (!categoryCheck) return NextResponse.json({ error: 'Category not found or not yours' }, { status: 404 })

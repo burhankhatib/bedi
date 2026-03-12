@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/components/LanguageContext'
+import { isStandaloneMode } from '@/lib/pwa/detect'
 
 const FETCH_TIMEOUT_MS = 8000
 const FALLBACK_REDIRECT_MS = 5000
@@ -36,6 +37,10 @@ export function DriverHomeRedirect() {
         clearTimeout(fallback)
         if (hasRedirected.current) return
         const target = data?._id ? '/driver/orders' : '/driver/profile'
+        if (isStandaloneMode()) {
+          hardRedirect(target)
+          return
+        }
         router.replace(target)
         setTimeout(() => hardRedirect(target), 2500)
       })
@@ -43,8 +48,13 @@ export function DriverHomeRedirect() {
         clearTimeout(timeout)
         clearTimeout(fallback)
         if (!hasRedirected.current) {
-          router.replace('/driver/profile')
-          setTimeout(() => hardRedirect('/driver/profile'), 2500)
+          const target = '/driver/profile'
+          if (isStandaloneMode()) {
+            hardRedirect(target)
+            return
+          }
+          router.replace(target)
+          setTimeout(() => hardRedirect(target), 2500)
         }
       })
 

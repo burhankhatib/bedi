@@ -22,6 +22,7 @@ import { PWAManager } from '@/components/pwa/PWAManager'
 import { PWAInstallIcon } from '@/components/pwa/PWAInstallIcon'
 import { PWAReinstallHelp } from '@/components/pwa/PWAReinstallHelp'
 import { getDriverPWAConfig } from '@/lib/pwa/configs'
+import { isStandaloneMode } from '@/lib/pwa/detect'
 import { PREFER_DRIVER_KEY } from '@/components/StandaloneDriverRedirect'
 
 const NAV_ITEMS = [
@@ -70,10 +71,15 @@ export function DriverLayoutClient({
 
   useEffect(() => {
     if (!needsRedirect) return
-    router.replace('/driver/profile')
+    const target = '/driver/profile'
+    if (typeof window !== 'undefined' && isStandaloneMode()) {
+      window.location.href = target
+      return
+    }
+    router.replace(target)
     const fallback = setTimeout(() => {
-      if (typeof window !== 'undefined' && window.location.pathname !== '/driver/profile') {
-        window.location.href = '/driver/profile'
+      if (typeof window !== 'undefined' && window.location.pathname !== target) {
+        window.location.href = target
       }
     }, 2500)
     return () => clearTimeout(fallback)
