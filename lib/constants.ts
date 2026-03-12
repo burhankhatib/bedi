@@ -19,6 +19,8 @@ export const BUSINESS_TYPES = [
   { value: 'cafe', label: 'Cafe', labelAr: 'مقهى', supportsDineIn: true },
   { value: 'bakery', label: 'Bakery', labelAr: 'مخبز', supportsDineIn: true },
   { value: 'grocery', label: 'Grocery / Market', labelAr: 'بقالة', supportsDineIn: false },
+  { value: 'supermarket', label: 'Supermarket', labelAr: 'سوبرماركت', supportsDineIn: false },
+  { value: 'greengrocer', label: 'Greengrocer', labelAr: 'خضار وفواكه', supportsDineIn: false },
   { value: 'retail', label: 'Retail / Shop', labelAr: 'متجر', supportsDineIn: false },
   { value: 'pharmacy', label: 'Pharmacy', labelAr: 'صيدلية', supportsDineIn: false },
   { value: 'other', label: 'Other', labelAr: 'أخرى', supportsDineIn: false },

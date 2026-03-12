@@ -16,6 +16,8 @@ export const businessCategoryType = defineType({
           { title: 'Cafe', value: 'cafe' },
           { title: 'Bakery', value: 'bakery' },
           { title: 'Grocery / Market', value: 'grocery' },
+          { title: 'Supermarket', value: 'supermarket' },
+          { title: 'Greengrocer', value: 'greengrocer' },
           { title: 'Retail / Shop', value: 'retail' },
           { title: 'Pharmacy', value: 'pharmacy' },
           { title: 'Other', value: 'other' },

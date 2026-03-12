@@ -28,11 +28,19 @@ function pickFreshImage(candidates: ImageSource[]): ImageSource | null {
  * Uses subcategory image when available; otherwise category or product image from a tenant.
  * Rotates between multiple restaurants' images for freshness.
  */
+const STORE_BUSINESS_TYPES = ['grocery', 'supermarket', 'greengrocer', 'retail', 'pharmacy', 'bakery', 'other']
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const city = searchParams.get('city') ?? ''
-  // Default to restaurant so homepage "Browse by specialty" shows only restaurant/cafe-style sections
   const categoryParam = searchParams.get('category') ?? 'restaurant'
+  const isStores = categoryParam === 'stores'
+  const tenantFilter = isStores
+    ? '&& businessType != "restaurant" && businessType != "cafe"'
+    : categoryParam ? '&& businessType == $category' : ''
+  const subcatFilter = isStores
+    ? `&& businessType in ${JSON.stringify(STORE_BUSINESS_TYPES)}`
+    : categoryParam ? '&& businessType == $category' : ''
 
   const { categoriesWithImages, subcategoriesInUse, tenantsWithSubs } = await client.fetch<{
     categoriesWithImages: Array<{
@@ -54,9 +62,7 @@ export async function GET(req: NextRequest) {
     tenantsWithSubs: Array<{ _id: string; businessSubcategoryIds: string[] }>
   }>(
     `{
-      "categoriesWithImages": *[_type == "category" && site._ref in *[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now()))) ${
-        categoryParam ? '&& businessType == $category' : ''
-      }]._id] | order(site->name asc) {
+      "categoriesWithImages": *[_type == "category" && site._ref in *[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now()))) ${tenantFilter}]._id] | order(site->name asc) {
         _id,
         title_en,
         title_ar,
@@ -64,9 +70,7 @@ export async function GET(req: NextRequest) {
         "siteRef": site._ref,
         "sampleProductImage": *[_type == "product" && references(^._id) && defined(image)][0].image
       },
-      "subcategoriesInUse": *[_type == "businessSubcategory" ${
-        categoryParam ? '&& businessType == $category' : ''
-      }] | order(sortOrder asc, title_en asc) {
+      "subcategoriesInUse": *[_type == "businessSubcategory" ${subcatFilter}] | order(sortOrder asc, title_en asc) {
         _id,
         title_en,
         title_ar,
@@ -74,11 +78,9 @@ export async function GET(req: NextRequest) {
         image,
         sortOrder
       },
-      "tenantsWithSubs": *[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now()))) && count(businessSubcategories) > 0 ${
-        categoryParam ? '&& businessType == $category' : ''
-      }] { _id, "businessSubcategoryIds": businessSubcategories[]._ref }
+      "tenantsWithSubs": *[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now()))) && count(businessSubcategories) > 0 ${tenantFilter}] { _id, "businessSubcategoryIds": businessSubcategories[]._ref }
     }`,
-    { city, ...(categoryParam ? { category: categoryParam } : {}) }
+    { city, ...(categoryParam && !isStores ? { category: categoryParam } : {}) }
   )
 
   const sectionMap = new Map<

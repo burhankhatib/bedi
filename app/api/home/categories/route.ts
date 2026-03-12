@@ -39,12 +39,33 @@ export async function GET(req: NextRequest) {
   )
 
   const tenantCounts = new Map<string, number>()
+  let storesCount = 0
   for (const t of tenants ?? []) {
     const v = t?.businessType ?? ''
-    if (v) tenantCounts.set(v, (tenantCounts.get(v) ?? 0) + 1)
+    if (v) {
+      tenantCounts.set(v, (tenantCounts.get(v) ?? 0) + 1)
+      if (v !== 'restaurant' && v !== 'cafe') storesCount++
+    }
   }
 
-  const result = (categories ?? [])
+  const result: Array<{ _id: string; value: string; name_en: string; name_ar: string; imageUrl: string | null; tenantCount: number }> = []
+
+  // Inject "stores" when there are store-type businesses (supermarket, grocery, pharmacy, etc.)
+  if (storesCount > 0) {
+    const storesImage = (categories ?? []).find((c) =>
+      ['grocery', 'supermarket', 'greengrocer', 'retail', 'pharmacy', 'bakery'].includes(c.value ?? '')
+    )?.image
+    result.push({
+      _id: 'stores',
+      value: 'stores',
+      name_en: 'Stores',
+      name_ar: 'متاجر',
+      imageUrl: storesImage?.asset?._ref ? urlFor(storesImage).width(400).height(400).url() : null,
+      tenantCount: storesCount,
+    })
+  }
+
+  const categoryResults = (categories ?? [])
     .filter((c) => (tenantCounts.get(c.value ?? '') ?? 0) > 0)
     .map((c) => {
       const imageUrl = c.image?.asset?._ref
@@ -60,5 +81,6 @@ export async function GET(req: NextRequest) {
       }
     })
 
-  return Response.json(result)
+  const merged = [...result, ...categoryResults].sort((a, b) => b.tenantCount - a.tenantCount)
+  return Response.json(merged)
 }

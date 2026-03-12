@@ -58,8 +58,9 @@ const SheetContent = React.forwardRef<
   SheetContentProps
 >(({ side = 'right', className, children, ...props }, ref) => (
   <SheetPortal>
-    <SheetOverlay />
-    <SheetPrimitive.Content
+    <div translate="no" style={{ isolation: 'isolate' }}>
+      <SheetOverlay />
+      <SheetPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), 'flex flex-col p-0 pt-[max(1rem,env(safe-area-inset-top))]', className)}
       {...props}
@@ -72,6 +73,7 @@ const SheetContent = React.forwardRef<
         <X className="h-5 w-5" />
       </SheetPrimitive.Close>
     </SheetPrimitive.Content>
+    </div>
   </SheetPortal>
 ))
 SheetContent.displayName = SheetPrimitive.Content.displayName

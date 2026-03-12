@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'motion/react'
@@ -32,6 +32,7 @@ export function StoreTypeSidebar({ activeCategory, onChange }: StoreTypeSidebarP
   const [hasDriver, setHasDriver] = useState(false)
   const [hasTenants, setHasTenants] = useState(false)
   const [accountLoading, setAccountLoading] = useState(true)
+  const initialCategorySet = useRef(false)
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -64,7 +65,17 @@ export function StoreTypeSidebar({ activeCategory, onChange }: StoreTypeSidebarP
     const params = new URLSearchParams({ city })
     fetch(`/api/home/categories?${params}`)
       .then((res) => res.json())
-      .then((data) => setCategories(Array.isArray(data) ? data : []))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : []
+        setCategories(list)
+        if (list.length > 0 && !initialCategorySet.current && activeCategory === 'restaurant') {
+          const hasRestaurant = list.some((c: Category) => c.value === 'restaurant' && c.tenantCount > 0)
+          if (!hasRestaurant) {
+            initialCategorySet.current = true
+            onChange(list[0]?.value ?? 'stores')
+          }
+        }
+      })
       .catch(() => setCategories([]))
       .finally(() => setLoading(false))
   }, [isChosen, city])

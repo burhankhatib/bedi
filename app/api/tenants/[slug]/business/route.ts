@@ -144,7 +144,7 @@ export async function PATCH(
     await writeClient.patch(auth.tenantId).set({ name: String(body.name) }).commit()
   }
   if (body.businessType != null) {
-    const validTypes = ['restaurant', 'cafe', 'bakery', 'grocery', 'retail', 'pharmacy', 'other']
+    const validTypes = ['restaurant', 'cafe', 'bakery', 'grocery', 'supermarket', 'greengrocer', 'retail', 'pharmacy', 'other']
     const bt = String(body.businessType).trim()
     if (validTypes.includes(bt)) {
       await writeClient.patch(auth.tenantId).set({ businessType: bt }).commit()

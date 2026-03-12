@@ -53,8 +53,9 @@ function DrawerContent({
 }: React.ComponentProps<typeof DrawerPrimitive.Content> & { overlayClassName?: string }) {
   return (
     <DrawerPortal data-slot="drawer-portal">
-      <DrawerOverlay className={overlayClassName} />
-      <DrawerPrimitive.Content
+      <div translate="no" style={{ isolation: 'isolate' }}>
+        <DrawerOverlay className={overlayClassName} />
+        <DrawerPrimitive.Content
         data-slot="drawer-content"
         className={cn(
           "group/drawer-content bg-background fixed z-50 flex h-auto flex-col",
@@ -69,6 +70,7 @@ function DrawerContent({
         <div className="bg-muted mx-auto mt-4 hidden h-2 w-[100px] shrink-0 rounded-full group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
         {children}
       </DrawerPrimitive.Content>
+      </div>
     </DrawerPortal>
   )
 }
