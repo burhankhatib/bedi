@@ -71,9 +71,11 @@ export function useInstallPrompt(
   }, [os.isStandalone, os.isIOS])
 
   // Auto-reveal after scroll or timeout (especially for iOS which has no beforeinstallprompt)
+  // Skip when hideAutoReveal (icon-only install UX)
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (os.isStandalone) return
+    if (config.hideAutoReveal) return
 
     const reveal = () => {
       if (revealedRef.current) return
@@ -92,7 +94,7 @@ export function useInstallPrompt(
       clearTimeout(timer)
       window.removeEventListener('scroll', onScroll)
     }
-  }, [os.isStandalone])
+  }, [os.isStandalone, config.hideAutoReveal])
 
   const triggerInstall = useCallback(async () => {
     if (!deferredPrompt) {
@@ -140,6 +142,7 @@ export function useInstallPrompt(
   return {
     canInstall,
     showPrompt: !os.isStandalone && showPrompt && dismissExpired,
+    dismissExpired,
     installing,
     triggerInstall,
     dismiss,

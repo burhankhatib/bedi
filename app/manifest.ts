@@ -6,9 +6,9 @@ import type { MetadataRoute } from 'next'
  * <link rel="manifest"> in every page's server-rendered HTML.
  *
  * Child pages override this via generateMetadata({ manifest: ... }):
- *   /t/[slug]  → uses the business-specific manifest
  *   /driver/*  → uses the driver manifest (from driver layout metadata)
  *   /dashboard/* → uses the dashboard manifest (from dashboard layout metadata)
+ *   /t/[slug]  → uses this Bedi Delivery manifest (no per-business PWA)
  *
  * Using relative URLs here (no origin required) — the browser resolves
  * them against the manifest URL origin, which is the same as the app origin.

@@ -37,6 +37,8 @@ import {
 } from '@clerk/nextjs'
 import { UserButtonWithSignOutUrl } from '@/components/Auth/UserButtonWithSignOutUrl'
 import { CustomerSidebarActions } from '@/components/saas/CustomerSidebarActions'
+import { PWAInstallIcon } from '@/components/pwa/PWAInstallIcon'
+import { getCustomerPWAConfig } from '@/lib/pwa/configs'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from '@/components/ui/sheet'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -415,8 +417,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                 />
               </div>
 
-              {/* Desktop: Track order (this business), My orders (global), Browse more, Language, Auth. Mobile: hamburger only */}
+              {/* Desktop: PWA install, Track order (this business), My orders (global), Browse more, Language, Auth. Mobile: hamburger only */}
               <div className="hidden md:flex items-center gap-2 shrink-0">
+                <PWAInstallIcon config={getCustomerPWAConfig()} className="text-emerald-600 ring-emerald-400/30 hover:bg-emerald-500/25" />
                 {tenantSlug && (
                   <Link
                     href={`/t/${tenantSlug}/track`}
@@ -460,8 +463,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                 </SignedIn>
               </div>
 
-              {/* Mobile: hamburger menu (Language, Track order, Sign in/up, Profile) */}
-              <div className="md:hidden shrink-0">
+              {/* Mobile: PWA install icon + hamburger menu (Language, Track order, Sign in/up, Profile) */}
+              <div className="md:hidden shrink-0 flex items-center gap-1">
+                <PWAInstallIcon config={getCustomerPWAConfig()} className="text-emerald-600 ring-emerald-400/30 hover:bg-emerald-500/25" />
                 <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                   <SheetTrigger asChild>
                     <Button

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useClerk } from '@clerk/nextjs'
-import { Menu, Package, BarChart3, User, History, LogOut, Home } from 'lucide-react'
+import { Menu, Package, BarChart3, User, History, LogOut, Home, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useLanguage } from '@/components/LanguageContext'
@@ -19,6 +19,9 @@ import { DriverLocationTracker } from './DriverLocationTracker'
 import { DriverInviteInMenu } from './DriverInviteInMenu'
 import { DriverSidebarActions } from './DriverSidebarActions'
 import { PWAManager } from '@/components/pwa/PWAManager'
+import { PWAInstallIcon } from '@/components/pwa/PWAInstallIcon'
+import { PWAReinstallHelp } from '@/components/pwa/PWAReinstallHelp'
+import { getDriverPWAConfig } from '@/lib/pwa/configs'
 import { PREFER_DRIVER_KEY } from '@/components/StandaloneDriverRedirect'
 
 const NAV_ITEMS = [
@@ -123,8 +126,18 @@ export function DriverLayoutClient({
             <Link href="/driver" className="font-black text-lg sm:text-xl text-white hover:text-slate-200 tracking-wide">
               Bedi Driver
             </Link>
+            <a
+              href="/"
+              onClick={() => { try { localStorage.removeItem(PREFER_DRIVER_KEY) } catch { /* ignore */ } }}
+              className="hidden sm:inline-flex items-center gap-1.5 ml-2 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors"
+            >
+              <ArrowLeft className="size-3.5" style={isRtl ? { transform: 'scaleX(-1)' } : undefined} />
+              {t('Back to Bedi Delivery', 'العودة لبدي للتوصيل')}
+            </a>
           </div>
-          <div className="shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <PWAInstallIcon config={getDriverPWAConfig()} className="bg-emerald-500/20 text-emerald-400 ring-emerald-400/30 hover:bg-emerald-500/30" />
+            <PWAReinstallHelp config={getDriverPWAConfig()} variant="icon" />
             <DriverDashboardNav />
           </div>
         </div>
@@ -146,12 +159,13 @@ export function DriverLayoutClient({
               <a
                 href="/"
                 onClick={() => {
+                  setMenuOpen(false)
                   try { localStorage.removeItem(PREFER_DRIVER_KEY) } catch { /* ignore */ }
                 }}
                 className="flex items-center gap-4 px-4 py-3.5 rounded-2xl text-slate-300 hover:bg-slate-800/80 hover:text-white transition-colors"
               >
-                <Home className="size-6 text-slate-400" />
-                <span className="font-medium text-[15px]">{t('Switch to Customer', 'التبديل إلى زبون')}</span>
+                <ArrowLeft className="size-6 text-slate-400" style={isRtl ? { transform: 'scaleX(-1)' } : undefined} />
+                <span className="font-medium text-[15px]">{t('Back to Bedi Delivery', 'العودة لبدي للتوصيل')}</span>
               </a>
 
               <div className="my-2 border-t border-slate-800/60 mx-2"></div>
@@ -192,6 +206,8 @@ export function DriverLayoutClient({
 
               <div className="my-2 border-t border-slate-800/60 mx-2"></div>
 
+              <PWAReinstallHelp config={getDriverPWAConfig()} variant="menuitem" className="mx-1" />
+
               {!hasNoProfileYet && <DriverInviteInMenu />}
               {!hasNoProfileYet && <DriverSidebarActions />}
             </div>
@@ -204,7 +220,7 @@ export function DriverLayoutClient({
       </Sheet>
 
       <main className="mx-auto max-w-lg px-4 py-4 sm:py-6 sm:max-w-[100vw]">
-        <PWAManager role="driver" variant="inline" />
+        <PWAManager role="driver" variant="inline" hideInstall />
         {pathname !== '/driver/profile' && <DriverPushSetup />}
         <DriverOrdersGate>
           {children}

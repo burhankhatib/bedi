@@ -13,6 +13,7 @@ import { PopularProductsSection } from '@/components/home/PopularProductsSection
 import { HomePageAuthSections } from '@/components/home/HomePageAuthSections'
 import { StoreTypeSidebar } from '@/components/home/StoreTypeSidebar'
 import { FeaturedTenants } from '@/components/home/FeaturedTenants'
+import { PWAAppBanners } from '@/components/home/PWAAppBanners'
 
 const HeroBanner = lazy(() =>
   import('@/components/home/HeroBanner').then((m) => ({ default: m.HeroBanner }))
@@ -72,14 +73,18 @@ export function HomePageNew() {
               <PopularProductsSection />
             </motion.section>
 
+            {/* PWA App Banners - Driver & Business apps */}
+            <PWAAppBanners />
+
             {/* Dedicated Auth CTA Sections */}
             <HomePageAuthSections />
           </div>
-          
-          <div className="mt-8 px-4 md:px-0 border-t border-slate-200">
-            <PublicFooter />
-          </div>
         </main>
+
+        {/* Footer — full width, outside container */}
+        <div className="mt-8 border-t border-slate-200">
+          <PublicFooter />
+        </div>
       </LocationGate>
     </div>
   )

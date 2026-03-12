@@ -12,13 +12,13 @@ function getOrigin(): string {
   return ''
 }
 
-/** Customer Homepage PWA */
+/** Bedi Delivery PWA (main customer app — homepage, search, business menus) */
 export function getCustomerPWAConfig(): PWAConfig {
   const origin = getOrigin()
   return {
     role: 'customer',
-    name: 'Bedi',
-    shortName: 'Bedi',
+    name: 'Bedi Delivery',
+    shortName: 'Bedi Delivery',
     description: 'Order from your favorite restaurants and stores. Get order updates and offers.',
     icon: ROLE_ICONS['customer'],
     startUrl: `${origin}/`,
@@ -30,6 +30,7 @@ export function getCustomerPWAConfig(): PWAConfig {
     backgroundColor: ROLE_THEME_COLORS['customer'],
     swSkipWaiting: true,
     variant: 'fixed',
+    hideAutoReveal: true, // Install via header icon only; no aggressive scroll/timeout prompt
   }
 }
 
@@ -80,6 +81,7 @@ export function getDriverPWAConfig(): PWAConfig {
     backgroundColor: ROLE_THEME_COLORS['driver'],
     swSkipWaiting: true,
     variant: 'inline',
+    hideAutoReveal: true,
   }
 }
 
@@ -101,6 +103,7 @@ export function getTenantDashboardPWAConfig(): PWAConfig {
     backgroundColor: ROLE_THEME_COLORS['tenant-dashboard'],
     swSkipWaiting: true,
     variant: 'inline',
+    hideAutoReveal: true,
   }
 }
 

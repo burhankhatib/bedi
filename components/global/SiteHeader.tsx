@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { motion } from 'motion/react'
-import { MapPin, ChevronDown, User, LogIn, Store, Truck, Menu, ClipboardList, LogOut, Search, Bell, ShoppingCart } from 'lucide-react'
+import { MapPin, ChevronDown, User, LogIn, Store, Truck, Menu, ClipboardList, LogOut, Bell, ShoppingCart } from 'lucide-react'
 import { useUser, useClerk } from '@clerk/nextjs'
 import { useLocation } from '@/components/LocationContext'
 import { getCityDisplayName } from '@/lib/registration-translations'
@@ -17,6 +17,9 @@ import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog'
 import { PREFER_DRIVER_KEY, PREFER_TENANT_KEY } from '@/components/StandaloneDriverRedirect'
 import { useCart } from '@/components/Cart/CartContext'
+import { PWAInstallIcon } from '@/components/pwa/PWAInstallIcon'
+import { getCustomerPWAConfig } from '@/lib/pwa/configs'
+import { UniversalSearch } from '@/components/search/UniversalSearch'
 
 interface SiteHeaderProps {
   /** For homepage: show location + auth. For other pages: optional overrides. */
@@ -165,20 +168,12 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
 
   const router = useRouter()
   const { totalItems, setIsOpen } = useCart()
-  const [searchQuery, setSearchQuery] = useState('')
   const [globalOrderType, setGlobalOrderType] = useState<'delivery' | 'pickup'>('delivery')
 
   useEffect(() => {
     const saved = localStorage.getItem('global_order_type')
     if (saved === 'pickup') setGlobalOrderType('pickup')
   }, [])
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`)
-    }
-  }
 
   const handleToggleOrderType = (type: 'delivery' | 'pickup') => {
     setGlobalOrderType(type)
@@ -189,6 +184,9 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
 
   const menuContent = variant === 'home' && (
     <>
+      <div className="md:hidden mb-4">
+        <UniversalSearch compact placeholder={t('Search businesses or items...', 'ابحث عن أعمال أو أصناف...')} />
+      </div>
       <button
         type="button"
         onClick={() => { setOpenLocationModal(true); setMenuOpen(false); }}
@@ -313,17 +311,13 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
               <ChevronDown className="size-4 shrink-0 text-slate-600" />
             </button>
 
-            {/* 2. Global Search (flex-1 so it expands) */}
-            <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-xl relative group">
-              <Search className="absolute start-4 top-1/2 size-5 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
-              <input
-                type="search"
+            {/* 2. Global Search (flex-1 so it expands) — instant results, typo helper */}
+            <div className="hidden md:flex flex-1 max-w-xl">
+              <UniversalSearch
                 placeholder={t('Search Bedi Delivery', 'ابحث في بدي')}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-full bg-slate-100 px-11 py-3 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-500 focus:bg-white focus:ring-2 focus:ring-brand-yellow/50 focus:shadow-sm"
+                inputClassName="w-full"
               />
-            </form>
+            </div>
 
             <div className="flex items-center gap-2 lg:gap-3 shrink-0">
               {/* 3. Delivery / Pickup Toggle - Segmented pill */}
@@ -361,13 +355,16 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
                 )}
               </div>
 
-              {/* 4. Notification Placeholder (Visually hidden pending feature) */}
+              {/* 4. PWA Install Icon – subtle, icon-only install CTA */}
+              <PWAInstallIcon config={getCustomerPWAConfig()} className="text-emerald-600 ring-emerald-400/30 hover:bg-emerald-500/25" />
+
+              {/* 5. Notification Placeholder (Visually hidden pending feature) */}
               <button type="button" className="hidden relative p-2 text-slate-600 hover:text-slate-900 transition-colors" aria-label="Notifications">
                 <Bell className="size-6" />
                 <span className="absolute top-1.5 right-1.5 size-2.5 rounded-full bg-brand-red border-2 border-white" />
               </button>
 
-              {/* 5. Minimal Cart Button (Red like DoorDash) */}
+              {/* 6. Minimal Cart Button (Red like DoorDash) */}
               <button
                 type="button"
                 onClick={() => setIsOpen(true)}
@@ -388,6 +385,7 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
 
         {/* Mobile controls: Search & Mobile actions */}
         <div className="md:hidden flex flex-1 items-center justify-end gap-2">
+          <PWAInstallIcon config={getCustomerPWAConfig()} className="text-emerald-600 ring-emerald-400/30 hover:bg-emerald-500/25" />
           {!isSignedIn && <AuthModalButton t={t} isRtl={isRtl} />}
           
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>

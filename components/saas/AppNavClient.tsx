@@ -6,10 +6,13 @@ import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { UserButtonWithSignOutUrl } from '@/components/Auth/UserButtonWithSignOutUrl'
 import { useLanguage } from '@/components/LanguageContext'
-import { LayoutDashboard, Shield, Layout, Menu, Home, Truck, Download } from 'lucide-react'
+import { LayoutDashboard, Shield, Layout, Menu, Home, Truck, Download, ArrowLeft } from 'lucide-react'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { PREFER_DRIVER_KEY, PREFER_TENANT_KEY } from '@/components/StandaloneDriverRedirect'
 import { CustomerSidebarActions } from './CustomerSidebarActions'
+import { PWAInstallIcon } from '@/components/pwa/PWAInstallIcon'
+import { PWAReinstallHelp } from '@/components/pwa/PWAReinstallHelp'
+import { getTenantDashboardPWAConfig } from '@/lib/pwa/configs'
 
 interface AppNavClientProps {
   variant: 'landing' | 'dashboard'
@@ -34,6 +37,7 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
     account: t('Account', 'الحساب'),
     profileSignOut: t('Profile & sign out', 'الملف الشخصي وتسجيل الخروج'),
     switchToCustomer: t('Switch to Customer', 'التبديل إلى زبون'),
+    backToOrder: t('Back to Bedi Delivery', 'العودة لبدي للتوصيل'),
     switchToDriver: t('Switch to Driver', 'التبديل إلى سائق'),
   }
 
@@ -63,11 +67,22 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
         <div className="mx-auto flex h-14 min-h-[56px] max-w-[100vw] items-center justify-between gap-2 px-4 sm:container sm:px-6">
           <Link
             href="/"
+            onClick={() => { try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.removeItem(PREFER_TENANT_KEY) } catch { /* ignore */ } }}
             className="flex min-w-0 shrink items-center gap-2 font-semibold text-white transition-opacity hover:opacity-90"
           >
             <Image src="/logo.webp" alt="Bedi Delivery" width={32} height={32} className="h-8 w-auto shrink-0" />
             <span className="truncate text-lg font-semibold tracking-tight [font-family:var(--font-brand),var(--font-cairo),ui-sans-serif,sans-serif]">Bedi Delivery</span>
           </Link>
+          {variant === 'dashboard' && (
+            <a
+              href="/"
+              onClick={() => { try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.removeItem(PREFER_TENANT_KEY) } catch { /* ignore */ } }}
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors"
+            >
+              <ArrowLeft className="size-3.5" style={lang === 'ar' ? { transform: 'scaleX(-1)' } : undefined} />
+              {dashboardNavLabels.backToOrder}
+            </a>
+          )}
 
           {/* Desktop nav: visible from md up */}
           <nav className="hidden items-center gap-2 md:flex">
@@ -93,6 +108,8 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
             )}
             {variant === 'dashboard' && (
               <>
+                <PWAInstallIcon config={getTenantDashboardPWAConfig()} className="bg-emerald-500/20 text-emerald-400 ring-emerald-400/30 hover:bg-emerald-500/30" />
+                <PWAReinstallHelp config={getTenantDashboardPWAConfig()} variant="icon" />
                 <Button asChild variant="ghost" size="sm" className="text-slate-400 hover:text-white">
                   <Link href="/dashboard">
                     <LayoutDashboard className="mr-1.5 size-4" />
@@ -162,6 +179,8 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
             {variant === 'dashboard' && (
               <>
                 {langSwitcher}
+                <PWAInstallIcon config={getTenantDashboardPWAConfig()} className="bg-emerald-500/20 text-emerald-400 ring-emerald-400/30 hover:bg-emerald-500/30" />
+                <PWAReinstallHelp config={getTenantDashboardPWAConfig()} variant="icon" />
                 <Button
                   variant="ghost"
                   size="icon"
@@ -199,8 +218,8 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
               className="flex items-center gap-3 px-6 py-3.5 text-slate-200 hover:bg-slate-800/80 hover:text-white"
               onClick={() => { try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.removeItem(PREFER_TENANT_KEY) } catch { /* ignore */ }; setOpen(false) }}
             >
-              <Home className="size-5 shrink-0" />
-              {dashboardNavLabels.switchToCustomer}
+              <ArrowLeft className="size-5 shrink-0" style={lang === 'ar' ? { transform: 'scaleX(-1)' } : undefined} />
+              {dashboardNavLabels.backToOrder}
             </a>
             <Link
               href="/download-app"
@@ -240,6 +259,7 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
                 </Link>
               </>
             )}
+            <PWAReinstallHelp config={getTenantDashboardPWAConfig()} variant="menuitem" className="mx-4 my-1" />
             <div className="mt-4 border-t border-slate-800 px-6 pt-4">
               <p className="text-xs text-slate-500">{dashboardNavLabels.account}</p>
               <div className="mt-2 flex items-center gap-2">

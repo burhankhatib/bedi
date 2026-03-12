@@ -46,10 +46,6 @@ type Meta = {
   categoryCounts: Record<string, number>
 }
 
-function normalizeSearch(s: string): string {
-  return (s ?? '').toLowerCase().trim().replace(/\s+/g, ' ')
-}
-
 type FilterPanelContentProps = {
   meta: Meta | null
   category: string
@@ -178,13 +174,26 @@ export function SearchPageClient() {
   const section = searchParams.get('section') ?? ''
   const area = searchParams.get('area') ?? ''
   const expandFilters = searchParams.get('expand') === '1'
+  const urlQuery = searchParams.get('q') ?? ''
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [meta, setMeta] = useState<Meta | null>(null)
   const [businessCategories, setBusinessCategories] = useState<BusinessCategory[]>([])
   const [sectionsWithImages, setSectionsWithImages] = useState<SectionWithImage[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(urlQuery)
   const [filtersExpanded, setFiltersExpanded] = useState(false)
+  const [searchResults, setSearchResults] = useState<{
+    businesses: Array<{ _id: string; name: string; name_en: string | null; name_ar: string | null; slug: string; businessType: string; logoUrl: string | null }>
+    products: Array<{
+      _id: string
+      title_en: string | null
+      title_ar: string | null
+      imageUrl: string | null
+      price: number
+      currency: string
+      business: { name: string; slug: string; logoUrl: string | null }
+    }>
+  } | null>(null)
   const [allCategoryImageError, setAllCategoryImageError] = useState(false)
   const allCategoryImageUrl =
     category && !allCategoryImageError
@@ -196,17 +205,51 @@ export function SearchPageClient() {
   }, [category])
 
   useEffect(() => {
-    setFiltersExpanded(expandFilters || !category)
-  }, [expandFilters, category])
+    setFiltersExpanded(expandFilters)
+  }, [expandFilters])
+
+  const hasSearchQuery = searchQuery.trim().length > 0
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  useEffect(() => {
+    const q = debouncedQuery
+    const current = searchParams.get('q') ?? ''
+    if (q === current) return
+    const p = new URLSearchParams(searchParams.toString())
+    if (q) p.set('q', q)
+    else p.delete('q')
+    router.replace(`/search?${p.toString()}`, { scroll: false })
+  }, [debouncedQuery, router, searchParams])
 
   useEffect(() => {
     if (!isChosen || !city) {
       setTenants([])
       setMeta(null)
       setSectionsWithImages([])
+      setSearchResults(null)
       setLoading(false)
       return
     }
+    if (debouncedQuery) {
+      setLoading(true)
+      const params = new URLSearchParams({ city, q: debouncedQuery })
+      fetch(`/api/home/search?${params}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setSearchResults({
+            businesses: data?.businesses ?? [],
+            products: data?.products ?? [],
+          })
+        })
+        .catch(() => setSearchResults({ businesses: [], products: [] }))
+        .finally(() => setLoading(false))
+      return
+    }
+    setSearchResults(null)
     setLoading(true)
     const params = new URLSearchParams({ city })
     if (category) params.set('category', category)
@@ -231,7 +274,7 @@ export function SearchPageClient() {
         setMeta(data?.meta ?? null)
       })
       .finally(() => setLoading(false))
-  }, [isChosen, city, category, section, area])
+  }, [isChosen, city, category, section, area, debouncedQuery])
 
   useEffect(() => {
     if (!isChosen || !city) {
@@ -279,27 +322,8 @@ export function SearchPageClient() {
       .catch(() => setSectionsWithImages([]))
   }, [isChosen, city, category])
 
-  const filteredTenants = useMemo(() => {
-    if (!searchQuery.trim()) return tenants
-    const q = normalizeSearch(searchQuery)
-    return tenants.filter((t) => {
-      const displayNameEn = t.name_en ?? t.name
-      const displayNameAr = t.name_ar ?? t.name
-      if (
-        normalizeSearch(t.name).includes(q) ||
-        normalizeSearch(displayNameEn).includes(q) ||
-        normalizeSearch(displayNameAr).includes(q)
-      )
-        return true
-      for (const s of t.sections) {
-        if (normalizeSearch(s.en).includes(q) || normalizeSearch(s.ar).includes(q)) return true
-      }
-      for (const p of t.popularItems) {
-        if (normalizeSearch(p.en).includes(q) || normalizeSearch(p.ar).includes(q)) return true
-      }
-      return false
-    })
-  }, [tenants, searchQuery])
+  const showSearchResults = debouncedQuery && (searchResults || loading)
+  const displayTenants = showSearchResults ? [] : tenants
 
   const setFilter = (cat?: string, sec?: string, ar?: string) => {
     const p = new URLSearchParams(searchParams.toString())
@@ -449,7 +473,105 @@ export function SearchPageClient() {
                   />
                 ))}
               </div>
-            ) : filteredTenants.length === 0 ? (
+            ) : showSearchResults && searchResults ? (
+              <>
+                {/* Search results: Businesses first, then Products */}
+                {(searchResults.businesses.length > 0 || searchResults.products.length > 0) ? (
+                  <div className="space-y-8 pt-4">
+                    {searchResults.businesses.length > 0 && (
+                      <section>
+                        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                          {t('Businesses', 'الأعمال')}
+                        </h2>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {searchResults.businesses.map((b, i) => (
+                            <motion.div
+                              key={b._id}
+                              initial={{ opacity: 0, y: 12 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.25, delay: Math.min(i * 0.03, 0.3) }}
+                            >
+                              <Link
+                                href={b.slug ? `/t/${b.slug}` : '#'}
+                                className="group flex flex-col items-center gap-3 rounded-2xl bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200"
+                              >
+                                <div className="relative size-20 sm:size-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
+                                  {b.logoUrl ? (
+                                    <Image src={b.logoUrl} alt={b.name} fill className="object-contain p-2" sizes="96px" />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center">
+                                      <Store className="size-10 text-slate-300" />
+                                    </div>
+                                  )}
+                                </div>
+                                <h3 className="font-bold text-slate-900 text-lg text-center line-clamp-1">
+                                  {(lang === 'ar' ? b.name_ar : b.name_en) || b.name}
+                                </h3>
+                              </Link>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+                    {searchResults.products.length > 0 && (
+                      <section>
+                        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+                          {t('Products & meals', 'المنتجات والوجبات')}
+                        </h2>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          {searchResults.products.map((p, i) => (
+                            <motion.div
+                              key={p._id}
+                              initial={{ opacity: 0, y: 12 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.25, delay: Math.min((searchResults.businesses.length + i) * 0.03, 0.4) }}
+                            >
+                              <Link
+                                href={p.business.slug ? `/t/${p.business.slug}` : '#'}
+                                className="group block overflow-hidden rounded-2xl bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200"
+                              >
+                                <div className="relative aspect-square sm:aspect-[4/3] bg-slate-100">
+                                  {p.imageUrl ? (
+                                    <Image src={p.imageUrl} alt={(lang === 'ar' ? p.title_ar : p.title_en) || ''} fill className="object-cover" sizes="(max-width: 640px) 100vw, 280px" />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center">
+                                      <UtensilsCrossed className="size-12 text-slate-300" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="p-4">
+                                  <h3 className="font-bold text-slate-900 text-lg line-clamp-2">
+                                    {(lang === 'ar' ? p.title_ar : p.title_en) || ''}
+                                  </h3>
+                                  <p className="mt-1 text-sm text-slate-500 font-medium">
+                                    {p.business.name}
+                                  </p>
+                                  {p.price > 0 && (
+                                    <p className="mt-2 font-bold text-slate-900">
+                                      {p.price} {p.currency}
+                                    </p>
+                                  )}
+                                </div>
+                              </Link>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl border border-slate-100 bg-white p-12 text-center shadow-sm">
+                    <Search className="mx-auto size-16 text-slate-200" />
+                    <p className="mt-4 text-slate-600 font-medium text-lg">
+                      {t('No results found for your search.', 'لم يتم العثور على نتائج لبحثك.')}
+                    </p>
+                    <Button variant="outline" className="mt-6 rounded-full shadow-sm px-6 h-12" onClick={() => setSearchQuery('')}>
+                      {t('Clear search', 'مسح البحث')}
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : displayTenants.length === 0 ? (
               <div className="rounded-3xl border border-slate-100 bg-white p-12 text-center shadow-sm">
                 <Store className="mx-auto size-16 text-slate-200" />
                 <p className="mt-4 text-slate-600 font-medium text-lg">
@@ -463,7 +585,7 @@ export function SearchPageClient() {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-4">
-                {filteredTenants.map((t, i) => (
+                {displayTenants.map((t, i) => (
                   <motion.div
                     key={t._id}
                     initial={{ opacity: 0, scale: 0.95, y: 16 }}

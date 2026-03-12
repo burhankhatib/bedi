@@ -43,6 +43,8 @@ export interface PWAConfig {
   swSkipWaiting?: boolean
   /** Variant: "fixed" = floating bottom sheet, "inline" = embedded card */
   variant?: 'fixed' | 'inline'
+  /** Skip auto-reveal on scroll/timeout (for icon-only install UX) */
+  hideAutoReveal?: boolean
 }
 
 /** Browser beforeinstallprompt event */
@@ -65,6 +67,8 @@ export interface InstallPromptState {
   canInstall: boolean
   /** Whether the install card should be shown */
   showPrompt: boolean
+  /** Whether dismiss period has expired (so icon/prompt can show) */
+  dismissExpired: boolean
   /** Whether install is in progress */
   installing: boolean
   /** Trigger the native install prompt */

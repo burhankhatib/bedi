@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Product, MenuData } from '@/app/types/menu'
 import { useLanguage } from '@/components/LanguageContext'
 import { Input } from '@/components/ui/input'
@@ -11,6 +11,7 @@ import { urlFor } from '@/sanity/lib/image'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency'
+import { fuzzySearch, suggestCorrection, type SearchableItem } from '@/lib/search/fuzzy-suggest'
 
 interface MenuSearchProps {
   categories: MenuData[]
@@ -28,31 +29,26 @@ export function MenuSearch({ categories, popularProducts, onProductClick, restau
   const { t, lang } = useLanguage()
 
   // Get all products from categories and popular products
-  const allProducts: Product[] = [
-    ...popularProducts,
-    ...categories.flatMap(category => category.products)
-  ]
+  const uniqueProducts = useMemo(() => {
+    const all: Product[] = [...popularProducts, ...categories.flatMap((c) => c.products)]
+    return all.filter((p, i, self) => self.findIndex((x) => x._id === p._id) === i)
+  }, [popularProducts, categories])
 
-  // Remove duplicates by _id
-  const uniqueProducts = allProducts.filter((product, index, self) =>
-    index === self.findIndex(p => p._id === product._id)
-  )
-
-  // Filter products based on search query
-  const filteredProducts = searchQuery.trim()
-    ? uniqueProducts.filter(product => {
-      const titleEn = product.title_en?.toLowerCase() || ''
-      const titleAr = product.title_ar?.toLowerCase() || ''
-      const descEn = product.description_en?.toLowerCase() || ''
-      const descAr = product.description_ar?.toLowerCase() || ''
-      const query = searchQuery.toLowerCase()
-
-      return titleEn.includes(query) ||
-        titleAr.includes(query) ||
-        descEn.includes(query) ||
-        descAr.includes(query)
-    })
-    : []
+  // Fuzzy search with typo tolerance (Arabic + English)
+  const { filteredProducts, didYouMean } = useMemo(() => {
+    const q = searchQuery.trim()
+    if (!q) return { filteredProducts: [], didYouMean: null as string | null }
+    const searchable: SearchableItem[] = uniqueProducts.map((p) => ({
+      id: p._id,
+      text: [p.title_en, p.title_ar].filter(Boolean).join(' '),
+      textSecondary: [p.description_en, p.description_ar].filter(Boolean).join(' ') || undefined,
+    }))
+    const matched = fuzzySearch(q, searchable, { threshold: 0.45, limit: 50 })
+    const ids = new Set(matched.map((m) => m.id))
+    const filtered = uniqueProducts.filter((p) => ids.has(p._id))
+    const suggestion = filtered.length === 0 && searchable.length > 0 ? suggestCorrection(q, searchable, { threshold: 0.5 }) : null
+    return { filteredProducts: filtered, didYouMean: suggestion }
+  }, [searchQuery, uniqueProducts])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -233,14 +229,32 @@ export function MenuSearch({ categories, popularProducts, onProductClick, restau
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 p-8 text-center z-50"
+            className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 text-center z-50"
           >
-            <p className="text-slate-500 font-medium">
-              {t('No results found', 'لم يتم العثور على نتائج')}
-            </p>
-            <p className="text-sm text-slate-400 mt-1">
-              {t('Try a different search term', 'جرب مصطلح بحث مختلف')}
-            </p>
+            {didYouMean ? (
+              <>
+                <p className="text-slate-600 font-medium">
+                  {t('Did you mean', 'هل تقصد')}{' '}
+                  <button
+                    type="button"
+                    onClick={() => { setSearchQuery(didYouMean!); setFocusedIndex(-1) }}
+                    className="text-brand-yellow font-bold underline underline-offset-2 hover:text-amber-600"
+                  >
+                    {didYouMean}
+                  </button>
+                  ?
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-slate-500 font-medium">
+                  {t('No results found', 'لم يتم العثور على نتائج')}
+                </p>
+                <p className="text-sm text-slate-400 mt-1">
+                  {t('Try a different search term', 'جرب مصطلح بحث مختلف')}
+                </p>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

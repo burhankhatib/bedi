@@ -35,7 +35,7 @@ export function DashboardClient({
       <AppNav variant="dashboard" showAdmin={showAdmin} hasDriver={hasDriver} />
 
       <main className="mx-auto max-w-[100vw] px-4 py-6 sm:container sm:py-8 md:py-12">
-        <PWAManager role="tenant-dashboard" variant="inline" />
+        <PWAManager role="tenant-dashboard" variant="inline" hideInstall />
         <BusinessPushSetup />
         <div className="mb-8">
           <h1 className="text-2xl font-bold md:text-3xl">{t('Dashboard', 'لوحة التحكم')}</h1>

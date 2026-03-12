@@ -21,7 +21,7 @@ function isCustomerPath(pathname: string): boolean {
   return false
 }
 
-/** Paths where the CUSTOMER PWA (scope /) should register. Excludes /t/[slug] since those get their own per-business PWA. */
+/** Paths where the Bedi Delivery PWA (scope /) should register. Includes all customer-facing pages — single PWA for homepage, search, business menus, track. */
 function isCustomerPWAPath(pathname: string): boolean {
   if (!pathname) return false
   if (pathname === '/') return true
@@ -30,13 +30,9 @@ function isCustomerPWAPath(pathname: string): boolean {
   if (pathname.startsWith('/order')) return true
   if (pathname.startsWith('/resolve')) return true
   if (pathname.startsWith('/join')) return true
+  if (/^\/t\/[^/]+\/?$/.test(pathname)) return true
+  if (/^\/t\/[^/]+\/track\/[^/]+$/.test(pathname)) return true
   return false
-}
-
-/** Extract slug from /t/[slug] paths */
-function extractSlug(pathname: string): string | null {
-  const match = pathname.match(/^\/t\/([^/]+)\/?$/)
-  return match ? match[1] : null
 }
 
 /**
@@ -49,21 +45,13 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
   const { isChosen } = useLocation()
   const canRenderCustomerShell = showNav && isChosen
 
-  // Determine which PWA to show
   const isCustomerPWA = isCustomerPWAPath(pathname ?? '')
-  const slug = extractSlug(pathname ?? '')
-  const isBusinessPage = !!slug
-  const shouldRenderBusinessPWA = isBusinessPage
 
   return (
     <>
-      {/* Main customer PWA on homepage/search/my-orders/orders */}
+      {/* Bedi Delivery PWA — single app for all customer pages (homepage, search, business menus, track) */}
       {canRenderCustomerShell && isCustomerPWA && (
-        <PWAManager key="pwa-customer" role="customer" variant="fixed" showPermissions />
-      )}
-      {/* Per-business customer PWA on /t/[slug] pages */}
-      {shouldRenderBusinessPWA && (
-        <PWAManager key={`pwa-biz-${slug}`} role="customer-business" slug={slug!} variant="fixed" showPermissions />
+        <PWAManager key="pwa-customer" role="customer" variant="fixed" showPermissions hideInstall />
       )}
       <div className={canRenderCustomerShell ? 'pb-24 md:pb-0' : ''}>
         {children}
