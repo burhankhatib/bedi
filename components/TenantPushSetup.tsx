@@ -117,9 +117,9 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
     let cancelled = false
     // Use the scope as-is — no forced trailing slash (same reason as subscribe()).
     const scopeForReg = scope
-    const swScript = scope.startsWith('/t/')
+      const swScript = scope.startsWith('/t/')
       ? `${scope.replace(/\/$/, '')}/sw.js`
-      : '/tenant-sw.js'
+      : '/dashboard-sw.js'
     ;(async () => {
       try {
         await navigator.serviceWorker.register(swScript, { scope: scopeForReg })
@@ -174,7 +174,9 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
       // controls the layout index page. Adding "/" makes scope "/t/slug/manage/" which misses the
       // index page and causes getFCMToken to fail on iOS/Android PWA.
       const scopeForReg = swScope
-      const swScript = useUnified ? '/app-sw.js' : `/t/${slug}/sw.js`
+      const swScript = useUnified
+        ? '/dashboard-sw.js'
+        : scope ? `${scope.replace(/\/$/, '')}/sw.js` : `/t/${slug}/orders/sw.js`
       await navigator.serviceWorker.register(swScript, useUnified ? { scope: '/' } : scope ? { scope: scopeForReg } : undefined)
       await navigator.serviceWorker.ready
       const reg = await navigator.serviceWorker.getRegistration(scopeForReg) ?? undefined

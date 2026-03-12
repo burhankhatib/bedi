@@ -49,20 +49,15 @@ export function OrdersPWASetup({ slug }: { slug: string }) {
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !slug) return
     try {
-      const targetManifest = `/t/${slug}/orders/manifest.webmanifest?v=${MANIFEST_VERSION}`
-      const existingManifestLinks = Array.from(document.querySelectorAll('link[rel="manifest"]')) as HTMLLinkElement[]
-      const primaryLink = existingManifestLinks[0] ?? document.createElement('link')
-      primaryLink.setAttribute('rel', 'manifest')
-      primaryLink.setAttribute('href', targetManifest)
-      if (!existingManifestLinks[0]) {
-        document.head.appendChild(primaryLink)
-      }
-      for (let i = 1; i < existingManifestLinks.length; i += 1) {
-        existingManifestLinks[i].remove()
-      }
+      // Remove ALL existing manifest links then add the orders-specific one
+      Array.from(document.querySelectorAll('link[rel="manifest"]')).forEach((l) => l.remove())
+      const link = document.createElement('link')
+      link.setAttribute('rel', 'manifest')
+      link.setAttribute('href', `/t/${slug}/orders/manifest.webmanifest?v=${MANIFEST_VERSION}`)
+      document.head.appendChild(link)
 
-      const scope = `/t/${slug}/`
-      navigator.serviceWorker.register(`/t/${slug}/sw.js`, { scope }).catch(() => {})
+      const scope = `/t/${slug}/orders/`
+      navigator.serviceWorker.register(`/t/${slug}/orders/sw.js`, { scope }).catch(() => {})
     } catch {
       // avoid uncaught errors
     }

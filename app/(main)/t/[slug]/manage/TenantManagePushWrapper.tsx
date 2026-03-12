@@ -15,7 +15,7 @@ export function TenantManagePushWrapper({
   children: React.ReactNode
 }) {
   return (
-    <TenantPushProvider slug={slug} scope={`/t/${slug}/`}>
+    <TenantPushProvider slug={slug} scope={`/t/${slug}/orders/`}>
       <TenantOrdersGate slug={slug}>
         {children}
       </TenantOrdersGate>

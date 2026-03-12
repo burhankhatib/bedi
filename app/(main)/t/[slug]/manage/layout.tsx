@@ -77,7 +77,7 @@ export default async function ManageLayout({
           {/* Utility Components out of the flex-row flow */}
           <PWAManager role="business-manage" slug={slug} variant="inline" />
           <ManageLanguageSync slug={slug} />
-          <TenantPushSetup slug={slug} scope={`/t/${slug}/`} />
+          <TenantPushSetup slug={slug} scope={`/t/${slug}/orders/`} />
 
           <div className="flex-1 flex flex-col md:flex-row w-full">
             {/* Sidebar / Mobile Nav */}
