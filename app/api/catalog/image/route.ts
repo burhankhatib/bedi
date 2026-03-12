@@ -36,8 +36,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'UNSPLASH_ACCESS_KEY is missing' }, { status: 500 })
   }
 
+  // Prefer studio product-style images (clean, professional) over general lifestyle shots
+  const studioQuery = `${query} product photography studio`
+
   const url = new URL('https://api.unsplash.com/search/photos')
-  url.searchParams.set('query', query)
+  url.searchParams.set('query', studioQuery)
   url.searchParams.set('per_page', String(count))
   url.searchParams.set('page', String(page))
   url.searchParams.set('orientation', 'squarish')
