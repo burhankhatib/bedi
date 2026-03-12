@@ -16,9 +16,9 @@ export async function GET(
 
   // use writeClient (no CDN) so live refreshes see newly created categories immediately
   const list = await writeClient.fetch<
-    Array<{ _id: string; title_en: string; title_ar: string; slug: { current: string }; sortOrder?: number }>
+    Array<{ _id: string; title_en: string; title_ar: string; slug: { current: string }; sortOrder?: number; productSortMode?: string }>
   >(
-    `*[_type == "category" && site._ref == $siteId] | order(sortOrder asc) { _id, title_en, title_ar, "slug": slug.current, sortOrder }`,
+    `*[_type == "category" && site._ref == $siteId] | order(sortOrder asc) { _id, title_en, title_ar, "slug": slug.current, sortOrder, productSortMode }`,
     { siteId: auth.tenantId }
   )
   return NextResponse.json(list || [], { headers: { 'Cache-Control': 'no-store' } })

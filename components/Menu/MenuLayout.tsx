@@ -221,12 +221,14 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
         const savedView = localStorage.getItem('menuViewType') as ViewType | null
         if (savedView && ['thumbnail', 'list', 'horizontal', 'thumbnail-2col'].includes(savedView)) {
           setViewType(savedView)
+        } else {
+          // No saved preference: desktop = thumbnail, mobile = horizontal (scroll)
+          const isMobile = window.matchMedia('(max-width: 767px)').matches
+          setViewType(isMobile ? 'horizontal' : 'thumbnail')
         }
       }
     }, 0)
     return () => clearTimeout(timer)
-    // Reading from localStorage in useEffect is a standard pattern - necessary here
-     
   }, [])
 
   // Save view preference to localStorage when it changes

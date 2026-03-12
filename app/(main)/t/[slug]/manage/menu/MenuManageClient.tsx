@@ -222,7 +222,7 @@ function ProductRow({
   )
 }
 
-type Category = { _id: string; title_en: string; title_ar: string; slug: string; sortOrder?: number }
+type Category = { _id: string; title_en: string; title_ar: string; slug: string; sortOrder?: number; productSortMode?: string }
 
 const SORT_STORAGE_KEY = 'menu-product-sort'
 type ProductSortMode = 'manual' | 'name' | 'price'
@@ -784,13 +784,20 @@ export function MenuManageClient({
     else await doDeleteProduct(id)
   }
 
-  const setSortModeForCategory = useCallback((categoryId: string, mode: ProductSortMode) => {
+  const setSortModeForCategory = useCallback(async (categoryId: string, mode: ProductSortMode) => {
     setSortModes((prev) => {
       const next = { ...prev, [categoryId]: mode }
       saveSortModes(slug, next)
       return next
     })
-  }, [slug])
+    setCategories((prev) => prev.map((c) => (c._id === categoryId ? { ...c, productSortMode: mode } : c)))
+    try {
+      await api(`/categories/${categoryId}`, { method: 'PATCH', body: JSON.stringify({ productSortMode: mode }) })
+    } catch {
+      showToast('Failed to save sort preference', 'فشل حفظ تفضيل الترتيب', 'error')
+      reloadCategories()
+    }
+  }, [slug, api, showToast, reloadCategories])
 
   const handleDuplicateProduct = async (product: Product) => {
     setLoading(true)
@@ -968,10 +975,10 @@ export function MenuManageClient({
                           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                             <p className="text-xs font-medium text-slate-500">
                               {t('Products', 'المنتجات')}
-                              {(sortModes[c._id] ?? 'manual') === 'manual' && ' — ' + t('Drag to reorder or move', 'اسحب لإعادة الترتيب أو النقل')}
+                              {(c.productSortMode ?? sortModes[c._id] ?? 'manual') === 'manual' && ' — ' + t('Drag to reorder or move', 'اسحب لإعادة الترتيب أو النقل')}
                             </p>
                             <select
-                              value={sortModes[c._id] ?? 'manual'}
+                              value={c.productSortMode ?? sortModes[c._id] ?? 'manual'}
                               onChange={(e) => setSortModeForCategory(c._id, e.target.value as ProductSortMode)}
                               className="h-8 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
                               title={t('Sort products by', 'ترتيب المنتجات حسب')}
@@ -982,7 +989,7 @@ export function MenuManageClient({
                             </select>
                           </div>
                           <DroppableProductList id={`drop-category-${c._id}`} isEmpty={getCategoryProducts(c._id).length === 0}>
-                            {(sortModes[c._id] ?? 'manual') === 'manual' ? (
+                            {(c.productSortMode ?? sortModes[c._id] ?? 'manual') === 'manual' ? (
                               <SortableContext
                                 items={getCategoryProducts(c._id).map((p) => `product-${p._id}`)}
                                 strategy={verticalListSortingStrategy}
@@ -1002,7 +1009,7 @@ export function MenuManageClient({
                                 ))}
                               </SortableContext>
                             ) : (
-                              getSortedCategoryProducts(c._id, sortModes[c._id] ?? 'manual').map((p) => (
+                              getSortedCategoryProducts(c._id, (c.productSortMode ?? sortModes[c._id] ?? 'manual') as ProductSortMode).map((p) => (
                                 <ProductRow
                                   key={`prod-${p._id}-${c._id}`}
                                   product={p}

@@ -31,6 +31,10 @@ export async function PATCH(
   if (body.title_en != null) patch.title_en = body.title_en
   if (body.title_ar != null) patch.title_ar = body.title_ar
   if (body.sortOrder != null) patch.sortOrder = body.sortOrder
+  if (body.productSortMode != null) {
+    const v = body.productSortMode
+    patch.productSortMode = v === 'manual' || v === 'name' || v === 'price' ? v : 'manual'
+  }
   if (body.slug != null) {
     const baseSlug = slugify(body.slug)
     if (baseSlug) {

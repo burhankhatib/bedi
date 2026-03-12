@@ -48,6 +48,20 @@ export const categoryType = defineType({
       type: 'number',
     }),
     defineField({
+      name: 'productSortMode',
+      title: 'Product sort mode',
+      type: 'string',
+      options: {
+        list: [
+          { title: 'Manual (drag & drop)', value: 'manual' },
+          { title: 'By name', value: 'name' },
+          { title: 'By price', value: 'price' },
+        ],
+        layout: 'dropdown',
+      },
+      description: 'How products are ordered in this category on the customer menu. Manual = use sortOrder.',
+    }),
+    defineField({
       name: 'subcategoryRef',
       title: 'Sub-category (for search)',
       type: 'reference',

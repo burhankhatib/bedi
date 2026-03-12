@@ -16,7 +16,7 @@ export default async function ManageMenuPage({
   if (!requirePermission(authResult, 'settings_menu')) redirect(`/t/${slug}/manage`)
 
   const { categories, products } = await client.fetch<{
-    categories: Array<{ _id: string; title_en: string; title_ar: string; slug: string; sortOrder?: number }>
+    categories: Array<{ _id: string; title_en: string; title_ar: string; slug: string; sortOrder?: number; productSortMode?: string }>
     products: Array<{
       _id: string
       title_en: string
@@ -39,7 +39,7 @@ export default async function ManageMenuPage({
     }>
   }>(
     `{
-      "categories": *[_type == "category" && site._ref == $siteId] | order(sortOrder asc) { _id, title_en, title_ar, "slug": slug.current, sortOrder },
+      "categories": *[_type == "category" && site._ref == $siteId] | order(sortOrder asc) { _id, title_en, title_ar, "slug": slug.current, sortOrder, productSortMode },
       "products": *[_type == "product" && site._ref == $siteId] | order(sortOrder asc) {
         _id, title_en, title_ar, description_en, description_ar,
         ingredients_en, ingredients_ar, price, specialPrice, specialPriceExpires, currency,

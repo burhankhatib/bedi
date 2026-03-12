@@ -8,6 +8,7 @@ export const MENU_QUERY = defineQuery(`{
     slug,
     image,
     sortOrder,
+    productSortMode,
     "products": *[_type == "product" && references(^._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt))] | order(sortOrder asc) {
       _id,
       title_en,
@@ -140,6 +141,7 @@ export const MENU_QUERY_TENANT = defineQuery(`{
     slug,
     image,
     sortOrder,
+    productSortMode,
     "products": *[_type == "product" && references(^._id) && (site._ref == $siteId || !defined(site)) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt))] | order(sortOrder asc) {
       _id,
       title_en,

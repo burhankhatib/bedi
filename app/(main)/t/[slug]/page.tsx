@@ -4,6 +4,7 @@ import { getTenantBySlug, getDeliveryAreasCount } from '@/lib/tenant'
 import { getSupportsDineIn } from '@/lib/constants'
 import { client } from '@/sanity/lib/client'
 import { MENU_QUERY_TENANT } from '@/sanity/lib/queries'
+import { applyProductSortToMenuData } from '@/lib/sort-menu-products'
 import MenuClient from '@/components/Menu/MenuClient'
 import { InitialData } from '@/app/types/menu'
 import { MANIFEST_VERSION } from '@/lib/pwa/constants'
@@ -115,6 +116,9 @@ export default async function TenantMenuPage({
   try {
     const menuResult = await client.fetch<InitialData>(MENU_QUERY_TENANT, { siteId })
     menuData = menuResult ?? defaultData
+    if (menuData.categories?.length) {
+      applyProductSortToMenuData(menuData.categories)
+    }
   } catch (error) {
     console.error('[TenantMenu] Failed to fetch:', error)
     menuData = defaultData
