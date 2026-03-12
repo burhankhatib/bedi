@@ -128,6 +128,8 @@ export function BillingManageClient({
   const handleBOPPayment = async (planId: PlanId) => {
     if (!useBOP || !slug) return
     setBopRedirectError(null)
+    setOneTimeError(null)
+    setOneTimeSuccess(null)
     setBopRedirectingPlanId(planId)
     try {
       const res = await fetch(`/api/tenants/${slug}/subscription/create-bop-payment`, {
@@ -146,8 +148,10 @@ export function BillingManageClient({
         return
       }
       if (json?.manual) {
-        setOneTimeCardChoice('palestinian')
-        setBopRedirectError(null)
+        setOneTimeSuccess(t('Use the QR code below to pay. Select your plan amount.', 'استخدم رمز QR أدناه للدفع. اختر مبلغ خطتك.'))
+        setTimeout(() => {
+          document.getElementById('bop-qr-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 100)
       } else {
         setBopRedirectError(t('No payment URL returned. Try QR payment below.', 'لم يُرجع رابط دفع. جرّب الدفع عبر QR أدناه.'))
       }
@@ -393,7 +397,7 @@ export function BillingManageClient({
               <p className="mt-4 text-sm text-slate-400">
                 {t('Or use QR code payment below if the payment link is not available.', 'أو استخدم الدفع عبر رمز QR أدناه إذا لم يكن رابط الدفع متاحاً.')}
               </p>
-              <div className="mt-4">
+              <div id="bop-qr-section" className="mt-4">
                 <BankOfPalestineCard t={t} isRtl={isRtl} />
               </div>
             </CardContent>

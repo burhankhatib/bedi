@@ -1,6 +1,8 @@
 # Bank of Palestine (BOP) – Local Testing
 
-For local development, the BOP dashboard requires **Callback URL** and **Webhook URL** that are publicly accessible. Use a tunnel (e.g. ngrok) to expose your local server.
+**Note:** When `BOP_PAYMENTS_API_URL` is not set, the app uses the QR code flow immediately (no external API call). Payment buttons will show "Use the QR code below to pay" and scroll to the QR section. Callback and Webhook URLs are used when BOP redirects or POSTs after the customer pays via QR or their payment link.
+
+For local development, the BOP dashboard requires **Callback URL** and **Webhook URL** that are publicly accessible. Use a tunnel (e.g. ngrok) or deploy to Vercel for testing.
 
 ## 1. Start a tunnel
 

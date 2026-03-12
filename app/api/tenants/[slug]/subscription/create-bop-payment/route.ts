@@ -57,46 +57,52 @@ export async function POST(
     const successUrl = `${callbackUrl}?internalReference=${encodeURIComponent(internalReference)}`
     const cancelUrl = `${APP_BASE}/t/${slug}/manage/billing?bop_return=cancelled`
 
-    // Try BOP Payment API – adapt to your BOP product's exact API
-    const apiBase = process.env.BOP_PAYMENTS_API_URL?.trim() || 'https://api.bop.ps'
-    const createPayload = {
-      amount: plan.priceIls * 100, // or in minor units if required
-      currency: 'ILS',
-      successUrl,
-      cancelUrl,
-      failureUrl: cancelUrl,
-      metadata: { internalReference },
-      internalReference,
-    }
+    // Try BOP Payment API if URL is configured – otherwise skip (QR flow)
+    const apiBase = process.env.BOP_PAYMENTS_API_URL?.trim()
+    if (apiBase) {
+      const createPayload = {
+        amount: plan.priceIls * 100, // or in minor units if required
+        currency: 'ILS',
+        successUrl,
+        cancelUrl,
+        failureUrl: cancelUrl,
+        metadata: { internalReference },
+        internalReference,
+      }
 
-    const secret = getBOPApiSecret()
-    const res = await fetch(`${apiBase.replace(/\/$/, '')}/v1/payments`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${secret}`,
-      },
-      body: JSON.stringify(createPayload),
-    }).catch((e) => {
-      console.warn('[BOP create-payment] API call failed:', e)
-      return null
-    })
+      const secret = getBOPApiSecret()
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 5000)
 
-    if (res?.ok) {
-      const data = await res.json().catch(() => ({}))
-      const paymentUrl = data.url ?? data.payment_url ?? data.checkout_url ?? data.redirect_url
-      if (typeof paymentUrl === 'string' && paymentUrl.startsWith('http')) {
-        return NextResponse.json({
-          paymentUrl,
-          internalReference,
-          orderId: data.id ?? data.payment_id,
+      try {
+        const res = await fetch(`${apiBase.replace(/\/$/, '')}/v1/payments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${secret}`,
+          },
+          body: JSON.stringify(createPayload),
+          signal: controller.signal,
         })
+        clearTimeout(timeout)
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}))
+          const paymentUrl = data.url ?? data.payment_url ?? data.checkout_url ?? data.redirect_url
+          if (typeof paymentUrl === 'string' && paymentUrl.startsWith('http')) {
+            return NextResponse.json({
+              paymentUrl,
+              internalReference,
+              orderId: data.id ?? data.payment_id,
+            })
+          }
+        }
+      } catch (e) {
+        clearTimeout(timeout)
+        console.warn('[BOP create-payment] API call failed:', e)
       }
     }
 
-    // Fallback: return manual payment info – BOP may use a different API format
-    // User can configure their BOP dashboard to use our callback URL.
-    // For now, return instructions for manual/alternative flow.
+    // QR / manual flow – no payment URL from API. Show QR code section.
     return NextResponse.json({
       manual: true,
       internalReference,
@@ -104,7 +110,6 @@ export async function POST(
       currency: 'ILS',
       callbackUrl,
       webhookUrl: `${APP_BASE}/api/bop/webhook`,
-      message: 'BOP API format may differ. Configure your BOP product to pass internalReference in callback/webhook. Use the QR or contact support for payment link.',
     })
   } catch (e) {
     console.error('[BOP create-payment]', e)
