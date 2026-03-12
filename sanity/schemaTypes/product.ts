@@ -13,6 +13,13 @@ export const productType = defineType({
       description: 'Which business/site this belongs to',
     }),
     defineField({
+      name: 'catalogRef',
+      title: 'Catalog Product (optional)',
+      type: 'reference',
+      to: [{ type: 'catalogProduct' }],
+      description: 'When set, this product came from the catalog. Tenant can override name, image, and price.',
+    }),
+    defineField({
       name: 'title_en',
       title: 'Title (English)',
       type: 'string',
@@ -79,6 +86,28 @@ export const productType = defineType({
       title: 'Currency',
       type: 'string',
       initialValue: 'ILS',
+    }),
+    defineField({
+      name: 'saleUnit',
+      title: 'Sold by',
+      type: 'string',
+      description: 'How this item is sold (piece, per kg, per bottle, etc.)',
+      options: {
+        list: [
+          { title: 'Piece / Each', value: 'piece' },
+          { title: 'Per kg', value: 'kg' },
+          { title: 'Per 100g', value: 'g' },
+          { title: 'Per liter', value: 'liter' },
+          { title: 'Per bottle/can', value: 'ml' },
+          { title: 'Per pack', value: 'pack' },
+          { title: 'Per box', value: 'box' },
+          { title: 'Per bottle', value: 'bottle' },
+          { title: 'Per can', value: 'can' },
+          { title: 'Per bag', value: 'bag' },
+          { title: 'Per dozen', value: 'dozen' },
+          { title: 'Per jar', value: 'jar' },
+        ],
+      },
     }),
     defineField({
       name: 'image',

@@ -40,6 +40,8 @@ export type Tenant = {
   catalogHidePrices?: boolean
   locationLat?: number | null
   locationLng?: number | null
+  requiresPersonalShopper?: boolean
+  shopperFee?: number
 }
 
 const TENANT_QUERY = `*[_type == "tenant" && slug.current == $slug][0] {
@@ -71,7 +73,9 @@ const TENANT_QUERY = `*[_type == "tenant" && slug.current == $slug][0] {
   blockedBySuperAdmin,
   catalogHidePrices,
   locationLat,
-  locationLng
+  locationLng,
+  requiresPersonalShopper,
+  shopperFee
 }`
 
 /** By clerkUserId or by clerkUserEmail / coOwnerEmails (lowercase) so same email = same dashboard. */

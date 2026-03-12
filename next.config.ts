@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
     const noCache = { key: 'Cache-Control' as const, value: 'public, max-age=0, must-revalidate' }
     const noStore = { key: 'Cache-Control' as const, value: 'no-store, no-cache, must-revalidate, max-age=0' }
     return [
+      { source: '/app-sw.js', headers: [noCache] },
       { source: '/driver-sw.js', headers: [noCache] },
       { source: '/dashboard-sw.js', headers: [noCache] },
       { source: '/customer-sw.js', headers: [noCache] },

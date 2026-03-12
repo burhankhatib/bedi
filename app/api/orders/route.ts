@@ -47,6 +47,8 @@ export async function POST(request: NextRequest) {
       currency,
       tenantSlug,
       scheduledFor,
+      requiresPersonalShopper,
+      shopperFee,
     } = body
 
     const customerPhone = customerPhoneRaw != null ? toEnglishDigits(String(customerPhoneRaw)) : ''
@@ -199,6 +201,10 @@ export async function POST(request: NextRequest) {
       }
       orderDoc.deliveryAddress = deliveryAddress
       orderDoc.deliveryFee = deliveryFee || 0
+      if (requiresPersonalShopper === true && typeof shopperFee === 'number' && shopperFee > 0) {
+        orderDoc.requiresPersonalShopper = true
+        orderDoc.shopperFee = shopperFee
+      }
       if (typeof deliveryLat === 'number' && Number.isFinite(deliveryLat) && typeof deliveryLng === 'number' && Number.isFinite(deliveryLng)) {
         orderDoc.deliveryLat = deliveryLat
         orderDoc.deliveryLng = deliveryLng

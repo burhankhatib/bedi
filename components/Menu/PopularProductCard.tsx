@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { urlFor } from '@/sanity/lib/image'
+import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { Product } from '@/app/types/menu'
 import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
@@ -81,6 +82,9 @@ export function PopularProductCard({
                 src={urlFor(displayImage).width(800).height(500).url()}
                 alt={t(product.title_en, product.title_ar)}
                 fill
+                sizes="(max-width: 768px) 320px, 450px"
+                placeholder="blur"
+                blurDataURL={SHIMMER_PLACEHOLDER}
                 priority={priority}
                 className={cn(
                   "transition-transform duration-700 ease-out group-hover:scale-110",
@@ -100,6 +104,9 @@ export function PopularProductCard({
                   src={urlFor(hoverImage).width(800).height(500).url()}
                   alt={t(product.title_en, product.title_ar)}
                   fill
+                  sizes="(max-width: 768px) 320px, 450px"
+                  placeholder="blur"
+                  blurDataURL={SHIMMER_PLACEHOLDER}
                   className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                 />
               </motion.div>

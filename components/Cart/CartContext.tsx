@@ -26,6 +26,8 @@ export interface CartTenant {
   deliveryPricingMode?: 'areas' | 'distance'
   deliveryFeeMin?: number
   deliveryFeeMax?: number
+  requiresPersonalShopper?: boolean
+  shopperFee?: number
 }
 
 /** Order-type flags for the current cart tenant (from menu page). Used to show/hide Dine-in, Receive in Person, Delivery in the order dialog. */

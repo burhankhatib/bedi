@@ -72,6 +72,8 @@ type DriverOrder = {
   tipIncludedInTotal?: boolean
   tipRemovedByDriver?: boolean
   driverArrivedAt?: string
+  requiresPersonalShopper?: boolean
+  items?: Array<{ productName?: string; quantity?: number; notes?: string; addOns?: string }>
 }
 
 /* ─── Constants & Helpers ───────────────────────────────────────────── */
@@ -994,7 +996,44 @@ function DriverOrdersV2Content() {
                   <span className="font-mono text-3xl font-black text-emerald-400 tracking-widest">
                     #{formatDriverOrderNumber(activeOrder.orderNumber)}
                   </span>
+                  {activeOrder.requiresPersonalShopper && (
+                    <div className="mt-3">
+                      <span className="inline-flex items-center gap-1.5 text-amber-200 bg-amber-600/40 border border-amber-500/50 font-bold text-sm px-4 py-2 rounded-xl">
+                        🛒 {t('Manual collection order', 'طلب تجميع يدوي')}
+                      </span>
+                    </div>
+                  )}
                 </div>
+
+                {/* Items checklist for Personal Shopper orders */}
+                {activeOrder.requiresPersonalShopper && activeOrder.items && activeOrder.items.length > 0 && (
+                  <div className="rounded-3xl border-2 border-amber-500/40 bg-amber-950/30 p-4 mb-4">
+                    <p className="text-amber-200 font-bold text-sm mb-3 flex items-center gap-2">
+                      🛒 {t('Collect these items', 'اجمع هذه الأغراض')}
+                    </p>
+                    <ul className="space-y-2">
+                      {activeOrder.items.map((item, idx) => (
+                        <li
+                          key={idx}
+                          className="flex items-start gap-2 text-slate-200 text-sm font-medium border-b border-amber-700/30 pb-2 last:border-0 last:pb-0"
+                        >
+                          <span className="shrink-0 w-5 h-5 rounded border-2 border-amber-400/60 flex items-center justify-center text-amber-400 text-xs font-black">
+                            {item.quantity ?? 1}
+                          </span>
+                          <span className="flex-1">
+                            {item.productName || t('Item', 'صنف')}
+                            {item.notes && (
+                              <span className="text-amber-300/90 block text-xs mt-0.5">📝 {item.notes}</span>
+                            )}
+                            {item.addOns && (
+                              <span className="text-slate-400 text-xs block">+ {item.addOns}</span>
+                            )}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 {(activeOrder.customerName || activeOrder.customerPhone) && (
                   <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 p-4 mb-4">
@@ -1526,12 +1565,47 @@ function DriverOrdersV2Content() {
                   transition={{ duration: 0.25, ease: 'easeOut' }}
                   className="rounded-3xl border border-slate-700/60 bg-slate-900/90 p-4 sm:p-5 shadow-sm"
                 >
-                  {/* Small order badge */}
-                  <div className="mb-3">
+                  {/* Small order badge + Personal Shopper badge */}
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
                     <span className="font-mono text-sm font-bold text-slate-400 bg-slate-800/80 px-3 py-1 rounded-lg">
                       #{formatDriverOrderNumber(o.orderNumber)}
                     </span>
+                    {o.requiresPersonalShopper && (
+                      <span className="inline-flex items-center gap-1.5 text-amber-200 bg-amber-600/40 border border-amber-500/50 font-bold text-sm px-3 py-1.5 rounded-lg">
+                        🛒 {t('Manual collection order', 'طلب تجميع يدوي')}
+                      </span>
+                    )}
                   </div>
+
+                  {/* ── Items checklist (Personal Shopper) ─────────────────── */}
+                  {o.requiresPersonalShopper && o.items && o.items.length > 0 && (
+                    <div className="rounded-3xl border-2 border-amber-500/40 bg-amber-950/30 p-4 mb-4">
+                      <p className="text-amber-200 font-bold text-sm mb-3 flex items-center gap-2">
+                        🛒 {t('Collect these items', 'اجمع هذه الأغراض')}
+                      </p>
+                      <ul className="space-y-2">
+                        {o.items.map((item, idx) => (
+                          <li
+                            key={idx}
+                            className="flex items-start gap-2 text-slate-200 text-sm font-medium border-b border-amber-700/30 pb-2 last:border-0 last:pb-0"
+                          >
+                            <span className="shrink-0 w-5 h-5 rounded border-2 border-amber-400/60 flex items-center justify-center text-amber-400 text-xs font-black">
+                              {item.quantity ?? 1}
+                            </span>
+                            <span className="flex-1">
+                              {item.productName || t('Item', 'صنف')}
+                              {item.notes && (
+                                <span className="text-amber-300/90 block text-xs mt-0.5">📝 {item.notes}</span>
+                              )}
+                              {item.addOns && (
+                                <span className="text-slate-400 text-xs block">+ {item.addOns}</span>
+                              )}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {/* ── Financial Summary ─────────────────── */}
                   <div className="rounded-3xl border border-slate-700/60 bg-slate-800/30 p-4 mb-4 space-y-3">

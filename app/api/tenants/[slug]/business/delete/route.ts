@@ -21,7 +21,7 @@ export async function DELETE(
   const siteId = auth.tenantId
 
   try {
-    // Fetch all document IDs that reference this tenant (order: children first, then tenant)
+    // Fetch all document IDs that reference this tenant (children first, then tenant)
     const [
       restaurantInfoIds,
       areaIds,
@@ -29,6 +29,11 @@ export async function DELETE(
       productIds,
       tenantDriverIds,
       orderIds,
+      aboutUsIds,
+      tenantStaffIds,
+      tenantTransferRequestIds,
+      tenantTableIds,
+      tableServiceRequestIds,
     ] = await Promise.all([
       client.fetch<string[]>(`*[_type == "restaurantInfo" && site._ref == $siteId]._id`, { siteId }),
       client.fetch<string[]>(`*[_type == "area" && site._ref == $siteId]._id`, { siteId }),
@@ -36,6 +41,11 @@ export async function DELETE(
       client.fetch<string[]>(`*[_type == "product" && site._ref == $siteId]._id`, { siteId }),
       client.fetch<string[]>(`*[_type == "tenantDriver" && site._ref == $siteId]._id`, { siteId }),
       client.fetch<string[]>(`*[_type == "order" && site._ref == $siteId]._id`, { siteId }),
+      client.fetch<string[]>(`*[_type == "aboutUs" && site._ref == $siteId]._id`, { siteId }),
+      client.fetch<string[]>(`*[_type == "tenantStaff" && site._ref == $siteId]._id`, { siteId }),
+      client.fetch<string[]>(`*[_type == "tenantTransferRequest" && tenant._ref == $siteId]._id`, { siteId }),
+      client.fetch<string[]>(`*[_type == "tenantTable" && site._ref == $siteId]._id`, { siteId }),
+      client.fetch<string[]>(`*[_type == "tableServiceRequest" && site._ref == $siteId]._id`, { siteId }),
     ])
 
     const idsToDelete = [
@@ -45,8 +55,31 @@ export async function DELETE(
       ...(productIds ?? []),
       ...(tenantDriverIds ?? []),
       ...(orderIds ?? []),
+      ...(aboutUsIds ?? []),
+      ...(tenantStaffIds ?? []),
+      ...(tenantTransferRequestIds ?? []),
+      ...(tenantTableIds ?? []),
+      ...(tableServiceRequestIds ?? []),
       siteId,
     ]
+
+    // Remove userPushSubscription references to this tenant (patch before delete)
+    try {
+      const pushSubs = await client.fetch<{ _id: string; sites?: { _key: string; _ref: string }[] }[]>(
+        `*[_type == "userPushSubscription" && $siteId in sites[]._ref]{ _id, "sites": sites }`,
+        { siteId }
+      )
+      for (const sub of pushSubs ?? []) {
+        if (sub.sites?.length) {
+          const filtered = sub.sites.filter((s) => s._ref !== siteId)
+          if (filtered.length !== sub.sites.length) {
+            await writeClient.patch(sub._id).set({ sites: filtered }).commit()
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[DELETE tenant] userPushSubscription patch failed (continuing):', e)
+    }
 
     // Delete in a single transaction (Sanity supports multiple mutations)
     const tx = writeClient.transaction()
@@ -57,9 +90,13 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true, deleted: idsToDelete.length })
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
     console.error('[DELETE tenant]', err)
     return NextResponse.json(
-      { error: 'Failed to delete business. Please try again or contact support.' },
+      {
+        error: 'Failed to delete business. Please try again or contact support.',
+        ...(process.env.NODE_ENV === 'development' && { detail: message }),
+      },
       { status: 500 }
     )
   }

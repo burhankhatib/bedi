@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
 import { BUSINESS_TYPES } from '@/lib/constants'
+import { compressImageForUpload } from '@/lib/compress-image'
 import { getCountryNameAr, getCityNameAr } from '@/lib/registration-translations'
 import { toEnglishDigits } from '@/lib/phone'
 import { detectCityAndCountry } from '@/lib/geofencing-utils'
@@ -496,14 +497,15 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !file.type.startsWith('image/')) return
-    if (file.size > MAX_IMAGE_BYTES) {
-      showToast('Image is too large. Maximum size is 4 MB. Use a smaller or compressed image.', 'الصورة كبيرة جداً. الحد الأقصى 4 ميجابايت.', 'error')
-      return
-    }
     setLogoUploading(true)
     try {
+      const compressed = await compressImageForUpload(file)
+      if (compressed.size > MAX_IMAGE_BYTES) {
+        showToast('Image is too large. Maximum size is 4 MB. Use a smaller or compressed image.', 'الصورة كبيرة جداً. الحد الأقصى 4 ميجابايت.', 'error')
+        return
+      }
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed)
       const res = await fetch(`/api/tenants/${slug}/upload`, { method: 'POST', body: fd, credentials: 'include' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -519,7 +521,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
       const _id = (data as { _id?: string })._id
       if (!_id) throw new Error('No image ID')
       setForm((f) => ({ ...f, logoAssetId: _id }))
-      setLogoPreviewUrl(URL.createObjectURL(file))
+      setLogoPreviewUrl(URL.createObjectURL(compressed))
     } catch {
       setLogoPreviewUrl(null)
       showToast('Upload failed. Try a smaller image.', 'فشل الرفع. جرب صورة أصغر.', 'error')
@@ -582,6 +584,14 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
         setData((prev) => prev ? { ...prev, tenant: { ...prev.tenant, name: form.name, businessType: form.businessType, businessSubcategoryIds: form.businessSubcategoryIds, country: form.country, city: form.city, ownerPhone: form.ownerPhone, catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false } } : null)
         businessContext.refetch()
       } else {
+        const errData = await res.json().catch(() => ({}))
+        if (errData?.code === 'MUST_VERIFY_PHONE') {
+          const phone = (form.ownerPhone || '').trim()
+          const params = new URLSearchParams({ returnTo: `/t/${slug}/manage/business` })
+          if (phone) params.set('phone', phone.startsWith('+') ? phone : '+' + phone)
+          window.location.href = `/verify-phone?${params.toString()}`
+          return
+        }
         showToast('Failed to save. Please try again.', 'فشل الحفظ. يرجى المحاولة مرة أخرى.', 'error')
       }
     } catch {

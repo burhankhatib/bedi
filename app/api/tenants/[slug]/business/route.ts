@@ -3,6 +3,7 @@ import { auth as clerkAuth, clerkClient } from '@clerk/nextjs/server'
 import { client, clientNoCdn } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
+import { isVerifiedPhoneForUser } from '@/lib/order-auth'
 import { isAllowedRegistrationCountry } from '@/lib/constants'
 import { urlFor } from '@/sanity/lib/image'
 
@@ -203,6 +204,16 @@ export async function PATCH(
     const { normalizePhoneDigits } = await import('@/lib/order-auth')
     const raw = typeof body.ownerPhone === 'string' ? body.ownerPhone.trim() : ''
     if (raw) {
+      // When tenant changes the phone, it must be verified in Clerk first
+      const { userId } = await clerkAuth()
+      if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      const isVerified = await isVerifiedPhoneForUser(userId, raw)
+      if (!isVerified) {
+        return NextResponse.json(
+          { error: 'This phone number must be verified first. You will be redirected to verify it.', code: 'MUST_VERIFY_PHONE' },
+          { status: 400 }
+        )
+      }
       let digits = normalizePhoneDigits(raw)
       if (digits.startsWith('0') && digits.length === 10) digits = '972' + digits.slice(1)
       if (digits) {

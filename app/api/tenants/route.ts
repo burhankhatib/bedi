@@ -7,7 +7,13 @@ import { getDriverIdByClerkUserId } from '@/lib/driver'
 import { slugify, ensureUniqueSlug } from '@/lib/slugify'
 import { getPlatformUser } from '@/lib/platform-user'
 import { getEmailForUser } from '@/lib/getClerkEmail'
-import { normalizePhoneDigits } from '@/lib/order-auth'
+import { normalizePhoneDigits, getVerifiedPhoneNumbers } from '@/lib/order-auth'
+
+/** Build E.164 from digits (e.g. 972501234567 -> +972501234567). */
+function digitsToE164(digits: string): string {
+  if (!digits) return ''
+  return digits.startsWith('+') ? digits : '+' + digits
+}
 
 /** Normalize phone to digits (e.g. 972501234567) for storage and order matching. */
 function normalizeOwnerPhone(phone: string): string {
@@ -66,19 +72,30 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+    // Owner phone: optional. When empty, use tenant's Clerk-verified phone. New businesses use the same verified number by default.
+    let ownerPhoneToStore: string
+    let normalizedOwnerPhone: string
     const ownerPhoneTrimmed = typeof ownerPhoneRaw === 'string' ? ownerPhoneRaw.trim() : ''
-    if (!ownerPhoneTrimmed) {
-      return NextResponse.json(
-        { error: 'Owner phone (mobile / WhatsApp) is required. Add your number so you can place orders from the system.' },
-        { status: 400 }
-      )
-    }
-    const normalizedOwnerPhone = normalizeOwnerPhone(ownerPhoneTrimmed)
-    if (!normalizedOwnerPhone) {
-      return NextResponse.json(
-        { error: 'Invalid phone number. Use digits with country code (e.g. +972501234567).' },
-        { status: 400 }
-      )
+    if (ownerPhoneTrimmed) {
+      normalizedOwnerPhone = normalizeOwnerPhone(ownerPhoneTrimmed)
+      if (!normalizedOwnerPhone) {
+        return NextResponse.json(
+          { error: 'Invalid phone number. Use digits with country code (e.g. +972501234567).' },
+          { status: 400 }
+        )
+      }
+      ownerPhoneToStore = ownerPhoneTrimmed
+    } else {
+      const verified = await getVerifiedPhoneNumbers(userId)
+      const first = verified[0]
+      if (!first) {
+        return NextResponse.json(
+          { error: 'Please enter your mobile / WhatsApp number for this business.' },
+          { status: 400 }
+        )
+      }
+      ownerPhoneToStore = digitsToE164(first)
+      normalizedOwnerPhone = first
     }
 
     // Slug: normalize with slugify and ensure globally unique
@@ -125,7 +142,7 @@ export async function POST(request: NextRequest) {
         : {}),
       clerkUserId: userId,
       ...(clerkUserEmail ? { clerkUserEmail } : {}),
-      ownerPhone: ownerPhoneTrimmed,
+      ownerPhone: ownerPhoneToStore,
       normalizedOwnerPhone,
       subscriptionStatus: 'trial',
       createdAt,

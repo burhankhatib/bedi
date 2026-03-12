@@ -120,6 +120,20 @@ export const orderType = defineType({
       hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
     }),
     defineField({
+      name: 'requiresPersonalShopper',
+      title: 'Requires Personal Shopper',
+      type: 'boolean',
+      description: 'Driver must collect items at the store (e.g. supermarket) instead of receiving pre-packed order.',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
+      name: 'shopperFee',
+      title: 'Personal Shopper Fee (ILS)',
+      type: 'number',
+      description: 'Fee for personal shopping service (driver collects items at store).',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
       name: 'deliveryJourneyLog',
       title: 'Delivery Journey Log',
       type: 'array',

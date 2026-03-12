@@ -10,6 +10,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { toEnglishDigits } from '@/lib/phone'
 import { getCountryNameAr, getCityNameAr } from '@/lib/registration-translations'
 import { detectCityAndCountry } from '@/lib/geofencing-utils'
+import { compressImageForUpload } from '@/lib/compress-image'
 import { Truck, Upload, ImageIcon, Trash2, AlertTriangle, LocateFixed } from 'lucide-react'
 
 const VEHICLE_OPTIONS = [
@@ -151,13 +152,14 @@ export function DriverProfileClient() {
     if (!file || !file.type.startsWith('image/')) return
     setPictureUploading(true)
     try {
+      const compressed = await compressImageForUpload(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed)
       const res = await fetch('/api/driver/upload', { method: 'POST', body: fd })
       if (!res.ok) throw new Error('Upload failed')
       const { _id } = await res.json()
       setPictureAssetId(_id)
-      setPicturePreviewUrl(URL.createObjectURL(file))
+      setPicturePreviewUrl(URL.createObjectURL(compressed))
     } catch {
       showToast(t('Failed to upload picture.', 'فشل رفع الصورة.'), '', 'error')
     } finally {

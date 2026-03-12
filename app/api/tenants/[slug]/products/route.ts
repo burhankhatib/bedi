@@ -6,7 +6,7 @@ import { uploadImageFromUrl, type ClientWithUpload } from '@/lib/sanity-upload'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
-const PRODUCT_FIELDS = `_id, title_en, title_ar, description_en, description_ar, ingredients_en, ingredients_ar, price, specialPrice, specialPriceExpires, currency, image, additionalImages, "categoryRef": category._ref, sortOrder, isPopular, isAvailable, availableAgainAt, dietaryTags, addOns, variants`
+const PRODUCT_FIELDS = `_id, title_en, title_ar, description_en, description_ar, ingredients_en, ingredients_ar, price, specialPrice, specialPriceExpires, currency, saleUnit, image, additionalImages, "categoryRef": category._ref, "catalogRef": catalogRef._ref, sortOrder, isPopular, isAvailable, availableAgainAt, dietaryTags, addOns, variants`
 
 export async function GET(
   req: NextRequest,
@@ -49,6 +49,7 @@ export async function POST(
     specialPrice,
     specialPriceExpires,
     currency,
+    saleUnit,
     categoryId,
     sortOrder,
     isPopular,
@@ -99,6 +100,7 @@ export async function POST(
     ...(ingredients_ar != null && Array.isArray(ingredients_ar) && { ingredients_ar }),
     ...(specialPrice != null && { specialPrice: Number(specialPrice) }),
     ...(specialPriceExpires != null && { specialPriceExpires }),
+    ...(saleUnit != null && typeof saleUnit === 'string' && { saleUnit: saleUnit.trim() || 'piece' }),
     ...(availableAgainAt != null && { availableAgainAt }),
     ...(dietaryTags != null && Array.isArray(dietaryTags) && { dietaryTags }),
     ...(addOns != null && Array.isArray(addOns) && { addOns }),

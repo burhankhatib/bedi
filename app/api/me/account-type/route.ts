@@ -37,7 +37,10 @@ export async function GET() {
     const hasTenants = Array.isArray(rawTenants) && rawTenants.length > 0
     const hasDriver = !!driverId
     const accountType = resolveAccountType(hasTenants, hasDriver)
-    return NextResponse.json({ accountType }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json(
+      { accountType, hasDriver, hasTenants },
+      { headers: { 'Cache-Control': 'no-store' } }
+    )
   } catch {
     return NextResponse.json({ accountType: null })
   }

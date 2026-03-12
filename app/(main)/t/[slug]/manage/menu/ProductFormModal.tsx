@@ -27,6 +27,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { urlFor } from '@/sanity/lib/image'
+import { compressImageForUpload } from '@/lib/compress-image'
+import { SALE_UNITS } from '@/lib/sale-units'
 import { Plus, Trash2, Upload, ImageIcon, GripVertical } from 'lucide-react'
 
 /** Max image upload size (4 MB). Server/platform may enforce lower (e.g. 4.5 MB on Vercel). */
@@ -55,6 +57,7 @@ export type ProductFormData = {
   ingredients_en: string[]
   ingredients_ar: string[]
   price: number
+  saleUnit: string
   specialPrice: number | ''
   specialPriceExpires: string
   currency: string
@@ -70,6 +73,8 @@ export type ProductFormData = {
   additionalImageUrls: string[]
   imageAssetId?: string
   additionalImageAssetIds?: string[]
+  /** When true and product has catalogRef, new image is added to catalog for other tenants. */
+  contributeImageToCatalog?: boolean
 }
 
 const DIETARY_OPTIONS = [
@@ -89,6 +94,7 @@ const defaultForm: ProductFormData = {
   ingredients_en: [],
   ingredients_ar: [],
   price: 0,
+  saleUnit: 'piece',
   specialPrice: '',
   specialPriceExpires: '',
   currency: 'ILS',
@@ -106,7 +112,7 @@ const defaultForm: ProductFormData = {
 
 type Category = { _id: string; title_en: string; title_ar: string }
 /** Accepts full form data or API product shape (e.g. without imageUrl/additionalImageUrls); modal normalizes with ?? */
-type ProductProp = (Partial<ProductFormData> & { _id?: string }) | null
+type ProductProp = (Partial<ProductFormData> & { _id?: string; catalogRef?: string }) | null
 
 function SortableItem({
   id,
@@ -239,6 +245,7 @@ export function ProductFormModal({
         ingredients_en: p.ingredients_en ?? [],
         ingredients_ar: p.ingredients_ar ?? [],
         price: p.price ?? 0,
+        saleUnit: (p as { saleUnit?: string }).saleUnit ?? 'piece',
         specialPrice: (p.specialPrice ?? '') as number | '',
         specialPriceExpires: p.specialPriceExpires ? String(p.specialPriceExpires).slice(0, 16) : '',
         currency: p.currency ?? 'ILS',
@@ -253,6 +260,7 @@ export function ProductFormModal({
         additionalImageUrls: (p as { additionalImageUrls?: string[] }).additionalImageUrls ?? [],
         imageAssetId: (p as { imageAssetId?: string }).imageAssetId ?? imageRef ?? undefined,
         additionalImageAssetIds: additionalImageAssetIds.length > 0 ? additionalImageAssetIds : undefined,
+        contributeImageToCatalog: (p as { catalogRef?: string }).catalogRef ? true : false,
         variants: variantsArray.map((g: Record<string, unknown>) => ({
           name_en: (g.name_en as string) ?? '',
           name_ar: (g.name_ar as string) ?? '',
@@ -275,7 +283,7 @@ export function ProductFormModal({
     } else {
       setMainImagePreview(null)
       setAdditionalPreviews([])
-      setForm({ ...defaultForm, categoryId: defaultCategoryId ?? (categories[0]?._id ?? '') })
+      setForm({ ...defaultForm, saleUnit: 'piece', categoryId: defaultCategoryId ?? (categories[0]?._id ?? '') })
       setIngredientsEnText('')
       setIngredientsArText('')
       setAdditionalImagesText('')
@@ -284,6 +292,18 @@ export function ProductFormModal({
   }, [open, product?._id, defaultCategoryId])
 
   const update = (key: keyof ProductFormData, value: unknown) => setForm((f) => ({ ...f, [key]: value }))
+
+  const setPresetAvailableAt = (hour: number, min: number, dayOffset = 0) => {
+    const d = new Date()
+    d.setDate(d.getDate() + dayOffset)
+    d.setHours(hour, min, 0, 0)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const h = String(d.getHours()).padStart(2, '0')
+    const mi = String(d.getMinutes()).padStart(2, '0')
+    update('availableAgainAt', `${y}-${m}-${day}T${h}:${mi}`)
+  }
 
   const toggleDietary = (value: string) => {
     setForm((f) => ({
@@ -439,15 +459,16 @@ export function ProductFormModal({
       setUploadError('Please select an image file (JPEG, PNG, WebP or GIF).')
       return
     }
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
-      setUploadError(UPLOAD_SIZE_ERROR)
-      return
-    }
     setUploadError(null)
     setMainImageUploading(true)
     try {
+      const compressed = await compressImageForUpload(file)
+      if (compressed.size > MAX_IMAGE_SIZE_BYTES) {
+        setUploadError(UPLOAD_SIZE_ERROR)
+        return
+      }
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed)
       const res = await fetch(`/api/tenants/${slug}/upload`, { method: 'POST', body: fd, credentials: 'include' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -468,7 +489,7 @@ export function ProductFormModal({
         return
       }
       setForm((f) => ({ ...f, imageAssetId: _id, imageUrl: '' }))
-      setMainImagePreview(URL.createObjectURL(file))
+      setMainImagePreview(URL.createObjectURL(compressed))
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : 'Upload failed')
       setMainImagePreview(null)
@@ -489,12 +510,13 @@ export function ProductFormModal({
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         if (!file.type.startsWith('image/')) continue
-        if (file.size > MAX_IMAGE_SIZE_BYTES) {
+        const compressed = await compressImageForUpload(file)
+        if (compressed.size > MAX_IMAGE_SIZE_BYTES) {
           lastError = UPLOAD_SIZE_ERROR
           continue
         }
         const fd = new FormData()
-        fd.append('file', file)
+        fd.append('file', compressed)
         const res = await fetch(`/api/tenants/${slug}/upload`, { method: 'POST', body: fd, credentials: 'include' })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {
@@ -503,7 +525,7 @@ export function ProductFormModal({
         }
         const _id = data?._id
         if (!_id) continue
-        newPreviews.push({ id: _id, url: URL.createObjectURL(file), assetId: _id })
+        newPreviews.push({ id: _id, url: URL.createObjectURL(compressed), assetId: _id })
         newIds.push(_id)
       }
       if (lastError && newIds.length === 0) setUploadError(lastError)
@@ -533,14 +555,15 @@ export function ProductFormModal({
       setUploadError('Please select an image file.')
       return
     }
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
-      setUploadError(UPLOAD_SIZE_ERROR)
-      return
-    }
     setUploadError(null)
     try {
+      const compressed = await compressImageForUpload(file)
+      if (compressed.size > MAX_IMAGE_SIZE_BYTES) {
+        setUploadError(UPLOAD_SIZE_ERROR)
+        return
+      }
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed)
       const res = await fetch(`/api/tenants/${slug}/upload`, { method: 'POST', body: fd, credentials: 'include' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -630,7 +653,7 @@ export function ProductFormModal({
                   className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white text-right placeholder:text-slate-500"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-400">Price *</label>
                   <Input
@@ -642,6 +665,18 @@ export function ProductFormModal({
                     className="bg-slate-800 border-slate-600 text-white"
                     required
                   />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-400">Sold by</label>
+                  <select
+                    value={form.saleUnit || 'piece'}
+                    onChange={(e) => update('saleUnit', e.target.value)}
+                    className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white"
+                  >
+                    {SALE_UNITS.map((u) => (
+                      <option key={u.value} value={u.value}>{u.label_en}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-400">Currency</label>
@@ -717,6 +752,17 @@ export function ProductFormModal({
                       onChange={(e) => { update('imageUrl', e.target.value); if (form.imageAssetId) setForm((f) => ({ ...f, imageAssetId: undefined })); setMainImagePreview(null) }}
                       className="h-8 bg-slate-800 border-slate-600 text-white text-xs"
                     />
+                    {product?.catalogRef && form.imageAssetId && (
+                      <label className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+                        <input
+                          type="checkbox"
+                          checked={form.contributeImageToCatalog !== false}
+                          onChange={(e) => update('contributeImageToCatalog', e.target.checked)}
+                          className="rounded border-slate-600 bg-slate-800"
+                        />
+                        Contribute this image to catalog for other markets
+                      </label>
+                    )}
                   </div>
                 </div>
               </div>
@@ -815,14 +861,32 @@ export function ProductFormModal({
                 </label>
               </div>
               {!form.isAvailable && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-400">Available again at</label>
+                <div className="space-y-2 rounded-lg border border-slate-600 bg-slate-800/50 p-3">
+                  <label className="block text-xs font-medium text-slate-400">Unavailable until (date & time) — product will automatically reappear</label>
                   <Input
                     type="datetime-local"
                     value={form.availableAgainAt}
                     onChange={(e) => update('availableAgainAt', e.target.value)}
                     className="bg-slate-800 border-slate-600 text-white"
                   />
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-[10px] text-slate-500 self-center">Quick set:</span>
+                    {[
+                      { label: 'Today 18:00', fn: () => setPresetAvailableAt(18, 0) },
+                      { label: 'Today 21:00', fn: () => setPresetAvailableAt(21, 0) },
+                      { label: 'Tomorrow 09:00', fn: () => setPresetAvailableAt(9, 0, 1) },
+                      { label: 'Tomorrow 12:00', fn: () => setPresetAvailableAt(12, 0, 1) },
+                    ].map(({ label, fn }) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={fn}
+                        className="rounded-md border border-slate-600 bg-slate-700/50 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-700"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
               <div>

@@ -29,9 +29,11 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Plus, Pencil, Trash2, Copy, ChevronDown, ChevronRight, GripVertical, AlertTriangle } from 'lucide-react'
+import { Plus, Pencil, Trash2, Copy, ChevronDown, ChevronRight, GripVertical, AlertTriangle, Package } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
+import { useTenantBusiness } from '../TenantBusinessContext'
+import { CatalogProductsModal } from './CatalogProductsModal'
 import { usePusherStream } from '@/lib/usePusherStream'
 import { ProductFormModal, type ProductFormData } from './ProductFormModal'
 
@@ -167,6 +169,7 @@ type Product = {
   ingredients_en?: string[]
   ingredients_ar?: string[]
   price: number
+  saleUnit?: string
   specialPrice?: number
   specialPriceExpires?: string
   currency: string
@@ -175,6 +178,7 @@ type Product = {
   isPopular?: boolean
   isAvailable?: boolean
   availableAgainAt?: string
+  catalogRef?: string
   dietaryTags?: string[]
   addOns?: Array<{ name_en: string; name_ar: string; price: number }>
   variants?: Array<{ name_en: string; name_ar: string; options: Array<{ label_en: string; label_ar: string; priceModifier?: number }> }>
@@ -202,6 +206,10 @@ export function MenuManageClient({
   const [loading, setLoading] = useState(false)
   const { showToast } = useToast()
   const { t } = useLanguage()
+  const { data } = useTenantBusiness()
+  const businessType = data?.tenant?.businessType ?? ''
+  const canUseCatalog = ['grocery', 'supermarket', 'greengrocer'].includes(businessType)
+  const [catalogOpen, setCatalogOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<{
     type: 'category' | 'product'
     id: string
@@ -368,6 +376,7 @@ export function MenuManageClient({
       ingredients_en: data.ingredients_en?.length ? data.ingredients_en : undefined,
       ingredients_ar: data.ingredients_ar?.length ? data.ingredients_ar : undefined,
       price: data.price,
+      saleUnit: data.saleUnit || 'piece',
       specialPrice: data.specialPrice === '' ? null : data.specialPrice,
       specialPriceExpires: data.specialPriceExpires ? data.specialPriceExpires : null,
       currency: data.currency,
@@ -383,6 +392,7 @@ export function MenuManageClient({
       additionalImageAssetIds: Array.isArray(data.additionalImageAssetIds) ? data.additionalImageAssetIds : undefined,
       imageUrl: !data.imageAssetId && data.imageUrl?.trim() ? data.imageUrl.trim() : undefined,
       additionalImageUrls: !data.additionalImageAssetIds?.length && data.additionalImageUrls?.length ? data.additionalImageUrls : undefined,
+      contributeImageToCatalog: data.contributeImageToCatalog === true ? true : undefined,
     }
     return body
   }
@@ -419,6 +429,7 @@ export function MenuManageClient({
             ingredients_en: created.ingredients_en,
             ingredients_ar: created.ingredients_ar,
             price: created.price ?? data.price,
+            saleUnit: (created as { saleUnit?: string }).saleUnit ?? data.saleUnit,
             specialPrice: created.specialPrice,
             specialPriceExpires: created.specialPriceExpires,
             currency: created.currency ?? data.currency,
@@ -771,8 +782,24 @@ export function MenuManageClient({
       </Dialog>
 
       <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4">
-        <h2 className="font-semibold text-white">Categories</h2>
-        <p className="text-sm text-slate-400">Add categories (e.g. Starters, Mains). Drag categories to reorder. Drag products to reorder within a category or move between categories.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-white">Categories</h2>
+            <p className="text-sm text-slate-400">Add categories (e.g. Starters, Mains). Drag categories to reorder. Drag products to reorder within a category or move between categories.</p>
+          </div>
+          {canUseCatalog && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-amber-500/50 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:border-amber-500/70"
+              onClick={() => setCatalogOpen(true)}
+            >
+              <Package className="mr-2 size-4" />
+              {t('Add from catalog', 'إضافة من الكتالوج')}
+            </Button>
+          )}
+        </div>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={categories.map((_, i) => `cat-${i}`)} strategy={verticalListSortingStrategy}>
             <ul className="mt-4 space-y-2">
@@ -924,6 +951,16 @@ export function MenuManageClient({
         saving={savingProduct}
         slug={slug}
       />
+
+      {canUseCatalog && (
+        <CatalogProductsModal
+          open={catalogOpen}
+          onClose={() => setCatalogOpen(false)}
+          categories={categories}
+          slug={slug}
+          onAdded={refreshMenu}
+        />
+      )}
     </div>
   )
 }

@@ -9,8 +9,8 @@ const writeClient = client.withConfig({ token: token || undefined, useCdn: false
 async function checkProductOwnership(slug: string, id: string) {
   const auth = await checkTenantAuth(slug)
   if (!auth.ok) return { auth: null as never, doc: null }
-  const doc = await client.fetch<{ _id: string; site: { _ref: string } } | null>(
-    `*[_type == "product" && _id == $id][0]{ _id, site }`,
+  const doc = await client.fetch<{ _id: string; site: { _ref: string }; catalogRef?: { _ref: string } } | null>(
+    `*[_type == "product" && _id == $id][0]{ _id, site, catalogRef }`,
     { id }
   )
   if (!doc || doc.site?._ref !== auth.tenantId) return { auth, doc: null }
@@ -53,6 +53,7 @@ export async function PATCH(
     unsetFields.push('specialPriceExpires')
   }
   set('currency', body.currency)
+  set('saleUnit', body.saleUnit != null ? String(body.saleUnit).trim() || 'piece' : undefined)
   set('category', body.categoryId != null ? { _type: 'reference', _ref: body.categoryId } : undefined)
   set('sortOrder', body.sortOrder != null ? Number(body.sortOrder) : undefined)
   set('isPopular', body.isPopular)
@@ -94,6 +95,22 @@ export async function PATCH(
   if (Object.keys(patch).length > 0) p = p.set(patch)
   if (unsetFields.length > 0) p = p.unset(unsetFields)
   await p.commit()
+
+  if (body.contributeImageToCatalog === true && body.imageAssetId && doc?.catalogRef?._ref) {
+    const catalog = await writeClient.fetch<{ images?: Array<{ asset?: { _ref?: string } }> } | null>(
+      `*[_type == "catalogProduct" && _id == $id][0]{ images }`,
+      { id: doc.catalogRef._ref }
+    )
+    if (catalog) {
+      const current = catalog.images ?? []
+      const ref = String(body.imageAssetId)
+      if (!current.some((img) => img?.asset?._ref === ref)) {
+        const newImages = [...current.map((img) => ({ _type: 'image' as const, asset: { _type: 'reference' as const, _ref: img!.asset!._ref } })), { _type: 'image' as const, asset: { _type: 'reference' as const, _ref: ref } }]
+        await writeClient.patch(doc.catalogRef._ref).set({ images: newImages }).commit()
+      }
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }
 

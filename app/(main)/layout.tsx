@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { SanityLiveGate } from '@/components/SanityLiveGate'
 import { CustomerAreaWrapper } from '@/components/customer/CustomerAreaWrapper'
 import { StandaloneDriverRedirect, StandaloneTenantRedirect } from '@/components/StandaloneDriverRedirect'
+import { LanguageProvider } from '@/components/LanguageContext'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -23,15 +24,17 @@ export default function MainLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen overflow-x-hidden">
-      <StandaloneDriverRedirect />
-      <StandaloneTenantRedirect />
-      <CustomerAreaWrapper>
-        {children}
-      </CustomerAreaWrapper>
-      <Suspense fallback={null}>
-        <SanityLiveGate />
-      </Suspense>
-    </div>
+    <LanguageProvider>
+      <div className="min-h-screen overflow-x-hidden">
+        <StandaloneDriverRedirect />
+        <StandaloneTenantRedirect />
+        <CustomerAreaWrapper>
+          {children}
+        </CustomerAreaWrapper>
+        <Suspense fallback={null}>
+          <SanityLiveGate />
+        </Suspense>
+      </div>
+    </LanguageProvider>
   )
 }

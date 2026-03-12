@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import { urlFor } from '@/sanity/lib/image'
+import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { Product, ProductVariantGroup } from '@/app/types/menu'
 import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { X, Star, Tag, Check, Plus, Minus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/currency'
+import { getSaleUnitLabel } from '@/lib/sale-units'
 import { cn } from '@/lib/utils'
 import { getVariantOptionModifier } from '@/lib/cart-price'
 
@@ -182,7 +184,9 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                       src={urlFor(displayImage).width(800).height(800).url()}
                       alt={t(product.title_en, product.title_ar)}
                       fill
-                      sizes="(max-width: 768px) 100vw, 512px"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 512px"
+                      placeholder="blur"
+                      blurDataURL={SHIMMER_PLACEHOLDER}
                       className="object-cover object-center"
                     />
                   </motion.div>
@@ -198,7 +202,9 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                         src={urlFor(hoverImage).width(800).height(800).url()}
                         alt={t(product.title_en, product.title_ar)}
                         fill
-                        sizes="(max-width: 768px) 100vw, 512px"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 512px"
+                        placeholder="blur"
+                        blurDataURL={SHIMMER_PLACEHOLDER}
                         className="object-cover object-center"
                       />
                     </motion.div>
@@ -421,6 +427,11 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                       {totalPrice}
                     </span>
                     <span className="text-base font-bold text-slate-500 shrink-0">{formatCurrency(product.currency)}</span>
+                    {product.saleUnit && product.saleUnit !== 'piece' && (
+                      <span className="text-sm font-medium text-slate-500 shrink-0">
+                        / {getSaleUnitLabel(product.saleUnit, lang as 'en' | 'ar')}
+                      </span>
+                    )}
                   </div>
                   <Button
                     className="shrink-0 h-12 px-6 rounded-2xl font-black text-base md:h-14 md:px-8 md:text-lg shadow-lg"

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { checkTenantAuth } from '@/lib/tenant-auth'
-import { COMMON_MENU_SECTIONS } from '@/lib/menu-sections'
+import { getCommonMenuSections } from '@/lib/menu-sections'
 
 const freshClient = client.withConfig({ useCdn: false })
 
@@ -32,8 +32,9 @@ export async function GET(
   const list = subcategories ?? []
   const subcatMap = new Map(list.map((s) => [(s.title_en ?? '').toLowerCase().trim(), s]))
 
-  // Remove common sections that duplicate a subcategory (by title_en, case-insensitive)
-  const commonSections = COMMON_MENU_SECTIONS.filter((c) => !subcatMap.has((c.title_en ?? '').toLowerCase().trim()))
+  // Business-type-specific sections; remove any that duplicate a subcategory (by title_en, case-insensitive)
+  const allSectionsForType = getCommonMenuSections(businessType)
+  const commonSections = allSectionsForType.filter((c) => !subcatMap.has((c.title_en ?? '').toLowerCase().trim()))
 
   return NextResponse.json({
     businessType,

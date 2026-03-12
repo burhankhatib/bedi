@@ -47,6 +47,8 @@ type DriverOrderView = {
   tipIncludedInTotal?: boolean
   tipRemovedByDriver?: boolean
   driverArrivedAt?: string
+  requiresPersonalShopper?: boolean
+  items?: Array<{ productName?: string; quantity?: number; notes?: string }>
 }
 
 export async function GET() {
@@ -104,6 +106,9 @@ export async function GET() {
       tipIncludedInTotal?: boolean
       tipRemovedByDriver?: boolean
       driverArrivedAt?: string
+      requiresPersonalShopper?: boolean
+      shopperFee?: number
+      items?: Array<{ productName?: string; quantity?: number; notes?: string }>
       deliveryArea?: { name_en?: string; name_ar?: string } | null
     }>
   >(
@@ -135,6 +140,9 @@ export async function GET() {
       tipIncludedInTotal,
       tipRemovedByDriver,
       driverArrivedAt,
+      requiresPersonalShopper,
+      shopperFee,
+      "items": items[]{ productName, quantity, notes, addOns },
       "assignedDriverRef": assignedDriver._ref,
       "siteRef": site._ref,
       "declinedByDriverRefs": declinedByDriverIds[]._ref,
@@ -242,6 +250,8 @@ export async function GET() {
       tipIncludedInTotal: o.tipIncludedInTotal,
       tipRemovedByDriver: o.tipRemovedByDriver,
       driverArrivedAt: o.driverArrivedAt,
+      requiresPersonalShopper: o.requiresPersonalShopper,
+      items: o.items,
     }
   }
 

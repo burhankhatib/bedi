@@ -22,6 +22,7 @@ import { Star, Facebook, Instagram, Globe, MessageCircle, ShoppingCart, MapPin, 
 import { getTodaysHours, isWithinHours, getNextOpening, formatCountdown, getTimeZoneForCountry, getNowInTimeZone, getTodayActiveOrNextShift } from '@/lib/business-hours'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
+import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { getSocialProfileUrl } from '@/lib/social-urls'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { Button } from '@/components/ui/button'
@@ -606,6 +607,30 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
         <ClosedBanner nextOpening={nextOpening} lang={lang} t={t} />
       )}
 
+      {/* Personal Shopper info banner — store supports driver collecting items (e.g. supermarkets) */}
+      {initialData.requiresPersonalShopper && (
+        <div
+          className="w-full border-b border-sky-200 bg-gradient-to-r from-sky-50 to-amber-50/80 px-4 py-4"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="max-w-4xl mx-auto flex items-start gap-3">
+            <span className="text-2xl shrink-0" aria-hidden>🛒</span>
+            <div>
+              <p className="text-base font-bold text-slate-800 leading-snug">
+                {t(
+                  `This store supports Personal Shopping: our driver will collect your items carefully for an additional ${initialData.shopperFee ?? 10} ILS.`,
+                  `هذا المتجر يدعم خدمة التسوق الشخصي: سيقوم السائق بجمع الأغراض لك بعناية مقابل ${initialData.shopperFee ?? 10} شيكل إضافية.`
+                )}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                {t('Time-saving service — you order, we shop.', 'خدمة توفير وقتك — أنت تطلب، نحن نتسوق.')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Order auth: sign in + verified phone required to place orders */}
       {!catalogOnly && orderAuth.isLoaded && (orderAuth.needsSignIn || orderAuth.needsPhoneVerification) && (
         <div className="flex w-full items-center justify-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-center" role="status">
@@ -664,7 +689,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   businessCountry: initialData.businessCountry ?? undefined,
                   deliveryPricingMode: initialData.deliveryPricingMode,
                   deliveryFeeMin: initialData.deliveryFeeMin,
-                  deliveryFeeMax: initialData.deliveryFeeMax
+                  deliveryFeeMax: initialData.deliveryFeeMax,
+                  requiresPersonalShopper: initialData.requiresPersonalShopper,
+                  shopperFee: initialData.shopperFee
                 } : undefined}
                 orderTypeOptions={orderTypeOptions}
                 catalogHidePrices={catalogHidePrices}
@@ -701,7 +728,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   businessCountry: initialData.businessCountry ?? undefined,
                   deliveryPricingMode: initialData.deliveryPricingMode,
                   deliveryFeeMin: initialData.deliveryFeeMin,
-                  deliveryFeeMax: initialData.deliveryFeeMax
+                  deliveryFeeMax: initialData.deliveryFeeMax,
+                  requiresPersonalShopper: initialData.requiresPersonalShopper,
+                  shopperFee: initialData.shopperFee
                 } : undefined}
             orderTypeOptions={orderTypeOptions}
             catalogHidePrices={catalogHidePrices}
@@ -732,7 +761,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   businessCountry: initialData.businessCountry ?? undefined,
                   deliveryPricingMode: initialData.deliveryPricingMode,
                   deliveryFeeMin: initialData.deliveryFeeMin,
-                  deliveryFeeMax: initialData.deliveryFeeMax
+                  deliveryFeeMax: initialData.deliveryFeeMax,
+                  requiresPersonalShopper: initialData.requiresPersonalShopper,
+                  shopperFee: initialData.shopperFee
                 } : undefined}
         orderTypeOptions={orderTypeOptions}
         catalogHidePrices={catalogHidePrices}
@@ -757,7 +788,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                     src={urlFor(aboutUs.image).width(600).height(600).url()}
                     alt={t(aboutUs.title_en, aboutUs.title_ar)}
                     fill
-                    sizes="(max-width: 768px) 100vw, 50vw"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    placeholder="blur"
+                    blurDataURL={SHIMMER_PLACEHOLDER}
                     className="object-cover"
                   />
                 </div>
@@ -778,6 +811,8 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                 alt="Logo"
                 fill
                 sizes="64px"
+                placeholder="blur"
+                blurDataURL={SHIMMER_PLACEHOLDER}
                 className="object-contain"
               />
             </div>

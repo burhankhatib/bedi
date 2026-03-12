@@ -9,7 +9,6 @@ import { AppNav } from '@/components/saas/AppNav'
 import { useLanguage } from '@/components/LanguageContext'
 import { BUSINESS_TYPES } from '@/lib/constants'
 import { slugify } from '@/lib/slugify'
-import { toEnglishDigits } from '@/lib/phone'
 import { Loader2, Store, ArrowRight, Sparkles } from 'lucide-react'
 
 type Subcategory = { _id: string; slug: string; title_en: string; title_ar: string; businessType: string }
@@ -62,10 +61,7 @@ export function CreateBusinessForm() {
       return
     }
     const phoneTrimmed = ownerPhone.trim()
-    if (!phoneTrimmed) {
-      setError(t('Please enter your mobile / WhatsApp number. It is required so you can place orders from the system.', 'يرجى إدخال رقم جوالك / واتساب. مطلوب حتى تتمكن من وضع الطلبات من النظام.'))
-      return
-    }
+    // Phone is optional – API uses Clerk-verified number when empty (verified tenants adding another business)
     if (!rulesAcknowledged) {
       setError(t('You must accept the rules and privacy policy to create your business.', 'يجب الموافقة على القواعد وسياسة الخصوصية لإنشاء عملك.'))
       return
@@ -79,7 +75,7 @@ export function CreateBusinessForm() {
           name: name.trim(),
           slug: slugify(slug.trim() || name).slice(0, 96) || undefined,
           businessType,
-          ownerPhone: phoneTrimmed,
+          ownerPhone: phoneTrimmed || undefined,
           ...(businessSubcategoryIds.length ? { businessSubcategoryIds } : {}),
         }),
       })
@@ -89,20 +85,7 @@ export function CreateBusinessForm() {
         setLoading(false)
         return
       }
-      const digits = toEnglishDigits(phoneTrimmed).replace(/\D/g, '')
-      const countryCode = digits.startsWith('970') ? '+970' : '+972'
-      const e164 =
-        digits.startsWith('970') || digits.startsWith('972')
-          ? '+' + digits
-          : digits.startsWith('0') && digits.length >= 10
-            ? '+972' + digits.slice(1)
-            : countryCode + digits.replace(/^0+/, '')
-      const params = new URLSearchParams({
-        returnTo: '/dashboard',
-        phone: e164.startsWith('+') ? e164 : '+' + e164,
-      })
-      params.set('countryCode', countryCode)
-      router.push(`/verify-phone?${params.toString()}`)
+      router.push('/dashboard')
       router.refresh()
     } catch {
       setError(t('Network error. Please try again.', 'خطأ في الشبكة. يرجى المحاولة مرة أخرى.'))
@@ -205,7 +188,7 @@ export function CreateBusinessForm() {
 
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-300">
-                  {t('Your mobile / WhatsApp number', 'رقم جوالك / واتساب')} <span className="text-amber-400">*</span>
+                  {t('Your mobile / WhatsApp number', 'رقم جوالك / واتساب')} <span className="text-slate-500">({t('Optional', 'اختياري')})</span>
                 </label>
                 <Input
                   type="tel"
@@ -213,10 +196,9 @@ export function CreateBusinessForm() {
                   onChange={(e) => setOwnerPhone(e.target.value)}
                   placeholder="+972 50 123 4567"
                   className="dashboard-input border-slate-600 bg-slate-800/50 text-white placeholder:text-slate-500 focus:border-amber-500 focus:ring-amber-500/20"
-                  required
                 />
                 <p className="mt-1.5 text-xs text-slate-500">
-                  {t('Required. Used to place orders from the system and for contact. No SMS verification needed.', 'مطلوب. يُستخدم لوضع الطلبات من النظام وللاتصال. لا حاجة للتحقق برسالة SMS.')}
+                  {t('Leave blank to use your verified number. Or enter a different number for this business.', 'اتركه فارغاً لاستخدام رقمك المؤكد. أو أدخل رقماً مختلفاً لهذا العمل.')}
                 </p>
               </div>
 

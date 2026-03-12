@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { urlFor } from '@/sanity/lib/image'
+import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { Product } from '@/app/types/menu'
 import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
@@ -12,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Star, Tag, Plus } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
+import { getSaleUnitLabel } from '@/lib/sale-units'
 import { cn } from '@/lib/utils'
 
 interface ProductCardProps {
@@ -95,7 +97,9 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
                 src={urlFor(displayImage).width(600).height(600).url()}
                 alt={t(product.title_en, product.title_ar)}
                 fill
-                sizes="(max-width: 768px) 280px, 320px"
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                placeholder="blur"
+                blurDataURL={SHIMMER_PLACEHOLDER}
                 loading={priority ? "eager" : "lazy"}
                 priority={priority}
                 fetchPriority={priority ? "high" : "auto"}
@@ -118,7 +122,9 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
                   src={urlFor(hoverImage).width(600).height(600).url()}
                   alt={t(product.title_en, product.title_ar)}
                   fill
-                  sizes="(max-width: 768px) 280px, 320px"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  placeholder="blur"
+                  blurDataURL={SHIMMER_PLACEHOLDER}
                   className="object-cover object-center group-hover:scale-110 transition-transform duration-700 ease-out"
                 />
               </motion.div>
@@ -200,13 +206,18 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
                       {product.price}
                     </span>
                   )}
-                  <div className={`flex items-baseline gap-1 ${priceColor}`}>
+                  <div className={`flex flex-wrap items-baseline gap-1 ${priceColor}`}>
                     <span className="text-3xl md:text-4xl font-black tracking-tighter leading-none">
                       {hasSpecialPrice ? product.specialPrice : product.price}
                     </span>
                     <span className="text-base md:text-lg font-bold opacity-70 leading-none">
                       {formatCurrency(product.currency)}
                     </span>
+                    {product.saleUnit && product.saleUnit !== 'piece' && (
+                      <span className="text-xs md:text-sm font-medium opacity-60 leading-none">
+                        / {getSaleUnitLabel(product.saleUnit, lang as 'en' | 'ar')}
+                      </span>
+                    )}
                   </div>
                 </>
               )}

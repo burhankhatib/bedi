@@ -10,10 +10,12 @@ import { Button } from '@/components/ui/button'
 import { X, Plus, Minus, ShoppingCart, QrCode, MessageCircle, Edit2, RotateCcw, Trash2, Send } from 'lucide-react'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
+import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } from '@/components/ui/drawer'
 import { QRCodeSVG } from 'qrcode.react'
 import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/currency'
+import { getSaleUnitLabel } from '@/lib/sale-units'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { getVariantOptionModifier } from '@/lib/cart-price'
 import { UnifiedOrderDialog } from './UnifiedOrderDialog'
@@ -227,7 +229,8 @@ export function CartDrawer() {
 
     const header = `🍽️ طلب\n${'='.repeat(20)}\n${customerInfo}\n`
     const body = orderLines.join('\n')
-    const finalTotal = orderType === 'delivery' ? totalPrice + deliveryFee : totalPrice
+    const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper ? (cartTenant.shopperFee ?? 10) : 0
+    const finalTotal = orderType === 'delivery' ? totalPrice + deliveryFee + shopperFee : totalPrice
     const total = `\n${'='.repeat(20)}\nالمجموع: ${finalTotal.toFixed(2)} ${formatCurrency(items[0]?.currency)}`
 
     // Always send in Arabic (RTL)
@@ -331,12 +334,15 @@ export function CartDrawer() {
         }
       })
 
+      const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper
+        ? (cartTenant.shopperFee ?? 10)
+        : 0
       const orderPayload: any = {
         orderType,
         customerName,
         items: orderItems,
         subtotal: totalPrice,
-        totalAmount: orderType === 'delivery' ? totalPrice + deliveryFee : totalPrice,
+        totalAmount: orderType === 'delivery' ? totalPrice + deliveryFee + shopperFee : totalPrice,
         currency: items[0]?.currency || 'ILS',
       }
       const slugForOrder = tenantSlug ?? cartTenant?.slug
@@ -353,6 +359,10 @@ export function CartDrawer() {
         orderPayload.deliveryAreaId = deliveryAreaId
         orderPayload.deliveryAddress = deliveryAddress
         orderPayload.deliveryFee = deliveryFee
+        if (shopperFee > 0) {
+          orderPayload.requiresPersonalShopper = true
+          orderPayload.shopperFee = shopperFee
+        }
         if (deliveryLat != null && deliveryLng != null && Number.isFinite(deliveryLat) && Number.isFinite(deliveryLng)) {
           orderPayload.deliveryLat = deliveryLat
           orderPayload.deliveryLng = deliveryLng
@@ -441,7 +451,8 @@ export function CartDrawer() {
     setIsOpen(open)
   }
 
-  const finalTotal = orderType === 'delivery' ? totalPrice + deliveryFee : totalPrice
+  const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper ? (cartTenant.shopperFee ?? 10) : 0
+  const finalTotal = orderType === 'delivery' ? totalPrice + deliveryFee + shopperFee : totalPrice
 
   return (
     <>
@@ -546,6 +557,8 @@ export function CartDrawer() {
                                 alt={lang === 'ar' ? item.title_ar : item.title_en}
                                 fill
                                 sizes="80px"
+                                placeholder="blur"
+                                blurDataURL={SHIMMER_PLACEHOLDER}
                                 className="object-cover"
                               />
                             </div>
@@ -574,7 +587,9 @@ export function CartDrawer() {
                               </div>
                             )}
                             <p className="text-sm text-slate-500 mb-2">
-                              {itemPrice.toFixed(2)} {formatCurrency(item.currency)} × {item.quantity}
+                              {itemPrice.toFixed(2)} {formatCurrency(item.currency)}
+                              {item.saleUnit && item.saleUnit !== 'piece' && ` / ${getSaleUnitLabel(item.saleUnit, lang as 'en' | 'ar')}`}
+                              {' × '}{item.quantity}
                             </p>
                             <div className="mb-2">
                               <Input
@@ -614,6 +629,9 @@ export function CartDrawer() {
                               <div className="text-right">
                                 <p className="font-black text-xl">
                                   {itemTotal.toFixed(2)} {formatCurrency(item.currency)}
+                                  {item.saleUnit && item.saleUnit !== 'piece' && (
+                                    <span className="text-sm font-medium text-slate-500"> / {getSaleUnitLabel(item.saleUnit, lang as 'en' | 'ar')}</span>
+                                  )}
                                 </p>
                               </div>
                             </div>
@@ -697,8 +715,8 @@ export function CartDrawer() {
                         </div>
                       )}
 
-                      {/* Show subtotal and delivery fee for delivery orders */}
-                      {orderType === 'delivery' && deliveryFee > 0 && (
+                      {/* Show subtotal, delivery fee, and shopper fee for delivery orders */}
+                      {orderType === 'delivery' && (deliveryFee > 0 || (cartTenant?.requiresPersonalShopper && (cartTenant.shopperFee ?? 10) > 0)) && (
                         <div className="space-y-1 text-sm">
                           <div className="flex justify-between items-center">
                             <span className="text-slate-600">{t('Subtotal', 'المجموع الفرعي')}:</span>
@@ -706,12 +724,25 @@ export function CartDrawer() {
                               {totalPrice.toFixed(2)} {formatCurrency(items[0]?.currency)}
                             </span>
                           </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-600">{t('Delivery Fee', 'رسوم التوصيل')}:</span>
-                            <span className="font-bold">
-                              {deliveryFee.toFixed(2)} {formatCurrency(items[0]?.currency)}
-                            </span>
-                          </div>
+                          {deliveryFee > 0 && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-600">{t('Delivery Fee', 'رسوم التوصيل')}:</span>
+                              <span className="font-bold">
+                                {deliveryFee.toFixed(2)} {formatCurrency(items[0]?.currency)}
+                              </span>
+                            </div>
+                          )}
+                          {cartTenant?.requiresPersonalShopper && (cartTenant.shopperFee ?? 10) > 0 && (
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-600 flex items-center gap-1.5">
+                                <span aria-hidden>🛒</span>
+                                {t('Time-saving service', 'خدمة توفير وقتك')}
+                              </span>
+                              <span className="font-bold">
+                                {(cartTenant.shopperFee ?? 10).toFixed(2)} {formatCurrency(items[0]?.currency)}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
 

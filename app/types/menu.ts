@@ -53,6 +53,8 @@ export interface Product {
   ingredients_en?: string[]
   ingredients_ar?: string[]
   price: number
+  /** How the item is sold: piece, kg, g, liter, ml, pack, box, bottle, can, bag, dozen, jar. */
+  saleUnit?: string
   hidePrice?: boolean
   specialPrice?: number
   specialPriceExpires?: string
@@ -155,4 +157,6 @@ export interface InitialData {
   deliveryPricingMode?: 'areas' | 'distance'
   deliveryFeeMin?: number
   deliveryFeeMax?: number
+  requiresPersonalShopper?: boolean
+  shopperFee?: number
 }

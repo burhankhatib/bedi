@@ -29,6 +29,30 @@ export function StoreTypeSidebar({ activeCategory, onChange }: StoreTypeSidebarP
   const { isSignedIn } = useUser()
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasDriver, setHasDriver] = useState(false)
+  const [hasTenants, setHasTenants] = useState(false)
+  const [accountLoading, setAccountLoading] = useState(true)
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      setHasDriver(false)
+      setHasTenants(false)
+      setAccountLoading(false)
+      return
+    }
+    setAccountLoading(true)
+    fetch('/api/me/account-type')
+      .then((res) => res.json())
+      .then((data) => {
+        setHasDriver(!!data.hasDriver)
+        setHasTenants(!!data.hasTenants)
+      })
+      .catch(() => {
+        setHasDriver(false)
+        setHasTenants(false)
+      })
+      .finally(() => setAccountLoading(false))
+  }, [isSignedIn])
 
   useEffect(() => {
     if (!isChosen || !city) {
@@ -125,12 +149,30 @@ export function StoreTypeSidebar({ activeCategory, onChange }: StoreTypeSidebarP
             </>
           )}
           <div className="mt-4 flex flex-col gap-2.5">
-            <Link href="/driver/join" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-red text-white font-bold text-[15px] tracking-tight hover:brightness-110 transition-all shadow-sm">
-              {t('Drive with us', 'انضم ككابتن')}
-            </Link>
-            <Link href="/join" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-black text-white font-bold text-[15px] tracking-tight hover:bg-brand-black/90 transition-all shadow-sm">
-              {t('Add your business', 'أضف عملك')}
-            </Link>
+            {accountLoading && isSignedIn ? (
+              <div className="h-24 animate-pulse rounded-xl bg-slate-200/60" />
+            ) : (
+              <>
+            {hasDriver ? (
+              <Link href="/driver" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-red text-white font-bold text-[15px] tracking-tight hover:brightness-110 transition-all shadow-sm">
+                {t('Driver Dashboard', 'لوحة السائق')}
+              </Link>
+            ) : (
+              <Link href="/sign-up?redirect_url=/driver" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-red text-white font-bold text-[15px] tracking-tight hover:brightness-110 transition-all shadow-sm">
+                {t('Drive with us', 'انضم ككابتن')}
+              </Link>
+            )}
+            {hasTenants ? (
+              <Link href="/dashboard" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-black text-white font-bold text-[15px] tracking-tight hover:bg-brand-black/90 transition-all shadow-sm">
+                {t('Business Dashboard', 'لوحة الأعمال')}
+              </Link>
+            ) : (
+              <Link href="/sign-up?redirect_url=/onboarding" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-black text-white font-bold text-[15px] tracking-tight hover:bg-brand-black/90 transition-all shadow-sm">
+                {t('Add your business', 'أضف عملك')}
+              </Link>
+            )}
+              </>
+            )}
           </div>
         </div>
       </aside>

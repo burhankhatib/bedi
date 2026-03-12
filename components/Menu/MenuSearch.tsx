@@ -8,6 +8,7 @@ import { Search, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
+import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency'
 
@@ -187,6 +188,8 @@ export function MenuSearch({ categories, popularProducts, onProductClick, restau
                           alt={lang === 'ar' ? product.title_ar : product.title_en}
                           fill
                           sizes="64px"
+                          placeholder="blur"
+                          blurDataURL={SHIMMER_PLACEHOLDER}
                           className={cn(
                             product.image ? "object-cover" : "object-contain p-2"
                           )}

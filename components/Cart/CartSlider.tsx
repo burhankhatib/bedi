@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { X, Plus, Minus, ShoppingCart, QrCode, MessageCircle, Edit2, RotateCcw, Trash2, Send, ChefHat, Store, ArrowRight } from 'lucide-react'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
+import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import {
   Sheet,
   SheetContent,
@@ -22,6 +23,7 @@ import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/currency'
+import { getSaleUnitLabel } from '@/lib/sale-units'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { getVariantOptionModifier } from '@/lib/cart-price'
 import { UnifiedOrderDialog } from './UnifiedOrderDialog'
@@ -341,7 +343,12 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         }
       })
 
-      const finalTotal = orderType === 'delivery' ? totalPrice + deliveryFee : totalPrice
+      const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper
+        ? (cartTenant.shopperFee ?? 10)
+        : 0
+      const finalTotal = orderType === 'delivery'
+        ? totalPrice + deliveryFee + shopperFee
+        : totalPrice
 
       const orderPayload: any = {
         orderType,
@@ -364,6 +371,10 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         orderPayload.deliveryAreaId = deliveryAreaId
         orderPayload.deliveryAddress = deliveryAddress
         orderPayload.deliveryFee = deliveryFee
+        if (shopperFee > 0) {
+          orderPayload.requiresPersonalShopper = true
+          orderPayload.shopperFee = shopperFee
+        }
         if (deliveryLat != null && deliveryLng != null && Number.isFinite(deliveryLat) && Number.isFinite(deliveryLng)) {
           orderPayload.deliveryLat = deliveryLat
           orderPayload.deliveryLng = deliveryLng
@@ -489,6 +500,8 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                       alt={cartTenant.name}
                       fill
                       sizes="40px"
+                      placeholder="blur"
+                      blurDataURL={SHIMMER_PLACEHOLDER}
                       className="object-contain"
                     />
                   </div>
@@ -567,6 +580,8 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                               alt={lang === 'ar' ? item.title_ar : item.title_en}
                               fill
                               sizes="80px"
+                              placeholder="blur"
+                              blurDataURL={SHIMMER_PLACEHOLDER}
                               className="object-cover"
                             />
                           </div>
@@ -605,7 +620,9 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                           )}
 
                           <p className="text-sm font-bold text-slate-400 mb-3">
-                            {itemPrice.toFixed(2)} {formatCurrency(item.currency)} × {item.quantity}
+                            {itemPrice.toFixed(2)} {formatCurrency(item.currency)}
+                            {item.saleUnit && item.saleUnit !== 'piece' && ` / ${getSaleUnitLabel(item.saleUnit, lang as 'en' | 'ar')}`}
+                            {' × '}{item.quantity}
                           </p>
 
                           <div className="flex items-center justify-between gap-4 mt-auto">
@@ -636,6 +653,9 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                             </div>
                             <p className="font-black text-xl text-slate-900">
                               {itemTotal.toFixed(2)} {formatCurrency(item.currency)}
+                              {item.saleUnit && item.saleUnit !== 'piece' && (
+                                <span className="text-sm font-medium text-slate-500"> / {getSaleUnitLabel(item.saleUnit, lang as 'en' | 'ar')}</span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -720,7 +740,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                   </div>
 
                   {/* Show delivery details for delivery orders */}
-                  {orderType === 'delivery' && deliveryFee > 0 && (
+                  {orderType === 'delivery' && (deliveryFee > 0 || (cartTenant?.requiresPersonalShopper && (cartTenant.shopperFee ?? 10) > 0)) && (
                     <div className="space-y-2 text-sm px-1">
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500">{t('Subtotal', 'المجموع الفرعي')}</span>
@@ -728,12 +748,25 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                           {totalPrice.toFixed(2)} {formatCurrency(items[0]?.currency)}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-500">{t('Delivery Fee', 'رسوم التوصيل')}</span>
-                        <span className="font-bold">
-                          {deliveryFee.toFixed(2)} {formatCurrency(items[0]?.currency)}
-                        </span>
-                      </div>
+                      {deliveryFee > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500">{t('Delivery Fee', 'رسوم التوصيل')}</span>
+                          <span className="font-bold">
+                            {deliveryFee.toFixed(2)} {formatCurrency(items[0]?.currency)}
+                          </span>
+                        </div>
+                      )}
+                      {cartTenant?.requiresPersonalShopper && (cartTenant.shopperFee ?? 10) > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-600 flex items-center gap-1.5">
+                            <span aria-hidden>🛒</span>
+                            {t('Time-saving service', 'خدمة توفير وقتك')}
+                          </span>
+                          <span className="font-bold">
+                            {(cartTenant.shopperFee ?? 10).toFixed(2)} {formatCurrency(items[0]?.currency)}
+                          </span>
+                        </div>
+                      )}
                       <div className="border-t pt-2"></div>
                     </div>
                   )}
@@ -741,7 +774,10 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                   <div className="flex justify-between items-center px-1">
                     <span className="font-black text-slate-400 text-sm uppercase tracking-widest">{t('Total', 'المجموع')}</span>
                     <span className="font-black text-2xl">
-                      {(orderType === 'delivery' ? totalPrice + deliveryFee : totalPrice).toFixed(2)} {formatCurrency(items[0]?.currency)}
+                      {(orderType === 'delivery'
+                        ? totalPrice + deliveryFee + (cartTenant?.requiresPersonalShopper ? (cartTenant.shopperFee ?? 10) : 0)
+                        : totalPrice
+                      ).toFixed(2)} {formatCurrency(items[0]?.currency)}
                     </span>
                   </div>
 
