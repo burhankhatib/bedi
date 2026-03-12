@@ -42,6 +42,8 @@ function normalizeKey(key: string): string {
   return key.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+export type PushPayload = { title: string; body?: string; url?: string; driverArrived?: string }
+
 /**
  * Send a Web Push notification. Used for both:
  * - Tenant (business): new order alerts
@@ -49,7 +51,7 @@ function normalizeKey(key: string): string {
  */
 export async function sendPushNotificationDetailed(
   subscription: PushSubscriptionPayload,
-  payload: { title: string; body?: string; url?: string }
+  payload: PushPayload
 ): Promise<PushSendResult> {
   if (!webpush || !isPushConfigured()) {
     if (process.env.NODE_ENV === 'development') {
@@ -75,11 +77,13 @@ export async function sendPushNotificationDetailed(
       auth: normalizeKey(auth),
     },
   }
-  const body = JSON.stringify({
+  const bodyObj: Record<string, string> = {
     title: payload.title,
     body: payload.body ?? '',
     url: payload.url ?? '/',
-  })
+  }
+  if (payload.driverArrived) bodyObj.driverArrived = payload.driverArrived
+  const body = JSON.stringify(bodyObj)
   try {
     // @ts-expect-error - web-push types might not include options but it is supported by the library
     await webpush.sendNotification(pushSubscription, body, {

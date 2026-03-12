@@ -74,6 +74,16 @@ export type FcmSendResult = {
   reason?: string
 }
 
+export type FcmPayload = {
+  title: string
+  body?: string
+  url?: string
+  dir?: 'rtl' | 'ltr'
+  icon?: string
+  /** Extra data fields merged into FCM data (e.g. driverArrived for customer order push) */
+  data?: Record<string, string>
+}
+
 /**
  * Send FCM to a token (web, Android, or iOS). Uses data payload so the service worker
  * receives the push event when app is closed/background. All notifications are sent
@@ -82,7 +92,7 @@ export type FcmSendResult = {
  */
 export async function sendFCMToTokenDetailed(
   token: string,
-  payload: { title: string; body?: string; url?: string; dir?: 'rtl' | 'ltr'; icon?: string }
+  payload: FcmPayload
 ): Promise<FcmSendResult> {
   const msg = getAdminMessaging()
   if (!msg) return { ok: false, permanent: false, reason: 'fcm_not_configured' }
@@ -92,6 +102,11 @@ export async function sendFCMToTokenDetailed(
   const data: Record<string, string> = { title, body, url }
   if (payload.dir) data.dir = payload.dir
   if (payload.icon) data.icon = payload.icon
+  if (payload.data && typeof payload.data === 'object') {
+    for (const [k, v] of Object.entries(payload.data)) {
+      if (typeof v === 'string') data[k] = v
+    }
+  }
   try {
     const message = {
       token,

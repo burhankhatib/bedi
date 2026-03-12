@@ -38,6 +38,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/ToastProvider'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
 import { CustomerTrackPushSetup } from './CustomerTrackPushSetup'
+import { CustomerTrackPushGate } from './CustomerTrackPushGate'
 
 type OrderStatus =
   | 'new'
@@ -1383,6 +1384,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   const deliveryFee = data.order.deliveryFee ?? 0
 
   return (
+    <CustomerTrackPushGate slug={slug} token={token}>
     <div className="mx-auto max-w-lg pb-24">
       <div className="px-4 pt-4 pb-2">
         <Link
@@ -2155,5 +2157,6 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         />
       )}
     </div>
+    </CustomerTrackPushGate>
   )
 }

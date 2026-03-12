@@ -64,12 +64,8 @@ export async function POST(
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
-  const tenant = await freshClient.fetch<{ slug?: string } | null>(
-    `*[_type == "tenant" && _id == $id][0]{ "slug": slug.current }`,
-    { id: tenantId }
-  )
   const tableLabel = `Table ${tableNumber}`
-  const path = tenant?.slug ? `/t/${tenant.slug}/orders` : '/orders'
+  const path = `/t/${slug}/orders`
   const url = baseUrl ? `${baseUrl.replace(/\/$/, '')}${path}` : path
 
   if (isFCMConfigured() || isPushConfigured()) {

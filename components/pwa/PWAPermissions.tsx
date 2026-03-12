@@ -4,9 +4,12 @@
  * PWA Permissions – Standalone Permissions Dialog
  * Shows notification + location permission requests when running inside an installed PWA.
  * Extracted from the old PWAInstall.tsx.
+ *
+ * Location detection: Trust Permissions API when it says 'granted' (avoids getCurrentPosition
+ * which can hang or fail with POSITION_UNAVAILABLE even when permission is granted, e.g. indoors).
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { X, Bell, MapPin, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
@@ -31,6 +34,29 @@ export function PWAPermissions({ config, os, fcm, inOrderFlow = false }: PWAPerm
   const [dismissed, setDismissed] = useState(false)
   const [locationState, setLocationState] = useState<'prompt' | 'granted' | 'denied' | 'unsupported'>('prompt')
   const [locationChecking, setLocationChecking] = useState(false)
+  const checkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const syncLocation = useCallback(() => {
+    if (typeof window === 'undefined' || !navigator.geolocation) return
+    if (!('permissions' in navigator)) {
+      setLocationState((prev) => (prev === 'granted' ? prev : 'prompt'))
+      return
+    }
+    const perms = (navigator as { permissions?: { query: (p: { name: string }) => Promise<{ state: string }> } }).permissions
+    if (!perms?.query) {
+      setLocationState('prompt')
+      return
+    }
+    perms.query({ name: 'geolocation' }).then((r) => {
+      if (r.state === 'granted') {
+        setLocationState('granted')
+      } else if (r.state === 'denied') {
+        setLocationState('denied')
+      } else {
+        setLocationState('prompt')
+      }
+    }).catch(() => setLocationState('prompt'))
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -38,11 +64,21 @@ export function PWAPermissions({ config, os, fcm, inOrderFlow = false }: PWAPerm
       setDismissed(sessionStorage.getItem(STORAGE_KEY_PERMISSIONS_DISMISSED) === '1')
     } catch {}
 
-    // Check location support
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setLocationState('unsupported')
+    } else {
+      syncLocation()
     }
-  }, [])
+    const onVisibility = () => syncLocation()
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+      if (checkTimeoutRef.current) {
+        clearTimeout(checkTimeoutRef.current)
+        checkTimeoutRef.current = null
+      }
+    }
+  }, [syncLocation])
 
   const dismissCard = useCallback(() => {
     setDismissed(true)
@@ -51,31 +87,55 @@ export function PWAPermissions({ config, os, fcm, inOrderFlow = false }: PWAPerm
 
   const requestLocation = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    if (locationChecking) return
     setLocationChecking(true)
+    if (checkTimeoutRef.current) clearTimeout(checkTimeoutRef.current)
+    checkTimeoutRef.current = setTimeout(() => {
+      setLocationChecking(false)
+      checkTimeoutRef.current = null
+    }, 6000)
+
     navigator.geolocation.getCurrentPosition(
       () => {
+        if (checkTimeoutRef.current) {
+          clearTimeout(checkTimeoutRef.current)
+          checkTimeoutRef.current = null
+        }
         setLocationState('granted')
         setLocationChecking(false)
+        syncLocation()
         showToast(
           t('Location enabled. It helps with delivery and nearby stores.', 'تم تفعيل الموقع. يساعد في التوصيل والعروض القريبة.'),
           undefined, 'success'
         )
       },
-      (err) => {
-        setLocationState(err.code === 1 || err.code === 2 ? 'denied' : 'prompt')
+      (err: GeolocationPositionError) => {
+        if (checkTimeoutRef.current) {
+          clearTimeout(checkTimeoutRef.current)
+          checkTimeoutRef.current = null
+        }
         setLocationChecking(false)
         if (err.code === 1) {
+          setLocationState('denied')
           const instructions = os.isIOS
             ? t('To enable: open iPhone Settings → Privacy & Security → Location Services → turn On, then find this app (or Safari) and set to "While Using the App". Return here and tap Enable again.', 'للتفعيل: الإعدادات → الخصوصية والأمان → خدمات الموقع → تفعيل، ثم اختر هذا التطبيق (أو Safari) واختر "أثناء استخدام التطبيق". ارجع هنا واضغط تفعيل مرة أخرى.')
             : os.isAndroid
               ? t('To enable: open device Settings → Apps → find this app → Permissions → Location → Allow. Return here and tap Enable again.', 'للتفعيل: الإعدادات → التطبيقات → هذا التطبيق → الأذونات → الموقع → السماح. ارجع واضغط تفعيل مرة أخرى.')
               : t('Enable location in your browser or device Settings (Privacy → Location), then tap Enable again.', 'فعّل الموقع من إعدادات المتصفح أو الجهاز (الخصوصية → الموقع)، ثم اضغط تفعيل مرة أخرى.')
           showToast(instructions, undefined, 'info')
+        } else {
+          setLocationState('prompt')
+          if (err.code === 2) {
+            showToast(
+              t('Could not get location. Try again when you have a clear sky view or move to a window.', 'تعذّر تحديد الموقع. حاول مرة أخرى عند وضوح السماء أو انقلك إلى نافذة.'),
+              undefined, 'info'
+            )
+          }
         }
       },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 }
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     )
-  }, [os, showToast, t])
+  }, [os, showToast, t, syncLocation, locationChecking])
 
   const handleRequestPush = useCallback(async () => {
     if (typeof window !== 'undefined' && Notification.permission === 'denied') {

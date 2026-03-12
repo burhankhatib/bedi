@@ -29,11 +29,19 @@ export const NotificationService = {
     prioritizeWhatsapp?: boolean
   }) {
     const { orderId, orderNumber, tenantId, tenantSlug, tenantName, tenantNameAr, tenantPhone, prioritizeWhatsapp } = params
+    let slug = (tenantSlug || '').trim()
+    if (!slug && tenantId) {
+      const t = await writeClient.fetch<{ slug?: string } | null>(
+        `*[_type == "tenant" && _id == $id][0]{ "slug": slug.current }`,
+        { id: tenantId }
+      )
+      slug = (t?.slug ?? '').trim()
+    }
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
     const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
-    const path = tenantSlug ? `/t/${tenantSlug}/orders` : '/orders'
+    const path = slug ? `/t/${slug}/orders` : '/orders'
     const url = `${base}${path}`
-    const icon = tenantSlug ? `${base}/t/${tenantSlug}/icon/192` : `${base}/adminslogo.webp`
+    const icon = slug ? `${base}/t/${slug}/icon/192` : `${base}/adminslogo.webp`
     const businessName = tenantNameAr || tenantName || tenantSlug || tenantId
 
     // 1. Pusher update for live UI

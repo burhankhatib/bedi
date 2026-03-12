@@ -62,15 +62,15 @@ export async function POST(req: NextRequest) {
           }>(`*[_type == "order" && _id == $_id][0]{ tenantNewOrderPushSent, orderNumber, scheduledFor }`, { _id })
 
           if (orderDoc && !orderDoc.tenantNewOrderPushSent) {
-            const tenantDoc = await writeClient.fetch<{ name?: string; name_ar?: string; slug?: { current?: string } } | null>(
-              `*[_type == "tenant" && _id == $id][0]{ name, name_ar, slug }`,
+            const tenantDoc = await writeClient.fetch<{ name?: string; name_ar?: string; slug?: string } | null>(
+              `*[_type == "tenant" && _id == $id][0]{ name, name_ar, "slug": slug.current }`,
               { id: siteId }
             )
 
-            const businessName = tenantDoc?.name_ar || tenantDoc?.name || tenantDoc?.slug?.current || siteId
+            const businessName = tenantDoc?.name_ar || tenantDoc?.name || tenantDoc?.slug || siteId
             const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
             const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
-            const slug = tenantDoc?.slug?.current
+            const slug = (tenantDoc?.slug ?? '').trim()
             const path = slug ? `/t/${slug}/orders` : '/orders'
             const url = `${base}${path}`
             const icon = slug ? `${base}/t/${slug}/icon/192` : `${base}/adminslogo.webp`

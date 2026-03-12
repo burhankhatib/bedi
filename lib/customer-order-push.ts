@@ -130,8 +130,22 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
   const path = `/t/${slug}/track/${order.trackingToken}`
   const url = baseUrl ? `${baseUrl.replace(/\/$/, '')}${path}` : path
 
-  const payload = { title: `${title} — ${body}`, body: body, url }
-  const payloadAr = { title: `${titleAr} — ${bodyAr}`, body: bodyAr, url }
+  const isDriverArrived = newStatus === 'driver-arrived'
+  const baseData = isDriverArrived ? { driverArrived: '1' } : undefined
+  const payload = {
+    title: `${title} — ${body}`,
+    body,
+    url,
+    ...(baseData && { data: baseData }),
+    ...(isDriverArrived && { driverArrived: '1' as const }),
+  }
+  const payloadAr = {
+    title: `${titleAr} — ${bodyAr}`,
+    body: bodyAr,
+    url,
+    ...(baseData && { data: baseData }),
+    ...(isDriverArrived && { driverArrived: '1' as const }),
+  }
   const useAr = true
   const finalPayload = useAr ? payloadAr : payload
 

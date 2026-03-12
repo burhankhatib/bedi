@@ -43,16 +43,17 @@ self.addEventListener('fetch', function (event) {
 })
 
 self.addEventListener('push', function (event) {
-  let data = { title: 'Bedi', body: '', url: '/' }
+  let data = { title: 'Bedi', body: '', url: '/', driverArrived: false }
   if (event.data) {
     try {
       const raw = event.data.json()
       const notif = raw.notification || {}
-      const dataPayload = raw.data || {}
+      const dataPayload = raw.data || raw
       data = {
         title: notif.title ?? dataPayload.title ?? raw.title ?? data.title,
         body: notif.body ?? dataPayload.body ?? raw.body ?? data.body,
         url: dataPayload.url ?? raw.url ?? data.url ?? '/',
+        driverArrived: dataPayload.driverArrived === '1' || dataPayload.driverArrived === true,
       }
     } catch (_) {}
   }
@@ -62,10 +63,10 @@ self.addEventListener('push', function (event) {
     icon: '/customersLogo.webp',
     badge: '/customersLogo.webp',
     data: { url: path },
-    tag: 'bedi-customer',
+    tag: data.driverArrived ? 'bedi-customer-arrived' : 'bedi-customer',
     renotify: true,
     requireInteraction: true,
-    vibrate: [200, 100, 200, 100, 200],
+    vibrate: data.driverArrived ? [500, 200, 500, 200, 500, 200, 500] : [200, 100, 200, 100, 200],
     silent: false,
   }
   event.waitUntil(self.registration.showNotification(data.title || 'Bedi', options))

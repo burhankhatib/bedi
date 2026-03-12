@@ -104,7 +104,7 @@ export async function sendTenantOrderUpdatePush(
     .trigger(`tenant-${siteRef}`, 'order-update', { orderId, status })
     .catch((e) => console.warn('[tenant-order-push] Pusher trigger failed', e))
 
-  // Fetch tenant metadata for business name and icon — with safe fallbacks
+  // Fetch tenant metadata for business name, slug, and icon
   let businessName = 'المتجر'
   let slug: string | undefined
   try {
@@ -113,9 +113,13 @@ export async function sendTenantOrderUpdatePush(
       { id: siteRef }
     )
     if (tenant?.name) businessName = String(tenant.name).trim() || businessName
-    slug = tenant?.slug ?? undefined
+    slug = (tenant?.slug ?? '').trim() || undefined
   } catch (e) {
     console.warn('[tenant-order-push] failed to fetch tenant for', siteRef, e)
+  }
+
+  if (!slug) {
+    console.warn('[tenant-order-push] No slug for tenant', siteRef, '- notification may open wrong page')
   }
 
   const num = orderNumber ?? orderId.slice(-6)
@@ -123,7 +127,7 @@ export async function sendTenantOrderUpdatePush(
   const body = customBody || msg.body
   const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
 
-  // Build URL — fall back to /orders if slug is unavailable
+  // Always use /t/[slug]/orders so multi-business tenants open the correct business
   const path = slug ? `/t/${slug}/orders` : '/orders'
   const url = `${base}${path}`
 

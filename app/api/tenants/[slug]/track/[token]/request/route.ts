@@ -86,17 +86,13 @@ export async function POST(
   // Send high-priority FCM/push to tenant (owner) and all staff
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
   if (order.site?._ref && (isFCMConfigured() || isPushConfigured())) {
-    const tenant = await freshClient.fetch<{ slug?: string } | null>(
-      `*[_type == "tenant" && _id == $id][0]{ "slug": slug.current }`,
-      { id: order.site._ref }
-    )
     const tableLabel = order.tableNumber ? `Table ${order.tableNumber}` : 'A table'
     const isHelp = type === 'call_waiter'
     const title = isHelp ? `${tableLabel} needs help` : `${tableLabel} wants to pay`
     const body = isHelp
       ? 'Customer requested assistance — tap to open order.'
       : `Customer would like to pay with ${paymentMethod === 'cash' ? 'cash' : 'card'}.`
-    const path = tenant?.slug ? `/t/${tenant.slug}/orders?open=${order._id}` : '/orders'
+    const path = `/t/${slug}/orders?open=${order._id}`
     const url = baseUrl ? `${baseUrl.replace(/\/$/, '')}${path}` : path
     await sendTenantAndStaffPush(order.site._ref, { title, body, url })
   }

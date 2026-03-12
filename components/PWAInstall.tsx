@@ -43,30 +43,10 @@ export function PWAInstall() {
 
   const STORAGE_KEY_PERMISSIONS_DISMISSED = 'bedi-pwa-permissions-dismissed'
 
-  // Only set location to "granted" when getCurrentPosition actually succeeds (Permissions API is unreliable, especially on iOS).
-  const verifyLocation = useCallback(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return
-    setLocationChecking(true)
-    navigator.geolocation.getCurrentPosition(
-      () => {
-        setLocationState('granted')
-        setLocationChecking(false)
-      },
-      (err: GeolocationPositionError) => {
-        if (err.code === 1) setLocationState('denied')
-        else if (err.code === 2) setLocationState('denied')
-        else setLocationState('prompt')
-        setLocationChecking(false)
-      },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 }
-    )
-  }, [])
-
   const syncPermissions = useCallback(() => {
     if (typeof window === 'undefined') return
     if (typeof Notification !== 'undefined') setPushPermission(Notification.permission)
     if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      // Never set 'granted' from Permissions API — it's unreliable on iOS and can be stale. Use verifyLocation() for real state.
       if (!('permissions' in navigator)) {
         setLocationState((prev) => (prev === 'granted' ? prev : 'prompt'))
         return
@@ -74,17 +54,15 @@ export function PWAInstall() {
       const perms = (navigator as { permissions?: { query: (p: { name: string }) => Promise<{ state: string }> } }).permissions
       if (perms?.query) {
         perms.query({ name: 'geolocation' }).then((r) => {
-          if (r.state === 'granted') {
-            // Don't trust it: do a real check so we only show Enabled when we actually get a position
-            verifyLocation()
-          } else if (r.state === 'denied') setLocationState('denied')
+          if (r.state === 'granted') setLocationState('granted')
+          else if (r.state === 'denied') setLocationState('denied')
           else setLocationState('prompt')
         }).catch(() => setLocationState('prompt'))
       } else {
         setLocationState('prompt')
       }
     } else setLocationState('unsupported')
-  }, [verifyLocation])
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -227,9 +205,12 @@ export function PWAInstall() {
 
   const requestLocation = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    if (locationChecking) return
     setLocationChecking(true)
+    const guard = setTimeout(() => setLocationChecking(false), 6000)
     navigator.geolocation.getCurrentPosition(
       () => {
+        clearTimeout(guard)
         setLocationState('granted')
         setLocationChecking(false)
         syncPermissions()
@@ -240,15 +221,25 @@ export function PWAInstall() {
         )
       },
       (err: GeolocationPositionError) => {
-        setLocationState('denied')
+        clearTimeout(guard)
         setLocationChecking(false)
         if (err.code === 1) {
+          setLocationState('denied')
           showToast(getLocationDeniedInstructions(), undefined, 'info')
+        } else {
+          setLocationState('prompt')
+          if (err.code === 2) {
+            showToast(
+              t('Could not get location. Try again when you have a clear sky view or move to a window.', 'تعذّر تحديد الموقع. حاول مرة أخرى عند وضوح السماء أو انقلك إلى نافذة.'),
+              undefined,
+              'info'
+            )
+          }
         }
       },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 0 }
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     )
-  }, [syncPermissions, showToast, t, getLocationDeniedInstructions])
+  }, [syncPermissions, showToast, t, getLocationDeniedInstructions, locationChecking])
 
   useEffect(() => {
     try {
