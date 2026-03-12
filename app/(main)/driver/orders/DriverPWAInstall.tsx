@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Download, X, Share2, Plus, Smartphone, MapPin } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
+import { MANIFEST_VERSION } from '@/lib/pwa/constants'
 
 const DISMISS_KEY = 'bedi-driver-pwa-install-dismissed-until'
 const DISMISS_HOURS_DEFAULT = 24
 const DISMISS_HOURS_EXTENDED = 24 * 7
-const MANIFEST_VERSION = '20260311'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -55,7 +55,7 @@ export function DriverPWAInstall() {
       try {
         // Ensure a dedicated /driver/ SW controls this app context.
         if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.register('/driver/sw.js', { scope: '/driver/' }).catch(() => {})
+          navigator.serviceWorker.register('/driver-sw.js', { scope: '/driver/' }).catch(() => {})
         }
         const standalone = window.matchMedia('(display-mode: standalone)').matches
           || (window.navigator as unknown as { standalone?: boolean }).standalone === true

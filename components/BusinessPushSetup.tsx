@@ -39,9 +39,9 @@ export function BusinessPushSetup() {
     }
     setLoading(true)
     try {
-      await navigator.serviceWorker.register('/dashboard/sw.js', { scope: '/dashboard' })
+      await navigator.serviceWorker.register('/dashboard-sw.js', { scope: '/dashboard/' })
       await navigator.serviceWorker.ready
-      const reg = await navigator.serviceWorker.getRegistration('/dashboard')
+      const reg = await navigator.serviceWorker.getRegistration('/dashboard/')
       if (!reg) throw new Error('Service worker not active')
       const perm = await Notification.requestPermission()
       if (perm !== 'granted') {
@@ -88,11 +88,11 @@ export function BusinessPushSetup() {
     let cancelled = false
     ;(async () => {
       try {
-        let reg = await navigator.serviceWorker.getRegistration('/dashboard')
+        let reg = await navigator.serviceWorker.getRegistration('/dashboard/')
         if (!reg) {
-          await navigator.serviceWorker.register('/dashboard/sw.js', { scope: '/dashboard' })
+          await navigator.serviceWorker.register('/dashboard-sw.js', { scope: '/dashboard/' })
           await navigator.serviceWorker.ready
-          reg = await navigator.serviceWorker.getRegistration('/dashboard')
+          reg = await navigator.serviceWorker.getRegistration('/dashboard/')
         }
         if (cancelled || !reg) return
         const { token } = await getFCMToken(reg)

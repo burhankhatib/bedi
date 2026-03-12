@@ -197,8 +197,8 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     }
     setLoading(true)
     try {
-      // Register driver SW with explicit scope so FCM token is bound to this SW (required for push when app is closed).
-      const registration = await navigator.serviceWorker.register('/driver/sw.js', { scope: '/driver/' })
+      // Register driver SW directly; Chrome rejects redirected SW script URLs.
+      const registration = await navigator.serviceWorker.register('/driver-sw.js', { scope: '/driver/' })
       await (registration as unknown as { ready: Promise<ServiceWorkerRegistration> }).ready
       const perm = await Notification.requestPermission()
       setPermission(perm)

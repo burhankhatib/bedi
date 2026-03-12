@@ -1,5 +1,5 @@
 /** Sign-up link for drivers — use production URL so WhatsApp message works from any domain */
-export const DRIVER_SIGNUP_URL = 'https://www.bedi.delivery/sign-up?redirect_url=/'
+export const DRIVER_SIGNUP_URL = 'https://bedi.delivery/sign-up?redirect_url=/'
 
 /** WhatsApp invite message for drivers — Arabic only, personalized with driver name */
 export function getDriverInviteMessageAr(driverName: string, inviteUrl?: string): string {

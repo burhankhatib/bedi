@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react'
 import { Download, X, Smartphone, Share2, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/components/LanguageContext'
+import { MANIFEST_VERSION } from '@/lib/pwa/constants'
 
 const DISMISS_KEY = 'bedi-dashboard-pwa-dismissed-until'
 const DISMISS_HOURS_DEFAULT = 24
 const DISMISS_HOURS_EXTENDED = 24 * 7
-const MANIFEST_VERSION = '20260311'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -65,12 +65,15 @@ export function TenantDashboardPWA({ slug, scope }: TenantDashboardPWAProps = {}
         } else {
           navigator.serviceWorker.getRegistrations().then((regs) => {
             regs
-              .filter((reg) => reg.active?.scriptURL.includes('/app-sw.js'))
+              .filter((reg) =>
+                reg.active?.scriptURL.includes('/app-sw.js') ||
+                reg.active?.scriptURL.includes('/dashboard/sw.js')
+              )
               .forEach((reg) => {
                 reg.unregister().catch(() => {})
               })
           }).catch(() => {})
-          navigator.serviceWorker.register('/dashboard/sw.js', { scope: '/dashboard' }).catch(() => {})
+          navigator.serviceWorker.register('/dashboard-sw.js', { scope: '/dashboard/' }).catch(() => {})
         }
       }
 

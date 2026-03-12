@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Bell, AlertTriangle } from 'lucide-react'
+import { Bell, AlertTriangle, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { useTenantPush } from './TenantPushContext'
 
@@ -13,111 +13,145 @@ function isIOS(): boolean {
 }
 
 /**
- * Shown on the Business Orders page when push is not yet enabled.
- * - permission = default/granted-but-no-token → full-screen gate (user must enable)
- * - permission = denied → full-screen gate + "Continue without notifications" bypass
- *   (tenant cannot fix this from within the app; must go to browser settings)
+ * Non-blocking banner on the Business Orders page when push is not yet enabled.
+ * Never blocks interaction; orders list remains accessible. FCM delivery unchanged:
+ * when tenant enables, token is stored via /api/tenants/[slug]/push-subscription.
  */
 export function TenantOrdersGate({ slug, children }: { slug: string; children: React.ReactNode }) {
   const pathname = usePathname()
   const { t } = useLanguage()
   const { hasPush, checked, loading, isDenied, subscribe } = useTenantPush()
   const [bypassDenied, setBypassDenied] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
+  const [expanded, setExpanded] = useState(true)
 
   const ordersPath = `/t/${slug}/orders`
   const isOnOrdersPage = pathname === ordersPath
 
-  // Pass-through: already has push, not on orders page, or not yet checked
   if (!isOnOrdersPage || hasPush || !checked) return <>{children}</>
-  // User chose to bypass the denied-gate (they know they won't get notifications)
   if (bypassDenied && isDenied) return <>{children}</>
+  if (dismissed && !isDenied) return <>{children}</>
 
   const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent)
 
-  return (
-    <div className="fixed inset-0 z-[100] flex min-h-full min-h-[100dvh] flex-col items-center justify-center bg-slate-950 px-4 py-8 text-center">
-      <div className="rounded-2xl border-2 border-amber-500/60 bg-amber-950/50 p-6 max-w-md w-full">
-
-        {isDenied ? (
-          /* ── Denied state ── */
-          <>
-            <div className="flex items-center justify-center mb-3">
-              <AlertTriangle className="size-8 text-amber-400" />
-            </div>
-            <h2 className="text-xl font-bold text-amber-200 mb-2">
-              {t('Notifications are blocked', 'الإشعارات محجوبة')}
-            </h2>
-            <p className="text-amber-200/90 text-sm mb-4">
-              {t(
-                'You blocked notifications for this site. To receive new order alerts, you must allow notifications in your browser settings.',
-                'لقد حجبت الإشعارات لهذا الموقع. لاستقبال تنبيهات الطلبات الجديدة، يجب السماح بالإشعارات من إعدادات المتصفح.'
+  const banner = (
+    <div className="sticky top-0 z-50 rounded-xl border-2 border-amber-500/60 bg-amber-950/50 p-4 mb-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          {isDenied ? (
+            <>
+              <div className="flex items-center gap-2 mb-1">
+                <AlertTriangle className="size-5 shrink-0 text-amber-400" />
+                <h3 className="font-bold text-amber-200 text-sm">
+                  {t('Notifications are blocked', 'الإشعارات محجوبة')}
+                </h3>
+              </div>
+              {expanded && (
+                <p className="text-amber-200/90 text-xs mb-3">
+                  {t(
+                    'To receive new order alerts, allow notifications in browser settings.',
+                    'لاستقبال تنبيهات الطلبات، سماح بالإشعارات من إعدادات المتصفح.'
+                  )}
+                </p>
               )}
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 mb-1">
+                <Bell className="size-5 shrink-0 text-amber-400" />
+                <h3 className="font-bold text-amber-200 text-sm">
+                  {t('Enable notifications', 'تفعيل الإشعارات')}
+                </h3>
+              </div>
+              {expanded && (
+                <p className="text-amber-200/90 text-xs mb-3">
+                  {t(
+                    'Get instant alerts for new orders even when this page is closed.',
+                    'تنبيهات فورية للطلبات الجديدة حتى عند إغلاق الصفحة.'
+                  )}
+                </p>
+              )}
+            </>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {!isDenied && (
+              <Button
+                type="button"
+                size="sm"
+                disabled={loading}
+                className="min-h-[40px] touch-manipulation bg-emerald-600 hover:bg-emerald-500 text-white font-medium"
+                onClick={() => subscribe()}
+              >
+                <Bell className="mr-1.5 size-4 shrink-0" />
+                {loading ? t('Enabling…', 'جاري...') : t('Enable', 'تفعيل')}
+              </Button>
+            )}
+            {isDenied && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="min-h-[40px] border-slate-600 text-slate-300 hover:bg-slate-800"
+                onClick={() => setBypassDenied(true)}
+              >
+                {t('Continue without notifications', 'متابعة بدون إشعارات')}
+              </Button>
+            )}
+            {!isDenied && expanded && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="min-h-[40px] text-slate-400 hover:text-slate-200"
+                onClick={() => setDismissed(true)}
+              >
+                {t('Dismiss for now', 'تجاهل الآن')}
+              </Button>
+            )}
+          </div>
+          {isAndroid && expanded && !isDenied && (
+            <p className="text-xs text-amber-200/70 mt-2">
+              {t('Tap Enable then choose Allow in the dialog.', 'اضغط تفعيل ثم اختر السماح.')}
             </p>
-            <div className="rounded-xl bg-slate-800/60 border border-slate-700/50 p-3 text-xs text-slate-300 text-left mb-4 space-y-1">
-              <p className="font-medium text-slate-200">
-                {t('How to enable:', 'كيفية التفعيل:')}
-              </p>
-              {isAndroid ? (
-                <p>{t('Chrome → Address bar lock icon → Notifications → Allow', 'Chrome ← أيقونة القفل ← الإشعارات ← سماح')}</p>
-              ) : isIOS() ? (
-                <p>{t('iOS Settings → Safari → Notifications → Allow for this site', 'إعدادات iOS ← Safari ← الإشعارات ← سماح لهذا الموقع')}</p>
-              ) : (
-                <p>{t('Browser Settings → Privacy & Security → Notifications → Allow this site', 'إعدادات المتصفح ← الخصوصية والأمان ← الإشعارات ← سماح')}</p>
-              )}
-            </div>
+          )}
+          {isIOS() && expanded && !isDenied && (
+            <p className="text-xs text-amber-200/70 mt-2">
+              {t('iPhone: Add to Home Screen first, then tap Enable.', 'iPhone: أضف للشاشة الرئيسية أولاً ثم اضغط تفعيل.')}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="h-8 w-8 text-amber-200/70 hover:text-amber-200"
+            onClick={() => setExpanded((e) => !e)}
+            aria-label={expanded ? t('Collapse', 'طي') : t('Expand', 'توسيع')}
+          >
+            {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+          </Button>
+          {!isDenied && (
             <Button
               type="button"
-              size="lg"
-              variant="outline"
-              className="w-full min-h-[52px] border-slate-600 text-slate-300 hover:bg-slate-800 text-sm mb-2"
-              onClick={() => setBypassDenied(true)}
+              variant="ghost"
+              size="icon-sm"
+              className="h-8 w-8 text-amber-200/70 hover:text-amber-200"
+              onClick={() => setDismissed(true)}
+              aria-label={t('Dismiss', 'إغلاق')}
             >
-              {t('Continue without notifications', 'متابعة بدون إشعارات')}
+              <X className="size-4" />
             </Button>
-            <p className="text-xs text-amber-400/70 mt-1">
-              {t('You will not receive alerts for new orders.', 'لن تستقبل تنبيهات للطلبات الجديدة.')}
-            </p>
-          </>
-        ) : (
-          /* ── Default / not-yet-subscribed state ── */
-          <>
-            <div className="flex items-center justify-center mb-3">
-              <Bell className="size-8 text-amber-400" />
-            </div>
-            <h2 className="text-xl font-bold text-amber-200 mb-2">
-              {t('Enable notifications required', 'تفعيل الإشعارات مطلوب')}
-            </h2>
-            <p className="text-amber-200/90 text-sm mb-4">
-              {t(
-                'Enable notifications to receive instant alerts for new orders even when this page is closed.',
-                'فعّل الإشعارات لاستقبال تنبيهات فورية للطلبات الجديدة حتى عند إغلاق الصفحة.'
-              )}
-            </p>
-            {isAndroid && (
-              <p className="text-xs text-amber-200/80 mb-4">
-                {t('Tap "Enable" below then choose "Allow" in the dialog.', 'اضغط «تفعيل» أدناه ثم اختر «السماح» في النافذة.')}
-              </p>
-            )}
-            {isIOS() && (
-              <p className="text-xs text-amber-200/80 mb-4">
-                {t('On iPhone: Add the app to Home Screen then open it and tap Enable.', 'على iPhone: أضف التطبيق إلى الشاشة الرئيسية ثم افتحه واضغط تفعيل.')}
-              </p>
-            )}
-            <Button
-              type="button"
-              size="lg"
-              disabled={loading}
-              className="min-h-[52px] w-full touch-manipulation bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base"
-              onClick={() => subscribe()}
-            >
-              <Bell className="ml-2 size-5 shrink-0" />
-              {loading
-                ? t('Enabling…', 'جاري التفعيل...')
-                : t('Enable notifications', 'تفعيل الإشعارات')}
-            </Button>
-          </>
-        )}
+          )}
+        </div>
       </div>
     </div>
+  )
+
+  return (
+    <>
+      {banner}
+      {children}
+    </>
   )
 }

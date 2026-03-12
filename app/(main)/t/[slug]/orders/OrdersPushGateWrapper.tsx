@@ -1,9 +1,9 @@
 'use client'
 
 /**
- * Wraps the Business Orders page with the same push flow as the Driver:
+ * Wraps the Business Orders page with push context and non-blocking enable banner.
  * - Provider so we can check hasPush and call subscribe()
- * - Full-screen gate every visit until push is enabled (FCM for new order alerts when app is closed)
+ * - Sticky banner when push disabled; page remains usable. FCM unchanged.
  */
 import { TenantPushProvider } from '../manage/TenantPushContext'
 import { TenantOrdersGate } from '../manage/TenantOrdersGate'
