@@ -11,11 +11,23 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Package, Loader2, Upload, ArrowLeft } from 'lucide-react'
+import { Search, Package, Loader2, Upload, ArrowLeft, RefreshCw } from 'lucide-react'
 import { urlFor } from '@/sanity/lib/image'
 import { useLanguage } from '@/components/LanguageContext'
+import { useToast } from '@/components/ui/ToastProvider'
 import { compressImageForUpload } from '@/lib/compress-image'
 import { SALE_UNITS } from '@/lib/sale-units'
+
+function friendlyError(message: string): { en: string; ar: string } {
+  const m = (message || '').toLowerCase()
+  if (m.includes('forbidden') || m.includes('403')) return { en: 'You do not have permission to add products.', ar: 'ليس لديك صلاحية لإضافة المنتجات.' }
+  if (m.includes('category') && m.includes('not found')) return { en: 'Please select a menu category first.', ar: 'يرجى اختيار فئة القائمة أولاً.' }
+  if (m.includes('not found') || m.includes('404')) return { en: 'Product or category was not found. Please try again.', ar: 'لم يتم العثور على المنتج أو الفئة. حاول مرة أخرى.' }
+  if (m.includes('unsplash') || m.includes('unsplash_access_key')) return { en: 'Image service is not configured. Contact your admin to add UNSPLASH_ACCESS_KEY.', ar: 'خدمة الصور غير مهيأة. تواصل مع المشرف.' }
+  if (m.includes('token') || m.includes('server config')) return { en: 'Server configuration error. Please contact support.', ar: 'خطأ في إعدادات الخادم. يرجى التواصل مع الدعم.' }
+  if (m.includes('required')) return { en: 'Missing required information. Please check and try again.', ar: 'معلومات مطلوبة ناقصة. تحقق وحاول مرة أخرى.' }
+  return { en: message || 'Something went wrong. Please try again.', ar: 'حدث خطأ. يرجى المحاولة مرة أخرى.' }
+}
 
 type CatalogProduct = {
   _id: string
@@ -61,6 +73,7 @@ export function CatalogProductsModal({
   businessType?: string
 }) {
   const { t, lang } = useLanguage()
+  const { showToast } = useToast()
   const [q, setQ] = useState('')
   const [catalogCategories, setCatalogCategories] = useState<CatalogCategory[]>([])
   const [selectedCatalogCategoryId, setSelectedCatalogCategoryId] = useState('')
@@ -69,7 +82,8 @@ export function CatalogProductsModal({
   const [masterProducts, setMasterProducts] = useState<MasterCatalogProduct[]>([])
   const [loading, setLoading] = useState(false)
   const [masterLoading, setMasterLoading] = useState(false)
-  const [masterImageUrls, setMasterImageUrls] = useState<Record<string, string>>({})
+  const [masterImageOptions, setMasterImageOptions] = useState<Record<string, { urls: string[]; selectedIndex: number; page: number }>>({})
+  const [refreshImageId, setRefreshImageId] = useState<string | null>(null)
   const [addingMasterId, setAddingMasterId] = useState<string | null>(null)
   const [customizing, setCustomizing] = useState<CatalogProduct | null>(null)
   const [titleEn, setTitleEn] = useState('')
@@ -114,6 +128,20 @@ export function CatalogProductsModal({
     }
   }, [open, slug, q, selectedCatalogCategoryId])
 
+  const fetchImagesForProduct = useCallback(async (itemId: string, searchQuery: string, page = 1) => {
+    if (!searchQuery) return { itemId, urls: [], page }
+    try {
+      const r = await fetch(`/api/catalog/image?query=${encodeURIComponent(searchQuery)}&count=5&page=${page}`)
+      const j = await r.json()
+      const urls = Array.isArray(j?.images)
+        ? j.images.map((img: { imageUrlSmall?: string; imageUrl?: string }) => img.imageUrlSmall || img.imageUrl).filter(Boolean)
+        : (j?.imageUrlSmall || j?.imageUrl) ? [j.imageUrlSmall || j.imageUrl] : []
+      return { itemId, urls, page }
+    } catch {
+      return { itemId, urls: [], page }
+    }
+  }, [])
+
   const fetchMasterProducts = useCallback(async () => {
     if (!open || !slug || !businessType) return
     setMasterLoading(true)
@@ -127,28 +155,35 @@ export function CatalogProductsModal({
       const list = Array.isArray(data) ? (data as MasterCatalogProduct[]) : []
       setMasterProducts(list)
 
-      // Load preview image URLs through the local proxy.
       const pairs = await Promise.all(
         list.map(async (item) => {
-          const query = item.searchQuery?.trim()
-          if (!query) return [item._id, ''] as const
-          try {
-            const r = await fetch(`/api/catalog/image?query=${encodeURIComponent(query)}`)
-            const j = await r.json()
-            return [item._id, (j?.imageUrlSmall || j?.imageUrl || '') as string] as const
-          } catch {
-            return [item._id, ''] as const
-          }
+          const { itemId, urls } = await fetchImagesForProduct(item._id, item.searchQuery?.trim() ?? '', 1)
+          return [itemId, { urls, selectedIndex: 0, page: 1 }] as const
         })
       )
-      setMasterImageUrls(Object.fromEntries(pairs.filter(([, url]) => !!url)))
+      setMasterImageOptions(Object.fromEntries(pairs))
     } catch {
       setMasterProducts([])
-      setMasterImageUrls({})
+      setMasterImageOptions({})
     } finally {
       setMasterLoading(false)
     }
-  }, [open, slug, q, businessType])
+  }, [open, slug, q, businessType, fetchImagesForProduct])
+
+  const refreshMasterImages = useCallback(async (item: MasterCatalogProduct) => {
+    const query = item.searchQuery?.trim()
+    if (!query) return
+    setRefreshImageId(item._id)
+    try {
+      const { urls, page } = await fetchImagesForProduct(item._id, query, ((masterImageOptions[item._id]?.page ?? 1) + 1))
+      setMasterImageOptions((prev) => ({
+        ...prev,
+        [item._id]: { urls, selectedIndex: 0, page },
+      }))
+    } finally {
+      setRefreshImageId(null)
+    }
+  }, [fetchImagesForProduct, masterImageOptions])
 
   useEffect(() => {
     const debounce = setTimeout(fetchProducts, 300)
@@ -185,9 +220,12 @@ export function CatalogProductsModal({
       if (res.ok && data?._id) {
         setUploadedImageId(data._id)
         setSelectedImageRef(null)
+      } else {
+        const msg = friendlyError((data as { error?: string })?.error ?? 'Upload failed')
+        showToast(msg.en, msg.ar, 'error')
       }
     } catch {
-      alert('Upload failed')
+      showToast(t('Image upload failed. Please try again.', 'فشل رفع الصورة. يرجى المحاولة مرة أخرى.'), '', 'error')
     }
     e.target.value = ''
   }
@@ -196,7 +234,7 @@ export function CatalogProductsModal({
     if (!customizing || !menuCategoryId || categories.length === 0) return
     const priceNum = parseFloat(price)
     if (Number.isNaN(priceNum) || priceNum < 0) {
-      alert(t('Please enter a valid price.', 'يرجى إدخال سعر صحيح.'))
+      showToast(t('Please enter a valid price.', 'يرجى إدخال سعر صحيح.'), '', 'error')
       return
     }
     const imageAssetId = uploadedImageId || selectedImageRef
@@ -219,10 +257,12 @@ export function CatalogProductsModal({
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
+        showToast(t('Product added to your menu.', 'تمت إضافة المنتج إلى قائمتك.'), '', 'success')
         onAdded()
         onClose()
       } else {
-        alert((data as { error?: string }).error ?? 'Failed to add product')
+        const msg = friendlyError((data as { error?: string })?.error ?? '')
+        showToast(msg.en, msg.ar, 'error')
       }
     } finally {
       setAdding(false)
@@ -231,6 +271,8 @@ export function CatalogProductsModal({
 
   const handleQuickAddMaster = async (item: MasterCatalogProduct) => {
     if (!menuCategoryId || !item._id || addingMasterId) return
+    const opts = masterImageOptions[item._id]
+    const selectedUrl = opts?.urls?.length ? opts.urls[opts.selectedIndex ?? 0] : undefined
     setAddingMasterId(item._id)
     try {
       const res = await fetch(`/api/tenants/${slug}/products/from-catalog`, {
@@ -243,19 +285,29 @@ export function CatalogProductsModal({
           title_en: item.nameEn,
           title_ar: item.nameAr,
           saleUnit: item.unitType || 'piece',
-          unsplashImageUrl: masterImageUrls[item._id] || undefined,
+          unsplashImageUrl: selectedUrl || undefined,
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
+        showToast(t('Product added to your menu.', 'تمت إضافة المنتج إلى قائمتك.'), '', 'success')
         setMasterProducts((prev) => prev.map((p) => (p._id === item._id ? { ...p, alreadyAdded: true } : p)))
         onAdded()
       } else {
-        alert((data as { error?: string }).error ?? 'Failed to quick add product')
+        const msg = friendlyError((data as { error?: string })?.error ?? '')
+        showToast(msg.en, msg.ar, 'error')
       }
     } finally {
       setAddingMasterId(null)
     }
+  }
+
+  const setSelectedMasterImage = (itemId: string, index: number) => {
+    setMasterImageOptions((prev) => {
+      const opts = prev[itemId]
+      if (!opts) return prev
+      return { ...prev, [itemId]: { ...opts, selectedIndex: index } }
+    })
   }
 
   const title = (p: CatalogProduct) => (lang === 'ar' ? (p.title_ar || p.title_en) : (p.title_en || p.title_ar))
@@ -388,29 +440,63 @@ export function CatalogProductsModal({
                 </div>
                 {masterProducts.length === 0 && !masterLoading ? (
                   <p className="text-xs text-slate-500">
-                    {t('No master catalog items found.', 'لا توجد عناصر في الكتالوج الرئيسي.')}
+                    {t(
+                      'No master catalog items found. Ask your admin to seed the master catalog at Admin → Catalog.',
+                      'لا توجد عناصر. اطلب من المشرف تشغيل البذر في الإدارة → الكتالوج.'
+                    )}
                   </p>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {masterProducts.map((item) => {
-                      const imageUrl = masterImageUrls[item._id]
+                      const opts = masterImageOptions[item._id]
+                      const urls = opts?.urls ?? []
+                      const selectedIdx = opts?.selectedIndex ?? 0
+                      const displayUrl = urls[selectedIdx] || urls[0]
                       const displayName = lang === 'ar' ? (item.nameAr || item.nameEn) : (item.nameEn || item.nameAr)
                       const isAdded = item.alreadyAdded === true
                       const isAdding = addingMasterId === item._id
+                      const isRefreshing = refreshImageId === item._id
                       return (
                         <div
                           key={item._id}
                           className="rounded-xl border border-slate-600 bg-slate-800 overflow-hidden"
                         >
                           <div className="relative aspect-square bg-slate-700">
-                            {imageUrl ? (
-                              <Image src={imageUrl} alt={displayName || ''} fill className="object-cover" sizes="120px" />
+                            {displayUrl ? (
+                              <Image src={displayUrl} alt={displayName || ''} fill className="object-cover" sizes="120px" unoptimized />
                             ) : (
                               <div className="absolute inset-0 flex items-center justify-center">
                                 <Package className="size-10 text-slate-500" />
                               </div>
                             )}
                           </div>
+                          {urls.length > 0 && !isAdded && (
+                            <div className="px-2 pt-1.5 flex flex-wrap gap-1 items-center">
+                              {urls.map((url, idx) => (
+                                <button
+                                  key={url}
+                                  type="button"
+                                  onClick={() => setSelectedMasterImage(item._id, idx)}
+                                  className={`relative size-8 rounded overflow-hidden shrink-0 border-2 transition-colors ${
+                                    selectedIdx === idx ? 'border-emerald-500 ring-1 ring-emerald-500/50' : 'border-slate-600 hover:border-slate-500'
+                                  }`}
+                                >
+                                  <Image src={url} alt="" fill className="object-cover" sizes="32px" unoptimized />
+                                </button>
+                              ))}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 shrink-0 text-slate-500 hover:text-emerald-400"
+                                onClick={() => refreshMasterImages(item)}
+                                disabled={isRefreshing}
+                                title={t('Refresh images', 'تحديث الصور')}
+                              >
+                                {isRefreshing ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                              </Button>
+                            </div>
+                          )}
                           <div className="p-2 space-y-1">
                             <p className="text-sm font-bold text-white line-clamp-2">{displayName}</p>
                             {item.unitType && <p className="text-[10px] text-slate-400 uppercase">{item.unitType}</p>}

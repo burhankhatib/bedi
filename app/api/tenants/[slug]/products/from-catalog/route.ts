@@ -125,11 +125,14 @@ export async function POST(
     const price = priceOverride ?? 0
     const saleUnit = saleUnitOverride ?? masterCatalogProduct.unitType ?? 'piece'
 
-    // Upload remote image URL to Sanity asset so the tenant owns a stable copy.
     let resolvedImageAssetId: string | undefined = imageAssetId
     if (!resolvedImageAssetId && unsplashImageUrl) {
-      const uploaded = await uploadImageFromUrl(writeClient as ClientWithUpload, unsplashImageUrl)
-      resolvedImageAssetId = uploaded ?? undefined
+      try {
+        const uploaded = await uploadImageFromUrl(writeClient as ClientWithUpload, unsplashImageUrl)
+        resolvedImageAssetId = uploaded ?? undefined
+      } catch {
+        // Continue without image; we may use tempImageUrl as fallback
+      }
     }
 
     const doc: Record<string, unknown> = {
@@ -149,12 +152,20 @@ export async function POST(
     if (resolvedImageAssetId) {
       doc.image = { _type: 'image', asset: { _type: 'reference', _ref: resolvedImageAssetId } }
     } else if (unsplashImageUrl) {
-      // Fallback if upload fails unexpectedly.
       doc.tempImageUrl = unsplashImageUrl
     }
 
-    const created = await writeClient.create(doc as { _type: 'product'; [key: string]: unknown })
-    return NextResponse.json(created)
+    try {
+      const created = await writeClient.create(doc as { _type: 'product'; [key: string]: unknown })
+      return NextResponse.json(created)
+    } catch (err) {
+      console.error('[from-catalog] Create product error:', err)
+      const msg = err instanceof Error ? err.message : 'Failed to create product'
+      return NextResponse.json(
+        { error: msg.includes('token') || msg.includes('Token') ? 'Server configuration error. Please contact support.' : msg },
+        { status: 500 }
+      )
+    }
   }
 
   if (catalogProduct) {

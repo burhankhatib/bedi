@@ -10,12 +10,23 @@ type UnsplashSearchResponse = {
   }>
 }
 
+type ImageResult = {
+  id: string
+  imageUrl: string
+  imageUrlSmall: string
+  photographer?: string
+  photographerUrl?: string
+}
+
 /**
- * GET /api/catalog/image?query=carton%20of%20eggs
- * Proxies Unsplash search and returns one curated image URL.
+ * GET /api/catalog/image?query=carton%20of%20eggs&count=5&page=1
+ * Proxies Unsplash search. Returns one image by default, or up to 5 with count=5. page=1,2,... for refresh.
  */
 export async function GET(req: NextRequest) {
   const query = (req.nextUrl.searchParams.get('query') ?? '').trim()
+  const count = Math.min(5, Math.max(1, parseInt(req.nextUrl.searchParams.get('count') ?? '1', 10) || 1))
+  const page = Math.max(1, parseInt(req.nextUrl.searchParams.get('page') ?? '1', 10) || 1)
+
   if (!query) {
     return NextResponse.json({ error: 'query is required' }, { status: 400 })
   }
@@ -27,16 +38,15 @@ export async function GET(req: NextRequest) {
 
   const url = new URL('https://api.unsplash.com/search/photos')
   url.searchParams.set('query', query)
-  url.searchParams.set('per_page', '1')
+  url.searchParams.set('per_page', String(count))
+  url.searchParams.set('page', String(page))
   url.searchParams.set('orientation', 'squarish')
   url.searchParams.set('content_filter', 'high')
   url.searchParams.set('order_by', 'relevant')
 
   try {
     const res = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Client-ID ${accessKey}`,
-      },
+      headers: { Authorization: `Client-ID ${accessKey}` },
       cache: 'no-store',
     })
 
@@ -49,19 +59,25 @@ export async function GET(req: NextRequest) {
     }
 
     const data = (await res.json()) as UnsplashSearchResponse
-    const photo = data.results?.[0]
-    if (!photo?.urls?.regular && !photo?.urls?.small) {
-      return NextResponse.json({ error: 'No image found' }, { status: 404 })
+    const results: ImageResult[] = (data.results ?? [])
+      .filter((p) => p?.urls?.regular || p?.urls?.small)
+      .slice(0, count)
+      .map((p) => ({
+        id: p.id,
+        imageUrl: p.urls?.regular ?? p.urls?.small ?? '',
+        imageUrlSmall: p.urls?.small ?? p.urls?.regular ?? '',
+        photographer: p.user?.name,
+        photographerUrl: p.user?.links?.html,
+      }))
+
+    if (results.length === 0) {
+      return NextResponse.json({ error: 'No images found', images: [] }, { status: 404 })
     }
 
     return NextResponse.json(
-      {
-        id: photo.id,
-        imageUrl: photo.urls?.regular ?? photo.urls?.small ?? null,
-        imageUrlSmall: photo.urls?.small ?? photo.urls?.regular ?? null,
-        photographer: photo.user?.name ?? null,
-        photographerUrl: photo.user?.links?.html ?? null,
-      },
+      count === 1
+        ? { ...results[0], images: undefined }
+        : { images: results, imageUrl: results[0]?.imageUrl, imageUrlSmall: results[0]?.imageUrlSmall },
       { headers: { 'Cache-Control': 'private, max-age=3600' } }
     )
   } catch (error) {

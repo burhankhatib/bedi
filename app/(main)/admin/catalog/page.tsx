@@ -42,7 +42,7 @@ export default function AdminCatalogPage() {
     <div>
       <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">Product Catalog</h1>
       <p className="mt-1 text-sm text-slate-400 sm:text-base">
-        Palestinian market product catalog for grocery and greengrocer tenants. Seed categories and products so markets can add them to their menus.
+        Palestinian market product catalog for grocery, supermarket, and greengrocer tenants. Seed categories and products so markets can add them to their menus.
       </p>
       <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900/50 p-6">
         <div className="flex items-start gap-4">
@@ -84,7 +84,7 @@ export default function AdminCatalogPage() {
           <div>
             <h2 className="font-semibold text-white">Seed Master Catalog</h2>
             <p className="mt-1 text-sm text-slate-400">
-              Creates bilingual quick-add templates (`masterCatalogProduct`) with Arabic/English names, search prompts for Unsplash, and unit type defaults.
+              Creates bilingual quick-add templates (Eggs, Milk, Tomatoes, etc.) with Arabic/English names, search prompts for Unsplash, and unit type defaults. Safe to run again to add missing items.
             </p>
             <Button
               onClick={handleSeedMaster}

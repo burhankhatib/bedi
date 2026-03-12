@@ -69,9 +69,14 @@ export function DriverLayoutClient({
   const needsRedirect = hasNoProfileYet && pathname && !DRIVER_SETUP_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
 
   useEffect(() => {
-    if (needsRedirect) {
-      router.replace('/driver/profile')
-    }
+    if (!needsRedirect) return
+    router.replace('/driver/profile')
+    const fallback = setTimeout(() => {
+      if (typeof window !== 'undefined' && window.location.pathname !== '/driver/profile') {
+        window.location.href = '/driver/profile'
+      }
+    }, 2500)
+    return () => clearTimeout(fallback)
   }, [needsRedirect, router])
 
   useEffect(() => {

@@ -24,21 +24,13 @@ export async function POST(_req: NextRequest) {
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
-  const existing = await writeClient.fetch<{ _id: string } | null>(
-    `*[_type == "masterCatalogProduct"][0]{ _id }`
-  )
-  if (existing) {
-    return NextResponse.json(
-      {
-        message:
-          'Master catalog already seeded. Delete existing master catalog products in Studio first.',
-      },
-      { status: 400 }
-    )
-  }
-
   let createdCount = 0
   for (const item of MASTER_CATALOG_SEED) {
+    const existing = await writeClient.fetch<{ _id: string } | null>(
+      `*[_type == "masterCatalogProduct" && nameEn == $nameEn && category == $category][0]{ _id }`,
+      { nameEn: item.nameEn, category: item.category }
+    )
+    if (existing) continue
     await writeClient.create({
       _type: 'masterCatalogProduct',
       nameEn: item.nameEn,

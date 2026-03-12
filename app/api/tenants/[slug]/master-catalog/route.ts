@@ -33,7 +33,10 @@ export async function GET(
     categoryRaw === 'supermarket' || categoryRaw === 'greengrocer' ? 'grocery' : categoryRaw
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '100', 10) || 100, 200)
   const qNormalized = normalizeForSearch(qRaw)
-  const qTerms = qNormalized.split(/\s+/).filter(Boolean)
+  const qTerms = qNormalized
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((t) => t.length >= 2 && /[\w\u0600-\u06FF]/.test(t)) // require letters/digits, ignore pure punctuation
 
   const [items, addedRefs] = await Promise.all([
     client.fetch<MasterCatalogRow[]>(
