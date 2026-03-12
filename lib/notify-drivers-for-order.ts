@@ -5,6 +5,57 @@ import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
+type CentralSub = { clerkUserId: string; devices?: Array<{ fcmToken?: string; webPush?: { endpoint?: string; p256dh?: string; auth?: string } }> }
+
+async function getDriverTokens(
+  d: { _id: string; clerkUserId?: string; fcmToken?: string; pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string } },
+  centralByClerk: Map<string, CentralSub[]>
+): Promise<{ fcmTokens: string[]; webPush: Array<{ endpoint: string; p256dh: string; auth: string }> }> {
+  const fcmTokens: string[] = []
+  const webPush: Array<{ endpoint: string; p256dh: string; auth: string }> = []
+  if (d.fcmToken && d.fcmToken.trim()) fcmTokens.push(d.fcmToken.trim())
+  const sub = d.pushSubscription
+  if (sub?.endpoint && sub?.p256dh && sub?.auth) {
+    webPush.push({ endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth })
+  }
+  const clerkUserId = (d.clerkUserId ?? '').trim()
+  if (clerkUserId) {
+    const central = centralByClerk.get(clerkUserId) ?? []
+    for (const c of central) {
+      for (const dev of c.devices ?? []) {
+        if (dev.fcmToken && !fcmTokens.includes(dev.fcmToken)) fcmTokens.push(dev.fcmToken)
+        const wp = dev.webPush
+        if (wp?.endpoint && wp?.p256dh && wp?.auth && !webPush.some((w) => w.endpoint === wp.endpoint)) {
+          webPush.push({ endpoint: wp.endpoint, p256dh: wp.p256dh, auth: wp.auth })
+        }
+      }
+    }
+  }
+  return { fcmTokens, webPush }
+}
+
+async function sendToDriverTokens(
+  tokens: { fcmTokens: string[]; webPush: Array<{ endpoint: string; p256dh: string; auth: string }> },
+  payload: { title: string; body: string; url: string; dir: 'rtl' }
+): Promise<boolean> {
+  let sent = false
+  for (const tok of tokens.fcmTokens) {
+    if (isFCMConfigured() && (await sendFCMToToken(tok, payload))) {
+      sent = true
+      break
+    }
+  }
+  if (!sent && isPushConfigured()) {
+    for (const wp of tokens.webPush) {
+      if (await sendPushNotification({ endpoint: wp.endpoint, keys: { p256dh: wp.p256dh, auth: wp.auth } }, payload)) {
+        sent = true
+        break
+      }
+    }
+  }
+  return sent
+}
+
 export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<void> {
   const pushReady = isFCMConfigured() || isPushConfigured()
   if (!pushReady) return
@@ -70,17 +121,34 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
 
     type DriverRow = {
       _id: string
+      clerkUserId?: string
       fcmToken?: string
       pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
       country?: string
       city?: string
     }
+    // Include clerkUserId; don't require fcmToken on driver doc — we also use central userPushSubscription
     const drivers = await writeClient.fetch<DriverRow[]>(
-      `*[_type == "driver" && isOnline == true && (defined(fcmToken) || defined(pushSubscription.endpoint))]{ _id, fcmToken, "pushSubscription": pushSubscription, country, city }`
+      `*[_type == "driver" && isOnline == true]{ _id, clerkUserId, fcmToken, "pushSubscription": pushSubscription, country, city }`
     )
     const list = drivers ?? []
-    const declinedSet = new Set(order?.declinedByDriverRefs ?? [])
+    const clerkIds = list.map((d) => (d.clerkUserId ?? '').trim()).filter(Boolean)
+    let centralSubs: CentralSub[] = []
+    if (clerkIds.length > 0) {
+      centralSubs = await writeClient.fetch<CentralSub[]>(
+        `*[_type == "userPushSubscription" && roleContext == "driver" && clerkUserId in $ids && isActive != false]{ clerkUserId, devices }`,
+        { ids: clerkIds }
+      ).catch(() => [])
+    }
+    const centralByClerk = new Map<string, CentralSub[]>()
+    for (const c of centralSubs) {
+      if (!c.clerkUserId) continue
+      const arr = centralByClerk.get(c.clerkUserId) ?? []
+      arr.push(c)
+      centralByClerk.set(c.clerkUserId, arr)
+    }
 
+    const declinedSet = new Set(order?.declinedByDriverRefs ?? [])
     const norm = (s: string | undefined) => (s ?? '').trim().toLowerCase()
     let matching: DriverRow[] = []
 
@@ -109,30 +177,18 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       matching = list.filter((d) => !declinedSet.has(d._id))
     }
 
+    const driversWithPush = matching.filter((d) => d.fcmToken || d.pushSubscription?.endpoint || (d.clerkUserId && centralByClerk.has((d.clerkUserId ?? '').trim())))
     if (process.env.NODE_ENV === 'development' && (list.length > 0 || matching.length > 0)) {
-      console.info('[request-driver]', list.length, 'online driver(s) with push,', matching.length, 'matching (excluding', declinedSet.size, 'who declined)')
+      console.info('[request-driver]', list.length, 'online driver(s),', driversWithPush.length, 'with push tokens,', matching.length, 'matching')
     }
 
     for (const d of matching) {
-      let sent = false
-      if (d.fcmToken && isFCMConfigured()) {
-        sent = await sendFCMToToken(d.fcmToken, payload)
-      }
-      if (!sent) {
-        const sub = d.pushSubscription
-        if (sub?.endpoint && sub?.p256dh && sub?.auth && isPushConfigured()) {
-          const ok = await sendPushNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            payload
-          )
-          if (process.env.NODE_ENV === 'development' && !ok) {
-            console.warn('[request-driver] Web Push send returned false for one driver')
-          }
-        }
-      }
+      const tokens = await getDriverTokens(d, centralByClerk)
+      if (tokens.fcmTokens.length === 0 && tokens.webPush.length === 0) continue
+      await sendToDriverTokens(tokens, payload)
     }
 
-    // Send offline driver reminders (once per 15 minutes)
+    // Send offline driver reminders (once per 15 minutes) — "new orders available while you are offline"
     const nowMs = Date.now()
     if (order?.siteRef) {
       const site = await writeClient.fetch<{ country?: string; city?: string } | null>(
@@ -146,6 +202,7 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
 
         type OfflineDriverRow = {
           _id: string
+          clerkUserId?: string
           fcmToken?: string
           pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
           country?: string
@@ -153,8 +210,8 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
           lastOfflineReminderAt?: string
         }
         const offlineDrivers = await writeClient.fetch<OfflineDriverRow[]>(
-          `*[_type == "driver" && isVerifiedByAdmin == true && isOnline != true && (defined(fcmToken) || defined(pushSubscription.endpoint)) && (!defined(blockedBySuperAdmin) || blockedBySuperAdmin == false)]{
-            _id, fcmToken, "pushSubscription": pushSubscription, country, city, lastOfflineReminderAt
+          `*[_type == "driver" && isVerifiedByAdmin == true && isOnline != true && (!defined(blockedBySuperAdmin) || blockedBySuperAdmin == false)]{
+            _id, clerkUserId, fcmToken, "pushSubscription": pushSubscription, country, city, lastOfflineReminderAt
           }`
         )
         const eligibleOffline = (offlineDrivers ?? []).filter(
@@ -162,6 +219,21 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
             (norm(d.country) === siteCountryNorm && norm(d.city) === siteCityNorm) &&
             (!d.lastOfflineReminderAt || d.lastOfflineReminderAt < fifteenMinsAgo)
         )
+        const offlineClerkIds = eligibleOffline.map((d) => (d.clerkUserId ?? '').trim()).filter(Boolean)
+        let offlineCentral: CentralSub[] = []
+        if (offlineClerkIds.length > 0) {
+          offlineCentral = await writeClient.fetch<CentralSub[]>(
+            `*[_type == "userPushSubscription" && roleContext == "driver" && clerkUserId in $ids && isActive != false]{ clerkUserId, devices }`,
+            { ids: offlineClerkIds }
+          ).catch(() => [])
+        }
+        const offlineCentralByClerk = new Map<string, CentralSub[]>()
+        for (const c of offlineCentral) {
+          if (!c.clerkUserId) continue
+          const arr = offlineCentralByClerk.get(c.clerkUserId) ?? []
+          arr.push(c)
+          offlineCentralByClerk.set(c.clerkUserId, arr)
+        }
         const reminderPayload = {
           title: '\u200Fتنبيه: طلبات توصيل متاحة',
           body: '\u200Fيوجد طلبات توصيل متاحة في منطقتك! افتح التطبيق واستقبل الطلبات لزيادة أرباحك.',
@@ -170,20 +242,9 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
         }
         const reminderNow = new Date(nowMs).toISOString()
         for (const d of eligibleOffline) {
-          let sent = false
-          if (d.fcmToken && isFCMConfigured()) {
-            sent = await sendFCMToToken(d.fcmToken, reminderPayload)
-          }
-          if (!sent) {
-            const sub = d.pushSubscription
-            if (sub?.endpoint && sub?.p256dh && sub?.auth && isPushConfigured()) {
-              await sendPushNotification(
-                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-                reminderPayload
-              )
-            }
-          }
-          // Update throttle timestamp regardless of delivery success
+          const tokens = await getDriverTokens({ ...d, pushSubscription: d.pushSubscription }, offlineCentralByClerk)
+          if (tokens.fcmTokens.length === 0 && tokens.webPush.length === 0) continue
+          await sendToDriverTokens(tokens, reminderPayload)
           writeClient.patch(d._id).set({ lastOfflineReminderAt: reminderNow }).commit().catch(() => {})
         }
       }
