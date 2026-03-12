@@ -81,7 +81,7 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
     <div className="flex flex-col md:h-full">
       {/* Desktop & Mobile Header / Breadcrumb */}
       <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2">
-        <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:bg-slate-800 hover:text-white rounded-full">
+        <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:bg-slate-800 hover:text-white rounded-full touch-manipulation">
           <Link href="/dashboard">
             <ArrowLeft className="mr-1.5 size-4 shrink-0 rtl:ml-1.5 rtl:mr-0 rtl:rotate-180" />
             {t('Dashboard', 'لوحة التحكم')}
@@ -94,7 +94,7 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
       {/* Primary Orders Banner */}
       <Link
         href={ordersHref}
-        className="group relative overflow-hidden mb-6 flex items-center justify-between rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500 to-amber-400 px-5 py-4 font-bold text-slate-950 shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98] hover:shadow-amber-500/40"
+        className="group relative overflow-hidden mb-6 flex items-center justify-between rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500 to-amber-400 px-5 py-4 font-bold text-slate-950 shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98] hover:shadow-amber-500/40 touch-manipulation"
       >
         <span className="flex items-center gap-3 relative z-10">
           <ShoppingBag className="size-6 shrink-0" />
@@ -103,7 +103,7 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
         <div className="relative z-10">
           <NewOrdersBadge />
         </div>
-        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out rounded-2xl"></div>
+        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out rounded-2xl pointer-events-none"></div>
       </Link>
 
       {/* Mobile: Horizontal Scrollable Chip Menu */}
@@ -116,16 +116,16 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
               <Link
                 key={href}
                 href={href}
-                className={`relative flex items-center gap-2 px-4 py-3 rounded-full text-sm font-semibold transition-colors ${
+                className={`relative flex items-center gap-2 px-4 py-3 rounded-full text-sm font-semibold transition-colors touch-manipulation ${
                   isActive ? 'text-amber-400' : 'text-slate-400 bg-slate-900 border border-slate-800'
                 }`}
               >
                 {isActive && (
                   <motion.div
                     layoutId="mobile-nav-pill"
-                    className="absolute inset-0 rounded-full bg-amber-500/10 border border-amber-500/30"
+                    className="absolute inset-0 rounded-full bg-amber-500/10 border border-amber-500/30 pointer-events-none"
                     initial={false}
-                    transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                    transition={{ type: 'spring', bounce: 0.2, duration: 0.25 }}
                   />
                 )}
                 <Icon className="size-4 relative z-10" />
@@ -153,20 +153,20 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
                   <Link
                     key={href}
                     href={href}
-                    className={`relative flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-colors group overflow-hidden ${
+                    className={`relative flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-colors group overflow-hidden touch-manipulation ${
                       isActive ? 'text-amber-400' : 'text-slate-300 hover:text-white'
                     }`}
                   >
                     {isActive && (
                       <motion.div
                         layoutId="desktop-nav-pill"
-                        className="absolute inset-0 rounded-2xl bg-amber-500/10 border border-amber-500/30"
+                        className="absolute inset-0 rounded-2xl bg-amber-500/10 border border-amber-500/30 pointer-events-none"
                         initial={false}
-                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.25 }}
                       />
                     )}
                     {!isActive && (
-                      <div className="absolute inset-0 rounded-2xl bg-slate-800/0 group-hover:bg-slate-800/50 transition-colors" />
+                      <div className="absolute inset-0 rounded-2xl bg-slate-800/0 group-hover:bg-slate-800/50 transition-colors pointer-events-none" />
                     )}
                     <Icon className={`size-5 relative z-10 ${isActive ? 'text-amber-400' : 'text-slate-400 group-hover:text-slate-300'}`} />
                     <span className="relative z-10">{t(labelEn, labelAr)}</span>

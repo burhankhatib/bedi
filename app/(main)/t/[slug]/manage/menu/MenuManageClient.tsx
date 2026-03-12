@@ -84,6 +84,8 @@ function DroppableProductList({
   )
 }
 
+const SORT_ORDER_GAP = 100
+
 function SortableProduct({
   product,
   loading,
@@ -159,7 +161,98 @@ function SortableProduct({
   )
 }
 
+function ProductRow({
+  product,
+  loading,
+  currentCategoryId,
+  categories,
+  onEdit,
+  onDuplicate,
+  onDelete,
+  onMove,
+}: {
+  product: { _id: string; title_en: string; price: number; currency: string }
+  loading: boolean
+  currentCategoryId: string
+  categories: Array<{ _id: string; title_en: string }>
+  onEdit: () => void
+  onDuplicate: () => void
+  onDelete: () => void
+  onMove: (targetCategoryId: string) => void
+}) {
+  const otherCategories = categories.filter((c) => c._id !== currentCategoryId)
+  return (
+    <li className="rounded-lg bg-slate-800/50">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 text-sm">
+        <div className="flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-lg border border-slate-600/40 bg-slate-800/30 p-2 text-slate-600">
+          <GripVertical className="size-4 opacity-50" />
+        </div>
+        <span className="min-w-0 flex-1 truncate">{product.title_en} — {product.price} {product.currency}</span>
+        <div className="flex shrink-0 items-center gap-1">
+          {otherCategories.length > 0 && (
+            <select
+              value=""
+              onChange={(e) => {
+                const v = e.target.value
+                if (v) onMove(v)
+                e.target.value = ''
+              }}
+              disabled={loading}
+              className="h-8 max-w-[140px] rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-50"
+              title="Move to category"
+            >
+              <option value="">Move to…</option>
+              {otherCategories.map((cat) => (
+                <option key={cat._id} value={cat._id}>{cat.title_en}</option>
+              ))}
+            </select>
+          )}
+          <Button type="button" variant="ghost" size="sm" className="h-8 text-slate-400" onClick={onEdit} disabled={loading} title="Edit">
+            <Pencil className="size-3.5" />
+          </Button>
+          <Button type="button" variant="ghost" size="sm" className="h-8 text-slate-400" onClick={onDuplicate} disabled={loading} title="Duplicate">
+            <Copy className="size-3.5" />
+          </Button>
+          <Button type="button" variant="ghost" size="sm" className="h-8 text-red-400" onClick={onDelete} disabled={loading} title="Delete">
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+    </li>
+  )
+}
+
 type Category = { _id: string; title_en: string; title_ar: string; slug: string; sortOrder?: number }
+
+const SORT_STORAGE_KEY = 'menu-product-sort'
+type ProductSortMode = 'manual' | 'name' | 'price'
+
+function loadSortModes(slug: string): Record<string, ProductSortMode> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = localStorage.getItem(`${SORT_STORAGE_KEY}-${slug}`)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, string>
+      const out: Record<string, ProductSortMode> = {}
+      for (const [k, v] of Object.entries(parsed)) {
+        if (v === 'manual' || v === 'name' || v === 'price') out[k] = v
+      }
+      return out
+    }
+  } catch {
+    // ignore
+  }
+  return {}
+}
+
+function saveSortModes(slug: string, modes: Record<string, ProductSortMode>) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(`${SORT_STORAGE_KEY}-${slug}`, JSON.stringify(modes))
+  } catch {
+    // ignore
+  }
+}
 type Product = {
   _id: string
   title_en: string
@@ -210,6 +303,8 @@ export function MenuManageClient({
   const businessType = data?.tenant?.businessType ?? ''
   const canUseCatalog = ['grocery', 'supermarket', 'greengrocer'].includes(businessType)
   const [catalogOpen, setCatalogOpen] = useState(false)
+  const [sortModes, setSortModes] = useState<Record<string, ProductSortMode>>(() => loadSortModes(slug))
+  const [reorderingCategoryId, setReorderingCategoryId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{
     type: 'category' | 'product'
     id: string
@@ -465,12 +560,32 @@ export function MenuManageClient({
     return products
       .filter((p) => p.categoryId === categoryId && !seen.has(p._id) && (seen.add(p._id), true))
       .sort((a, b) => {
-        const orderA = a.sortOrder ?? 999
-        const orderB = b.sortOrder ?? 999
+        const orderA = a.sortOrder ?? 999999
+        const orderB = b.sortOrder ?? 999999
         if (orderA !== orderB) return orderA - orderB
-        return (a.title_en || '').localeCompare(b.title_en || '', undefined, { sensitivity: 'base' })
+        return (a._id || '').localeCompare(b._id || '')
       })
   }, [products])
+
+  const getSortedCategoryProducts = useCallback(
+    (categoryId: string, mode: ProductSortMode): Product[] => {
+      const list = getCategoryProducts(categoryId)
+      if (mode === 'manual') return list
+      if (mode === 'name') {
+        return [...list].sort((a, b) => {
+          const cmp = (a.title_en || '').toLowerCase().localeCompare((b.title_en || '').toLowerCase())
+          return cmp !== 0 ? cmp : (a._id || '').localeCompare(b._id || '')
+        })
+      }
+      return [...list].sort((a, b) => {
+        const pa = a.price
+        const pb = b.price
+        if (pa !== pb) return pa - pb
+        return (a._id || '').localeCompare(b._id || '')
+      })
+    },
+    [getCategoryProducts]
+  )
 
   const reorderCategories = useCallback(async (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || toIndex >= categories.length) return
@@ -489,13 +604,15 @@ export function MenuManageClient({
   }, [categories, api, showToast, reloadCategories])
 
   const reorderCategoryProducts = useCallback(async (categoryId: string, fromIndex: number, toIndex: number) => {
+    if (reorderingCategoryId) return
     const categoryProducts = getCategoryProducts(categoryId)
     if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || toIndex > categoryProducts.length) return
+    setReorderingCategoryId(categoryId)
     const next = [...categoryProducts]
     const [removed] = next.splice(fromIndex, 1)
     const insertAt = Math.min(toIndex, next.length)
     next.splice(insertAt, 0, removed)
-    const updates = next.map((p, index) => ({ ...p, sortOrder: index }))
+    const updates = next.map((p, index) => ({ ...p, sortOrder: index * SORT_ORDER_GAP }))
     setProducts((prev) =>
       prev.map((p) => {
         if (p.categoryId !== categoryId) return p
@@ -517,13 +634,17 @@ export function MenuManageClient({
     } catch {
       showToast('Failed to save order', 'فشل حفظ الترتيب', 'error')
       reloadProducts()
+    } finally {
+      setReorderingCategoryId(null)
     }
-  }, [getCategoryProducts, api, showToast, reloadProducts])
+  }, [getCategoryProducts, api, showToast, reloadProducts, reorderingCategoryId])
 
   const moveProductToCategory = useCallback(
     async (productId: string, targetCategoryId: string, insertAfterProductId?: string) => {
+      if (reorderingCategoryId) return
       const product = products.find((p) => p._id === productId)
       if (!product) return
+      setReorderingCategoryId(targetCategoryId)
       const targetProducts = getCategoryProducts(targetCategoryId)
       const isSameCategory = product.categoryId === targetCategoryId
       if (isSameCategory && insertAfterProductId) {
@@ -539,7 +660,7 @@ export function MenuManageClient({
         : targetProducts.length
       const reordered = [...targetProducts.filter((p) => p._id !== productId)]
       reordered.splice(Math.min(insertIndex, reordered.length), 0, product)
-      const updates = reordered.map((p, i) => ({ ...p, sortOrder: i }))
+      const updates = reordered.map((p, i) => ({ ...p, sortOrder: i * SORT_ORDER_GAP }))
       setProducts((prev) =>
         prev.map((p) => {
           if (p.categoryId !== targetCategoryId && p._id !== productId) return p
@@ -568,9 +689,11 @@ export function MenuManageClient({
       } catch {
         showToast('Failed to move product', 'فشل نقل المنتج', 'error')
         reloadProducts()
+      } finally {
+        setReorderingCategoryId(null)
       }
     },
-    [products, getCategoryProducts, api, showToast, reloadProducts, reorderCategoryProducts]
+    [products, getCategoryProducts, api, showToast, reloadProducts, reorderCategoryProducts, reorderingCategoryId]
   )
 
   const handleDragEnd = useCallback(
@@ -660,6 +783,14 @@ export function MenuManageClient({
     if (type === 'category') await doDeleteCategory(id)
     else await doDeleteProduct(id)
   }
+
+  const setSortModeForCategory = useCallback((categoryId: string, mode: ProductSortMode) => {
+    setSortModes((prev) => {
+      const next = { ...prev, [categoryId]: mode }
+      saveSortModes(slug, next)
+      return next
+    })
+  }, [slug])
 
   const handleDuplicateProduct = async (product: Product) => {
     setLoading(true)
@@ -834,14 +965,45 @@ export function MenuManageClient({
                       </div>
                       {expandedCat === c._id && (
                         <div className="border-t border-slate-700/50 px-4 py-3">
-                          <p className="mb-2 text-xs font-medium text-slate-500">Products — drag to reorder or move to another category</p>
-                          <DroppableProductList id={`drop-category-${c._id}`} isEmpty={getCategoryProducts(c._id).length === 0}>
-                            <SortableContext
-                              items={getCategoryProducts(c._id).map((p) => `product-${p._id}`)}
-                              strategy={verticalListSortingStrategy}
+                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs font-medium text-slate-500">
+                              {t('Products', 'المنتجات')}
+                              {(sortModes[c._id] ?? 'manual') === 'manual' && ' — ' + t('Drag to reorder or move', 'اسحب لإعادة الترتيب أو النقل')}
+                            </p>
+                            <select
+                              value={sortModes[c._id] ?? 'manual'}
+                              onChange={(e) => setSortModeForCategory(c._id, e.target.value as ProductSortMode)}
+                              className="h-8 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                              title={t('Sort products by', 'ترتيب المنتجات حسب')}
                             >
-                              {getCategoryProducts(c._id).map((p) => (
-                                <SortableProduct
+                              <option value="manual">{t('Manual (drag & drop)', 'يدوياً (سحب وإفلات)')}</option>
+                              <option value="name">{t('Name', 'الاسم')}</option>
+                              <option value="price">{t('Price', 'السعر')}</option>
+                            </select>
+                          </div>
+                          <DroppableProductList id={`drop-category-${c._id}`} isEmpty={getCategoryProducts(c._id).length === 0}>
+                            {(sortModes[c._id] ?? 'manual') === 'manual' ? (
+                              <SortableContext
+                                items={getCategoryProducts(c._id).map((p) => `product-${p._id}`)}
+                                strategy={verticalListSortingStrategy}
+                              >
+                                {getCategoryProducts(c._id).map((p) => (
+                                  <SortableProduct
+                                    key={`prod-${p._id}-${c._id}`}
+                                    product={p}
+                                    loading={loading || reorderingCategoryId === c._id}
+                                    currentCategoryId={c._id}
+                                    categories={categories}
+                                    onEdit={() => openEditProduct(p)}
+                                    onDuplicate={() => handleDuplicateProduct(p)}
+                                    onDelete={() => setDeleteConfirm({ type: 'product', id: p._id, nameEn: p.title_en, nameAr: p.title_ar })}
+                                    onMove={(targetId) => moveProductToCategory(p._id, targetId)}
+                                  />
+                                ))}
+                              </SortableContext>
+                            ) : (
+                              getSortedCategoryProducts(c._id, sortModes[c._id] ?? 'manual').map((p) => (
+                                <ProductRow
                                   key={`prod-${p._id}-${c._id}`}
                                   product={p}
                                   loading={loading}
@@ -852,8 +1014,8 @@ export function MenuManageClient({
                                   onDelete={() => setDeleteConfirm({ type: 'product', id: p._id, nameEn: p.title_en, nameAr: p.title_ar })}
                                   onMove={(targetId) => moveProductToCategory(p._id, targetId)}
                                 />
-                              ))}
-                            </SortableContext>
+                              ))
+                            )}
                           </DroppableProductList>
                           <Button type="button" size="sm" className="mt-2 border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white" onClick={() => openAddProduct(c._id)}>
                             <Plus className="mr-1 size-3.5" /> Add product
