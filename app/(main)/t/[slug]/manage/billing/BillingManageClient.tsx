@@ -44,6 +44,8 @@ export function BillingManageClient({
   paypalSubscriptionId = null,
   useOrdersApi = false,
   subscriptionPlanId = '',
+  useBOP = false,
+  hidePayPal = false,
 }: {
   slug: string
   subscriptionExpiresAt: string | null
@@ -52,6 +54,8 @@ export function BillingManageClient({
   paypalSubscriptionId?: string | null
   useOrdersApi?: boolean
   subscriptionPlanId?: string
+  useBOP?: boolean
+  hidePayPal?: boolean
 }) {
   const { t, lang } = useLanguage()
   const isRtl = lang === 'ar'
@@ -72,6 +76,8 @@ export function BillingManageClient({
   const [paypalRefreshTrigger, setPaypalRefreshTrigger] = useState(0)
   const [oneTimeRedirectingPlanId, setOneTimeRedirectingPlanId] = useState<PlanId | null>(null)
   const [oneTimeRedirectError, setOneTimeRedirectError] = useState<string | null>(null)
+  const [bopRedirectingPlanId, setBopRedirectingPlanId] = useState<PlanId | null>(null)
+  const [bopRedirectError, setBopRedirectError] = useState<string | null>(null)
   const planIdForSdk = subscriptionPlanId || 'P-7LW984279R694694UNGM7DII'
 
   const displayExpiresAt = paypalSubNewExpiresAt ?? subscriptionExpiresAt
@@ -117,6 +123,50 @@ export function BillingManageClient({
       setOneTimeRedirectingPlanId(null)
     }
   }
+
+  /** Bank of Palestine one-time payment – redirect to BOP or show manual flow. */
+  const handleBOPPayment = async (planId: PlanId) => {
+    if (!useBOP || !slug) return
+    setBopRedirectError(null)
+    setBopRedirectingPlanId(planId)
+    try {
+      const res = await fetch(`/api/tenants/${slug}/subscription/create-bop-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setBopRedirectError(json?.error ?? t('Could not start payment.', 'تعذر بدء الدفع.'))
+        return
+      }
+      const paymentUrl = json?.paymentUrl
+      if (typeof paymentUrl === 'string' && paymentUrl.startsWith('http')) {
+        window.location.href = paymentUrl
+        return
+      }
+      if (json?.manual) {
+        setOneTimeCardChoice('palestinian')
+        setBopRedirectError(null)
+      } else {
+        setBopRedirectError(t('No payment URL returned. Try QR payment below.', 'لم يُرجع رابط دفع. جرّب الدفع عبر QR أدناه.'))
+      }
+    } catch {
+      setBopRedirectError(t('Network error. Try again.', 'خطأ في الشبكة. حاول مرة أخرى.'))
+    } finally {
+      setBopRedirectingPlanId(null)
+    }
+  }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('bop_return') === '1') {
+      setOneTimeSuccess(t('Payment completed. Refreshing…', 'تم الدفع. جاري التحديث…'))
+      window.history.replaceState({}, '', window.location.pathname)
+      setTimeout(() => window.document.location.reload(), 1500)
+    }
+  }, [slug, t])
 
   useEffect(() => {
     if (!useOrdersApi || typeof window === 'undefined') return
@@ -256,8 +306,103 @@ export function BillingManageClient({
         </p>
       </div>
 
+      {/* Bank of Palestine – primary payment when configured */}
+      {useBOP && (
+        <section>
+          <Card className="overflow-hidden border-2 border-[#aa2267]/50 bg-slate-900/90 ring-2 ring-[#aa2267]/40 transition-all hover:ring-[#aa2267]/60">
+            <CardHeader className="pb-2">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8">
+                <div className="min-w-0 md:pr-4">
+                  <CardTitle className="text-xl text-white" style={{ color: '#aa2267' }}>
+                    {t('Pay with Bank of Palestine', 'الدفع عبر بنك فلسطين')}
+                  </CardTitle>
+                  <CardDescription className="mt-1 text-slate-400">
+                    {t('Choose a plan and pay securely with Bank of Palestine. Your subscription will be activated automatically.', 'اختر خطة وادفع بأمان عبر بنك فلسطين. سيتم تفعيل اشتراكك تلقائياً.')}
+                  </CardDescription>
+                </div>
+                <div className={`flex min-w-0 flex-col gap-3 ${isRtl ? 'items-start' : 'items-end'}`}>
+                  <Badge className="w-fit text-slate-950" style={{ backgroundColor: '#aa2267' }} dir={isRtl ? 'rtl' : 'ltr'}>
+                    {t('Recommended', 'موصى به')}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {(oneTimeSuccess || oneTimeError || bopRedirectError) && (
+                <div
+                  className={`mb-4 rounded-xl border px-4 py-3 ${
+                    oneTimeError || bopRedirectError
+                      ? 'border-rose-500/50 bg-rose-500/10 text-rose-300'
+                      : 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300'
+                  }`}
+                >
+                  {oneTimeSuccess ?? oneTimeError ?? bopRedirectError}
+                </div>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {PLAN_ORDER.map((planId) => {
+                  const plan = SUBSCRIPTION_PLANS[planId]
+                  const popular = planId === '12m'
+                  return (
+                    <Card
+                      key={planId}
+                      className={`relative overflow-hidden border-slate-800 bg-slate-900/80 transition-all hover:border-slate-600 ${
+                        popular ? 'ring-2 ring-[#aa2267]/50' : ''
+                      }`}
+                    >
+                      {popular && (
+                        <div className="absolute end-3 top-3">
+                          <Badge className="text-slate-950" style={{ backgroundColor: '#aa2267' }} dir={isRtl ? 'rtl' : 'ltr'}>
+                            {t('Best value', 'الأفضل')}
+                          </Badge>
+                        </div>
+                      )}
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg text-white">{t(plan.labelEn, plan.labelAr)}</CardTitle>
+                        <CardDescription className="text-slate-400">
+                          {plan.months === 1 ? t('Full access for one month', 'وصول كامل لشهر واحد') : t('Save more with longer plans', 'وفر أكثر مع الباقات الأطول')}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4 pb-4">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-3xl font-bold text-white">{plan.priceIls}</span>
+                          <span className="text-slate-400">ILS</span>
+                        </div>
+                      </CardContent>
+                      <CardFooter className="border-t border-slate-800 pt-4">
+                        <Button
+                          onClick={() => handleBOPPayment(planId)}
+                          disabled={bopRedirectingPlanId === planId}
+                          className="w-full font-semibold text-white hover:opacity-90"
+                          style={{ backgroundColor: '#aa2267' }}
+                          size="lg"
+                        >
+                          <CreditCard className="me-2 size-4 shrink-0" />
+                          <span className="flex-1">
+                            {bopRedirectingPlanId === planId
+                              ? t('Redirecting…', 'جاري التوجيه…')
+                              : t('Pay with Bank of Palestine', 'الدفع عبر بنك فلسطين') + ` — ${plan.priceIls} ILS`}
+                          </span>
+                          <ExternalLink className="ms-2 size-3.5 shrink-0" />
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  )
+                })}
+              </div>
+              <p className="mt-4 text-sm text-slate-400">
+                {t('Or use QR code payment below if the payment link is not available.', 'أو استخدم الدفع عبر رمز QR أدناه إذا لم يكن رابط الدفع متاحاً.')}
+              </p>
+              <div className="mt-4">
+                <BankOfPalestineCard t={t} isRtl={isRtl} />
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
       {/* One-time setup: create product + plan when plan ID not in env */}
-      {needSetupPlan && (
+      {needSetupPlan && !hidePayPal && (
         <section>
           <Card className="border-slate-700 bg-slate-900/80">
             <CardHeader>
@@ -303,7 +448,8 @@ export function BillingManageClient({
         </section>
       )}
 
-      {/* PayPal recurring subscription (when plan ID is set) */}
+      {/* PayPal recurring subscription (hidden when BOP is primary) */}
+      {!hidePayPal && (
       <section>
         <Card className="overflow-hidden border-amber-500/50 bg-slate-900/90 ring-2 ring-amber-500/40 transition-all hover:ring-amber-500/60">
           <CardHeader className="pb-2">
@@ -460,6 +606,7 @@ export function BillingManageClient({
           </CardContent>
         </Card>
       </section>
+      )}
 
       {/* Subscription status: expiry date and days remaining */}
       <Card className="border-slate-800 bg-slate-900/80">
@@ -510,7 +657,8 @@ export function BillingManageClient({
         </CardContent>
       </Card>
 
-      {/* One-time packages: choose Palestinian (Bank of Palestine) or Israeli (PayPal) first. No second PayPal script — one-time uses redirect to avoid paypal_js_sdk_v5_unhandled_exception. */}
+      {/* One-time packages: Palestinian (BOP) or Israeli (PayPal). Hidden when BOP is primary. */}
+      {!hidePayPal && (
       <section>
         <h2 className="mb-4 text-lg font-semibold text-white">
           {t('One-time plans', 'باقات لمرة واحدة')}
@@ -658,6 +806,7 @@ export function BillingManageClient({
           </>
         )}
       </section>
+      )}
 
       {/* Manual Payment Section */}
       <section className="mt-8">

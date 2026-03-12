@@ -24,7 +24,8 @@ import { userPushSubscriptionType } from './userPushSubscription'
 import { tableServiceRequestType } from './tableServiceRequest'
 import { otpVerificationType } from './otpVerification'
 import { broadcastHistoryType } from './broadcastHistory'
+import { bopProcessedPaymentType } from './bopProcessedPayment'
 
 export const schema: { types: SchemaTypeDefinition[] } = {
-  types: [tenantType, categoryType, productType, restaurantInfoType, aboutUsType, areaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType, broadcastHistoryType],
+  types: [tenantType, categoryType, productType, restaurantInfoType, aboutUsType, areaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType, broadcastHistoryType, bopProcessedPaymentType],
 }
