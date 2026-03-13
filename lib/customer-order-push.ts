@@ -57,6 +57,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
     customerPushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
     assignedDriverName?: string
     totalAmount?: number
+    tipAmount?: number
     currency?: string
   } | null>(
     `*[_type == "order" && _id == $orderId][0]{
@@ -68,6 +69,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
       "customerPushSubscription": customerPushSubscription,
       "assignedDriverName": assignedDriver->name,
       totalAmount,
+      tipAmount,
       currency
     }`,
     { orderId }
@@ -145,11 +147,14 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
     const driverDisplay = (driverName && String(driverName).trim()) || 'السائق'
     const cur = (order?.currency ?? '').trim().toUpperCase()
     const currencySym = cur === 'ILS' ? '₪' : cur || '₪'
-    const total = typeof order?.totalAmount === 'number' ? order.totalAmount.toFixed(2) : '0.00'
+    const baseTotal = typeof order?.totalAmount === 'number' ? order.totalAmount : 0
+    const tip = typeof order?.tipAmount === 'number' && order.tipAmount > 0 ? order.tipAmount : 0
+    const displayTotal = baseTotal + tip
+    const totalStr = displayTotal.toFixed(2)
     finalTitleAr = `${driverDisplay} وصل!`
-    finalBodyAr = `المجموع: ${total} ${currencySym}. يرجى النزول لاستلام طلبك الآن.`
+    finalBodyAr = `المجموع: ${totalStr} ${currencySym}. يرجى النزول لاستلام طلبك الآن.`
     finalTitle = `${driverDisplay} has arrived!`
-    finalBody = `The total is: ${total} ${currencySym}. Please go down to pickup your order now.`
+    finalBody = `The total is: ${totalStr} ${currencySym}. Please go down to pickup your order now.`
   }
 
   const payload = {

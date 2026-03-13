@@ -216,6 +216,7 @@ function DeliveryETABox({
   const [arrivalPopupVisible, setArrivalPopupVisible] = useState(false)
   const [arrivalPopupDismissed, setArrivalPopupDismissed] = useState(false)
   const arrivalPopupTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [arrivalCountdown, setArrivalCountdown] = useState<number | null>(null)
   const [showRemoveReason, setShowRemoveReason] = useState(false)
   const [removeReason, setRemoveReason] = useState('')
   const [removeSending, setRemoveSending] = useState(false)
@@ -237,14 +238,29 @@ function DeliveryETABox({
     return () => clearInterval(id)
   }, [isActive, driverArrived])
 
+  const ARRIVAL_MODAL_SECONDS = 30
   useEffect(() => {
     if (driverArrived && tipWasSentToDriver && tipEnabled && !arrivalPopupDismissed && !tipIncluded && !tipRemovedByDriver) {
       setArrivalPopupVisible(true)
+      setArrivalCountdown(ARRIVAL_MODAL_SECONDS)
+      let remaining = ARRIVAL_MODAL_SECONDS
+      const tick = setInterval(() => {
+        remaining -= 1
+        setArrivalCountdown(remaining)
+        if (remaining <= 0) {
+          clearInterval(tick)
+        }
+      }, 1000)
       arrivalPopupTimerRef.current = setTimeout(() => {
         setArrivalPopupVisible(false)
         setArrivalPopupDismissed(true)
+        setArrivalCountdown(null)
         onConfirmTipIncludedInTotal(true)
-      }, 30000)
+      }, ARRIVAL_MODAL_SECONDS * 1000)
+      return () => {
+        clearInterval(tick)
+        if (arrivalPopupTimerRef.current) clearTimeout(arrivalPopupTimerRef.current)
+      }
     }
     return () => {
       if (arrivalPopupTimerRef.current) clearTimeout(arrivalPopupTimerRef.current)
@@ -253,6 +269,7 @@ function DeliveryETABox({
 
   const handleArrivalOkay = () => {
     if (arrivalPopupTimerRef.current) clearTimeout(arrivalPopupTimerRef.current)
+    setArrivalCountdown(null)
     setArrivalPopupVisible(false)
     setArrivalPopupDismissed(true)
     onConfirmTipIncludedInTotal(true)
@@ -260,7 +277,12 @@ function DeliveryETABox({
 
   const handleArrivalRemoveTip = () => {
     if (arrivalPopupTimerRef.current) clearTimeout(arrivalPopupTimerRef.current)
+    setArrivalCountdown(null)
     setShowRemoveReason(true)
+  }
+
+  const handleReopenTipModal = () => {
+    setArrivalPopupVisible(true)
   }
 
   const submitRemoveReason = async () => {
@@ -575,7 +597,7 @@ function DeliveryETABox({
               <div className="bg-emerald-100 p-2.5 rounded-xl shrink-0">
                 <ShieldCheck className="h-5 w-5 text-emerald-600" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="font-bold text-emerald-800 text-sm">
                   {tipIncluded
                     ? t('Tip added to total', 'الإكرامية مضافة للمجموع')
@@ -592,6 +614,15 @@ function DeliveryETABox({
                   <p className="text-xs text-slate-500 mt-0.5">
                     {t('The driver chose not to collect the tip.', 'السائق اختار عدم أخذ الإكرامية.')}
                   </p>
+                )}
+                {tipIncluded && !tipRemovedByDriver && (
+                  <button
+                    type="button"
+                    onClick={handleReopenTipModal}
+                    className="mt-2 text-xs font-medium text-emerald-600 hover:text-emerald-700 underline underline-offset-1"
+                  >
+                    {t('Change tip decision', 'تغيير قرار الإكرامية')}
+                  </button>
                 )}
               </div>
             </motion.div>
@@ -832,7 +863,11 @@ function DeliveryETABox({
                   </div>
 
                   <p className="text-[10px] text-slate-400 mt-3 text-center leading-relaxed">
-                    {t('This will auto-confirm in 30 seconds', 'سيتم التأكيد تلقائياً بعد 30 ثانية')}
+                    {arrivalPopupDismissed
+                      ? t('Confirm your choice', 'تأكيد اختيارك')
+                      : arrivalCountdown != null
+                        ? t('Auto-confirms in', 'التأكيد التلقائي خلال') + ` ${arrivalCountdown}s`
+                        : t('This will auto-confirm in 30 seconds', 'سيتم التأكيد تلقائياً بعد 30 ثانية')}
                   </p>
                 </div>
               </motion.div>
