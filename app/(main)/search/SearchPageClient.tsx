@@ -216,7 +216,8 @@ export function SearchPageClient() {
   }, [category])
 
   useEffect(() => {
-    setFiltersExpanded(expandFilters)
+    const isDesktop = typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches
+    setFiltersExpanded(isDesktop ? expandFilters : false)
   }, [expandFilters])
 
   const hasSearchQuery = searchQuery.trim().length > 0
@@ -451,7 +452,7 @@ export function SearchPageClient() {
               )}
               <div className="min-w-0 flex-1">
                 {/* Mobile: filters panel (collapse/expand) */}
-                <AnimatePresence initial={false}>
+                <AnimatePresence initial={false} mode="wait">
                   {filtersExpanded && (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}

@@ -680,7 +680,10 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
           </div>
 
           {items.length > 0 && (
-            <div className="border-t bg-white p-6 pb-8 space-y-4 shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
+            <div
+              className="border-t bg-white p-6 space-y-4 shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]"
+              style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 1.5rem)' }}
+            >
               {orderAuth.needsSignIn || orderAuth.needsPhoneVerification ? (
                 <OrderAuthGate
                   variant="inline"

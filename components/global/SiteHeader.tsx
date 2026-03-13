@@ -285,7 +285,7 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-sm pt-[env(safe-area-inset-top)]"
+      className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-sm pt-[env(safe-area-inset-top)]"
       dir={isRtl ? 'rtl' : 'ltr'}
     >
       <div className="mx-auto flex h-[72px] min-h-[72px] max-w-[100vw] items-center justify-between gap-3 md:gap-6 px-4 sm:container sm:px-6">
