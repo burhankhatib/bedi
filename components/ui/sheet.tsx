@@ -54,15 +54,17 @@ interface SheetContentProps
     VariantProps<typeof sheetVariants> {
   overlayClassName?: string
   contentClassName?: string
+  /** Applied to the portal wrapper (overlay + content). Use for high z-index (e.g. Cart z-[600]). */
+  portalClassName?: string
 }
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = 'right', className, overlayClassName, contentClassName, children, ...props }, ref) => (
+>(({ side = 'right', className, overlayClassName, contentClassName, portalClassName, children, ...props }, ref) => (
   <SheetPortal>
-    <div translate="no" style={{ isolation: 'isolate' }} className="z-[250]">
-      <SheetOverlay className={cn('z-[250]', overlayClassName)} />
+    <div translate="no" style={{ isolation: 'isolate' }} className={cn('z-[250]', portalClassName)}>
+      <SheetOverlay className={cn('z-[250] pointer-events-auto', overlayClassName)} />
       <SheetPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), 'flex flex-col p-0 pt-[max(1rem,env(safe-area-inset-top))] z-[251]', contentClassName, className)}

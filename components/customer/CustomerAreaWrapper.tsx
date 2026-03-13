@@ -7,6 +7,8 @@ import { CartSlider } from '@/components/Cart/CartSlider'
 import { CartToast } from '@/components/Cart/CartToast'
 import { PWAManager } from '@/components/pwa/PWAManager'
 import { useLocation } from '@/components/LocationContext'
+import { useCart } from '@/components/Cart/CartContext'
+import { cn } from '@/lib/utils'
 
 /** Paths that should always load with scroll at top (e.g. when navigating from tenant menu). */
 function useScrollToTopOnNavigate() {
@@ -55,6 +57,7 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
   useScrollToTopOnNavigate()
   const showNav = isCustomerPath(pathname ?? '')
   const { isChosen } = useLocation()
+  const { isOpen: cartOpen } = useCart()
   const canRenderCustomerShell = showNav && isChosen
 
   const isCustomerPWA = isCustomerPWAPath(pathname ?? '')
@@ -65,7 +68,7 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
       {canRenderCustomerShell && isCustomerPWA && (
         <PWAManager key="pwa-customer" role="customer" variant="fixed" showPermissions hideInstall />
       )}
-      <div className={canRenderCustomerShell ? 'pb-24 md:pb-0' : ''}>
+      <div className={cn(canRenderCustomerShell && 'pb-24 md:pb-0', cartOpen && 'pointer-events-none')}>
         {children}
       </div>
       <Suspense fallback={null}>

@@ -4,7 +4,8 @@ import { checkTenantAuth } from '@/lib/tenant-auth'
 
 export const dynamic = 'force-dynamic'
 
-const siteFilter = '(site._ref == $siteId || !defined(site))'
+/** Strict: only orders belonging to this tenant. No !defined(site) — that would show orphan orders on every tenant. */
+const siteFilter = 'site._ref == $siteId'
 const noCacheClient = client.withConfig({ useCdn: false })
 const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc)[0...100] {
   _id,

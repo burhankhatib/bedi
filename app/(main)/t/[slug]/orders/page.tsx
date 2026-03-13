@@ -49,7 +49,8 @@ export default async function TenantOrdersPage({
   }
 
   const siteId = auth.tenantId
-  const siteFilter = '(site._ref == $siteId || !defined(site))'
+  /** Strict: only orders belonging to this tenant. */
+  const siteFilter = 'site._ref == $siteId'
   const standaloneTableRequestsGROQ = `*[_type == "tableServiceRequest" && site._ref == $siteId && !defined(acknowledgedAt)] | order(createdAt desc) {
     _id,
     tableNumber,

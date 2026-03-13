@@ -6,8 +6,7 @@ import { NotificationService } from '@/lib/notifications/NotificationService'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
-const siteFilter = '(site._ref == $siteId || !defined(site))'
-
+/** Order must belong to this tenant. No backfill — orphan orders (no site) cannot be claimed by any tenant. */
 async function checkOrderOwnership(slug: string, orderId: string) {
   const auth = await checkTenantAuth(slug)
   if (!auth.ok) return { ok: false as const, status: auth.status }
@@ -16,16 +15,8 @@ async function checkOrderOwnership(slug: string, orderId: string) {
     { orderId }
   )
   if (!doc) return { ok: false as const, status: 404 }
-  // Order belongs to this tenant if site ref matches, or if order has no site (legacy / created before site was set) and appears in tenant list
-  if (doc.site?._ref === auth.tenantId) return { ok: true as const, auth, backfillSite: false }
-  if (!doc.site) {
-    const inTenantList = await client.fetch<{ _id: string } | null>(
-      `*[_type == "order" && _id == $orderId && ${siteFilter}][0]{ _id }`,
-      { orderId, siteId: auth.tenantId }
-    )
-    if (inTenantList) return { ok: true as const, auth, backfillSite: true }
-  }
-  return { ok: false as const, status: 403 }
+  if (doc.site?._ref !== auth.tenantId) return { ok: false as const, status: 403 }
+  return { ok: true as const, auth, backfillSite: false }
 }
 
 export async function PATCH(
@@ -51,11 +42,7 @@ export async function PATCH(
 
   if (acknowledgeTableRequest === true) {
     const now = new Date().toISOString()
-    const updateData: Record<string, unknown> = { customerRequestAcknowledgedAt: now }
-    if (check.backfillSite) {
-      updateData.site = { _type: 'reference', _ref: check.auth.tenantId }
-    }
-    await writeClient.patch(orderId).set(updateData).commit()
+    await writeClient.patch(orderId).set({ customerRequestAcknowledgedAt: now }).commit()
     return NextResponse.json({ success: true, orderId, acknowledgedTableRequest: true })
   }
 
@@ -101,9 +88,6 @@ export async function PATCH(
   }
   if (status === 'cancelled' || status === 'refunded') {
     updateData.cancelledAt = new Date().toISOString()
-  }
-  if (check.backfillSite) {
-    updateData.site = { _type: 'reference', _ref: check.auth.tenantId }
   }
 
   await patch.set(updateData).commit()

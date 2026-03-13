@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 
-const siteFilter = '(site._ref == $siteId || !defined(site))'
+/** Strict: only orders belonging to this tenant. */
+const siteFilter = 'site._ref == $siteId'
 const noCacheClient = client.withConfig({ useCdn: false })
 
 /** GET new orders count for tenant (lightweight for nav badge). */
