@@ -68,12 +68,15 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
       {canRenderCustomerShell && isCustomerPWA && (
         <PWAManager key="pwa-customer" role="customer" variant="fixed" showPermissions hideInstall />
       )}
-      <div className={cn(canRenderCustomerShell && 'pb-24 md:pb-0', cartOpen && 'pointer-events-none')}>
-        {children}
+      {/* When cart is open: entire page (header, store types, + buttons) goes behind cart (z-0) and is non-interactive */}
+      <div className={cn(cartOpen && 'relative z-0')}>
+        <div className={cn(canRenderCustomerShell && 'pb-24 md:pb-0', cartOpen && 'pointer-events-none')}>
+          {children}
+        </div>
+        <Suspense fallback={null}>
+          {canRenderCustomerShell ? <MobileBottomNav /> : null}
+        </Suspense>
       </div>
-      <Suspense fallback={null}>
-        {canRenderCustomerShell ? <MobileBottomNav /> : null}
-      </Suspense>
       {canRenderCustomerShell && (
         <>
           <CartSlider supportsDineIn supportsReceiveInPerson />
