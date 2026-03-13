@@ -28,17 +28,18 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
         return (
           <div className="space-y-3 px-4">
             {products.map((product) => (
-              <ProductListItem
-                key={product._id}
-                product={product}
-                onClick={(p) => onProductClick(p, prefix)}
-                layoutPrefix={prefix}
-                restaurantLogo={restaurantLogo}
-                catalogOnly={catalogOnly}
-                tenantContext={tenantContext}
-                orderTypeOptions={orderTypeOptions}
-                catalogHidePrices={catalogHidePrices}
-              />
+              <div key={product._id} id={`product-${product._id}`}>
+                <ProductListItem
+                  product={product}
+                  onClick={(p) => onProductClick(p, prefix)}
+                  layoutPrefix={prefix}
+                  restaurantLogo={restaurantLogo}
+                  catalogOnly={catalogOnly}
+                  tenantContext={tenantContext}
+                  orderTypeOptions={orderTypeOptions}
+                  catalogHidePrices={catalogHidePrices}
+                />
+              </div>
             ))}
           </div>
         )
@@ -49,6 +50,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
             {products.map((product, index) => (
               <div
                 key={product._id}
+                id={`product-${product._id}`}
                 className={`w-[196px] md:w-[224px] shrink-0 snap-start flex flex-col h-auto ${index === 0 ? 'ms-4' : ''} ${index === products.length - 1 ? 'me-4' : ''}`}
               >
                 <ProductCard
@@ -71,7 +73,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
         return (
           <div className="grid grid-cols-2 gap-3 md:gap-6 px-4 auto-rows-fr">
             {products.map((product) => (
-              <div key={product._id} className="h-full">
+              <div key={product._id} id={`product-${product._id}`} className="h-full">
                 <ProductCard
                   product={product}
                   onClick={(p) => onProductClick(p, prefix)}
@@ -92,7 +94,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4 auto-rows-fr">
             {products.map((product) => (
-              <div key={product._id} className="h-full">
+              <div key={product._id} id={`product-${product._id}`} className="h-full">
                 <ProductCard
                   product={product}
                   onClick={(p) => onProductClick(p, prefix)}

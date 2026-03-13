@@ -3,6 +3,7 @@
 import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
 import { SuspendedClient } from './SuspendedClient'
+import { DarkPageSkeleton } from '@/components/loading'
 
 type SuspendedType = 'business' | 'driver' | 'customer'
 
@@ -17,11 +18,7 @@ function SuspendedContent() {
 
 export default function SuspendedPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-slate-400">Loading…</div>
-      </div>
-    }>
+    <Suspense fallback={<DarkPageSkeleton />}>
       <SuspendedContent />
     </Suspense>
   )

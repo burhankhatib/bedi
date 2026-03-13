@@ -144,7 +144,7 @@ export function UniversalSearch({
         if (focusedIndex >= 0 && flatItems[focusedIndex]) {
           const { type, item } = flatItems[focusedIndex]
           if (type === 'business') router.push(`/t/${(item as BusinessHit).slug}`)
-          else router.push(`/t/${(item as ProductHit).business.slug}`)
+          else router.push(`/t/${(item as ProductHit).business.slug}#product-${(item as ProductHit)._id}`)
           setOpen(false)
           setQuery('')
         }
@@ -318,7 +318,7 @@ export function UniversalSearch({
                       return (
                         <Link
                           key={p._id}
-                          href={`/t/${p.business.slug}`}
+                          href={`/t/${p.business.slug}#product-${p._id}`}
                           onClick={() => { setOpen(false); setQuery('') }}
                           onMouseEnter={() => setFocusedIndex(idx)}
                           className={cn(

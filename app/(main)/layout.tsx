@@ -3,6 +3,7 @@ import { SanityLiveGate } from '@/components/SanityLiveGate'
 import { CustomerAreaWrapper } from '@/components/customer/CustomerAreaWrapper'
 import { StandaloneDriverRedirect, StandaloneTenantRedirect } from '@/components/StandaloneDriverRedirect'
 import { LanguageProvider } from '@/components/LanguageContext'
+import { PageSkeleton } from '@/components/loading'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -28,9 +29,11 @@ export default function MainLayout({
       <div className="min-h-screen overflow-x-hidden">
         <StandaloneDriverRedirect />
         <StandaloneTenantRedirect />
-        <CustomerAreaWrapper>
-          {children}
-        </CustomerAreaWrapper>
+        <Suspense fallback={<PageSkeleton />}>
+          <CustomerAreaWrapper>
+            {children}
+          </CustomerAreaWrapper>
+        </Suspense>
         <Suspense fallback={null}>
           <SanityLiveGate />
         </Suspense>

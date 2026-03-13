@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import { FullPageLink } from '@/components/ui/FullPageLink'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
 import { getSectionIcon } from '@/lib/section-icons'
@@ -70,7 +70,7 @@ export function CategoryIconsBar({ activeSection, category = 'restaurant', class
 
           return (
             <div key={s.key} className="flex-shrink-0">
-              <Link
+              <FullPageLink
                 href={`/search?section=${encodeURIComponent(s.key)}&category=${encodeURIComponent(category)}`}
                 className="group flex flex-col items-center gap-2.5 w-16 sm:w-[84px] cursor-pointer outline-none"
               >
@@ -91,7 +91,7 @@ export function CategoryIconsBar({ activeSection, category = 'restaurant', class
                 >
                   {lang === 'ar' ? s.title_ar : s.title_en}
                 </span>
-              </Link>
+              </FullPageLink>
             </div>
           )
         })}

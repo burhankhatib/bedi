@@ -16,10 +16,12 @@ interface MenuSearchProps {
   categories: MenuData[]
   popularProducts: Product[]
   onProductClick: (product: Product) => void
+  /** When provided, used for search result selection instead of onProductClick (scrolls to product) */
+  onProductSelectFromSearch?: (product: Product) => void
   restaurantLogo?: any
 }
 
-export function MenuSearch({ categories, popularProducts, onProductClick, restaurantLogo }: MenuSearchProps) {
+export function MenuSearch({ categories, popularProducts, onProductClick, onProductSelectFromSearch, restaurantLogo }: MenuSearchProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [focusedIndex, setFocusedIndex] = useState(-1)
@@ -105,7 +107,11 @@ export function MenuSearch({ categories, popularProducts, onProductClick, restau
   }
 
   const handleProductSelect = (product: Product) => {
-    onProductClick(product)
+    if (onProductSelectFromSearch) {
+      onProductSelectFromSearch(product)
+    } else {
+      onProductClick(product)
+    }
     setSearchQuery('')
     setIsOpen(false)
     setFocusedIndex(-1)

@@ -1,11 +1,22 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { MobileBottomNav } from './MobileBottomNav'
 import { CartSlider } from '@/components/Cart/CartSlider'
+import { CartToast } from '@/components/Cart/CartToast'
 import { PWAManager } from '@/components/pwa/PWAManager'
 import { useLocation } from '@/components/LocationContext'
+
+/** Paths that should always load with scroll at top (e.g. when navigating from tenant menu). */
+function useScrollToTopOnNavigate() {
+  const pathname = usePathname()
+  useEffect(() => {
+    if (pathname === '/' || pathname?.startsWith('/search')) {
+      window.scrollTo(0, 0)
+    }
+  }, [pathname])
+}
 
 /** Paths where the customer bottom nav is shown (home, search, tenant menu, order flow, my orders, track page). */
 function isCustomerPath(pathname: string): boolean {
@@ -41,6 +52,7 @@ function isCustomerPWAPath(pathname: string): boolean {
  */
 export function CustomerAreaWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  useScrollToTopOnNavigate()
   const showNav = isCustomerPath(pathname ?? '')
   const { isChosen } = useLocation()
   const canRenderCustomerShell = showNav && isChosen
@@ -60,7 +72,10 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
         {canRenderCustomerShell ? <MobileBottomNav /> : null}
       </Suspense>
       {canRenderCustomerShell && (
-        <CartSlider supportsDineIn supportsReceiveInPerson />
+        <>
+          <CartSlider supportsDineIn supportsReceiveInPerson />
+          <CartToast />
+        </>
       )}
     </>
   )

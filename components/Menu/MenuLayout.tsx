@@ -15,9 +15,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
 import { useOrderAuth } from '@/lib/useOrderAuth'
 import { FirebaseClerkSync } from '@/components/FirebaseClerkSync'
-import { CartToast } from '@/components/Cart/CartToast'
 import { TableChoiceModal } from '@/components/Menu/TableChoiceModal'
-import { motion, useScroll, useSpring } from 'framer-motion'
 import { Star, Facebook, Instagram, Globe, MessageCircle, ShoppingCart, MapPin, Clock, Package, ShieldAlert, Menu, LogOut, Home, ClipboardList } from 'lucide-react'
 import { getTodaysHours, isWithinHours, getNextOpening, formatCountdown, getTimeZoneForCountry, getNowInTimeZone, getTodayActiveOrNextShift } from '@/lib/business-hours'
 import Image from 'next/image'
@@ -27,6 +25,7 @@ import { getSocialProfileUrl } from '@/lib/social-urls'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { FullPageLink } from '@/components/ui/FullPageLink'
 import {
   SignInButton,
   SignUpButton,
@@ -94,10 +93,8 @@ function ClosedBanner({
   }, [nextOpening.nextOpenAt, lang, nextOpening])
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full border-b border-amber-300/80 bg-gradient-to-b from-amber-100 to-amber-50/90 shadow-sm"
+    <div
+      className="w-full border-b border-amber-300/80 bg-gradient-to-b from-amber-100 to-amber-50/90 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300"
       role="status"
       aria-live="polite"
     >
@@ -121,19 +118,17 @@ function ClosedBanner({
               <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
                 {nextLabel}
               </p>
-              <motion.span
+              <span
                 key={countdown}
-                initial={{ scale: 1.05 }}
-                animate={{ scale: 1 }}
                 className="inline-flex items-center justify-center min-w-[5rem] rounded-xl bg-amber-200/90 px-4 py-2 text-lg font-black text-amber-900 tabular-nums"
               >
                 {countdown}
-              </motion.span>
+              </span>
             </div>
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 }
 
@@ -144,7 +139,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   const orderTypeOptions = tenantSlug
     ? { supportsDineIn: supportsDineIn ?? true, supportsReceiveInPerson: supportsReceiveInPerson ?? true, hasDelivery: hasDelivery ?? false }
     : null
-  const { totalItems, setIsOpen, setTenantSlug, setLockedTableNumber, clearCart } = useCart()
+  const { totalItems, setIsOpen, setTenantSlug, setLockedTableNumber } = useCart()
   const router = useRouter()
   const orderAuth = useOrderAuth()
   const pathname = usePathname()
@@ -191,7 +186,6 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   const [isHydrated, setIsHydrated] = useState(false)
   const [stickyBlockHeight, setStickyBlockHeight] = useState(140) // header + menu bar for scroll offset
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [showBrowseHomeModal, setShowBrowseHomeModal] = useState(false)
   const [showTableChoiceModal, setShowTableChoiceModal] = useState(false)
 
   // Show table choice modal when landing with ?table= (dine-in QR)
@@ -292,12 +286,17 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
           ? (isManuallyClosed ? t('Closed temporarily', 'مغلق مؤقتاً') : t('Closed', 'مغلق'))
           : null
 
-  const { scrollYProgress } = useScroll()
-  const scaleX = useSpring(scrollYProgress, {
-    stiffness: 100,
-    damping: 30,
-    restDelta: 0.001
-  })
+  const [progressScale, setProgressScale] = useState(0)
+  useEffect(() => {
+    const onScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = document.documentElement
+      const max = Math.max(0, scrollHeight - clientHeight)
+      setProgressScale(max > 0 ? scrollTop / max : 0)
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   // Measure sticky block height for scroll spy and scroll-into-view offset
   useEffect(() => {
@@ -352,6 +351,38 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
     }
   }
 
+  const scrollToProduct = (productId: string) => {
+    const element = document.getElementById(`product-${productId}`)
+    if (element) {
+      const totalOffset = stickyBlockHeight + 8
+      const elementPosition = element.getBoundingClientRect().top + window.pageYOffset
+      const offsetPosition = elementPosition - totalOffset
+      window.scrollTo({ top: offsetPosition, behavior: 'smooth' })
+    }
+  }
+
+  // Handle #product-xxx hash: scroll to product on mount or when navigating with hash
+  useEffect(() => {
+    const hash = typeof window !== 'undefined' ? window.location.hash : ''
+    const match = hash?.match(/^#product-(.+)$/)
+    if (match) {
+      const productId = match[1]
+      const scroll = () => scrollToProduct(productId)
+      const t = setTimeout(scroll, 100)
+      return () => clearTimeout(t)
+    }
+  }, [categories, popularProducts, stickyBlockHeight])
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash
+      const match = hash?.match(/^#product-(.+)$/)
+      if (match) scrollToProduct(match[1])
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [stickyBlockHeight])
+
   const handleProductClick = (product: Product, prefix: string = 'grid') => {
     setSelectedProduct(product)
     setActiveLayoutPrefix(prefix)
@@ -361,10 +392,14 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   return (
     <main className="min-h-screen bg-slate-50">
       <FirebaseClerkSync />
-      {/* Progress Bar — below mobile safe area (notch/status bar) */}
-      <motion.div
+      {/* Progress Bar — below mobile safe area (notch/status bar). CSS-only to avoid Framer Motion removeChild during nav. */}
+      <div
         className="fixed left-0 right-0 h-1 bg-black z-50 origin-left"
-        style={{ top: 'env(safe-area-inset-top, 0px)', scaleX }}
+        style={{
+          top: 'env(safe-area-inset-top, 0px)',
+          transform: `scaleX(${progressScale})`,
+          transition: 'transform 0.1s ease-out'
+        }}
       />
 
       {/* Fixed header + menu bar — always visible when scrolling. Spacer reserves layout space. */}
@@ -413,6 +448,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   categories={categories}
                   popularProducts={popularProducts}
                   onProductClick={handleProductClick}
+                  onProductSelectFromSearch={(product) => scrollToProduct(product._id)}
                   restaurantLogo={restaurantInfo?.logo}
                 />
               </div>
@@ -438,21 +474,14 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   <ClipboardList className="w-5 h-5 shrink-0" />
                   {t('My orders', 'طلباتي')}
                 </Link>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (totalItems > 0) {
-                      setShowBrowseHomeModal(true)
-                    } else {
-                      router.push('/')
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-full h-9 px-3 text-slate-500 hover:text-slate-700 hover:bg-slate-100 text-sm font-medium transition-colors"
-                  title={t('Browse other businesses', 'استعرض أعمال أخرى')}
-                >
-                  <Home className="w-4 h-4 shrink-0 opacity-80" />
-                  <span className="hidden lg:inline">{t('Browse more', 'استعرض المزيد')}</span>
-                </button>
+                <FullPageLink
+                    href="/"
+                    className="inline-flex items-center gap-1.5 rounded-full h-9 px-3 bg-brand-yellow text-brand-black hover:bg-amber-500 text-sm font-semibold transition-colors shadow-sm"
+                    title={t('Back to homepage', 'العودة للصفحة الرئيسية')}
+                  >
+                    <Home className="w-4 h-4 shrink-0" />
+                    <span className="hidden lg:inline">{t('Back to Bedi', 'العودة إلى Bedi')}</span>
+                  </FullPageLink>
                 <LanguageSwitcher />
                 <SignedOut>
                   <SignInButton mode="modal" forceRedirectUrl={menuRedirectUrl} signUpForceRedirectUrl={menuRedirectUrl} />
@@ -542,21 +571,14 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                       </div>
                     </nav>
                     <div className="mt-auto border-t border-slate-200 pt-4 px-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMobileMenuOpen(false)
-                          if (totalItems > 0) {
-                            setShowBrowseHomeModal(true)
-                          } else {
-                            router.push('/')
-                          }
-                        }}
-                        className="flex w-full items-center gap-3 rounded-lg py-3 px-3 text-primary hover:bg-primary/10 transition-colors font-semibold"
-                      >
-                        <Home className="w-5 h-5 shrink-0" />
-                        {t('Browse other businesses', 'استعرض أعمال أخرى')}
-                      </button>
+                      <FullPageLink
+                          href="/"
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="flex w-full items-center gap-3 rounded-lg py-3 px-3 bg-brand-yellow text-brand-black hover:bg-amber-500 transition-colors font-semibold"
+                        >
+                          <Home className="w-5 h-5 shrink-0" />
+                          {t('Back to Bedi', 'العودة إلى Bedi')}
+                        </FullPageLink>
                     </div>
                   </SheetContent>
                 </Sheet>
@@ -678,8 +700,8 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-6 snap-x scroll-smooth px-4 items-stretch">
             <div className="shrink-0 w-4" aria-hidden />
             {popularProducts.map((product, index) => (
-              <PopularProductCard
-                key={product._id}
+              <div key={product._id} id={`product-${product._id}`} className="shrink-0">
+                <PopularProductCard
                 product={product}
                 onClick={(p) => handleProductClick(p, 'popular')}
                 layoutPrefix="popular"
@@ -702,6 +724,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                 orderTypeOptions={orderTypeOptions}
                 catalogHidePrices={catalogHidePrices}
               />
+              </div>
             ))}
             <div className="shrink-0 w-4" aria-hidden />
           </div>
@@ -1014,41 +1037,6 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
           onViewMenu={handleTableChoiceViewMenu}
         />
       )}
-
-      <Dialog open={showBrowseHomeModal} onOpenChange={setShowBrowseHomeModal}>
-        <DialogContent className="sm:max-w-md" showCloseButton>
-          <DialogHeader>
-            <DialogTitle>{t('Your cart has items', 'سلتك تحتوي على أصناف')}</DialogTitle>
-            <DialogDescription>
-              {t(
-                'Do you want to clear your cart and go to the homepage to browse other businesses? You can also keep your cart and return later to complete your order.',
-                'هل ترغب في تفريغ السلّة والذهاب للصفحة الرئيسية لاستعراض أعمال أخرى؟ يمكنك أيضاً الإبقاء على السلّة والعودة لاحقاً لإكمال طلبك.'
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col gap-2 sm:flex-row">
-            <Button
-              variant="outline"
-              className="w-full sm:w-auto"
-              onClick={() => setShowBrowseHomeModal(false)}
-            >
-              {t('Keep cart', 'الإبقاء على السلّة')}
-            </Button>
-            <Button
-              className="w-full sm:w-auto"
-              onClick={() => {
-                clearCart()
-                setShowBrowseHomeModal(false)
-                router.push('/')
-              }}
-            >
-              {t('Clear cart and browse', 'تفريغ السلّة واستعراض')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <CartToast />
 
       {/* Floating Cart Action - Desktop only; on mobile, bottom nav has cart */}
       {!catalogOnly && totalItems > 0 && (

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import Link from 'next/link'
+import { FullPageLink } from '@/components/ui/FullPageLink'
 import Image from 'next/image'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useLocation } from '@/components/LocationContext'
@@ -517,7 +517,7 @@ export function SearchPageClient() {
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                           {searchResults.businesses.map((b) => (
                             <div key={b._id}>
-                              <Link
+                              <FullPageLink
                                 href={b.slug ? `/t/${b.slug}` : '#'}
                                 className="group flex flex-col items-center gap-3 rounded-2xl bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200"
                               >
@@ -533,7 +533,7 @@ export function SearchPageClient() {
                                 <h3 className="font-bold text-slate-900 text-lg text-center line-clamp-1">
                                   {(lang === 'ar' ? b.name_ar : b.name_en) || b.name}
                                 </h3>
-                              </Link>
+                              </FullPageLink>
                             </div>
                           ))}
                         </div>
@@ -547,8 +547,8 @@ export function SearchPageClient() {
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                           {searchResults.products.map((p) => (
                             <div key={p._id}>
-                              <Link
-                                href={p.business.slug ? `/t/${p.business.slug}` : '#'}
+                              <FullPageLink
+                                href={p.business.slug ? `/t/${p.business.slug}#product-${p._id}` : '#'}
                                 className="group block overflow-hidden rounded-2xl bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200"
                               >
                                 <div className="relative aspect-square sm:aspect-[4/3] bg-slate-100">
@@ -573,7 +573,7 @@ export function SearchPageClient() {
                                     </p>
                                   )}
                                 </div>
-                              </Link>
+                              </FullPageLink>
                             </div>
                           ))}
                         </div>
@@ -598,17 +598,17 @@ export function SearchPageClient() {
                 <p className="mt-4 text-slate-600 font-medium text-lg">
                   {t('No businesses found in this area.', 'لا توجد أعمال في هذه المنطقة.')}
                 </p>
-                <Link href="/" className="mt-6 inline-block">
+                <FullPageLink href="/" className="mt-6 inline-block">
                   <Button variant="outline" className="rounded-full shadow-sm px-6 h-12">
                     {t('Back to home', 'العودة للرئيسية')}
                   </Button>
-                </Link>
+                </FullPageLink>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-4">
                 {displayTenants.map((t) => (
                   <div key={t._id}>
-                    <Link
+                    <FullPageLink
                       href={t.slug ? `/t/${t.slug}` : '#'}
                       className="group flex items-center gap-4 overflow-hidden rounded-[20px] bg-white p-4 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
                     >
@@ -654,7 +654,7 @@ export function SearchPageClient() {
                           </div>
                         )}
                       </div>
-                    </Link>
+                    </FullPageLink>
                   </div>
                 ))}
               </div>
