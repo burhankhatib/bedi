@@ -9,7 +9,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { SiteHeader } from '@/components/global/SiteHeader'
 import { LocationModal } from '@/components/global/LocationModal'
 import { Button } from '@/components/ui/button'
-import { Store, UtensilsCrossed, Flame, ChevronRight, Search, MapPin, Filter } from 'lucide-react'
+import { Store, UtensilsCrossed, Flame, ChevronRight, Search, MapPin, Filter, LayoutGrid, List } from 'lucide-react'
 import { MdRestaurant } from 'react-icons/md'
 import { BUSINESS_TYPES } from '@/lib/constants'
 import { getSectionIcon } from '@/lib/section-icons'
@@ -363,6 +363,34 @@ export function SearchPageClient() {
 
   const showSearchResults = debouncedQuery && (searchResults || loading)
   const displayTenants = showSearchResults ? [] : tenants
+  const hasSearchResults = searchResults && (searchResults.businesses.length > 0 || searchResults.products.length > 0)
+
+  // View & sort for search results (mobile-friendly)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [sortBy, setSortBy] = useState<'relevance' | 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc'>('relevance')
+
+  const sortedSearchResults = useMemo(() => {
+    if (!searchResults) return null
+    const businesses = [...searchResults.businesses]
+    const products = [...searchResults.products]
+    const getName = (b: { name_en?: string | null; name_ar?: string | null; name: string }) =>
+      (lang === 'ar' ? b.name_ar : b.name_en) || b.name || ''
+    const getProductName = (p: { title_en?: string | null; title_ar?: string | null }) =>
+      (lang === 'ar' ? p.title_ar : p.title_en) || (p.title_en ?? p.title_ar) || ''
+
+    if (sortBy === 'name-asc') {
+      businesses.sort((a, b) => getName(a).localeCompare(getName(b), lang === 'ar' ? 'ar' : 'en'))
+      products.sort((a, b) => getProductName(a).localeCompare(getProductName(b), lang === 'ar' ? 'ar' : 'en'))
+    } else if (sortBy === 'name-desc') {
+      businesses.sort((a, b) => getName(b).localeCompare(getName(a), lang === 'ar' ? 'ar' : 'en'))
+      products.sort((a, b) => getProductName(b).localeCompare(getProductName(a), lang === 'ar' ? 'ar' : 'en'))
+    } else if (sortBy === 'price-asc') {
+      products.sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
+    } else if (sortBy === 'price-desc') {
+      products.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
+    }
+    return { businesses, products }
+  }, [searchResults, sortBy, lang])
 
   const setFilter = (cat?: string, sec?: string, ar?: string) => {
     const p = new URLSearchParams(searchParams.toString())
@@ -506,31 +534,77 @@ export function SearchPageClient() {
               </div>
             ) : showSearchResults && searchResults ? (
               <>
+                {/* View & sort controls - mobile-friendly */}
+                {hasSearchResults && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 py-4 border-b border-slate-200/80">
+                    <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1">
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('grid')}
+                        className={`flex size-9 items-center justify-center rounded-full transition-colors ${
+                          viewMode === 'grid' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                        aria-label={t('Grid view', 'عرض شبكي')}
+                      >
+                        <LayoutGrid className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode('list')}
+                        className={`flex size-9 items-center justify-center rounded-full transition-colors ${
+                          viewMode === 'list' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                        aria-label={t('List view', 'عرض قائمة')}
+                      >
+                        <List className="size-4" />
+                      </button>
+                    </div>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                      className="h-9 min-w-[140px] rounded-full border-0 bg-slate-100 px-4 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-brand-red/30"
+                    >
+                      <option value="relevance">{t('Relevance', 'الأكثر صلة')}</option>
+                      <option value="name-asc">{t('Name A–Z', 'الاسم أ–ي')}</option>
+                      <option value="name-desc">{t('Name Z–A', 'الاسم ي–أ')}</option>
+                      <option value="price-asc">{t('Price: Low to High', 'السعر: من الأقل للأعلى')}</option>
+                      <option value="price-desc">{t('Price: High to Low', 'السعر: من الأعلى للأقل')}</option>
+                    </select>
+                  </div>
+                )}
                 {/* Search results: Businesses first, then Products */}
-                {(searchResults.businesses.length > 0 || searchResults.products.length > 0) ? (
+                {hasSearchResults && sortedSearchResults ? (
                   <div className="space-y-8 pt-4">
-                    {searchResults.businesses.length > 0 && (
+                    {sortedSearchResults.businesses.length > 0 && (
                       <section>
                         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
                           {t('Businesses', 'الأعمال')}
                         </h2>
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                          {searchResults.businesses.map((b) => (
+                        <div
+                          className={
+                            viewMode === 'grid'
+                              ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                              : 'flex flex-col gap-3'
+                          }
+                        >
+                          {sortedSearchResults.businesses.map((b) => (
                             <div key={b._id}>
                               <FullPageLink
                                 href={b.slug ? `/t/${b.slug}` : '#'}
-                                className="group flex flex-col items-center gap-3 rounded-2xl bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200"
+                                className={`group flex rounded-2xl bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200 ${
+                                  viewMode === 'list' ? 'items-center gap-4 p-4' : 'flex-col items-center gap-3 p-5'
+                                }`}
                               >
-                                <div className="relative size-20 sm:size-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
+                                <div className={`relative shrink-0 overflow-hidden rounded-2xl bg-slate-100 ${viewMode === 'list' ? 'size-14' : 'size-20 sm:size-24'}`}>
                                   {b.logoUrl ? (
-                                    <Image src={b.logoUrl} alt={b.name} fill className="object-contain p-2" sizes="96px" />
+                                    <Image src={b.logoUrl} alt={b.name} fill className="object-contain p-2" sizes={viewMode === 'list' ? '56px' : '96px'} />
                                   ) : (
                                     <div className="flex h-full w-full items-center justify-center">
-                                      <Store className="size-10 text-slate-300" />
+                                      <Store className={viewMode === 'list' ? 'size-6' : 'size-10'} />
                                     </div>
                                   )}
                                 </div>
-                                <h3 className="font-bold text-slate-900 text-lg text-center line-clamp-1">
+                                <h3 className={`font-bold text-slate-900 line-clamp-1 ${viewMode === 'list' ? 'text-base flex-1 min-w-0' : 'text-lg text-center'}`}>
                                   {(lang === 'ar' ? b.name_ar : b.name_en) || b.name}
                                 </h3>
                               </FullPageLink>
@@ -539,29 +613,37 @@ export function SearchPageClient() {
                         </div>
                       </section>
                     )}
-                    {searchResults.products.length > 0 && (
+                    {sortedSearchResults.products.length > 0 && (
                       <section>
                         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
                           {t('Products & meals', 'المنتجات والوجبات')}
                         </h2>
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                          {searchResults.products.map((p) => (
+                        <div
+                          className={
+                            viewMode === 'grid'
+                              ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                              : 'flex flex-col gap-3'
+                          }
+                        >
+                          {sortedSearchResults.products.map((p) => (
                             <div key={p._id}>
                               <FullPageLink
                                 href={p.business.slug ? `/t/${p.business.slug}#product-${p._id}` : '#'}
-                                className="group block overflow-hidden rounded-2xl bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200"
+                                className={`group flex overflow-hidden rounded-2xl bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200 ${
+                                  viewMode === 'list' ? 'flex-row items-center gap-4 p-4' : 'flex-col'
+                                }`}
                               >
-                                <div className="relative aspect-square sm:aspect-[4/3] bg-slate-100">
+                                <div className={`relative shrink-0 bg-slate-100 ${viewMode === 'list' ? 'size-20 rounded-xl' : 'aspect-square sm:aspect-[4/3]'}`}>
                                   {p.imageUrl ? (
-                                    <Image src={p.imageUrl} alt={(lang === 'ar' ? p.title_ar : p.title_en) || ''} fill className="object-cover" sizes="(max-width: 640px) 100vw, 280px" />
+                                    <Image src={p.imageUrl} alt={(lang === 'ar' ? p.title_ar : p.title_en) || ''} fill className="object-cover" sizes={viewMode === 'list' ? '80px' : '(max-width: 640px) 100vw, 280px'} />
                                   ) : (
                                     <div className="flex h-full w-full items-center justify-center">
-                                      <UtensilsCrossed className="size-12 text-slate-300" />
+                                      <UtensilsCrossed className={viewMode === 'list' ? 'size-8' : 'size-12'} />
                                     </div>
                                   )}
                                 </div>
-                                <div className="p-4">
-                                  <h3 className="font-bold text-slate-900 text-lg line-clamp-2">
+                                <div className={`min-w-0 flex-1 ${viewMode === 'grid' ? 'p-4' : 'py-1'}`}>
+                                  <h3 className={`font-bold text-slate-900 line-clamp-2 ${viewMode === 'list' ? 'text-base' : 'text-lg'}`}>
                                     {(lang === 'ar' ? p.title_ar : p.title_en) || ''}
                                   </h3>
                                   <p className="mt-1 text-sm text-slate-500 font-medium">
