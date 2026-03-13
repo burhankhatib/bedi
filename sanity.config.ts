@@ -10,6 +10,7 @@ import { structureTool } from 'sanity/structure'
 
 import { apiVersion, dataset, projectId } from './sanity/env'
 import { schema } from './sanity/schemaTypes'
+import { structure, getDefaultDocumentNode } from './sanity/structure'
 
 export default defineConfig({
   basePath: '/studio',
@@ -18,10 +19,7 @@ export default defineConfig({
   apiVersion,
   schema,
   plugins: [
-    // Minimal stable setup. To restore custom structure (Banner Settings, Order history tab):
-    // import { structure, getDefaultDocumentNode } from './sanity/structure'
-    // then structureTool({ structure, defaultDocumentNode: getDefaultDocumentNode })
-    structureTool(),
+    structureTool({ structure, defaultDocumentNode: getDefaultDocumentNode }),
     visionTool({ defaultApiVersion: apiVersion }),
   ],
 })

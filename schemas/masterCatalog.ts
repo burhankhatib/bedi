@@ -22,6 +22,18 @@ export const masterCatalogProductType = defineType({
       validation: (Rule) => Rule.required(),
     }),
     defineField({
+      name: 'descriptionEn',
+      title: 'Description (English)',
+      type: 'text',
+      rows: 3,
+    }),
+    defineField({
+      name: 'descriptionAr',
+      title: 'Description (Arabic)',
+      type: 'text',
+      rows: 3,
+    }),
+    defineField({
       name: 'category',
       title: 'Category',
       type: 'string',
@@ -39,11 +51,25 @@ export const masterCatalogProductType = defineType({
       validation: (Rule) => Rule.required(),
     }),
     defineField({
+      name: 'image',
+      title: 'Product Image (optional)',
+      type: 'image',
+      options: { hotspot: true },
+      description: 'When set, this image is used for quick-add. Otherwise Unsplash is used with the search query.',
+    }),
+    defineField({
       name: 'searchQuery',
       title: 'Image Search Query',
-      description: 'English term used to fetch image from Unsplash (e.g. "carton of eggs").',
+      description: 'Required when no image is uploaded. Used to fetch from Unsplash (e.g. "carton of eggs").',
       type: 'string',
-      validation: (Rule) => Rule.required().min(2),
+      validation: (Rule) =>
+        Rule.custom((value, ctx) => {
+          const hasImage = ctx.parent && typeof (ctx.parent as { image?: unknown }).image === 'object'
+          if (hasImage) return true
+          return value && typeof value === 'string' && value.trim().length >= 2
+            ? true
+            : 'Required when no image is uploaded (min 2 characters)'
+        }),
     }),
     defineField({
       name: 'unitType',

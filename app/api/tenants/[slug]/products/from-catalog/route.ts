@@ -66,9 +66,11 @@ export async function POST(
             category?: string
             searchQuery?: string
             unitType?: string
+            image?: { asset?: { _ref?: string } }
           } | null>(
             `*[_type == "masterCatalogProduct" && _id == $id][0]{
-              _id, nameEn, nameAr, category, searchQuery, unitType
+              _id, nameEn, nameAr, category, searchQuery, unitType,
+              "image": image
             }`,
             { id: masterCatalogId }
           )
@@ -132,6 +134,9 @@ export async function POST(
       const saleUnit = saleUnitOverride ?? masterCatalogProduct.unitType ?? 'piece'
 
       let resolvedImageAssetId: string | undefined = imageAssetId
+      if (!resolvedImageAssetId && masterCatalogProduct.image?.asset?._ref) {
+        resolvedImageAssetId = masterCatalogProduct.image.asset._ref
+      }
       if (!resolvedImageAssetId && unsplashImageUrl) {
         try {
           const uploaded = await uploadImageFromUrl(writeClient as ClientWithUpload, unsplashImageUrl)

@@ -1,5 +1,6 @@
 import type { DefaultDocumentNodeResolver, StructureResolver } from 'sanity/structure'
 import { OrderHistoryByPhone } from './components/OrderHistoryByPhone'
+import { MasterCatalogQuickEdit } from './components/MasterCatalogQuickEdit'
 
 // https://www.sanity.io/docs/structure-builder-cheat-sheet
 export const structure: StructureResolver = (S) => {
@@ -42,11 +43,18 @@ export const structure: StructureResolver = (S) => {
 }
 
 /** Add "Order history (by phone)" view to Customer documents — UI only, no reference stored. */
+/** Master Catalog: Quick Edit as default view (inline editing, auto-save). */
 export const getDefaultDocumentNode: DefaultDocumentNodeResolver = (S, { schemaType }) => {
   if (schemaType === 'customer') {
     return S.document().views([
       S.view.form(),
       S.view.component(OrderHistoryByPhone).title('Order history (by phone)'),
+    ])
+  }
+  if (schemaType === 'masterCatalogProduct') {
+    return S.document().views([
+      S.view.component(MasterCatalogQuickEdit).title('Quick Edit').id('quick-edit'),
+      S.view.form().title('All fields').id('form'),
     ])
   }
   return S.document().views([S.view.form()])

@@ -55,6 +55,7 @@ type MasterCatalogProduct = {
   searchQuery?: string
   unitType?: 'kg' | 'piece' | 'pack'
   alreadyAdded?: boolean
+  image?: { asset?: { _ref?: string } }
 }
 
 export function CatalogProductsModal({
@@ -148,8 +149,15 @@ export function CatalogProductsModal({
     try {
       const params = new URLSearchParams()
       if (q.trim()) params.set('q', q.trim())
-      params.set('category', businessType)
-      params.set('limit', '24')
+      // Restaurant & cafe: show grocery (cheese, beverages) + bakery (bread) for meals/sandwiches
+      if (businessType === 'restaurant' || businessType === 'cafe') {
+        params.set('categories', 'grocery,bakery,restaurant,cafe')
+        params.set('limit', '48')
+      } else {
+        const cat = businessType === 'supermarket' || businessType === 'greengrocer' ? 'grocery' : businessType
+        params.set('category', cat)
+      }
+      if (!params.has('limit')) params.set('limit', '24')
       const res = await fetch(`/api/tenants/${slug}/master-catalog?${params}`, { credentials: 'include' })
       const data = await res.json()
       const list = Array.isArray(data) ? (data as MasterCatalogProduct[]) : []
@@ -157,6 +165,11 @@ export function CatalogProductsModal({
 
       const pairs = await Promise.all(
         list.map(async (item) => {
+          const imageRef = item.image?.asset?._ref
+          if (imageRef) {
+            const storedUrl = urlFor({ _type: 'image', asset: { _ref: imageRef } }).width(400).height(400).url()
+            return [item._id, { urls: [storedUrl], selectedIndex: 0, page: 1 }] as const
+          }
           const { itemId, urls } = await fetchImagesForProduct(item._id, item.searchQuery?.trim() ?? '', 1)
           return [itemId, { urls, selectedIndex: 0, page: 1 }] as const
         })
@@ -272,7 +285,8 @@ export function CatalogProductsModal({
   const handleQuickAddMaster = async (item: MasterCatalogProduct) => {
     if (!menuCategoryId || !item._id || addingMasterId) return
     const opts = masterImageOptions[item._id]
-    const selectedUrl = opts?.urls?.length ? opts.urls[opts.selectedIndex ?? 0] : undefined
+    const hasStoredImage = !!item.image?.asset?._ref
+    const selectedUrl = !hasStoredImage && opts?.urls?.length ? opts.urls[opts.selectedIndex ?? 0] : undefined
     setAddingMasterId(item._id)
     try {
       const res = await fetch(`/api/tenants/${slug}/products/from-catalog`, {
@@ -484,17 +498,19 @@ export function CatalogProductsModal({
                                   <Image src={url} alt="" fill className="object-cover" sizes="32px" unoptimized />
                                 </button>
                               ))}
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="size-8 shrink-0 text-slate-500 hover:text-emerald-400"
-                                onClick={() => refreshMasterImages(item)}
-                                disabled={isRefreshing}
-                                title={t('Refresh images', 'تحديث الصور')}
-                              >
-                                {isRefreshing ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
-                              </Button>
+                              {!item.image?.asset?._ref && item.searchQuery && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8 shrink-0 text-slate-500 hover:text-emerald-400"
+                                  onClick={() => refreshMasterImages(item)}
+                                  disabled={isRefreshing}
+                                  title={t('Refresh images', 'تحديث الصور')}
+                                >
+                                  {isRefreshing ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                                </Button>
+                              )}
                             </div>
                           )}
                           <div className="p-2 space-y-1">

@@ -12,6 +12,7 @@ type MasterCatalogRow = {
   category?: string
   searchQuery?: string
   unitType?: 'kg' | 'piece' | 'pack'
+  image?: { asset?: { _ref?: string } }
 }
 
 /**
@@ -28,9 +29,16 @@ export async function GET(
 
   const qRaw = (req.nextUrl.searchParams.get('q') ?? '').trim()
   const categoryRaw = (req.nextUrl.searchParams.get('category') ?? '').trim()
+  const categoriesParam = (req.nextUrl.searchParams.get('categories') ?? '').trim()
   // Map supermarket, greengrocer (vegetable & fruit stores) → grocery so they see grocery catalog items
-  const category =
+  const singleCategory =
     categoryRaw === 'supermarket' || categoryRaw === 'greengrocer' ? 'grocery' : categoryRaw
+  // Support multiple categories (e.g. for restaurant/cafe: grocery,bakery)
+  const categories: string[] = categoriesParam
+    ? categoriesParam.split(',').map((c) => c.trim()).filter(Boolean)
+    : singleCategory
+      ? [singleCategory]
+      : []
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '100', 10) || 100, 200)
   const qNormalized = normalizeForSearch(qRaw)
   const qTerms = qNormalized
@@ -40,12 +48,12 @@ export async function GET(
 
   const [items, addedRefs] = await Promise.all([
     client.fetch<MasterCatalogRow[]>(
-      `*[_type == "masterCatalogProduct" ${category ? '&& (category == $category || lower(category) == lower($category))' : ''}] | order(nameEn asc) [0...$limit]{
-        _id, nameEn, nameAr, category, searchQuery, unitType
+      `*[_type == "masterCatalogProduct" ${categories.length > 0 ? `&& category in $categories` : ''}] | order(nameEn asc) [0...$limit]{
+        _id, nameEn, nameAr, category, searchQuery, unitType,
+        "image": image
       }`,
       {
-        ...(category ? { category } : {}),
-        // fetch a broader set then apply robust normalized filtering in JS for Arabic/English.
+        ...(categories.length > 0 ? { categories } : {}),
         limit: Math.max(limit, 300),
       }
     ),

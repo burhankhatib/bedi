@@ -301,7 +301,7 @@ export function MenuManageClient({
   const { t } = useLanguage()
   const { data } = useTenantBusiness()
   const businessType = data?.tenant?.businessType ?? ''
-  const canUseCatalog = ['grocery', 'supermarket', 'greengrocer'].includes(businessType)
+  const canUseCatalog = ['grocery', 'supermarket', 'greengrocer', 'restaurant', 'cafe'].includes(businessType)
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [sortModes, setSortModes] = useState<Record<string, ProductSortMode>>(() => loadSortModes(slug))
   const [reorderingCategoryId, setReorderingCategoryId] = useState<string | null>(null)
