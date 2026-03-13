@@ -1,7 +1,6 @@
 'use client'
 
 import Image from 'next/image'
-import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { urlFor } from '@/sanity/lib/image'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
@@ -55,9 +54,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
   }
 
   return (
-    <motion.div
-      layoutId={`${layoutPrefix}-${product._id}`}
-      whileTap={{ scale: 0.98 }}
+    <div
       onClick={() => onClick(product)}
       className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 cursor-pointer hover:shadow-xl transition-all duration-500 relative group h-full flex flex-col w-full"
       style={{ position: 'relative' }}
@@ -86,12 +83,10 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
         {displayImage ? (
           <>
             {/* Main Image - Always present */}
-            <motion.div
+            <div
               key="main-image"
-              initial={{ opacity: 1 }}
-              animate={{ opacity: isHovered && hoverImage ? 0 : 1 }}
-              transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-              className="absolute inset-0"
+              style={{ opacity: isHovered && hoverImage ? 0 : 1 }}
+              className="absolute inset-0 transition-opacity duration-200"
             >
               <Image
                 src={urlFor(displayImage).width(600).height(600).url()}
@@ -108,15 +103,13 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
                   product.image ? "object-cover group-hover:scale-110" : "object-contain p-8"
                 )}
               />
-            </motion.div>
+            </div>
             {/* Hover Image - Only when hovering and available */}
             {hoverImage && (
-              <motion.div
+              <div
                 key="hover-image"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: isHovered ? 1 : 0 }}
-                transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-                className="absolute inset-0"
+                style={{ opacity: isHovered ? 1 : 0 }}
+                className="absolute inset-0 transition-opacity duration-200"
               >
                 <Image
                   src={urlFor(hoverImage).width(600).height(600).url()}
@@ -127,7 +120,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
                   blurDataURL={SHIMMER_PLACEHOLDER}
                   className="object-cover object-center group-hover:scale-110 transition-transform duration-700 ease-out"
                 />
-              </motion.div>
+              </div>
             )}
           </>
         ) : (
@@ -137,33 +130,18 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
         )}
         {/* Add to Cart Button Overlay - hidden when closed */}
         {!catalogOnly && (
-        <motion.div
+        <div
           className="absolute bottom-3 right-3 z-20 opacity-100 md:opacity-0 md:group-hover:opacity-100 pointer-events-auto"
-          initial={false}
         >
-          <motion.button
+          <button
             onClick={handleAddToCart}
-            className="relative bg-black shadow-2xl rounded-full h-11 w-11 flex items-center justify-center cursor-pointer pointer-events-auto"
-            whileHover={{
-              backgroundColor: '#1e293b'
-            }}
-            whileTap={{
-              scale: 0.95,
-              backgroundColor: '#334155'
-            }}
-            transition={{
-              duration: 0.3,
-              ease: [0.4, 0, 0.2, 1]
-            }}
+            className="relative bg-black hover:bg-slate-800 active:bg-slate-700 shadow-2xl rounded-full h-11 w-11 flex items-center justify-center cursor-pointer pointer-events-auto transition-colors"
           >
-            <motion.div
-              whileHover={{ rotate: 180 }}
-              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-            >
+            <span className="transition-transform duration-300 group-hover:rotate-180">
               <Plus className="w-5 h-5 text-white shrink-0" />
-            </motion.div>
-          </motion.button>
-        </motion.div>
+            </span>
+          </button>
+        </div>
         )}
       </div>
 
@@ -225,6 +203,6 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   )
 }

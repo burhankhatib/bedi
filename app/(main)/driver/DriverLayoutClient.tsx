@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useClerk } from '@clerk/nextjs'
@@ -66,8 +66,18 @@ export function DriverLayoutClient({
   const router = useRouter()
   const navLabel = (item: (typeof NAV_ITEMS)[0]) => (lang === 'ar' ? item.labelAr : item.labelEn)
   const isRtl = lang === 'ar'
+  const profileCheckAbortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(false)
 
   const needsRedirect = hasNoProfileYet && pathname && !DRIVER_SETUP_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      profileCheckAbortRef.current?.abort()
+    }
+  }, [])
 
   useEffect(() => {
     if (!needsRedirect) return
@@ -95,15 +105,19 @@ export function DriverLayoutClient({
 
   useEffect(() => {
     if (hasNoProfileYet || !pathname || pathname === '/driver/profile') return
-    const timer = setTimeout(() => {
-      fetch('/api/driver/profile')
-        .then((r) => r.json())
-        .then((data) => {
-          if (data == null || !data._id) router.replace('/driver/profile')
-        })
-        .catch(() => {})
-    }, 0)
-    return () => clearTimeout(timer)
+    profileCheckAbortRef.current?.abort()
+    const ac = new AbortController()
+    profileCheckAbortRef.current = ac
+    fetch('/api/driver/profile', { signal: ac.signal })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!mountedRef.current || ac.signal.aborted) return
+        if (data == null || !data._id) router.replace('/driver/profile')
+      })
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+      })
+    return () => ac.abort()
   }, [pathname, router, hasNoProfileYet])
 
   const hasTenants = false // Or your actual logic to determine this
@@ -137,14 +151,14 @@ export function DriverLayoutClient({
             <Link href="/driver" className="font-black text-lg sm:text-xl text-white hover:text-slate-200 tracking-wide">
               Bedi Driver
             </Link>
-            <a
+            <Link
               href="/"
               onClick={() => { try { localStorage.removeItem(PREFER_DRIVER_KEY) } catch { /* ignore */ } }}
               className="hidden sm:inline-flex items-center gap-1.5 ml-2 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors"
             >
               <ArrowLeft className="size-3.5" style={isRtl ? { transform: 'scaleX(-1)' } : undefined} />
               {t('Back to Bedi Delivery', 'العودة لبدي للتوصيل')}
-            </a>
+            </Link>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <PWAInstallIcon config={getDriverPWAConfig()} className="bg-emerald-500/20 text-emerald-400 ring-emerald-400/30 hover:bg-emerald-500/30" />
@@ -167,7 +181,7 @@ export function DriverLayoutClient({
             </div>
             
             <div className="flex flex-col px-3 space-y-1 flex-1">
-              <a
+              <Link
                 href="/"
                 onClick={() => {
                   setMenuOpen(false)
@@ -177,7 +191,7 @@ export function DriverLayoutClient({
               >
                 <ArrowLeft className="size-6 text-slate-400" style={isRtl ? { transform: 'scaleX(-1)' } : undefined} />
                 <span className="font-medium text-[15px]">{t('Back to Bedi Delivery', 'العودة لبدي للتوصيل')}</span>
-              </a>
+              </Link>
 
               <div className="my-2 border-t border-slate-800/60 mx-2"></div>
 

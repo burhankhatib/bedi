@@ -43,19 +43,40 @@ export function TenantBusinessProvider({ slug, children }: { slug: string; child
   const [data, setData] = useState<TenantBusinessData | null>(null)
   const [loading, setLoading] = useState(true)
   const fetchedSlugRef = useRef<string | null>(null)
+  const mountedRef = useRef(false)
+  const refetchAbortRef = useRef<AbortController | null>(null)
+  const initialAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      refetchAbortRef.current?.abort()
+      initialAbortRef.current?.abort()
+    }
+  }, [])
 
   const refetch = useCallback(async () => {
     if (!slug) return
+    refetchAbortRef.current?.abort()
+    const ac = new AbortController()
+    refetchAbortRef.current = ac
+    if (mountedRef.current) setLoading(true)
     try {
-      const res = await fetch(`/api/tenants/${encodeURIComponent(slug)}/business`, { credentials: 'include', cache: 'no-store' })
+      const res = await fetch(`/api/tenants/${encodeURIComponent(slug)}/business`, {
+        credentials: 'include',
+        cache: 'no-store',
+        signal: ac.signal,
+      })
       if (res.ok) {
         const d = await res.json()
-        setData(d)
+        if (mountedRef.current && !ac.signal.aborted) setData(d)
       }
-    } catch {
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') return
       // ignore
     } finally {
-      setLoading(false)
+      if (mountedRef.current && !ac.signal.aborted) setLoading(false)
     }
   }, [slug])
 
@@ -65,26 +86,33 @@ export function TenantBusinessProvider({ slug, children }: { slug: string; child
     fetchedSlugRef.current = slug
     setData(null)
     setLoading(true)
-    let cancelled = false
+    initialAbortRef.current?.abort()
+    const ac = new AbortController()
+    initialAbortRef.current = ac
     const timeout = setTimeout(() => {
-      if (!cancelled) setLoading(false)
+      if (mountedRef.current && !ac.signal.aborted) setLoading(false)
     }, 8000)
-    fetch(`/api/tenants/${encodeURIComponent(slug)}/business`, { credentials: 'include', cache: 'no-store' })
+    fetch(`/api/tenants/${encodeURIComponent(slug)}/business`, {
+      credentials: 'include',
+      cache: 'no-store',
+      signal: ac.signal,
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (!cancelled) setData(d ?? null)
+        if (mountedRef.current && !ac.signal.aborted) setData(d ?? null)
       })
-      .catch(() => {
-        if (!cancelled) setData(null)
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+        if (mountedRef.current) setData(null)
       })
       .finally(() => {
-        if (!cancelled) {
+        if (mountedRef.current && !ac.signal.aborted) {
           clearTimeout(timeout)
           setLoading(false)
         }
       })
     return () => {
-      cancelled = true
+      ac.abort()
       clearTimeout(timeout)
     }
   }, [slug])

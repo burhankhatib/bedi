@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'motion/react'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
 import { SiteHeader } from '@/components/global/SiteHeader'
@@ -222,6 +221,7 @@ export function SearchPageClient() {
 
   const hasSearchQuery = searchQuery.trim().length > 0
   const [debouncedQuery, setDebouncedQuery] = useState('')
+  const latestSearchRequestRef = useRef(0)
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300)
     return () => clearTimeout(t)
@@ -239,6 +239,7 @@ export function SearchPageClient() {
 
   useEffect(() => {
     if (!isChosen || !city) {
+      latestSearchRequestRef.current += 1
       setTenants([])
       setMeta(null)
       setSectionsWithImages([])
@@ -247,20 +248,30 @@ export function SearchPageClient() {
       return
     }
     if (debouncedQuery) {
+      let mounted = true
+      const requestId = ++latestSearchRequestRef.current
+      setSearchResults(null)
       setLoading(true)
       const params = new URLSearchParams({ city, q: debouncedQuery, lang: lang === 'ar' ? 'ar' : 'en' })
-      fetch(`/api/home/search?${params}`)
+      const ac = new AbortController()
+      fetch(`/api/home/search?${params}`, { signal: ac.signal })
         .then((res) => res.json())
         .then((data) => {
-          setSearchResults({
-            businesses: data?.businesses ?? [],
-            products: data?.products ?? [],
-          })
+          if (mounted && latestSearchRequestRef.current === requestId) {
+            setSearchResults({ businesses: data?.businesses ?? [], products: data?.products ?? [] })
+          }
         })
-        .catch(() => setSearchResults({ businesses: [], products: [] }))
-        .finally(() => setLoading(false))
-      return
+        .catch((err) => {
+          if (mounted && latestSearchRequestRef.current === requestId && err?.name !== 'AbortError') {
+            setSearchResults({ businesses: [], products: [] })
+          }
+        })
+        .finally(() => {
+          if (mounted && latestSearchRequestRef.current === requestId) setLoading(false)
+        })
+      return () => { mounted = false; ac.abort() }
     }
+    latestSearchRequestRef.current += 1
     setSearchResults(null)
     setLoading(true)
     const params = new URLSearchParams({ city })
@@ -278,14 +289,20 @@ export function SearchPageClient() {
       return
     }
 
-    fetch(`/api/home/tenants?${params}`)
+    let mounted = true
+    const ac = new AbortController()
+    fetch(`/api/home/tenants?${params}`, { signal: ac.signal })
       .then((res) => res.json())
       .then((data) => {
-        tenantsCache.set(cacheKey, { data, expires: now + CACHE_TTL_MS })
-        setTenants(Array.isArray(data?.tenants) ? data.tenants : [])
-        setMeta(data?.meta ?? null)
+        if (mounted) {
+          tenantsCache.set(cacheKey, { data, expires: now + CACHE_TTL_MS })
+          setTenants(Array.isArray(data?.tenants) ? data.tenants : [])
+          setMeta(data?.meta ?? null)
+        }
       })
-      .finally(() => setLoading(false))
+      .catch((err) => { if (mounted && err?.name !== 'AbortError') { setTenants([]); setMeta(null) } })
+      .finally(() => { if (mounted) setLoading(false) })
+    return () => { mounted = false; ac.abort() }
   }, [isChosen, city, category, section, area, debouncedQuery, lang])
 
   useEffect(() => {
@@ -302,13 +319,18 @@ export function SearchPageClient() {
       return
     }
 
-    fetch(`/api/home/categories?${params}`)
+    let mounted = true
+    const ac = new AbortController()
+    fetch(`/api/home/categories?${params}`, { signal: ac.signal })
       .then((res) => res.json())
       .then((data) => {
-        categoriesCache.set(cacheKey, { data, expires: now + CACHE_TTL_MS })
-        setBusinessCategories(Array.isArray(data) ? data : [])
+        if (mounted) {
+          categoriesCache.set(cacheKey, { data, expires: now + CACHE_TTL_MS })
+          setBusinessCategories(Array.isArray(data) ? data : [])
+        }
       })
-      .catch(() => setBusinessCategories([]))
+      .catch((err) => { if (mounted && err?.name !== 'AbortError') setBusinessCategories([]) })
+    return () => { mounted = false; ac.abort() }
   }, [isChosen, city])
 
   useEffect(() => {
@@ -325,13 +347,18 @@ export function SearchPageClient() {
       return
     }
 
-    fetch(`/api/home/sections?${params}`)
+    let mounted = true
+    const ac = new AbortController()
+    fetch(`/api/home/sections?${params}`, { signal: ac.signal })
       .then((res) => res.json())
       .then((data) => {
-        sectionsCache.set(cacheKey, { data, expires: now + CACHE_TTL_MS })
-        setSectionsWithImages(Array.isArray(data) ? data : [])
+        if (mounted) {
+          sectionsCache.set(cacheKey, { data, expires: now + CACHE_TTL_MS })
+          setSectionsWithImages(Array.isArray(data) ? data : [])
+        }
       })
-      .catch(() => setSectionsWithImages([]))
+      .catch((err) => { if (mounted && err?.name !== 'AbortError') setSectionsWithImages([]) })
+    return () => { mounted = false; ac.abort() }
   }, [isChosen, city, category])
 
   const showSearchResults = debouncedQuery && (searchResults || loading)
@@ -367,7 +394,7 @@ export function SearchPageClient() {
       <LocationModal />
 
       {isChosen && (category === 'restaurant' || category === 'cafe' || !category) && (
-        <div className="bg-white border-b border-slate-100 shadow-sm sticky top-14 z-20">
+        <div className="bg-white border-b border-slate-100 shadow-sm sticky z-20" style={{ top: 'calc(72px + env(safe-area-inset-top))' }}>
           <div className="container mx-auto px-4">
             <CategoryIconsBar
               activeSection={section}
@@ -452,27 +479,19 @@ export function SearchPageClient() {
               )}
               <div className="min-w-0 flex-1">
                 {/* Mobile: filters panel (collapse/expand) */}
-                <AnimatePresence initial={false} mode="wait">
-                  {filtersExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="mb-6 overflow-hidden md:hidden"
-                    >
-                      <FilterPanelContent
-                        meta={meta}
-                        category={category}
-                        section={section}
-                        area={area}
-                        setFilter={setFilter}
-                        lang={lang}
-                        t={t}
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {filtersExpanded && (
+                  <div className="mb-6 md:hidden">
+                    <FilterPanelContent
+                      meta={meta}
+                      category={category}
+                      section={section}
+                      area={area}
+                      setFilter={setFilter}
+                      lang={lang}
+                      t={t}
+                    />
+                  </div>
+                )}
 
             {/* Note: In M3 Overhaul, the duplicate Specialty strip widget was removed because the top header (CategoryIconsBar) already solves this filtering natively and sticky-persists. */}
 
@@ -496,13 +515,8 @@ export function SearchPageClient() {
                           {t('Businesses', 'الأعمال')}
                         </h2>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                          {searchResults.businesses.map((b, i) => (
-                            <motion.div
-                              key={b._id}
-                              initial={{ opacity: 0, y: 12 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.25, delay: Math.min(i * 0.03, 0.3) }}
-                            >
+                          {searchResults.businesses.map((b) => (
+                            <div key={b._id}>
                               <Link
                                 href={b.slug ? `/t/${b.slug}` : '#'}
                                 className="group flex flex-col items-center gap-3 rounded-2xl bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200"
@@ -520,7 +534,7 @@ export function SearchPageClient() {
                                   {(lang === 'ar' ? b.name_ar : b.name_en) || b.name}
                                 </h3>
                               </Link>
-                            </motion.div>
+                            </div>
                           ))}
                         </div>
                       </section>
@@ -531,13 +545,8 @@ export function SearchPageClient() {
                           {t('Products & meals', 'المنتجات والوجبات')}
                         </h2>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                          {searchResults.products.map((p, i) => (
-                            <motion.div
-                              key={p._id}
-                              initial={{ opacity: 0, y: 12 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.25, delay: Math.min((searchResults.businesses.length + i) * 0.03, 0.4) }}
-                            >
+                          {searchResults.products.map((p) => (
+                            <div key={p._id}>
                               <Link
                                 href={p.business.slug ? `/t/${p.business.slug}` : '#'}
                                 className="group block overflow-hidden rounded-2xl bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200"
@@ -565,7 +574,7 @@ export function SearchPageClient() {
                                   )}
                                 </div>
                               </Link>
-                            </motion.div>
+                            </div>
                           ))}
                         </div>
                       </section>
@@ -597,13 +606,8 @@ export function SearchPageClient() {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-4">
-                {displayTenants.map((t, i) => (
-                  <motion.div
-                    key={t._id}
-                    initial={{ opacity: 0, scale: 0.95, y: 16 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={{ duration: 0.3, ease: [0.2, 0, 0, 1], delay: Math.min(i * 0.04, 0.4) }}
-                  >
+                {displayTenants.map((t) => (
+                  <div key={t._id}>
                     <Link
                       href={t.slug ? `/t/${t.slug}` : '#'}
                       className="group flex items-center gap-4 overflow-hidden rounded-[20px] bg-white p-4 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
@@ -651,7 +655,7 @@ export function SearchPageClient() {
                         )}
                       </div>
                     </Link>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -11,7 +11,6 @@ import { UtensilsCrossed, Store, ShoppingCart, Search, Package } from 'lucide-re
 const NAV_HEIGHT = 72
 /** Extra padding so nav text is not flush with the screen bottom (M3 thumb-zone). */
 const BOTTOM_PADDING = 'max(16px, env(safe-area-inset-bottom, 0px))'
-
 /** Paths where the customer bottom nav is shown (home, search, tenant menu, order flow, my orders, track page). */
 function isCustomerPath(pathname: string): boolean {
   if (!pathname) return false
@@ -70,7 +69,7 @@ function NavItem({
         )}
       </span>
       <span
-        className={`text-[11px] font-medium ${active || highlight ? 'text-amber-700 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}
+        className={`text-[11px] font-medium ${active || highlight ? 'text-amber-700 dark:text-amber-400 opacity-100' : 'text-slate-500 dark:text-slate-400 opacity-80'}`}
       >
         {label}
       </span>
@@ -104,17 +103,38 @@ export function MobileBottomNav() {
   const { totalItems, setIsOpen, isOpen: cartOpen } = useCart()
   const [mounted, setMounted] = useState(false)
   const [activeOrderCount, setActiveOrderCount] = useState(0)
+  const isMountedRef = useRef(false)
+  const activeCountAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
+    isMountedRef.current = true
     setMounted(true)
+    return () => {
+      isMountedRef.current = false
+      activeCountAbortRef.current?.abort()
+    }
   }, [])
 
   const fetchActiveCount = useCallback(() => {
     if (!isCustomerPath(pathname ?? '')) return
-    fetch('/api/me/orders/active-count', { credentials: 'include', cache: 'no-store' })
+    activeCountAbortRef.current?.abort()
+    const ac = new AbortController()
+    activeCountAbortRef.current = ac
+    fetch('/api/me/orders/active-count', {
+      credentials: 'include',
+      cache: 'no-store',
+      signal: ac.signal,
+    })
       .then((r) => r.json())
-      .then((data) => setActiveOrderCount(typeof data?.count === 'number' ? data.count : 0))
-      .catch(() => setActiveOrderCount(0))
+      .then((data) => {
+        if (!isMountedRef.current || ac.signal.aborted) return
+        setActiveOrderCount(typeof data?.count === 'number' ? data.count : 0)
+      })
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+        if (!isMountedRef.current) return
+        setActiveOrderCount(0)
+      })
   }, [pathname])
 
   useEffect(() => {
@@ -152,7 +172,7 @@ export function MobileBottomNav() {
   const searchLabel = mounted ? t('Search', 'بحث') : FALLBACK.search
 
   const items = [
-    { href: '/', active: homeActive, label: homeLabel, icon: <Image src="/logo.webp" alt="Bedi" width={28} height={28} className="h-7 w-7 object-contain" loading="eager" /> },
+    { href: '/', active: homeActive, label: homeLabel, icon: <Image src="/logo.webp" alt="Bedi" width={28} height={28} className="h-7 w-7 object-contain" /> },
     { href: '/search?category=restaurant', active: restaurantsActive, label: restaurantsLabel, icon: <UtensilsCrossed className="size-6" strokeWidth={2} /> },
     { href: '/search?category=stores', active: storesActive, label: storesLabel, icon: <Store className="size-6" strokeWidth={2} /> },
     { href: '/my-orders', active: ordersActive, highlight: ordersHighlight, label: ordersLabel, icon: <Package className="size-6" strokeWidth={2} /> },
@@ -170,30 +190,36 @@ export function MobileBottomNav() {
     >
       <div className="flex h-[72px] items-stretch justify-around gap-1 px-1" dir={isRtl ? 'rtl' : 'ltr'}>
         {items.map((item) => (
-          <NavItem key={item.href} href={item.href} active={item.active} highlight={item.highlight} label={item.label} icon={item.icon} isRtl={isRtl} />
+          <div key={item.href}>
+            <NavItem href={item.href} active={item.active} highlight={item.highlight} label={item.label} icon={item.icon} isRtl={isRtl} />
+          </div>
         ))}
 
-        <NavItem
-          isButton
-          onClick={() => setIsOpen(true)}
-          active={false}
-          label={cartLabel}
-          icon={
-            <span className="relative flex h-10 w-10 items-center justify-center">
-              <ShoppingCart className="size-6" strokeWidth={2} />
-              {mounted && totalItems > 0 && (
-                <span
-                  className={`absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-slate-950 ${isRtl ? 'left-0 top-0' : 'right-0 top-0'}`}
-                >
-                  {totalItems > 99 ? '99+' : totalItems}
-                </span>
-              )}
-            </span>
-          }
-          isRtl={isRtl}
-        />
+        <div>
+          <NavItem
+            isButton
+            onClick={() => setIsOpen(true)}
+            active={false}
+            label={cartLabel}
+            icon={
+              <span className="relative flex h-10 w-10 items-center justify-center">
+                <ShoppingCart className="size-6" strokeWidth={2} />
+                {mounted && totalItems > 0 && (
+                  <span
+                    className={`absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-slate-950 ${isRtl ? 'left-0 top-0' : 'right-0 top-0'}`}
+                  >
+                    {totalItems > 99 ? '99+' : totalItems}
+                  </span>
+                )}
+              </span>
+            }
+            isRtl={isRtl}
+          />
+        </div>
 
-        <NavItem href="/search?expand=1" active={searchActive && !restaurantsActive && !storesActive} label={searchLabel} icon={<Search className="size-6" strokeWidth={2} />} isRtl={isRtl} />
+        <div>
+          <NavItem href="/search?expand=1" active={searchActive && !restaurantsActive && !storesActive} label={searchLabel} icon={<Search className="size-6" strokeWidth={2} />} isRtl={isRtl} />
+        </div>
       </div>
     </nav>
   )

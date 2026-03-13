@@ -1,7 +1,6 @@
 'use client'
 
 import Image from 'next/image'
-import { motion } from 'framer-motion'
 import { urlFor } from '@/sanity/lib/image'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { Product } from '@/app/types/menu'
@@ -47,9 +46,7 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
   }
 
   return (
-    <motion.div
-      layoutId={`${layoutPrefix}-${product._id}`}
-      whileTap={{ scale: 0.98 }}
+    <div
       onClick={() => onClick(product)}
       className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 cursor-pointer hover:shadow-lg transition-all duration-300 flex gap-4 p-4"
     >
@@ -161,6 +158,6 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   )
 }

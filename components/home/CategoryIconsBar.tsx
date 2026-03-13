@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { motion } from 'motion/react'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
 import { getSectionIcon } from '@/lib/section-icons'
@@ -35,13 +34,16 @@ export function CategoryIconsBar({ activeSection, category = 'restaurant', class
       setLoading(false)
       return
     }
+    let mounted = true
     setLoading(true)
     const params = new URLSearchParams({ city, category })
-    fetch(`/api/home/sections?${params}`)
+    const ac = new AbortController()
+    fetch(`/api/home/sections?${params}`, { signal: ac.signal })
       .then((res) => res.json())
-      .then((data) => setSections(Array.isArray(data) ? data : []))
-      .catch(() => setSections([]))
-      .finally(() => setLoading(false))
+      .then((data) => { if (mounted) setSections(Array.isArray(data) ? data : []) })
+      .catch((err) => { if (mounted && err?.name !== 'AbortError') setSections([]) })
+      .finally(() => { if (mounted) setLoading(false) })
+    return () => { mounted = false; ac.abort() }
   }, [isChosen, city, category])
 
   if (!isChosen || (loading && sections.length === 0)) {
@@ -62,18 +64,12 @@ export function CategoryIconsBar({ activeSection, category = 'restaurant', class
   return (
     <div className={`py-6 w-full ${className}`}>
       <div className="flex justify-start gap-4 sm:gap-6 md:gap-8 overflow-x-auto no-scrollbar px-4 pb-4">
-        {sections.map((s, i) => {
+        {sections.map((s) => {
           const Icon = getSectionIcon(s.key)
           const isActive = activeSection === s.key
 
           return (
-            <motion.div
-              key={s.key}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.05 }}
-              className="flex-shrink-0"
-            >
+            <div key={s.key} className="flex-shrink-0">
               <Link
                 href={`/search?section=${encodeURIComponent(s.key)}&category=${encodeURIComponent(category)}`}
                 className="group flex flex-col items-center gap-2.5 w-16 sm:w-[84px] cursor-pointer outline-none"
@@ -96,7 +92,7 @@ export function CategoryIconsBar({ activeSection, category = 'restaurant', class
                   {lang === 'ar' ? s.title_ar : s.title_en}
                 </span>
               </Link>
-            </motion.div>
+            </div>
           )
         })}
       </div>

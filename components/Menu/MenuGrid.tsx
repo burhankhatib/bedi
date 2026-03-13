@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { MenuData, Product } from '@/app/types/menu'
 import { ProductCard } from './ProductCard'
 import { ProductListItem } from './ProductListItem'
@@ -18,21 +17,6 @@ interface MenuGridProps {
   tenantContext?: CartTenant
   orderTypeOptions?: OrderTypeOptions | null
   catalogHidePrices?: boolean
-}
-
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1
-    }
-  }
-}
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 }
 }
 
 export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewType = 'thumbnail', restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions, catalogHidePrices = false }: MenuGridProps) {
@@ -85,15 +69,9 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
 
       case 'thumbnail-2col':
         return (
-          <motion.div
-            variants={container}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, margin: "-100px" }}
-            className="grid grid-cols-2 gap-3 md:gap-6 px-4 auto-rows-fr"
-          >
+          <div className="grid grid-cols-2 gap-3 md:gap-6 px-4 auto-rows-fr">
             {products.map((product) => (
-              <motion.div key={product._id} variants={item} className="h-full">
+              <div key={product._id} className="h-full">
                 <ProductCard
                   product={product}
                   onClick={(p) => onProductClick(p, prefix)}
@@ -104,23 +82,17 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
                   orderTypeOptions={orderTypeOptions}
                   catalogHidePrices={catalogHidePrices}
                 />
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         )
 
       case 'thumbnail':
       default:
         return (
-          <motion.div
-            variants={container}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, margin: "-100px" }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4 auto-rows-fr"
-          >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4 auto-rows-fr">
             {products.map((product) => (
-              <motion.div key={product._id} variants={item} className="h-full">
+              <div key={product._id} className="h-full">
                 <ProductCard
                   product={product}
                   onClick={(p) => onProductClick(p, prefix)}
@@ -131,9 +103,9 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
                   orderTypeOptions={orderTypeOptions}
                   catalogHidePrices={catalogHidePrices}
                 />
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         )
     }
   }

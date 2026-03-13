@@ -74,16 +74,16 @@ export function DashboardClient({
                   </a>
                 </Button>
                 <Button asChild size="sm" className="border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white">
-                  <a href={`/t/${tenant.slug}/manage`}>
+                  <Link href={`/t/${tenant.slug}/manage`}>
                     <LayoutGrid className="mr-1.5 size-3.5" />
                     {t('Manage', 'إدارة')}
-                  </a>
+                  </Link>
                 </Button>
                 <Button asChild size="sm" className="bg-amber-500 text-slate-950 hover:bg-amber-400">
-                  <a href={`/t/${tenant.slug}/orders`}>
+                  <Link href={`/t/${tenant.slug}/orders`}>
                     {t('Orders', 'الطلبات')}
                     <ArrowRight className="ml-1.5 size-3.5" />
-                  </a>
+                  </Link>
                 </Button>
               </div>
             </div>

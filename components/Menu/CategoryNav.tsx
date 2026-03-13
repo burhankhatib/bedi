@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { Category } from '@/app/types/menu'
 import { useLanguage } from '@/components/LanguageContext'
 import { cn } from '@/lib/utils'

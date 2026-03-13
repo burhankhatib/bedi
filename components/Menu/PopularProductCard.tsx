@@ -1,7 +1,6 @@
 'use client'
 
 import Image from 'next/image'
-import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { urlFor } from '@/sanity/lib/image'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
@@ -61,9 +60,7 @@ export function PopularProductCard({
   }
 
   return (
-    <motion.div
-      layoutId={`${layoutPrefix}-${product._id}`}
-      whileTap={{ scale: 0.97 }}
+    <div
       onClick={() => onClick(product)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -73,11 +70,7 @@ export function PopularProductCard({
       <div className="absolute inset-0 bg-slate-100">
         {displayImage && (
           <>
-            <motion.div
-              animate={{ opacity: isHovered && hoverImage ? 0 : 1 }}
-              transition={{ duration: 0.4, ease: "easeInOut" }}
-              className="absolute inset-0"
-            >
+            <div style={{ opacity: isHovered && hoverImage ? 0 : 1 }} className="absolute inset-0 transition-opacity duration-300">
               <Image
                 src={urlFor(displayImage).width(800).height(500).url()}
                 alt={t(product.title_en, product.title_ar)}
@@ -91,15 +84,10 @@ export function PopularProductCard({
                   product.image ? "object-cover" : "object-contain p-12"
                 )}
               />
-            </motion.div>
+            </div>
             
             {hoverImage && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: isHovered ? 1 : 0 }}
-                transition={{ duration: 0.4, ease: "easeInOut" }}
-                className="absolute inset-0"
-              >
+              <div style={{ opacity: isHovered ? 1 : 0 }} className="absolute inset-0 transition-opacity duration-300">
                 <Image
                   src={urlFor(hoverImage).width(800).height(500).url()}
                   alt={t(product.title_en, product.title_ar)}
@@ -109,7 +97,7 @@ export function PopularProductCard({
                   blurDataURL={SHIMMER_PLACEHOLDER}
                   className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                 />
-              </motion.div>
+              </div>
             )}
           </>
         )}
@@ -172,31 +160,17 @@ export function PopularProductCard({
 
           {/* Floating Add to Cart Button - hidden when closed */}
           {!catalogOnly && (
-          <motion.button
+          <button
             onClick={handleAddToCart}
-            className="relative bg-black shadow-2xl rounded-2xl h-12 w-12 flex items-center justify-center cursor-pointer pointer-events-auto shrink-0"
-            whileHover={{
-              backgroundColor: '#1e293b'
-            }}
-            whileTap={{
-              scale: 0.95,
-              backgroundColor: '#334155'
-            }}
-            transition={{
-              duration: 0.3,
-              ease: [0.4, 0, 0.2, 1]
-            }}
+            className="relative bg-black hover:bg-slate-800 active:bg-slate-700 shadow-2xl rounded-2xl h-12 w-12 flex items-center justify-center cursor-pointer pointer-events-auto shrink-0 transition-colors"
           >
-            <motion.div
-              whileHover={{ rotate: 180 }}
-              transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-            >
+            <span className="transition-transform duration-300 group-hover:rotate-180">
               <Plus className="w-6 h-6 text-white shrink-0" />
-            </motion.div>
-          </motion.button>
+            </span>
+          </button>
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 }

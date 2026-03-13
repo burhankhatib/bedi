@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/components/LanguageContext'
 import { Button } from '@/components/ui/button'
@@ -42,18 +42,37 @@ export function SubscriptionBanner({ slug, initialData = null }: { slug: string;
   const [businessCreatedAt, setBusinessCreatedAt] = useState<string | null>(initialData?.businessCreatedAt ?? null)
   const [status, setStatus] = useState<string>(initialData?.subscriptionStatus ?? 'trial')
   const [loaded, setLoaded] = useState(!!initialData)
+  const mountedRef = useRef(false)
+  const fetchAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    fetch(`/api/tenants/${slug}/subscription`)
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      fetchAbortRef.current?.abort()
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchAbortRef.current?.abort()
+    const ac = new AbortController()
+    fetchAbortRef.current = ac
+    fetch(`/api/tenants/${slug}/subscription`, { signal: ac.signal })
       .then((r) => r.json())
       .then((data) => {
+        if (!mountedRef.current || ac.signal.aborted) return
         setExpiresAt(data?.subscriptionExpiresAt ?? null)
         setCreatedAt(data?.createdAt ?? null)
         setBusinessCreatedAt(data?.businessCreatedAt ?? null)
         setStatus(data?.subscriptionStatus ?? 'trial')
       })
-      .catch(() => {})
-      .finally(() => setLoaded(true))
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+      })
+      .finally(() => {
+        if (mountedRef.current && !ac.signal.aborted) setLoaded(true)
+      })
+    return () => ac.abort()
   }, [slug])
 
   const expiry = effectiveExpiry(expiresAt, createdAt, businessCreatedAt, status)

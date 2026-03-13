@@ -325,13 +325,23 @@ export function MenuManageClient({
   )
 
   const reloadCategories = useCallback(async () => {
-    const res = await api('/categories')
+    categoriesAbortRef.current?.abort()
+    const ac = new AbortController()
+    categoriesAbortRef.current = ac
+    const requestId = ++latestCategoriesRequestRef.current
+    const res = await api('/categories', { signal: ac.signal })
     const data = await res.json()
+    if (!mountedRef.current || ac.signal.aborted || latestCategoriesRequestRef.current !== requestId) return
     if (res.ok && Array.isArray(data)) setCategories(data)
   }, [slug])
   const reloadProducts = useCallback(async () => {
-    const res = await api('/products')
+    productsAbortRef.current?.abort()
+    const ac = new AbortController()
+    productsAbortRef.current = ac
+    const requestId = ++latestProductsRequestRef.current
+    const res = await api('/products', { signal: ac.signal })
     const data = await res.json()
+    if (!mountedRef.current || ac.signal.aborted || latestProductsRequestRef.current !== requestId) return
     if (res.ok && Array.isArray(data)) {
       const list: Product[] = data.map((p: Product & { categoryRef?: string }) => ({
         ...p,
@@ -364,14 +374,41 @@ export function MenuManageClient({
   const [submittingCategory, setSubmittingCategory] = useState(false)
   const [sectionSuggestions, setSectionSuggestions] = useState<{ businessType?: string; commonSections: Array<{ title_en: string; title_ar: string }>; subcategories: Array<{ _id: string; title_en: string; title_ar: string }> } | null>(null)
   const [showCustomCategoryForm, setShowCustomCategoryForm] = useState(false)
+  const mountedRef = useRef(false)
+  const categoriesAbortRef = useRef<AbortController | null>(null)
+  const productsAbortRef = useRef<AbortController | null>(null)
+  const suggestionsAbortRef = useRef<AbortController | null>(null)
+  const latestCategoriesRequestRef = useRef(0)
+  const latestProductsRequestRef = useRef(0)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      categoriesAbortRef.current?.abort()
+      productsAbortRef.current?.abort()
+      suggestionsAbortRef.current?.abort()
+    }
+  }, [])
 
   useEffect(() => {
     if (addingCategory && !sectionSuggestions) {
-      api('/menu-section-suggestions')
+      suggestionsAbortRef.current?.abort()
+      const ac = new AbortController()
+      suggestionsAbortRef.current = ac
+      api('/menu-section-suggestions', { signal: ac.signal })
         .then((r) => r.json())
-        .then((d) => setSectionSuggestions({ businessType: d.businessType, commonSections: d.commonSections ?? [], subcategories: d.subcategories ?? [] }))
-        .catch(() => setSectionSuggestions({ commonSections: [], subcategories: [] }))
+        .then((d) => {
+          if (!mountedRef.current || ac.signal.aborted) return
+          setSectionSuggestions({ businessType: d.businessType, commonSections: d.commonSections ?? [], subcategories: d.subcategories ?? [] })
+        })
+        .catch((err) => {
+          if ((err as Error)?.name === 'AbortError') return
+          if (!mountedRef.current) return
+          setSectionSuggestions({ commonSections: [], subcategories: [] })
+        })
     }
+    return () => suggestionsAbortRef.current?.abort()
   }, [addingCategory, sectionSuggestions, slug])
 
   const addCategoryFromSuggestion = async (title_en: string, title_ar: string, subcategoryRef?: string) => {

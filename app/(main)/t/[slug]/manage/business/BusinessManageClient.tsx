@@ -290,6 +290,10 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
   const [setAllOpen, setSetAllOpen] = useState('')
   const [setAllClose, setSetAllClose] = useState('')
   const logoInputRef = useRef<HTMLInputElement>(null)
+  const mountedRef = useRef(false)
+  const countriesAbortRef = useRef<AbortController | null>(null)
+  const citiesAbortRef = useRef<AbortController | null>(null)
+  const subcategoriesAbortRef = useRef<AbortController | null>(null)
   /** Snapshot of form when last saved (or when loaded); used to detect unsaved changes. */
   const lastSavedRef = useRef<typeof form | null>(null)
   /** When true, skip the next effect that applies context data (avoids overwriting form with stale refetch after save). */
@@ -298,15 +302,36 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
   const { t, lang } = useLanguage()
   const businessContext = useTenantBusiness()
 
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      countriesAbortRef.current?.abort()
+      citiesAbortRef.current?.abort()
+      subcategoriesAbortRef.current?.abort()
+    }
+  }, [])
+
   const api = (path: string, options?: RequestInit) =>
     fetch(`/api/tenants/${slug}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } })
 
   // Load countries once (registration-only: Israel & Palestine for now)
   useEffect(() => {
-    fetch('/api/countries?registration=1')
+    countriesAbortRef.current?.abort()
+    const ac = new AbortController()
+    countriesAbortRef.current = ac
+    fetch('/api/countries?registration=1', { signal: ac.signal })
       .then((r) => r.json())
-      .then((list) => setCountries(Array.isArray(list) ? list : []))
-      .catch(() => setCountries([]))
+      .then((list) => {
+        if (!mountedRef.current || ac.signal.aborted) return
+        setCountries(Array.isArray(list) ? list : [])
+      })
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+        if (!mountedRef.current) return
+        setCountries([])
+      })
+    return () => ac.abort()
   }, [])
 
   // Load business data: use context if already available (instant show), otherwise fetch so we never stay stuck on Loading.
@@ -399,6 +424,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
         .then((r) => r.json())
         .catch(() => defaultGeo)
         .then((geo) => {
+          if (controller.signal.aborted) return
           const code = (geo as { countryCode?: string | null })?.countryCode
           setForm((f) => {
             if (f.country) return f
@@ -412,12 +438,16 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     // No context data yet: fetch so we never stay stuck on Loading.
     setLoading(true)
     Promise.all([
-      api('/business').then((r) => r.json()),
+      api('/business', { signal: controller.signal }).then((r) => r.json()),
       fetch('/api/geo', { signal: controller.signal }).then((r) => r.json()).catch(() => defaultGeo),
     ])
       .then(([d, geo]) => applyBusinessAndGeo(d as BusinessData, geo as typeof defaultGeo))
-      .catch(() => setLoading(false))
-      .finally(() => setLoading(false))
+      .catch(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false)
+      })
     return () => controller.abort()
   }, [slug, businessContext.data])
 
@@ -432,16 +462,29 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
 
   // Load cities when country changes
   const loadCities = useCallback((countryCode: string) => {
+    citiesAbortRef.current?.abort()
     if (!countryCode) {
       setCities([])
+      setCitiesLoading(false)
       return
     }
     setCitiesLoading(true)
-    fetch(`/api/cities?country=${encodeURIComponent(countryCode)}`)
+    const ac = new AbortController()
+    citiesAbortRef.current = ac
+    fetch(`/api/cities?country=${encodeURIComponent(countryCode)}`, { signal: ac.signal })
       .then((r) => r.json())
-      .then((list) => setCities(Array.isArray(list) ? list : []))
-      .catch(() => setCities([]))
-      .finally(() => setCitiesLoading(false))
+      .then((list) => {
+        if (!mountedRef.current || ac.signal.aborted) return
+        setCities(Array.isArray(list) ? list : [])
+      })
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+        if (!mountedRef.current) return
+        setCities([])
+      })
+      .finally(() => {
+        if (mountedRef.current && !ac.signal.aborted) setCitiesLoading(false)
+      })
   }, [])
 
   useEffect(() => {
@@ -449,16 +492,29 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
   }, [form.country, loadCities])
 
   useEffect(() => {
+    subcategoriesAbortRef.current?.abort()
     if (!form.businessType) {
       setSubcategories([])
+      setSubcategoriesLoading(false)
       return
     }
     setSubcategoriesLoading(true)
-    fetch(`/api/business-subcategories?businessType=${encodeURIComponent(form.businessType)}`)
+    const ac = new AbortController()
+    subcategoriesAbortRef.current = ac
+    fetch(`/api/business-subcategories?businessType=${encodeURIComponent(form.businessType)}`, { signal: ac.signal })
       .then((r) => r.json())
-      .then((data) => setSubcategories(Array.isArray(data) ? data : []))
-      .catch(() => setSubcategories([]))
-      .finally(() => setSubcategoriesLoading(false))
+      .then((data) => {
+        if (!mountedRef.current || ac.signal.aborted) return
+        setSubcategories(Array.isArray(data) ? data : [])
+      })
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+        if (!mountedRef.current) return
+        setSubcategories([])
+      })
+      .finally(() => {
+        if (mountedRef.current && !ac.signal.aborted) setSubcategoriesLoading(false)
+      })
   }, [form.businessType])
 
   const setBusinessType = (value: string) => {

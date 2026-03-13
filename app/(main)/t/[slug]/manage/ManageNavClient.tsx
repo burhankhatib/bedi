@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/components/LanguageContext'
-import { motion } from 'framer-motion'
 import { Menu, MapPin, Truck, ArrowLeft, Store, TrendingUp, History, ShoppingBag, ArrowRightLeft, CreditCard, Table, Users } from 'lucide-react'
 import type { StaffPermission } from '@/lib/staff-permissions'
 import { TenantSidebarActions } from './TenantSidebarActions'
@@ -48,14 +47,34 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
   const { t, lang } = useLanguage()
   const pathname = usePathname()
   const fetchedSlugRef = useRef<string | null>(null)
+  const ordersCountAbortRef = useRef<AbortController | null>(null)
+  const isMountedRef = useRef(false)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      ordersCountAbortRef.current?.abort()
+    }
+  }, [])
 
   useEffect(() => {
     if (fetchedSlugRef.current === slug) return
     fetchedSlugRef.current = slug
-    fetch(`/api/tenants/${slug}/orders/count`, { cache: 'no-store' })
+    ordersCountAbortRef.current?.abort()
+    const ac = new AbortController()
+    ordersCountAbortRef.current = ac
+    fetch(`/api/tenants/${slug}/orders/count`, { cache: 'no-store', signal: ac.signal })
       .then((r) => r.json())
-      .then((data) => setNewOrdersCount(typeof data?.newCount === 'number' ? data.newCount : 0))
-      .catch(() => {})
+      .then((data) => {
+        if (!isMountedRef.current || ac.signal.aborted) return
+        setNewOrdersCount(typeof data?.newCount === 'number' ? data.newCount : 0)
+      })
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+        if (!isMountedRef.current) return
+        setNewOrdersCount(0)
+      })
   }, [slug])
 
   const ordersHref = `/t/${slug}/orders`
@@ -63,15 +82,11 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
 
   const NewOrdersBadge = ({ compact = false }: { compact?: boolean }) =>
     newOrdersCount > 0 ? (
-      <motion.span
-        key={newOrdersCount}
-        initial={{ scale: 1.3 }}
-        animate={{ scale: 1 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+      <span
         className={`inline-flex items-center justify-center rounded-full bg-slate-900 text-amber-400 font-bold ${compact ? 'min-w-[20px] h-5 px-1.5 text-xs' : 'min-w-[24px] h-6 px-2 text-sm'}`}
       >
         {newOrdersCount > 99 ? '99+' : newOrdersCount}
-      </motion.span>
+      </span>
     ) : null
 
   // Flatten items for mobile scrollable nav
@@ -121,11 +136,8 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
                 }`}
               >
                 {isActive && (
-                  <motion.div
-                    layoutId="mobile-nav-pill"
+                  <div
                     className="absolute inset-0 rounded-full bg-amber-500/10 border border-amber-500/30 pointer-events-none"
-                    initial={false}
-                    transition={{ type: 'spring', bounce: 0.2, duration: 0.25 }}
                   />
                 )}
                 <Icon className="size-4 relative z-10" />
@@ -158,11 +170,8 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
                     }`}
                   >
                     {isActive && (
-                      <motion.div
-                        layoutId="desktop-nav-pill"
+                      <div
                         className="absolute inset-0 rounded-2xl bg-amber-500/10 border border-amber-500/30 pointer-events-none"
-                        initial={false}
-                        transition={{ type: 'spring', bounce: 0.2, duration: 0.25 }}
                       />
                     )}
                     {!isActive && (

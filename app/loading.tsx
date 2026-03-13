@@ -43,7 +43,6 @@ export default async function Loading() {
             fill
             sizes="96px"
             className="object-contain"
-            priority
           />
         </div>
 

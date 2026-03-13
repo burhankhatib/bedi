@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'motion/react'
 import { Search, X, Store, UtensilsCrossed, Loader2 } from 'lucide-react'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
@@ -62,54 +61,59 @@ export function UniversalSearch({
   const [focusedIndex, setFocusedIndex] = useState(-1)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const latestRequestRef = useRef(0)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [query])
 
-  const fetchResults = useCallback(async (q: string) => {
-    if (!q || q.length < MIN_QUERY_LENGTH) {
+  useEffect(() => {
+    if (!debouncedQuery || debouncedQuery.length < MIN_QUERY_LENGTH) {
       setResults(null)
+      setLoading(false)
       return
     }
-    setLoading(true)
-    try {
-      if (tenantSlug) {
-        const res = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/search?q=${encodeURIComponent(q)}&limit=20&lang=${lang === 'ar' ? 'ar' : 'en'}`)
-        const data = await res.json()
-        setResults({
-          businesses: [],
-          products: data?.products ?? [],
-          didYouMean: data?.didYouMean ?? null,
-        })
-      } else {
-        if (!city || !isChosen) {
-          setResults(null)
-          return
-        }
-        const params = new URLSearchParams({ city, q, lang: lang === 'ar' ? 'ar' : 'en' })
-        const res = await fetch(`/api/home/search?${params}`)
-        const data = await res.json()
-        setResults({
-          businesses: data?.businesses ?? [],
-          products: data?.products ?? [],
-          didYouMean: data?.didYouMean ?? null,
-        })
-      }
-    } catch {
+    if (!tenantSlug && (!city || !isChosen)) {
       setResults(null)
-    } finally {
       setLoading(false)
+      return
     }
-  }, [tenantSlug, city, isChosen, lang])
-
-  useEffect(() => {
-    fetchResults(debouncedQuery)
-  }, [debouncedQuery, fetchResults])
+    let mounted = true
+    const requestId = ++latestRequestRef.current
+    setResults(null)
+    setLoading(true)
+    const ac = new AbortController()
+    const doFetch = async () => {
+      try {
+        if (tenantSlug) {
+          const res = await fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/search?q=${encodeURIComponent(debouncedQuery)}&limit=20&lang=${lang === 'ar' ? 'ar' : 'en'}`, { signal: ac.signal })
+          const data = await res.json()
+          if (mounted && latestRequestRef.current === requestId) {
+            setResults({ businesses: [], products: data?.products ?? [], didYouMean: data?.didYouMean ?? null })
+          }
+        } else {
+          const params = new URLSearchParams({ city: city!, q: debouncedQuery, lang: lang === 'ar' ? 'ar' : 'en' })
+          const res = await fetch(`/api/home/search?${params}`, { signal: ac.signal })
+          const data = await res.json()
+          if (mounted && latestRequestRef.current === requestId) {
+            setResults({ businesses: data?.businesses ?? [], products: data?.products ?? [], didYouMean: data?.didYouMean ?? null })
+          }
+        }
+      } catch (err) {
+        if (mounted && latestRequestRef.current === requestId && (err as Error)?.name !== 'AbortError') {
+          setResults(null)
+        }
+      } finally {
+        if (mounted && latestRequestRef.current === requestId) setLoading(false)
+      }
+    }
+    doFetch()
+    return () => { mounted = false; ac.abort() }
+  }, [debouncedQuery, tenantSlug, city, isChosen, lang])
 
   const totalItems = (results?.businesses?.length ?? 0) + (results?.products?.length ?? 0)
-  const showDropdown = open && (query.trim().length >= MIN_QUERY_LENGTH || (results && totalItems > 0))
+  const showDropdown = open && query.trim().length >= MIN_QUERY_LENGTH
   const flatItems: Array<{ type: 'business'; item: BusinessHit } | { type: 'product'; item: ProductHit }> = [
     ...(results?.businesses ?? []).map((b) => ({ type: 'business' as const, item: b })),
     ...(results?.products ?? []).map((p) => ({ type: 'product' as const, item: p })),
@@ -212,6 +216,7 @@ export function UniversalSearch({
           value={query}
           onChange={(e) => {
             setQuery(e.target.value)
+            setResults(null)
             setOpen(true)
             setFocusedIndex(-1)
           }}
@@ -228,7 +233,13 @@ export function UniversalSearch({
             {query && (
               <button
                 type="button"
-                onClick={() => { setQuery(''); setResults(null); inputRef.current?.focus() }}
+                onClick={() => {
+                  latestRequestRef.current += 1
+                  setQuery('')
+                  setResults(null)
+                  setLoading(false)
+                  inputRef.current?.focus()
+                }}
                 className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200"
                 aria-label={t('Clear', 'مسح')}
               >
@@ -239,15 +250,8 @@ export function UniversalSearch({
         )}
       </form>
 
-      <AnimatePresence>
-        {showDropdown && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-            className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[min(400px,70vh)] overflow-y-auto z-[100]"
-          >
+      {showDropdown && (
+          <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[min(400px,70vh)] overflow-y-auto z-[100]">
             {loading && debouncedQuery ? (
               <div className="flex items-center justify-center gap-2 py-12 text-slate-500">
                 <Loader2 className="size-5 animate-spin" />
@@ -351,9 +355,8 @@ export function UniversalSearch({
                 {t('No results found. Try a different search.', 'لم يتم العثور على نتائج. جرب مصطلح بحث مختلف.')}
               </div>
             ) : null}
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
     </div>
   )
 }

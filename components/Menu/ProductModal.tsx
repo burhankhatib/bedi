@@ -1,7 +1,6 @@
 'use client'
 
 import Image from 'next/image'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import { urlFor } from '@/sanity/lib/image'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
@@ -146,25 +145,17 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
     onClose()
   }
 
+  if (!isOpen) return null
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={handleClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-md z-50"
-          />
-          <motion.div
-            layoutId={`${layoutPrefix}-${product._id}`}
-            className="fixed inset-x-0 bottom-0 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 w-full md:max-w-md bg-white md:rounded-[32px] rounded-t-[24px] overflow-hidden z-[60] shadow-2xl flex flex-col max-h-[95dvh] md:max-h-[90vh]"
-            initial={{ y: '100%', opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: '100%', opacity: 0 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-          >
+    <>
+      <div
+        onClick={handleClose}
+        className="fixed inset-0 bg-black/60 backdrop-blur-md z-50"
+      />
+      <div
+        className="fixed inset-x-0 bottom-0 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 w-full md:max-w-md bg-white md:rounded-[32px] rounded-t-[24px] overflow-hidden z-[60] shadow-2xl flex flex-col max-h-[95dvh] md:max-h-[90vh]"
+      >
             {/* Square image: full square visible, mobile-first */}
             <div
               className="relative w-full aspect-square max-h-[45vh] md:max-h-[320px] shrink-0 bg-slate-100 flex items-center justify-center overflow-hidden"
@@ -173,12 +164,10 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
             >
               {displayImage ? (
                 <>
-                  <motion.div
+                  <div
                     key="main-image"
-                    initial={{ opacity: 1 }}
-                    animate={{ opacity: isHovered && hoverImage ? 0 : 1 }}
-                    transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-                    className="absolute inset-0"
+                    style={{ opacity: isHovered && hoverImage ? 0 : 1 }}
+                    className="absolute inset-0 transition-opacity duration-200"
                   >
                     <Image
                       src={urlFor(displayImage).width(800).height(800).url()}
@@ -189,14 +178,12 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                       blurDataURL={SHIMMER_PLACEHOLDER}
                       className="object-cover object-center"
                     />
-                  </motion.div>
+                  </div>
                   {hoverImage && (
-                    <motion.div
+                    <div
                       key="hover-image"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: isHovered ? 1 : 0 }}
-                      transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-                      className="absolute inset-0"
+                      style={{ opacity: isHovered ? 1 : 0 }}
+                      className="absolute inset-0 transition-opacity duration-200"
                     >
                       <Image
                         src={urlFor(hoverImage).width(800).height(800).url()}
@@ -207,7 +194,7 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                         blurDataURL={SHIMMER_PLACEHOLDER}
                         className="object-cover object-center"
                       />
-                    </motion.div>
+                    </div>
                   )}
                 </>
               ) : (
@@ -281,7 +268,7 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                             const hasVariantSpecial = typeof option.specialPriceModifier === 'number' &&
                               (!option.specialPriceModifierExpires || new Date(option.specialPriceModifierExpires) > new Date())
                             return (
-                              <motion.button
+                              <button
                                 key={oi}
                                 type="button"
                                 onClick={() => setVariant(gi, oi)}
@@ -291,7 +278,6 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                                     ? 'bg-slate-900 text-white border-slate-900'
                                     : 'bg-white text-slate-800 border-slate-200 hover:border-slate-300 active:bg-slate-50'
                                 )}
-                                whileTap={{ scale: 0.98 }}
                               >
                                 <span>{label}</span>
                                 {!shouldHidePrice && modifier !== 0 && (
@@ -304,7 +290,7 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                                     {modifier > 0 ? `+${modifier}` : modifier} {formatCurrency(product.currency)}
                                   </span>
                                 )}
-                              </motion.button>
+                              </button>
                             )
                           })}
                         </div>
@@ -445,9 +431,7 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                 </div>
               </div>
             )}
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+      </div>
+    </>
   )
 }

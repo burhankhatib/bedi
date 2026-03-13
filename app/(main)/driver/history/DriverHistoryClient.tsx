@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Package, Search, Flag } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { getCityDisplayName } from '@/lib/registration-translations'
@@ -38,29 +38,38 @@ export function DriverHistoryClient() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [reportOrderId, setReportOrderId] = useState<string | null>(null)
+  const latestRequestRef = useRef(0)
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 300)
     return () => clearTimeout(id)
   }, [search])
 
-  const fetchOrders = useCallback(async () => {
+  useEffect(() => {
+    let mounted = true
+    const requestId = ++latestRequestRef.current
+    const ac = new AbortController()
     setLoading(true)
-    try {
-      const url = `/api/driver/orders/history${debouncedSearch ? `?q=${encodeURIComponent(debouncedSearch)}` : ''}`
-      const res = await fetch(url, { cache: 'no-store' })
-      const data = await res.json()
-      setOrders(Array.isArray(data?.orders) ? data.orders : [])
-    } catch {
-      setOrders([])
-    } finally {
-      setLoading(false)
+    const url = `/api/driver/orders/history${debouncedSearch ? `?q=${encodeURIComponent(debouncedSearch)}` : ''}`
+    fetch(url, { cache: 'no-store', signal: ac.signal })
+      .then((res) => res.json())
+      .then((data) => {
+        if (mounted && latestRequestRef.current === requestId) {
+          setOrders(Array.isArray(data?.orders) ? data.orders : [])
+        }
+      })
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+        if (mounted && latestRequestRef.current === requestId) setOrders([])
+      })
+      .finally(() => {
+        if (mounted && latestRequestRef.current === requestId) setLoading(false)
+      })
+    return () => {
+      mounted = false
+      ac.abort()
     }
   }, [debouncedSearch])
-
-  useEffect(() => {
-    fetchOrders()
-  }, [fetchOrders])
 
   return (
     <div className="space-y-6">

@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { motion, AnimatePresence } from 'motion/react'
 import { Store, User, Receipt } from 'lucide-react'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
@@ -33,39 +32,65 @@ export function StoreTypeSidebar({ activeCategory, onChange }: StoreTypeSidebarP
   const [hasTenants, setHasTenants] = useState(false)
   const [accountLoading, setAccountLoading] = useState(true)
   const initialCategorySet = useRef(false)
+  const accountAbortRef = useRef<AbortController | null>(null)
+  const categoriesAbortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(false)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      accountAbortRef.current?.abort()
+      categoriesAbortRef.current?.abort()
+    }
+  }, [])
 
   useEffect(() => {
     if (!isSignedIn) {
+      accountAbortRef.current?.abort()
       setHasDriver(false)
       setHasTenants(false)
       setAccountLoading(false)
       return
     }
     setAccountLoading(true)
-    fetch('/api/me/account-type')
+    accountAbortRef.current?.abort()
+    const ac = new AbortController()
+    accountAbortRef.current = ac
+    fetch('/api/me/account-type', { signal: ac.signal })
       .then((res) => res.json())
       .then((data) => {
+        if (!mountedRef.current || ac.signal.aborted) return
         setHasDriver(!!data.hasDriver)
         setHasTenants(!!data.hasTenants)
       })
-      .catch(() => {
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+        if (!mountedRef.current) return
         setHasDriver(false)
         setHasTenants(false)
       })
-      .finally(() => setAccountLoading(false))
+      .finally(() => {
+        if (mountedRef.current && !ac.signal.aborted) setAccountLoading(false)
+      })
   }, [isSignedIn])
 
   useEffect(() => {
     if (!isChosen || !city) {
+      categoriesAbortRef.current?.abort()
       setCategories([])
       setLoading(false)
       return
     }
     setLoading(true)
     const params = new URLSearchParams({ city })
-    fetch(`/api/home/categories?${params}`)
+    categoriesAbortRef.current?.abort()
+    const ac = new AbortController()
+    categoriesAbortRef.current = ac
+    fetch(`/api/home/categories?${params}`, { signal: ac.signal })
       .then((res) => res.json())
       .then((data) => {
+        if (!mountedRef.current || ac.signal.aborted) return
         const list = Array.isArray(data) ? data : []
         setCategories(list)
         if (list.length > 0 && !initialCategorySet.current && activeCategory === 'restaurant') {
@@ -76,8 +101,14 @@ export function StoreTypeSidebar({ activeCategory, onChange }: StoreTypeSidebarP
           }
         }
       })
-      .catch(() => setCategories([]))
-      .finally(() => setLoading(false))
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+        if (!mountedRef.current) return
+        setCategories([])
+      })
+      .finally(() => {
+        if (mountedRef.current && !ac.signal.aborted) setLoading(false)
+      })
   }, [isChosen, city])
 
   if (!isChosen) return null
@@ -113,11 +144,7 @@ export function StoreTypeSidebar({ activeCategory, onChange }: StoreTypeSidebarP
         
         {/* Active Indicator Line for Desktop */}
         {isActive && (
-          <motion.div
-            layoutId="activeCategoryIndicator"
-            className="absolute left-0 top-0 bottom-0 w-[4px] bg-brand-yellow rounded-r-full hidden md:block"
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          />
+          <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-brand-yellow rounded-r-full hidden md:block" />
         )}
       </button>
     )

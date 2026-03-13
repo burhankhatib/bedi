@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { motion } from 'motion/react'
 import { MapPin, ChevronDown, User, LogIn, Store, Truck, Menu, ClipboardList, LogOut, Bell, ShoppingCart } from 'lucide-react'
 import { useUser, useClerk } from '@clerk/nextjs'
 import { useLocation } from '@/components/LocationContext'
@@ -281,10 +280,7 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
   )
 
   return (
-    <motion.header
-      initial={{ y: -20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.3 }}
+    <header
       className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-sm pt-[env(safe-area-inset-top)]"
       dir={isRtl ? 'rtl' : 'ltr'}
     >
@@ -426,6 +422,6 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
         </Sheet>
         </div>
       </div>
-    </motion.header>
+    </header>
   )
 }

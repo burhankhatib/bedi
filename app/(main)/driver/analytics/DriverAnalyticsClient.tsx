@@ -70,11 +70,24 @@ export function DriverAnalyticsClient() {
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'all'>('today')
 
   useEffect(() => {
-    fetch('/api/driver/analytics')
+    let mounted = true
+    const ac = new AbortController()
+    fetch('/api/driver/analytics', { signal: ac.signal })
       .then((r) => r.json())
-      .then((data) => setOrders(data?.orders ?? []))
-      .catch(() => setOrders([]))
-      .finally(() => setLoading(false))
+      .then((data) => {
+        if (mounted && !ac.signal.aborted) setOrders(data?.orders ?? [])
+      })
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+        if (mounted) setOrders([])
+      })
+      .finally(() => {
+        if (mounted && !ac.signal.aborted) setLoading(false)
+      })
+    return () => {
+      mounted = false
+      ac.abort()
+    }
   }, [])
 
   const filtered = useMemo(() => filterByRange(orders, dateRange), [orders, dateRange])

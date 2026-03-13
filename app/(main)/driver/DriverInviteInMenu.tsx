@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Share2, Link as LinkIcon, CheckCircle2 } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 
@@ -8,16 +8,26 @@ export function DriverInviteInMenu() {
   const { t } = useLanguage()
   const [referralCode, setReferralCode] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const mountedRef = useRef(false)
 
   useEffect(() => {
-    fetch('/api/driver/profile')
+    mountedRef.current = true
+    const ac = new AbortController()
+    fetch('/api/driver/profile', { signal: ac.signal })
       .then((res) => res.json())
       .then((data) => {
+        if (!mountedRef.current || ac.signal.aborted) return
         if (data?.referralCode) {
           setReferralCode(data.referralCode)
         }
       })
-      .catch((e) => console.error(e))
+      .catch((err) => {
+        if ((err as Error)?.name === 'AbortError') return
+      })
+    return () => {
+      mountedRef.current = false
+      ac.abort()
+    }
   }, [])
 
   const handleShare = async () => {
