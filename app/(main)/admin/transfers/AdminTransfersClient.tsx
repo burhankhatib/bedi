@@ -33,6 +33,7 @@ export function AdminTransfersClient({ tenants }: { tenants: Tenant[] }) {
   const [loading, setLoading] = useState(true)
   const [acting, setActing] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [registeredEmails, setRegisteredEmails] = useState<string[]>([])
 
   // Direct assign
@@ -75,6 +76,7 @@ export function AdminTransfersClient({ tenants }: { tenants: Tenant[] }) {
   const handleApprove = async (id: string, assignToEmail?: string) => {
     setActing(id)
     setError('')
+    setSuccess('')
     try {
       const res = await fetch(`/api/admin/transfers/${id}/approve`, {
         method: 'POST',
@@ -83,13 +85,16 @@ export function AdminTransfersClient({ tenants }: { tenants: Tenant[] }) {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(data.error || 'Failed to approve')
+        setError((data.error as string) || 'Failed to approve')
         return
       }
       setAssignOtherRequestId(null)
       setAssignOtherSelectValue('')
       setAssignOtherInputValue('')
+      setSuccess((data.message as string) || 'Transfer approved.')
       fetchRequests()
+      router.refresh()
+      setTimeout(() => setSuccess(''), 4000)
     } finally {
       setActing(null)
     }
@@ -98,6 +103,7 @@ export function AdminTransfersClient({ tenants }: { tenants: Tenant[] }) {
   const handleReject = async (id: string) => {
     setActing(id)
     setError('')
+    setSuccess('')
     try {
       const res = await fetch(`/api/admin/transfers/${id}/reject`, {
         method: 'POST',
@@ -128,6 +134,7 @@ export function AdminTransfersClient({ tenants }: { tenants: Tenant[] }) {
     }
     setAssigning(true)
     setError('')
+    setSuccess('')
     try {
       const res = await fetch('/api/admin/transfers/assign', {
         method: 'POST',
@@ -136,14 +143,16 @@ export function AdminTransfersClient({ tenants }: { tenants: Tenant[] }) {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(data.error || 'Failed to assign')
+        setError((data.error as string) || 'Failed to assign')
         return
       }
       setDirectBusinessId('')
       setDirectOwnerValue('')
       setDirectOtherEmail('')
+      setSuccess((data.message as string) || 'Business assigned.')
       fetchRequests()
       router.refresh()
+      setTimeout(() => setSuccess(''), 4000)
     } finally {
       setAssigning(false)
     }
@@ -202,6 +211,17 @@ export function AdminTransfersClient({ tenants }: { tenants: Tenant[] }) {
       {error && (
         <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {error}
+          {error.toLowerCase().includes('not found') && (
+            <p className="mt-2 text-xs text-red-200/80">
+              The new owner must have signed up on the website with this email. Ask them to create an account first.
+            </p>
+          )}
+        </div>
+      )}
+      {success && (
+        <div className="rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300 flex items-center gap-2">
+          <CheckCircle className="size-4 shrink-0" />
+          {success}
         </div>
       )}
 

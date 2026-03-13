@@ -11,6 +11,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { DriverDashboardNav } from './DriverDashboardNav'
 import { DriverPushSetup } from './DriverPushSetup'
+import { DriverLocationSetup } from './DriverLocationSetup'
 import { DriverPushProvider } from './DriverPushContext'
 import { DriverOrdersGate } from './DriverOrdersGate'
 import { DriverStatusProvider } from './DriverStatusContext'
@@ -246,7 +247,12 @@ export function DriverLayoutClient({
 
       <main className="mx-auto max-w-lg px-4 py-4 sm:py-6 sm:max-w-[100vw]">
         <PWAManager role="driver" variant="inline" hideInstall />
-        {pathname !== '/driver/profile' && <DriverPushSetup />}
+        {pathname !== '/driver/profile' && (
+          <>
+            <DriverPushSetup />
+            <DriverLocationSetup />
+          </>
+        )}
         <DriverOrdersGate>
           {children}
         </DriverOrdersGate>

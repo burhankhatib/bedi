@@ -88,6 +88,10 @@ function formatDriverOrderNumber(orderNumber: string): string {
   return (orderNumber.startsWith('ORD-') ? 'ORD-...' : '...') + last4
 }
 
+const isSamsungLike = () =>
+  typeof navigator !== 'undefined' && /samsung|android/i.test(navigator.userAgent)
+const GEOLOC_TIMEOUT = () => (isSamsungLike() ? 25000 : 10000)
+
 const pushDriverLocation = () => {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return
   navigator.geolocation.getCurrentPosition(
@@ -99,7 +103,7 @@ const pushDriverLocation = () => {
       }).catch(() => {})
     },
     () => {},
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    { enableHighAccuracy: true, timeout: GEOLOC_TIMEOUT(), maximumAge: 0 },
   )
 }
 
@@ -209,16 +213,17 @@ function DriverOrdersV2Content() {
   const MAX_PULL = 120
   const REFRESH_THRESHOLD = 80
 
-  /* ── always-on driver geolocation (for distance calcs + map) ────── */
+  /* ── always-on driver geolocation (for distance calcs + map). Samsung: longer timeout. ────── */
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    const timeout = GEOLOC_TIMEOUT()
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setDriverLat(pos.coords.latitude)
         setDriverLng(pos.coords.longitude)
       },
       () => {},
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+      { enableHighAccuracy: true, timeout, maximumAge: 30000 },
     )
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
@@ -226,7 +231,7 @@ function DriverOrdersV2Content() {
         setDriverLng(pos.coords.longitude)
       },
       () => {},
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 },
+      { enableHighAccuracy: true, timeout, maximumAge: 5000 },
     )
     return () => navigator.geolocation.clearWatch(watchId)
   }, [])

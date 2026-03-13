@@ -117,26 +117,40 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Check location permission on mount (no prompt). Only set hasLocation when already granted.
+  // Check location permission on mount. Samsung/Android may not support Permissions API; use probe when uncertain.
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setLocationChecked(true)
       return
     }
-    const check = () => {
-      if ('permissions' in navigator && typeof (navigator as { permissions?: { query: (p: { name: string }) => Promise<{ state: string }> } }).permissions?.query === 'function') {
-        ;(navigator as { permissions: { query: (p: { name: string }) => Promise<{ state: string }> } }).permissions
-          .query({ name: 'geolocation' })
-          .then((result) => {
-            setHasLocation(result.state === 'granted')
-            setLocationChecked(true)
-          })
-          .catch(() => setLocationChecked(true))
-      } else {
+    const perms = (navigator as { permissions?: { query: (p: { name: string }) => Promise<{ state: string }> } }).permissions
+    if (perms?.query) {
+      perms.query({ name: 'geolocation' }).then((result) => {
+        if (result.state === 'granted') {
+          setHasLocation(true)
+        } else if (result.state === 'denied') {
+          setHasLocation(false)
+        } else {
+          // "prompt" – Permissions API can't tell; probe with getCurrentPosition (Samsung often reports prompt even when working)
+          const probeOptions = { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+          navigator.geolocation.getCurrentPosition(
+            () => {
+              setHasLocation(true)
+              setLocationChecked(true)
+            },
+            () => {
+              setHasLocation(false)
+              setLocationChecked(true)
+            },
+            probeOptions
+          )
+          return
+        }
         setLocationChecked(true)
-      }
+      }).catch(() => setLocationChecked(true))
+    } else {
+      setLocationChecked(true)
     }
-    check()
   }, [])
 
   const checkPushHealth = useCallback(async () => {
@@ -405,18 +419,44 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
       showToast('Location is not supported.', 'الموقع غير مدعوم.', 'error')
       return false
     }
+    const isSamsung = /samsung|android/i.test(navigator.userAgent)
+    // Samsung/Android: use longer timeout (25s), try high accuracy first, fallback to battery-saving
+    const highAccuracyOptions = {
+      enableHighAccuracy: true,
+      timeout: isSamsung ? 25000 : 15000,
+      maximumAge: 0,
+    }
+    const fallbackOptions = {
+      enableHighAccuracy: false,
+      timeout: isSamsung ? 25000 : 15000,
+      maximumAge: 60000,
+    }
     setLocationLoading(true)
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve(pos),
-          (err) => reject(err),
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-        )
-      })
+      const tryGetPosition = (opts: typeof highAccuracyOptions) =>
+        new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve(pos),
+            (err) => reject(err),
+            opts
+          )
+        })
+      let position: GeolocationPosition
+      try {
+        position = await tryGetPosition(highAccuracyOptions)
+      } catch (firstErr) {
+        if (isSamsung) {
+          try {
+            position = await tryGetPosition(fallbackOptions)
+          } catch {
+            throw firstErr
+          }
+        } else {
+          throw firstErr
+        }
+      }
       setHasLocation(true)
 
-      // Persist coordinates to Sanity via API (fire-and-forget, don't block UX)
       fetch('/api/driver/location', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -436,14 +476,18 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
       const code = err && typeof err === 'object' && 'code' in err ? (err as { code: number }).code : 0
       if (code === 1) {
         showToast(
-          'Location is required. Enable it in device settings to receive orders and be shown on the map.',
-          'الموقع مطلوب. فعّله من إعدادات الجهاز لاستقبال الطلبات والظهور على الخريطة.',
+          'Location denied. Enable it in device settings: Settings → Apps → Bedi Driver → Permissions → Location.',
+          'تم رفض الموقع. فعّله من إعدادات الجهاز: الإعدادات ← التطبيقات ← Bedi Driver ← الأذونات ← الموقع.',
           'info'
         )
       } else {
         showToast(
-          'Could not get location. Enable location in settings and try again.',
-          'تعذر الحصول على الموقع. فعّل الموقع من الإعدادات وحاول مرة أخرى.',
+          isSamsung
+            ? 'Could not get location. On Samsung: enable Location, wait 10–20 sec, try again. Or check Settings → Apps → Permissions.'
+            : 'Could not get location. Enable location in settings and try again.',
+          isSamsung
+            ? 'تعذر الحصول على الموقع. على Samsung: فعّل الموقع، انتظر 10–20 ثانية، جرّب مجدداً. أو راجع الإعدادات ← التطبيقات ← الأذونات.'
+            : 'تعذر الحصول على الموقع. فعّل الموقع من الإعدادات وحاول مرة أخرى.',
           'error'
         )
       }

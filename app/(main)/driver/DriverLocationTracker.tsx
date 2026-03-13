@@ -16,6 +16,7 @@ export function DriverLocationTracker() {
     const updateLocation = () => {
       if (typeof navigator === 'undefined' || !navigator.geolocation) return
 
+      const timeout = /samsung|android/i.test(navigator.userAgent) ? 25000 : 10000
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const lat = position.coords.latitude
@@ -39,7 +40,7 @@ export function DriverLocationTracker() {
         () => {
           // Silent fail on geolocation error
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout, maximumAge: 0 }
       )
     }
 

@@ -57,6 +57,19 @@ export async function POST(req: NextRequest) {
     clerkUserEmail: newOwner.email,
   }).commit()
 
+  // Resolve any pending transfer request for this tenant (avoids "stuck on pending")
+  const pendingIds = await writeClient.fetch<string[]>(
+    `*[_type == "tenantTransferRequest" && tenant._ref == $tenantId && status == "pending"]._id`,
+    { tenantId }
+  )
+  for (const reqId of pendingIds ?? []) {
+    await writeClient.patch(reqId).set({
+      status: 'approved',
+      reviewedByClerkId: userId,
+      reviewedAt: new Date().toISOString(),
+    }).commit()
+  }
+
   return NextResponse.json({
     ok: true,
     message: 'Business assigned. Previous owner no longer has access.',
