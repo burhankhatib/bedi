@@ -24,6 +24,7 @@ import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { getSocialProfileUrl } from '@/lib/social-urls'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { FullPageLink } from '@/components/ui/FullPageLink'
 import {
@@ -139,7 +140,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   const orderTypeOptions = tenantSlug
     ? { supportsDineIn: supportsDineIn ?? true, supportsReceiveInPerson: supportsReceiveInPerson ?? true, hasDelivery: hasDelivery ?? false }
     : null
-  const { totalItems, setIsOpen, setTenantSlug, setLockedTableNumber } = useCart()
+  const { totalItems, isOpen: cartOpen, setIsOpen, setTenantSlug, setLockedTableNumber } = useCart()
   const router = useRouter()
   const orderAuth = useOrderAuth()
   const pathname = usePathname()
@@ -392,9 +393,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   return (
     <main className="min-h-screen bg-slate-50">
       <FirebaseClerkSync />
-      {/* Progress Bar — below mobile safe area (notch/status bar). CSS-only to avoid Framer Motion removeChild during nav. */}
+      {/* Progress Bar — below mobile safe area. Lower z when cart open. */}
       <div
-        className="fixed left-0 right-0 h-1 bg-black z-50 origin-left"
+        className={cn('fixed left-0 right-0 h-1 bg-black origin-left', cartOpen ? 'z-0' : 'z-50')}
         style={{
           top: 'env(safe-area-inset-top, 0px)',
           transform: `scaleX(${progressScale})`,
@@ -402,10 +403,13 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
         }}
       />
 
-      {/* Fixed header + menu bar — always visible when scrolling. Spacer reserves layout space. */}
+      {/* Fixed header + menu bar. Lower z when cart open so cart overlay covers it cleanly. */}
       <div
         ref={stickyBlockRef}
-        className="fixed top-0 left-0 right-0 z-40 bg-white shadow-md"
+        className={cn(
+          'fixed top-0 left-0 right-0 bg-white shadow-md transition-z-index',
+          cartOpen ? 'z-0' : 'z-40'
+        )}
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
       >
         <header
@@ -1038,8 +1042,8 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
         />
       )}
 
-      {/* Floating Cart Action - Desktop only; on mobile, bottom nav has cart */}
-      {!catalogOnly && totalItems > 0 && (
+      {/* Floating Cart Action - Desktop only; hidden when cart is already open */}
+      {!catalogOnly && totalItems > 0 && !cartOpen && (
         <div className="fixed bottom-6 left-0 right-0 z-40 px-4 pointer-events-none pb-6 hidden md:block">
           <div className="max-w-md mx-auto pointer-events-auto">
             <Button

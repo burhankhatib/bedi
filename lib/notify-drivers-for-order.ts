@@ -188,65 +188,69 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       await sendToDriverTokens(tokens, payload)
     }
 
-    // Send offline driver reminders (once per 15 minutes) — "new orders available while you are offline"
-    const nowMs = Date.now()
+    // Send offline driver reminders (once per 5 minutes) — "go online to receive orders"
     if (order?.siteRef) {
+      const nowMs = Date.now()
+      const fiveMinsAgo = new Date(nowMs - 5 * 60 * 1000).toISOString()
+      type OfflineDriverRow = {
+        _id: string
+        clerkUserId?: string
+        fcmToken?: string
+        pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
+        country?: string
+        city?: string
+        lastOfflineReminderAt?: string
+      }
+      const offlineDrivers = await writeClient.fetch<OfflineDriverRow[]>(
+        `*[_type == "driver" && isVerifiedByAdmin == true && isOnline != true && (!defined(blockedBySuperAdmin) || blockedBySuperAdmin == false)]{
+          _id, clerkUserId, fcmToken, "pushSubscription": pushSubscription, country, city, lastOfflineReminderAt
+        }`
+      )
+      const reminderPayload = {
+        title: '\u200Fتنبيه: طلبات توصيل متاحة',
+        body: '\u200Fيوجد طلبات توصيل متاحة في منطقتك! افتح التطبيق واتصل بالإنترنت لاستقبال الطلبات.',
+        url: '/driver/orders',
+        dir: 'rtl' as const,
+      }
+      const reminderNow = new Date(nowMs).toISOString()
       const site = await writeClient.fetch<{ country?: string; city?: string } | null>(
         `*[_type == "tenant" && _id == $id][0]{ country, city }`,
         { id: order.siteRef }
       )
-      if (site?.country && site?.city) {
-        const siteCountryNorm = norm(site.country)
-        const siteCityNorm = norm(site.city)
-        const fifteenMinsAgo = new Date(nowMs - 15 * 60 * 1000).toISOString()
+      const siteCountryNorm = site?.country ? norm(site.country) : ''
+      const siteCityNorm = site?.city ? norm(site.city) : ''
+      const hasGeo = Boolean(site?.country && site?.city)
 
-        type OfflineDriverRow = {
-          _id: string
-          clerkUserId?: string
-          fcmToken?: string
-          pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
-          country?: string
-          city?: string
-          lastOfflineReminderAt?: string
+      const eligibleOffline = (offlineDrivers ?? []).filter((d) => {
+        if (d.lastOfflineReminderAt && d.lastOfflineReminderAt >= fiveMinsAgo) return false
+        if (hasGeo) {
+          const matchArea = norm(d.country) === siteCountryNorm && norm(d.city) === siteCityNorm
+          const noArea = !d.country && !d.city
+          return matchArea || noArea
         }
-        const offlineDrivers = await writeClient.fetch<OfflineDriverRow[]>(
-          `*[_type == "driver" && isVerifiedByAdmin == true && isOnline != true && (!defined(blockedBySuperAdmin) || blockedBySuperAdmin == false)]{
-            _id, clerkUserId, fcmToken, "pushSubscription": pushSubscription, country, city, lastOfflineReminderAt
-          }`
-        )
-        const eligibleOffline = (offlineDrivers ?? []).filter(
-          (d) =>
-            (norm(d.country) === siteCountryNorm && norm(d.city) === siteCityNorm) &&
-            (!d.lastOfflineReminderAt || d.lastOfflineReminderAt < fifteenMinsAgo)
-        )
-        const offlineClerkIds = eligibleOffline.map((d) => (d.clerkUserId ?? '').trim()).filter(Boolean)
-        let offlineCentral: CentralSub[] = []
-        if (offlineClerkIds.length > 0) {
-          offlineCentral = await writeClient.fetch<CentralSub[]>(
-            `*[_type == "userPushSubscription" && roleContext == "driver" && clerkUserId in $ids && isActive != false]{ clerkUserId, devices }`,
-            { ids: offlineClerkIds }
-          ).catch(() => [])
-        }
-        const offlineCentralByClerk = new Map<string, CentralSub[]>()
-        for (const c of offlineCentral) {
-          if (!c.clerkUserId) continue
-          const arr = offlineCentralByClerk.get(c.clerkUserId) ?? []
-          arr.push(c)
-          offlineCentralByClerk.set(c.clerkUserId, arr)
-        }
-        const reminderPayload = {
-          title: '\u200Fتنبيه: طلبات توصيل متاحة',
-          body: '\u200Fيوجد طلبات توصيل متاحة في منطقتك! افتح التطبيق واستقبل الطلبات لزيادة أرباحك.',
-          url: '/driver/orders',
-          dir: 'rtl' as const,
-        }
-        const reminderNow = new Date(nowMs).toISOString()
-        for (const d of eligibleOffline) {
-          const tokens = await getDriverTokens({ ...d, pushSubscription: d.pushSubscription }, offlineCentralByClerk)
-          if (tokens.fcmTokens.length === 0 && tokens.webPush.length === 0) continue
-          await sendToDriverTokens(tokens, reminderPayload)
-          writeClient.patch(d._id).set({ lastOfflineReminderAt: reminderNow }).commit().catch(() => {})
-        }
+        return true
+      })
+
+      const offlineClerkIds = eligibleOffline.map((d) => (d.clerkUserId ?? '').trim()).filter(Boolean)
+      let offlineCentral: CentralSub[] = []
+      if (offlineClerkIds.length > 0) {
+        offlineCentral = await writeClient.fetch<CentralSub[]>(
+          `*[_type == "userPushSubscription" && roleContext == "driver" && clerkUserId in $ids && isActive != false]{ clerkUserId, devices }`,
+          { ids: offlineClerkIds }
+        ).catch(() => [])
+      }
+      const offlineCentralByClerk = new Map<string, CentralSub[]>()
+      for (const c of offlineCentral) {
+        if (!c.clerkUserId) continue
+        const arr = offlineCentralByClerk.get(c.clerkUserId) ?? []
+        arr.push(c)
+        offlineCentralByClerk.set(c.clerkUserId, arr)
+      }
+      for (const d of eligibleOffline) {
+        const tokens = await getDriverTokens({ ...d, pushSubscription: d.pushSubscription }, offlineCentralByClerk)
+        if (tokens.fcmTokens.length === 0 && tokens.webPush.length === 0) continue
+        await sendToDriverTokens(tokens, reminderPayload)
+        writeClient.patch(d._id).set({ lastOfflineReminderAt: reminderNow }).commit().catch(() => {})
       }
     }
   } catch (error) {

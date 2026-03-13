@@ -56,6 +56,8 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
     customerFcmToken?: string
     customerPushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
     assignedDriverName?: string
+    totalAmount?: number
+    currency?: string
   } | null>(
     `*[_type == "order" && _id == $orderId][0]{
       customerName,
@@ -64,7 +66,9 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
       "customerRef": customer._ref,
       customerFcmToken,
       "customerPushSubscription": customerPushSubscription,
-      "assignedDriverName": assignedDriver->name
+      "assignedDriverName": assignedDriver->name,
+      totalAmount,
+      currency
     }`,
     { orderId }
   )
@@ -132,19 +136,37 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
 
   const isDriverArrived = newStatus === 'driver-arrived'
   const baseData = isDriverArrived ? { driverArrived: '1' } : undefined
+
+  let finalTitle = `${title} — ${body}`
+  let finalBody = body
+  let finalTitleAr = `${titleAr} — ${bodyAr}`
+  let finalBodyAr = bodyAr
+  if (isDriverArrived) {
+    const driverDisplay = (driverName && String(driverName).trim()) || 'السائق'
+    const cur = (order?.currency ?? '').trim().toUpperCase()
+    const currencySym = cur === 'ILS' ? '₪' : cur || '₪'
+    const total = typeof order?.totalAmount === 'number' ? order.totalAmount.toFixed(2) : '0.00'
+    finalTitleAr = `${driverDisplay} وصل!`
+    finalBodyAr = `المجموع: ${total} ${currencySym}. يرجى النزول لاستلام طلبك الآن.`
+    finalTitle = `${driverDisplay} has arrived!`
+    finalBody = `The total is: ${total} ${currencySym}. Please go down to pickup your order now.`
+  }
+
   const payload = {
-    title: `${title} — ${body}`,
-    body,
+    title: finalTitle,
+    body: finalBody,
     url,
     ...(baseData && { data: baseData }),
     ...(isDriverArrived && { driverArrived: '1' as const }),
+    ...(isDriverArrived && { critical: true }),
   }
   const payloadAr = {
-    title: `${titleAr} — ${bodyAr}`,
-    body: bodyAr,
+    title: finalTitleAr,
+    body: finalBodyAr,
     url,
     ...(baseData && { data: baseData }),
     ...(isDriverArrived && { driverArrived: '1' as const }),
+    ...(isDriverArrived && { critical: true }),
   }
   const useAr = true
   const finalPayload = useAr ? payloadAr : payload

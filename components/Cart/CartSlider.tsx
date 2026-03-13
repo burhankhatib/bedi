@@ -468,6 +468,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         <SheetContent
           side={isRTL ? 'left' : 'right'}
           className="w-full sm:max-w-md h-full flex flex-col p-0 border-none"
+          overlayClassName="bg-black/75"
         >
           <SheetHeader className="p-6 border-b shrink-0 text-left rtl:text-right">
             <div className="flex items-center justify-between">

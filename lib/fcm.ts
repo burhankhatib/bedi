@@ -82,6 +82,8 @@ export type FcmPayload = {
   icon?: string
   /** Extra data fields merged into FCM data (e.g. driverArrived for customer order push) */
   data?: Record<string, string>
+  /** When true, uses critical/interruption-level for urgent delivery (e.g. driver arrived) */
+  critical?: boolean
 }
 
 /**
@@ -107,6 +109,9 @@ export async function sendFCMToTokenDetailed(
       if (typeof v === 'string') data[k] = v
     }
   }
+  const isCritical = payload.critical === true
+  const apnsInterruption = isCritical ? ('critical' as const) : ('time-sensitive' as const)
+  const androidChannel = isCritical ? 'driver_arrived_channel' : 'high_importance_channel'
   try {
     const message = {
       token,
@@ -120,7 +125,7 @@ export async function sendFCMToTokenDetailed(
         notification: {
           title,
           body,
-          channelId: 'high_importance_channel',
+          channelId: androidChannel,
           priority: 'max' as const,
           defaultSound: true,
           sound: 'default',
@@ -137,7 +142,7 @@ export async function sendFCMToTokenDetailed(
           aps: {
             alert: { title, body },
             sound: 'default',
-            'interruption-level': 'time-sensitive' as const,
+            'interruption-level': apnsInterruption,
           },
         },
       },
