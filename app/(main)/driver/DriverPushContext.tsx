@@ -92,12 +92,29 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
   const [hasLocation, setHasLocation] = useState(false)
   const [locationChecked, setLocationChecked] = useState(false)
   const [locationLoading, setLocationLoading] = useState(false)
+  const [needsPushRefresh, setNeedsPushRefresh] = useState(false)
   const mountedAt = useRef<number>(Date.now())
   const minShowMs = 2500
 
   useEffect(() => {
     if (typeof window !== 'undefined' && typeof Notification !== 'undefined')
       setPermission(Notification.permission)
+  }, [])
+
+  const getCurrentDriverToken = useCallback(async (): Promise<string> => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return ''
+    const useFCM = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
+    if (!useFCM) return ''
+    try {
+      const reg =
+        (await navigator.serviceWorker.getRegistration('/driver/')) ??
+        (await navigator.serviceWorker.getRegistration())
+      if (!reg) return ''
+      const { token } = await getFCMToken(reg)
+      return token ?? ''
+    } catch {
+      return ''
+    }
   }, [])
 
   // Check location permission on mount (no prompt). Only set hasLocation when already granted.
@@ -122,7 +139,9 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     check()
   }, [])
 
-  useEffect(() => {
+  const checkPushHealth = useCallback(async () => {
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+    if (typeof navigator !== 'undefined' && 'onLine' in navigator && !navigator.onLine) return
     const perm = typeof Notification !== 'undefined' ? Notification.permission : null
     if (perm === 'denied') {
       clearStoredPushOk(PUSH_CONTEXT_KEYS.driver())
@@ -132,46 +151,71 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     }
     if (perm === 'granted' && getStoredPushOk(PUSH_CONTEXT_KEYS.driver())) {
       setHasPush(true)
-      setChecked(true)
-      return
+      // still continue health check in background
     }
-    let cancelled = false
-    fetch('/api/driver/push-subscription')
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled) return
-        const apiSaysHasPush = data?.hasPush === true
-        if (apiSaysHasPush) {
-          setStoredPushOk(PUSH_CONTEXT_KEYS.driver())
-          const elapsed = Date.now() - mountedAt.current
-          if (elapsed >= minShowMs) {
-            setHasPush(true)
-          } else {
-            const remaining = minShowMs - elapsed
-            setTimeout(() => {
-              if (!cancelled) setHasPush(true)
-            }, remaining)
-          }
+    const currentToken = await getCurrentDriverToken()
+    const tokenQuery = currentToken ? `?token=${encodeURIComponent(currentToken)}` : ''
+    try {
+      const r = await fetch(`/api/driver/push-subscription${tokenQuery}`)
+      const data = await r.json()
+      const apiSaysHasPush = data?.hasPush === true
+      if (apiSaysHasPush) {
+        setStoredPushOk(PUSH_CONTEXT_KEYS.driver())
+        const elapsed = Date.now() - mountedAt.current
+        if (elapsed >= minShowMs) {
+          setHasPush(true)
         } else {
-          clearStoredPushOk(PUSH_CONTEXT_KEYS.driver())
-          setHasPush(false)
+          const remaining = minShowMs - elapsed
+          setTimeout(() => setHasPush(true), remaining)
         }
-        setChecked(true)
-      })
-      .catch(() => { setChecked(true) })
-    return () => { cancelled = true }
-  }, [])
+      } else {
+        clearStoredPushOk(PUSH_CONTEXT_KEYS.driver())
+        setHasPush(false)
+      }
+      if (data?.needsRefresh && perm === 'granted') setNeedsPushRefresh(true)
+    } catch {
+      // ignore temporary failures
+    } finally {
+      setChecked(true)
+    }
+  }, [getCurrentDriverToken])
 
-  // When driver opens PWA and already has push, send welcome once per session (so they get it every time they open the app).
-  const WELCOME_SENT_KEY = 'bedi-driver-welcome-sent'
+  useEffect(() => {
+    checkPushHealth().catch(() => {})
+  }, [checkPushHealth])
+
+  useEffect(() => {
+    if (!checked || permission !== 'granted') return
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        checkPushHealth().catch(() => {})
+      }
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisible)
+    }
+    const timer = setInterval(() => {
+      checkPushHealth().catch(() => {})
+    }, 10 * 60 * 1000)
+    return () => {
+      clearInterval(timer)
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisible)
+      }
+    }
+  }, [checked, permission, checkPushHealth])
+
+  // Daily welcome ping with local throttle to reduce API calls; server also enforces 24h.
+  const WELCOME_LAST_PING_KEY = 'bedi-driver-welcome-last-ping'
   useEffect(() => {
     if (typeof window === 'undefined' || !hasPush) return
     try {
-      if (sessionStorage.getItem(WELCOME_SENT_KEY)) return
-      sessionStorage.setItem(WELCOME_SENT_KEY, '1')
+      const last = Number(localStorage.getItem(WELCOME_LAST_PING_KEY) || '0')
+      if (Number.isFinite(last) && Date.now() - last < 6 * 60 * 60 * 1000) return
+      localStorage.setItem(WELCOME_LAST_PING_KEY, String(Date.now()))
       fetch('/api/driver/push-send-welcome', { method: 'POST' }).catch(() => {})
     } catch {
-      // sessionStorage can throw in private mode
+      // storage can throw in private mode
     }
   }, [hasPush])
 
@@ -249,11 +293,6 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
           setStoredPushOk(PUSH_CONTEXT_KEYS.driver())
           setHasPush(true)
           showToast('Push notifications enabled. You will get new order alerts.', 'تم تفعيل الإشعارات. ستستقبل تنبيهات الطلبات الجديدة.', 'success')
-          try {
-            sessionStorage.setItem('bedi-driver-welcome-sent', '1')
-          } catch {}
-          // Delay so Sanity write is visible before push-send-welcome reads the token.
-          setTimeout(() => fetch('/api/driver/push-send-welcome', { method: 'POST' }).catch(() => {}), 1000)
           return true
         }
         if (VAPID_PUBLIC) {
@@ -285,10 +324,6 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
               setStoredPushOk(PUSH_CONTEXT_KEYS.driver())
               setHasPush(true)
               showToast('Push notifications enabled. You will get new order alerts.', 'تم تفعيل الإشعارات. ستستقبل تنبيهات الطلبات الجديدة.', 'success')
-              try {
-                sessionStorage.setItem('bedi-driver-welcome-sent', '1')
-              } catch {}
-              setTimeout(() => fetch('/api/driver/push-send-welcome', { method: 'POST' }).catch(() => {}), 1000)
               return true
             }
           } catch (_) {
@@ -327,10 +362,6 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
       setStoredPushOk(PUSH_CONTEXT_KEYS.driver())
       setHasPush(true)
       showToast('Push notifications enabled. You will get new order alerts.', 'تم تفعيل الإشعارات. ستستقبل تنبيهات الطلبات الجديدة.', 'success')
-      try {
-        sessionStorage.setItem('bedi-driver-welcome-sent', '1')
-      } catch {}
-      setTimeout(() => fetch('/api/driver/push-send-welcome', { method: 'POST' }).catch(() => {}), 1000)
       return true
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to enable'
@@ -362,6 +393,12 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     }
     return ok
   }, [subscribe, showToast])
+
+  useEffect(() => {
+    if (!needsPushRefresh || permission !== 'granted') return
+    setNeedsPushRefresh(false)
+    refreshToken().catch(() => {})
+  }, [needsPushRefresh, permission, refreshToken])
 
   const requestLocation = useCallback(async (): Promise<boolean> => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {

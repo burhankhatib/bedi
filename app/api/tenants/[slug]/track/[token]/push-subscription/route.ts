@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { getTenantIdBySlug } from '@/lib/tenant'
-import { getActiveSubscriptionsForUser, upsertUserPushSubscription } from '@/lib/user-push-subscriptions'
+import { checkDeviceToken, getActiveSubscriptionsForUser, upsertUserPushSubscription } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -93,7 +93,7 @@ export async function POST(
 
 /** GET - Whether this order has push enabled (for UI). */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string; token: string }> }
 ) {
   const { userId } = await auth()
@@ -114,6 +114,22 @@ export async function GET(
   )
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
 
+  const currentToken = req.nextUrl.searchParams.get('token')
+  if (userId && currentToken) {
+    const checkResult = await checkDeviceToken({
+      clerkUserId: userId,
+      roleContext: 'customer',
+      fcmToken: currentToken,
+    })
+    if (checkResult) {
+      return NextResponse.json({
+        hasPush: checkResult.status === 'ok' || checkResult.status === 'refreshed',
+        needsRefresh: checkResult.status === 'not_found',
+        status: checkResult.status,
+      })
+    }
+  }
+
   let hasPush = !!(order.customerFcmToken || order.customerPushSubscription?.endpoint)
   if (!hasPush && userId) {
     const central = await getActiveSubscriptionsForUser({
@@ -125,5 +141,5 @@ export async function GET(
   if (process.env.NODE_ENV === 'development') {
     console.info('[track-push-subscription] hasPush check', { userId: Boolean(userId), hasPush })
   }
-  return NextResponse.json({ hasPush })
+  return NextResponse.json({ hasPush, needsRefresh: false, status: hasPush ? 'ok' : 'not_found' })
 }

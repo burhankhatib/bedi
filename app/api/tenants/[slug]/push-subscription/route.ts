@@ -9,6 +9,33 @@ import { upsertUserPushSubscription, checkDeviceToken } from '@/lib/user-push-su
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
+async function resolveAuthorizedTenantSiteIds(userId: string, emailLower: string): Promise<string[]> {
+  const [ownedSites, staffSites] = await Promise.all([
+    writeClient.fetch<Array<{ _id: string }>>(
+      `*[_type == "tenant" && (
+        clerkUserId == $userId ||
+        (defined($emailLower) && $emailLower != "" && (
+          (defined(clerkUserEmail) && lower(clerkUserEmail) == $emailLower) ||
+          (defined(coOwnerEmails) && $emailLower in coOwnerEmails)
+        ))
+      )]{ _id }`,
+      { userId, emailLower: emailLower || undefined }
+    ),
+    writeClient.fetch<Array<{ siteId?: string }>>(
+      `*[_type == "tenantStaff" && (
+        clerkUserId == $userId ||
+        (defined($emailLower) && $emailLower != "" && defined(email) && lower(email) == $emailLower)
+      )]{ "siteId": site._ref }`,
+      { userId, emailLower: emailLower || undefined }
+    ),
+  ])
+
+  return [...new Set([
+    ...(ownedSites ?? []).map((s) => s?._id).filter(Boolean),
+    ...(staffSites ?? []).map((s) => s?.siteId).filter(Boolean),
+  ])] as string[]
+}
+
 /**
  * Push subscription for tenant new-order notifications.
  * Saves to the central userPushSubscription table (same as Customer FCM) so every
@@ -95,6 +122,8 @@ export async function POST(
 
   const { userId, sessionClaims } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const email = await getEmailForUser(userId, sessionClaims as Record<string, unknown> | null)
+  const emailLower = (email || '').trim().toLowerCase()
 
   const body = await req.json().catch(() => ({}))
   const fcmToken = body?.fcmToken && typeof body.fcmToken === 'string' ? body.fcmToken.trim() : null
@@ -111,22 +140,26 @@ export async function POST(
     )
   }
 
+  // Resolve ALL authorized businesses for this user (owner/co-owner/staff) so one enable covers all.
+  const authorizedSiteIds = await resolveAuthorizedTenantSiteIds(userId, emailLower)
+  const siteIds = [...new Set([authResult.tenantId, ...authorizedSiteIds].filter(Boolean))]
+
   // ── 1. Save to central userPushSubscription table (primary, same as Customer) ──
   await upsertUserPushSubscription({
     clerkUserId: userId,
     roleContext: 'tenant',
-    siteId: authResult.tenantId,
+    siteIds,
     fcmToken: fcmToken || null,
     webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : null,
   }).catch((e) => console.warn('[push-subscription] central upsert failed', e))
 
   // ── 2. Also write to legacy tenant / tenantStaff document (backward compat) ──
   if (authResult.isOwner) {
-    const tenant = await writeClient.fetch<{ _id: string; fcmToken?: string; fcmTokens?: string[] } | null>(
-      `*[_type == "tenant" && _id == $tenantId][0]{ _id, fcmToken, fcmTokens }`,
-      { tenantId: authResult.tenantId }
+    const ownedTenants = await writeClient.fetch<Array<{ _id: string; fcmToken?: string; fcmTokens?: string[] }>>(
+      `*[_type == "tenant" && _id in $siteIds]{ _id, fcmToken, fcmTokens }`,
+      { siteIds }
     )
-    if (tenant) {
+    for (const tenant of ownedTenants ?? []) {
       const patch = writeClient.patch(tenant._id)
       if (fcmToken) {
         const existing = (tenant.fcmTokens ?? []).concat(tenant.fcmToken ? [tenant.fcmToken] : [])
@@ -139,32 +172,35 @@ export async function POST(
       }
       await patch.commit().catch((e) => console.warn('[push-subscription] legacy tenant patch failed', e))
     }
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, siteCount: siteIds.length })
   }
 
   // Staff path
-  const email = await getEmailForUser(userId, sessionClaims as Record<string, unknown> | null)
-  const emailLower = (email || '').trim().toLowerCase()
   if (!emailLower) return NextResponse.json({ error: 'Email required for staff push' }, { status: 400 })
 
-  const staff = await writeClient.fetch<{ _id: string; fcmTokens?: string[] } | null>(
-    `*[_type == "tenantStaff" && site._ref == $tenantId && lower(email) == $emailLower][0]{ _id, fcmTokens }`,
-    { tenantId: authResult.tenantId, emailLower }
+  const staffDocs = await writeClient.fetch<Array<{ _id: string; fcmTokens?: string[] }>>(
+    `*[_type == "tenantStaff" && (
+      clerkUserId == $userId ||
+      (defined(email) && lower(email) == $emailLower)
+    ) && site._ref in $siteIds]{ _id, fcmTokens }`,
+    { userId, emailLower, siteIds }
   )
-  if (!staff) return NextResponse.json({ error: 'Staff record not found' }, { status: 404 })
+  if (!staffDocs?.length) return NextResponse.json({ error: 'Staff record not found' }, { status: 404 })
 
-  const patch = writeClient.patch(staff._id)
-  // Save clerkUserId on tenantStaff so sendTenantAndStaffPush can look up central subscriptions
-  patch.set({ clerkUserId: userId })
-  if (fcmToken) {
-    const existing = staff.fcmTokens ?? []
-    const nextTokens = [...new Set([...existing, fcmToken])].filter(Boolean)
-    patch.set({ fcmTokens: nextTokens })
+  for (const staff of staffDocs) {
+    const patch = writeClient.patch(staff._id)
+    // Save clerkUserId on tenantStaff so sendTenantAndStaffPush can look up central subscriptions
+    patch.set({ clerkUserId: userId })
+    if (fcmToken) {
+      const existing = staff.fcmTokens ?? []
+      const nextTokens = [...new Set([...existing, fcmToken])].filter(Boolean)
+      patch.set({ fcmTokens: nextTokens })
+    }
+    if (hasWebPush) {
+      patch.set({ pushSubscription: { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } })
+    }
+    await patch.commit().catch((e) => console.warn('[push-subscription] legacy staff patch failed', e))
   }
-  if (hasWebPush) {
-    patch.set({ pushSubscription: { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } })
-  }
-  await patch.commit().catch((e) => console.warn('[push-subscription] legacy staff patch failed', e))
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, siteCount: siteIds.length })
 }

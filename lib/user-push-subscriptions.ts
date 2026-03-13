@@ -41,6 +41,7 @@ export async function upsertUserPushSubscription(input: {
   clerkUserId: string
   roleContext: RoleContext
   siteId?: string
+  siteIds?: string[]
   fcmToken?: string | null
   webPush?: WebPushKeys | null
   deviceInfo?: string | null
@@ -56,6 +57,11 @@ export async function upsertUserPushSubscription(input: {
   if (!fcmToken && !webPush?.endpoint) return null
 
   const now = new Date().toISOString()
+  const rawSiteIds = [
+    ...(input.siteId ? [input.siteId] : []),
+    ...(Array.isArray(input.siteIds) ? input.siteIds : []),
+  ]
+  const siteIds = [...new Set(rawSiteIds.map((s) => normalizeToken(s)).filter(Boolean))]
 
   // 1. Fetch existing documents for this user + role
   const existingDocs = await writeClient.fetch<any[]>(
@@ -123,8 +129,10 @@ export async function upsertUserPushSubscription(input: {
     }
 
     const sites = Array.isArray(mainDoc.sites) ? [...mainDoc.sites] : []
-    if (input.siteId && !sites.some((s: any) => s._ref === input.siteId)) {
-      sites.push({ _type: 'reference', _ref: input.siteId, _key: generateKey(input.siteId) })
+    for (const siteId of siteIds) {
+      if (!sites.some((s: any) => s?._ref === siteId)) {
+        sites.push({ _type: 'reference', _ref: siteId, _key: generateKey(siteId) })
+      }
     }
 
     const transaction = writeClient.transaction()
@@ -148,7 +156,7 @@ export async function upsertUserPushSubscription(input: {
   }
 
   // Create new document
-  const sites = input.siteId ? [{ _type: 'reference', _ref: input.siteId, _key: generateKey(input.siteId) }] : []
+  const sites = siteIds.map((siteId) => ({ _type: 'reference', _ref: siteId, _key: generateKey(siteId) }))
   
   const created = await writeClient.create({
     _type: 'userPushSubscription',

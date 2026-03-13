@@ -2,9 +2,36 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
-import { upsertUserPushSubscription } from '@/lib/user-push-subscriptions'
+import { checkDeviceToken, getActiveSubscriptionsForUser, upsertUserPushSubscription } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
+
+/** GET - Customer push health check for signed-in users. */
+export async function GET(req: NextRequest) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ hasPush: false, status: 'not_found', needsRefresh: false })
+  const currentToken = req.nextUrl.searchParams.get('token')
+  if (currentToken) {
+    const checkResult = await checkDeviceToken({
+      clerkUserId: userId,
+      roleContext: 'customer',
+      fcmToken: currentToken,
+    })
+    if (checkResult) {
+      return NextResponse.json({
+        hasPush: checkResult.status === 'ok' || checkResult.status === 'refreshed',
+        needsRefresh: checkResult.status === 'not_found',
+        status: checkResult.status,
+      })
+    }
+  }
+  const central = await getActiveSubscriptionsForUser({
+    clerkUserId: userId,
+    roleContext: 'customer',
+  })
+  const hasPush = central.some((doc) => Array.isArray(doc.devices) && doc.devices.length > 0)
+  return NextResponse.json({ hasPush, status: hasPush ? 'ok' : 'not_found', needsRefresh: false })
+}
 
 /**
  * POST - Register a customer device for push (FCM token).

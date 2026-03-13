@@ -32,6 +32,22 @@ export function useCustomerTrackPush(slug: string, token: string) {
   const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent)
   const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent)
   const needsIOSHomeScreen = isIOS && !isStandalone()
+  const [lastServerStatus, setLastServerStatus] = useState<'ok' | 'refreshed' | 'not_found' | null>(null)
+  const [needsRefresh, setNeedsRefresh] = useState(false)
+
+  const getCurrentFcmToken = useCallback(async (): Promise<string> => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return ''
+    const useFCM = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
+    if (!useFCM) return ''
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/') ?? await navigator.serviceWorker.getRegistration()
+      if (!reg) return ''
+      const { token } = await getFCMToken(reg)
+      return token ?? ''
+    } catch {
+      return ''
+    }
+  }, [])
 
   const checkHasPush = useCallback(async () => {
     if (!slug || !token) return
@@ -49,18 +65,24 @@ export function useCustomerTrackPush(slug: string, token: string) {
       return
     }
     try {
-      const res = await fetch(`/api/tenants/${encodeURIComponent(slug)}/track/${encodeURIComponent(token)}/push-subscription`)
+      const currentToken = await getCurrentFcmToken()
+      const tokenQuery = currentToken ? `?token=${encodeURIComponent(currentToken)}` : ''
+      const res = await fetch(`/api/tenants/${encodeURIComponent(slug)}/track/${encodeURIComponent(token)}/push-subscription${tokenQuery}`)
       const data = await res.json()
       const ok = data?.hasPush === true
+      setLastServerStatus((data?.status as 'ok' | 'refreshed' | 'not_found' | undefined) ?? null)
       if (ok) setStoredPushOk(contextKey)
       else clearStoredPushOk(contextKey)
       setHasPush(ok)
+      if (data?.needsRefresh && perm === 'granted') {
+        setNeedsRefresh(true)
+      }
     } catch {
       setHasPush(false)
     } finally {
       setChecked(true)
     }
-  }, [slug, token])
+  }, [slug, token, getCurrentFcmToken])
 
   useEffect(() => {
     checkHasPush()
@@ -174,13 +196,31 @@ export function useCustomerTrackPush(slug: string, token: string) {
   }, [doSubscribe, slug, token])
 
   useEffect(() => {
-    if (!checked || hasPush || permission !== 'granted') return
-    checkHasPush().catch(() => {})
+    if (!needsRefresh || permission !== 'granted') return
+    setNeedsRefresh(false)
+    doSubscribe().catch(() => {})
+  }, [needsRefresh, permission, doSubscribe])
+
+  useEffect(() => {
+    if (!checked || permission !== 'granted') return
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        checkHasPush().catch(() => {})
+      }
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisible)
+    }
     const intervalId = setInterval(() => {
       checkHasPush().catch(() => {})
-    }, 8000)
-    return () => clearInterval(intervalId)
-  }, [checked, hasPush, permission, checkHasPush])
+    }, 10 * 60 * 1000)
+    return () => {
+      clearInterval(intervalId)
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisible)
+      }
+    }
+  }, [checked, permission, checkHasPush])
 
   const trulyEnabled = hasPush && permission === 'granted'
 
@@ -197,5 +237,6 @@ export function useCustomerTrackPush(slug: string, token: string) {
     subscribe,
     refreshToken,
     isRefreshing,
+    lastServerStatus,
   }
 }

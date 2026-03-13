@@ -2,14 +2,30 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
-import { upsertUserPushSubscription } from '@/lib/user-push-subscriptions'
+import { upsertUserPushSubscription, checkDeviceToken } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
-/** GET - Whether the current driver has push enabled (fcmToken or pushSubscription). Use fresh read (no CDN) so after enabling we see the token. */
-export async function GET() {
+/** GET - Whether the current driver has push enabled (fcmToken or pushSubscription). */
+export async function GET(req: NextRequest) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const currentToken = req.nextUrl.searchParams.get('token')
+  // Support explicit token health checks like tenant flow
+  if (currentToken) {
+    const checkResult = await checkDeviceToken({
+      clerkUserId: userId,
+      roleContext: 'driver',
+      fcmToken: currentToken,
+    })
+    if (checkResult) {
+      return NextResponse.json({
+        hasPush: checkResult.status === 'ok' || checkResult.status === 'refreshed',
+        needsRefresh: checkResult.status === 'not_found',
+        status: checkResult.status,
+      })
+    }
+  }
   const [driver, centralSubs] = await Promise.all([
     writeClient.fetch<{ fcmToken?: string; pushSubscription?: { endpoint?: string } } | null>(
       `*[_type == "driver" && clerkUserId == $userId][0]{ fcmToken, "pushSubscription": pushSubscription }`,
@@ -23,7 +39,7 @@ export async function GET() {
   const hasLegacyPush = !!(driver?.fcmToken || driver?.pushSubscription?.endpoint)
   const hasCentralPush = !!(centralSubs && centralSubs.length > 0 && centralSubs[0].devices && centralSubs[0].devices.length > 0)
   const hasPush = hasLegacyPush || hasCentralPush
-  return NextResponse.json({ hasPush })
+  return NextResponse.json({ hasPush, needsRefresh: false, status: hasPush ? 'ok' : 'not_found' })
 }
 
 /** POST - Save push subscription for the current driver. Accepts FCM token and/or Web Push subscription; both can be sent so server can fall back to Web Push when FCM fails. */

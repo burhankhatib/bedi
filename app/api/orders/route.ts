@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
       addOns: item.addOns || '',
     }))
 
-    // Resolve site (tenant) when order is from a tenant menu; reject if business is closed or blocked
+    // Resolve site (tenant) for this order; every order must belong to one business.
     let siteRef: { _type: 'reference'; _ref: string } | undefined
     if (tenantSlug && typeof tenantSlug === 'string') {
       const tenant = await getTenantBySlug(tenantSlug)
@@ -158,6 +158,43 @@ export async function POST(request: NextRequest) {
       }
       const tenantId = tenant?._id ?? await getTenantIdBySlug(tenantSlug)
       if (tenantId) siteRef = { _type: 'reference', _ref: tenantId }
+    }
+    // Fallback: infer tenant from referenced products when tenantSlug is missing.
+    if (!siteRef) {
+      const productIds = [...new Set(
+        (items as Array<{ productId?: string }>).map((i) => (typeof i?.productId === 'string' ? i.productId.trim() : '')).filter(Boolean)
+      )]
+      if (productIds.length > 0) {
+        const productSites = await writeClient.fetch<Array<{ siteId?: string }>>(
+          `*[_type == "product" && _id in $ids]{ "siteId": site._ref }`,
+          { ids: productIds }
+        )
+        const siteIds = [...new Set((productSites ?? []).map((p) => p?.siteId).filter(Boolean))]
+        if (siteIds.length === 1) {
+          siteRef = { _type: 'reference', _ref: siteIds[0]! }
+        } else if (siteIds.length > 1) {
+          return NextResponse.json(
+            { error: 'Cart contains items from multiple businesses. Please checkout one business at a time.' },
+            { status: 400 }
+          )
+        }
+      }
+    }
+    if (!siteRef) {
+      return NextResponse.json(
+        { error: 'Business could not be determined for this order. Please open the business menu and try again.' },
+        { status: 400 }
+      )
+    }
+    const targetTenant = await writeClient.fetch<{ blockedBySuperAdmin?: boolean; deactivated?: boolean; deactivateUntil?: string | null } | null>(
+      `*[_type == "tenant" && _id == $id][0]{ blockedBySuperAdmin, deactivated, deactivateUntil }`,
+      { id: siteRef._ref }
+    )
+    if (!targetTenant || targetTenant.blockedBySuperAdmin || isTenantDeactivated(targetTenant)) {
+      return NextResponse.json(
+        { error: 'This business is currently unavailable. Orders are not accepted.' },
+        { status: 403 }
+      )
     }
 
     // Create order document

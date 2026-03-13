@@ -9,6 +9,8 @@ import { PWAManager } from '@/components/pwa/PWAManager'
 import { useLocation } from '@/components/LocationContext'
 import { useCart } from '@/components/Cart/CartContext'
 import { cn } from '@/lib/utils'
+import { CustomerWelcomePushBoot } from '@/components/customer/CustomerWelcomePushBoot'
+import { CustomerPushHealthCheck } from '@/components/customer/CustomerPushHealthCheck'
 
 /** Paths that should always load with scroll at top (e.g. when navigating from tenant menu). */
 function useScrollToTopOnNavigate() {
@@ -79,6 +81,8 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
       </div>
       {canRenderCustomerShell && (
         <>
+          <CustomerPushHealthCheck />
+          <CustomerWelcomePushBoot />
           <CartSlider supportsDineIn supportsReceiveInPerson />
           <CartToast />
         </>

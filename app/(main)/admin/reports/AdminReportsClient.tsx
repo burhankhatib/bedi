@@ -104,6 +104,15 @@ export function AdminReportsClient() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'new' | 'read' | 'archived'>('new')
   const [busy, setBusy] = useState<Record<string, boolean>>({})
+  const [repairBusy, setRepairBusy] = useState(false)
+  const [repairResult, setRepairResult] = useState<{
+    dryRun: boolean
+    scanned: number
+    skipped: number
+    created: number
+    updated: number
+    typeStats?: Record<string, number>
+  } | null>(null)
 
   const fetchReports = useCallback(() => {
     setLoading(true)
@@ -189,6 +198,33 @@ export function AdminReportsClient() {
     return getCategoryLabel(r.category, key) || r.category
   }
 
+  const runPushRepair = async (dryRun: boolean) => {
+    setRepairBusy(true)
+    try {
+      const res = await fetch('/api/admin/push/repair-subscriptions', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun, limit: 2000 }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setRepairResult({
+          dryRun: Boolean(data?.dryRun),
+          scanned: Number(data?.scanned) || 0,
+          skipped: Number(data?.skipped) || 0,
+          created: Number(data?.created) || 0,
+          updated: Number(data?.updated) || 0,
+          typeStats: data?.typeStats && typeof data.typeStats === 'object' ? data.typeStats : undefined,
+        })
+      } else {
+        setRepairResult(null)
+      }
+    } finally {
+      setRepairBusy(false)
+    }
+  }
+
   if (loading && reports.length === 0) {
     return (
       <div className="mt-8 flex items-center justify-center gap-2 text-slate-400">
@@ -231,6 +267,48 @@ export function AdminReportsClient() {
         >
           Archived
         </Button>
+      </div>
+
+      <div className="rounded-xl border border-emerald-700/40 bg-emerald-950/20 p-3">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-emerald-200">Push Subscription Repair</p>
+            <p className="text-xs text-emerald-300/80">
+              Rebuild central push subscriptions from legacy tokens (tenant, staff, driver, customer).
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-emerald-600 text-emerald-200 hover:bg-emerald-900/40"
+              onClick={() => runPushRepair(true)}
+              disabled={repairBusy}
+            >
+              {repairBusy ? <Loader2 className="mr-1 size-4 animate-spin" /> : null}
+              Dry Run
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="bg-emerald-600 text-white hover:bg-emerald-500"
+              onClick={() => runPushRepair(false)}
+              disabled={repairBusy}
+            >
+              {repairBusy ? <Loader2 className="mr-1 size-4 animate-spin" /> : null}
+              Run Repair
+            </Button>
+          </div>
+        </div>
+        {repairResult && (
+          <p className="mt-2 text-xs text-emerald-200/90">
+            {repairResult.dryRun ? 'Dry run' : 'Executed'}: scanned {repairResult.scanned}, skipped {repairResult.skipped}, created {repairResult.created}, updated {repairResult.updated}
+            {repairResult.typeStats
+              ? ` | tenants ${repairResult.typeStats.tenants ?? 0}, staff ${repairResult.typeStats.tenantStaff ?? 0}, drivers ${repairResult.typeStats.drivers ?? 0}, customers ${repairResult.typeStats.customersFromOrders ?? 0}`
+              : ''}
+          </p>
+        )}
       </div>
 
       {/* Pending Drivers */}

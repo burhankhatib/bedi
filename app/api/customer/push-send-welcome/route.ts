@@ -1,41 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { auth, clerkClient } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendPushNotificationDetailed, isPushConfigured } from '@/lib/push'
 import { sendFCMToTokenDetailed, isFCMConfigured } from '@/lib/fcm'
-import { getRandomDriverWelcome } from '@/lib/welcome-push-templates'
+import { getRandomCustomerWelcome } from '@/lib/welcome-push-templates'
 import { removeDevice } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 const DAY_MS = 24 * 60 * 60 * 1000
 
-/** POST - Send one daily welcome push to the current driver (random Palestinian-style template). */
+/** POST - Send one daily welcome push to current signed-in customer. */
 export async function POST(_req: NextRequest) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   if (!isFCMConfigured() && !isPushConfigured()) {
     return NextResponse.json({ sent: false, reason: 'push_not_configured' })
   }
 
-  const [driver, centralSubs] = await Promise.all([
-    writeClient.fetch<{
-      _id: string
-      nickname?: string
-      name?: string
-      lastWelcomePushAt?: string
-      fcmToken?: string
-      pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
-    } | null>(
-      `*[_type == "driver" && clerkUserId == $userId][0]{
-        _id,
-        nickname,
-        name,
-        lastWelcomePushAt,
-        fcmToken,
-        "pushSubscription": pushSubscription
-      }`,
+  const [customer, centralSubs] = await Promise.all([
+    writeClient.fetch<{ _id: string; name?: string; lastWelcomePushAt?: string } | null>(
+      `*[_type == "customer" && clerkUserId == $userId][0]{ _id, name, lastWelcomePushAt }`,
       { userId }
     ),
     writeClient.fetch<Array<{
@@ -43,7 +28,7 @@ export async function POST(_req: NextRequest) {
       lastWelcomePushAt?: string
       devices?: Array<{ _key?: string; fcmToken?: string; webPush?: { endpoint?: string; p256dh?: string; auth?: string } }>
     }>>(
-      `*[_type == "userPushSubscription" && clerkUserId == $userId && roleContext == "driver" && isActive != false]{
+      `*[_type == "userPushSubscription" && clerkUserId == $userId && roleContext == "customer" && isActive != false]{
         _id,
         lastWelcomePushAt,
         devices
@@ -51,27 +36,34 @@ export async function POST(_req: NextRequest) {
       { userId }
     ),
   ])
-  if (!driver) return NextResponse.json({ error: 'Driver not found' }, { status: 404 })
 
   const centralLastWelcome = (centralSubs ?? [])
     .map((s) => s.lastWelcomePushAt ? new Date(s.lastWelcomePushAt).getTime() : 0)
     .reduce((max, v) => Math.max(max, v), 0)
-  const driverLastWelcome = driver.lastWelcomePushAt ? new Date(driver.lastWelcomePushAt).getTime() : 0
-  const lastWelcomeMs = Math.max(driverLastWelcome, centralLastWelcome)
+  const customerLastWelcome = customer?.lastWelcomePushAt ? new Date(customer.lastWelcomePushAt).getTime() : 0
+  const lastWelcomeMs = Math.max(customerLastWelcome, centralLastWelcome)
   const nowMs = Date.now()
   if (lastWelcomeMs && nowMs - lastWelcomeMs < DAY_MS) {
     return NextResponse.json({ sent: false, skipped: 'within_24h' })
   }
 
-  const displayName = driver.nickname || driver.name
-  const { title, body } = getRandomDriverWelcome(displayName)
-  const payload = { title, body, url: '/driver/orders', dir: 'rtl' as const }
+  let displayName = (customer?.name ?? '').trim()
+  if (!displayName) {
+    try {
+      const clerk = await clerkClient()
+      const user = await clerk.users.getUser(userId)
+      displayName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || user.firstName || ''
+    } catch {
+      displayName = ''
+    }
+  }
+  const { title, body } = getRandomCustomerWelcome(displayName)
+  const payload = { title, body, url: '/', dir: 'rtl' as const }
 
   let sent = false
   const cleanupPromises: Promise<void>[] = []
   const seen = new Set<string>()
 
-  // Prefer central subscriptions (multi-device)
   for (const sub of centralSubs ?? []) {
     for (const device of sub.devices ?? []) {
       const fcm = (device.fcmToken ?? '').trim()
@@ -88,7 +80,7 @@ export async function POST(_req: NextRequest) {
           sent = true
           delivered = true
         } else if (result.permanent) {
-          cleanupPromises.push(removeDevice({ clerkUserId: userId, roleContext: 'driver', fcmToken: fcm }))
+          cleanupPromises.push(removeDevice({ clerkUserId: userId, roleContext: 'customer', fcmToken: fcm }))
         }
       }
 
@@ -100,33 +92,14 @@ export async function POST(_req: NextRequest) {
         if (result.ok) {
           sent = true
         } else if (result.permanent) {
-          cleanupPromises.push(removeDevice({ clerkUserId: userId, roleContext: 'driver', endpoint }))
+          cleanupPromises.push(removeDevice({ clerkUserId: userId, roleContext: 'customer', endpoint }))
         }
       }
     }
   }
 
-  // Legacy fallback for older docs
-  if (!sent) {
-    const legacyFcm = (driver.fcmToken ?? '').trim()
-    if (legacyFcm && isFCMConfigured()) {
-      const result = await sendFCMToTokenDetailed(legacyFcm, payload)
-      sent = result.ok
-    }
-    if (!sent && driver.pushSubscription?.endpoint && driver.pushSubscription.p256dh && driver.pushSubscription.auth && isPushConfigured()) {
-      const result = await sendPushNotificationDetailed(
-        {
-          endpoint: driver.pushSubscription.endpoint,
-          keys: { p256dh: driver.pushSubscription.p256dh, auth: driver.pushSubscription.auth },
-        },
-        payload
-      )
-      sent = result.ok
-    }
-  }
-
-  if (sent) {
-    await writeClient.patch(driver._id).set({ lastWelcomePushAt: new Date(nowMs).toISOString() }).commit().catch(() => {})
+  if (sent && customer?._id) {
+    await writeClient.patch(customer._id).set({ lastWelcomePushAt: new Date(nowMs).toISOString() }).commit().catch(() => {})
   }
   if (sent && (centralSubs?.length ?? 0) > 0) {
     await Promise.all(
