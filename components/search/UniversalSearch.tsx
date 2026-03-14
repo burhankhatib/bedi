@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { Search, X, Store, UtensilsCrossed, Loader2, Sparkles } from 'lucide-react'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
@@ -44,6 +44,9 @@ interface UniversalSearchProps {
   placeholder?: string
   /** Compact mode for mobile/menu. */
   compact?: boolean
+  /** Controlled mode for search page: parent owns value and syncs to URL. */
+  value?: string
+  onChange?: (value: string) => void
 }
 
 export function UniversalSearch({
@@ -52,12 +55,21 @@ export function UniversalSearch({
   inputClassName,
   placeholder,
   compact = false,
+  value: controlledValue,
+  onChange: onControlledChange,
 }: UniversalSearchProps) {
+  const isControlled = controlledValue !== undefined && onControlledChange !== undefined
   const { t, lang } = useLanguage()
   const { city, isChosen, setOpenLocationModal } = useLocation()
   const router = useRouter()
+  const pathname = usePathname() ?? ''
+  const searchParams = useSearchParams()
   const { saveQuestion } = useSaveAiQuestion()
-  const [query, setQuery] = useState('')
+  const [internalQuery, setInternalQuery] = useState('')
+  const query = isControlled ? (controlledValue ?? '') : internalQuery
+  const setQuery = isControlled
+    ? (v: string) => onControlledChange(v)
+    : setInternalQuery
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [aiSubmittedQuery, setAiSubmittedQuery] = useState<string | null>(null)
   const [pendingFollowUp, setPendingFollowUp] = useState<string | null>(null)
@@ -76,7 +88,13 @@ export function UniversalSearch({
 
   const isAIMode = isLikelyQuestion(debouncedQuery)
 
+  const skipFetch = isControlled && pathname === '/search'
   useEffect(() => {
+    if (skipFetch) {
+      setResults(null)
+      setLoading(false)
+      return
+    }
     if (!debouncedQuery || debouncedQuery.length < MIN_QUERY_LENGTH) {
       setResults(null)
       setLoading(false)
@@ -123,7 +141,7 @@ export function UniversalSearch({
     }
     doFetch()
     return () => { mounted = false; ac.abort() }
-  }, [debouncedQuery, tenantSlug, city, isChosen, lang, isAIMode])
+  }, [skipFetch, debouncedQuery, tenantSlug, city, isChosen, lang, isAIMode])
 
   const totalItems = (results?.businesses?.length ?? 0) + (results?.products?.length ?? 0)
   const showDropdown = open && (query.trim().length >= MIN_QUERY_LENGTH || !!aiSubmittedQuery)
@@ -205,7 +223,9 @@ export function UniversalSearch({
       }
       return
     }
-    router.push(`/search?q=${encodeURIComponent(q)}`)
+    const params = new URLSearchParams(pathname === '/search' ? (searchParams?.toString() ?? '') : '')
+    params.set('q', q)
+    router.push(`/search?${params.toString()}`)
     setOpen(false)
     setQuery('')
   }

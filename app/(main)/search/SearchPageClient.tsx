@@ -14,7 +14,7 @@ import { MdRestaurant } from 'react-icons/md'
 import { BUSINESS_TYPES } from '@/lib/constants'
 import { getSectionIcon } from '@/lib/section-icons'
 import { getCityDisplayName } from '@/lib/registration-translations'
-import { Input } from '@/components/ui/input'
+import { UniversalSearch } from '@/components/search/UniversalSearch'
 import { CategoryIconsBar } from '@/components/home/CategoryIconsBar'
 
 type SectionWithImage = {
@@ -191,6 +191,7 @@ export function SearchPageClient() {
   const [sectionsWithImages, setSectionsWithImages] = useState<SectionWithImage[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState(urlQuery)
+  const [debouncedQuery, setDebouncedQuery] = useState(urlQuery)
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   const [searchResults, setSearchResults] = useState<{
     businesses: Array<{ _id: string; name: string; name_en: string | null; name_ar: string | null; slug: string; businessType: string; logoUrl: string | null }>
@@ -220,17 +221,26 @@ export function SearchPageClient() {
   }, [expandFilters])
 
   const hasSearchQuery = searchQuery.trim().length > 0
-  const [debouncedQuery, setDebouncedQuery] = useState('')
   const latestSearchRequestRef = useRef(0)
+  const lastUrlUpdateRef = useRef<string | null>(null)
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300)
     return () => clearTimeout(t)
   }, [searchQuery])
 
   useEffect(() => {
+    const urlQ = searchParams.get('q') ?? ''
+    if (lastUrlUpdateRef.current === urlQ) return
+    lastUrlUpdateRef.current = null
+    setSearchQuery(urlQ)
+    setDebouncedQuery(urlQ)
+  }, [searchParams])
+
+  useEffect(() => {
     const q = debouncedQuery
     const current = searchParams.get('q') ?? ''
     if (q === current) return
+    lastUrlUpdateRef.current = q || ''
     const p = new URLSearchParams(searchParams.toString())
     if (q) p.set('q', q)
     else p.delete('q')
@@ -418,7 +428,7 @@ export function SearchPageClient() {
 
   return (
     <div className="min-h-screen bg-slate-50" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-      <SiteHeader variant="home" />
+      <SiteHeader variant="home" showSearch={false} />
       <LocationModal />
 
       {isChosen && (category === 'restaurant' || category === 'cafe' || !category) && (
@@ -458,16 +468,14 @@ export function SearchPageClient() {
                   )}
             </h1>
 
-            {/* M3 Search Header */}
+            {/* M3 Search Header - unified UniversalSearch (keywords + AI) */}
             <div className="mb-6 flex gap-3 items-center">
-              <div className="relative min-w-0 flex-1 group">
-                <Search className="absolute start-4 top-1/2 size-5 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
-                <Input
-                  type="search"
-                  placeholder={t('Search businesses or items...', 'ابحث عن أعمال أو أصناف...')}
+              <div className="min-w-0 flex-1">
+                <UniversalSearch
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-14 rounded-full border-0 bg-slate-100/80 px-12 text-base shadow-inner focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-brand-red/50 transition-all font-medium placeholder:text-slate-400 placeholder:font-normal"
+                  onChange={setSearchQuery}
+                  placeholder={t('Search businesses or items...', 'ابحث عن أعمال أو أصناف...')}
+                  inputClassName="h-14 rounded-full border-0 bg-slate-100/80 px-12 text-base shadow-inner focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-brand-red/50 transition-all font-medium placeholder:text-slate-400 placeholder:font-normal"
                 />
               </div>
               <button

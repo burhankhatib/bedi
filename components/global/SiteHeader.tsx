@@ -23,6 +23,8 @@ import { UniversalSearch } from '@/components/search/UniversalSearch'
 interface SiteHeaderProps {
   /** For homepage: show location + auth. For other pages: optional overrides. */
   variant?: 'home' | 'minimal'
+  /** Hide header search (e.g. when search page has its own unified search bar). Default true. */
+  showSearch?: boolean
 }
 
 /** Mobile: Sign in and Create account — everyone lands on homepage after auth; role choice is after login. */
@@ -157,7 +159,7 @@ function DesktopRoleSwitcher({ t, isRtl }: { t: (en: string, ar: string) => stri
   )
 }
 
-export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
+export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderProps) {
   const { t, lang } = useLanguage()
   const { city, setOpenLocationModal } = useLocation()
   const { isSignedIn } = useUser()
@@ -183,9 +185,11 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
 
   const menuContent = variant === 'home' && (
     <>
-      <div className="md:hidden mb-4">
-        <UniversalSearch compact placeholder={t('Search businesses or items...', 'ابحث عن أعمال أو أصناف...')} />
-      </div>
+      {showSearch && (
+        <div className="md:hidden mb-4">
+          <UniversalSearch compact placeholder={t('Search businesses or items...', 'ابحث عن أعمال أو أصناف...')} />
+        </div>
+      )}
       <button
         type="button"
         onClick={() => { setOpenLocationModal(true); setMenuOpen(false); }}
@@ -316,12 +320,14 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
             </button>
 
             {/* 2. Global Search (flex-1 so it expands) — instant results, typo helper */}
-            <div className="hidden md:flex flex-1 max-w-xl">
-              <UniversalSearch
-                placeholder={t('Search Bedi Delivery', 'ابحث في بدي')}
-                inputClassName="w-full"
-              />
-            </div>
+            {showSearch && (
+              <div className="hidden md:flex flex-1 max-w-xl">
+                <UniversalSearch
+                  placeholder={t('Search Bedi Delivery', 'ابحث في بدي')}
+                  inputClassName="w-full"
+                />
+              </div>
+            )}
 
             <div className="flex items-center gap-2 lg:gap-3 shrink-0">
               {/* 3. Delivery / Pickup Toggle - Segmented pill */}
