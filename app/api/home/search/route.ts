@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
     businessType: string
     businessLogo?: LogoSource
     restaurantLogo?: LogoSource
+    subcategoryTitles?: string[]
   }
 
   type ProductRow = {
@@ -79,41 +80,20 @@ export async function GET(req: NextRequest) {
     categoryTitleAr?: string | null
   }
 
-  const [rawTenants, products] = await Promise.all([
-    client.fetch<TenantRow[]>(
-      `*[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}] | order(name asc) {
-        _id,
-        name,
-        "name_en": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_en,
-        "name_ar": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_ar,
-        "slug": slug.current,
-        businessType,
-        businessLogo,
-        "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^._id][0].logo
-      }`,
-      params
-    ),
-    terms.length
-      ? client.fetch<ProductRow[]>(
-          `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}]._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && ${productMatchFilter}] | order(site->name asc) [0...50] {
-            _id,
-            title_en,
-            title_ar,
-            image,
-            price,
-            currency,
-            "siteRef": site._ref,
-            "siteName": site->name,
-            "siteSlug": site->slug.current,
-            "siteBusinessLogo": site->businessLogo,
-            "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^.site._ref][0].logo,
-            "categoryTitleEn": category->title_en,
-            "categoryTitleAr": category->title_ar
-          }`,
-          params
-        )
-      : Promise.resolve([]),
-  ])
+  const rawTenants = await client.fetch<TenantRow[]>(
+    `*[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}] | order(name asc) {
+      _id,
+      name,
+      "name_en": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_en,
+      "name_ar": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_ar,
+      "slug": slug.current,
+      businessType,
+      businessLogo,
+      "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^._id][0].logo,
+      "subcategoryTitles": *[_type == "businessSubcategory" && _id in ^.businessSubcategories[]._ref].(title_en + " " + title_ar)
+    }`,
+    params
+  )
 
   const tenants = rawTenants ?? []
 
@@ -122,15 +102,46 @@ export async function GET(req: NextRequest) {
         const name = (t.name ?? '').toLowerCase()
         const nameEn = (t.name_en ?? '').toLowerCase()
         const nameAr = (t.name_ar ?? '').toLowerCase()
+        const specialtyText = (t.subcategoryTitles ?? []).join(' ').toLowerCase()
         return terms.every(
           (term) =>
             name.includes(term) ||
             nameEn.includes(term) ||
-            nameAr.includes(term)
+            nameAr.includes(term) ||
+            specialtyText.includes(term)
         )
       })
     : tenants
   ).slice(0, 30)
+
+  const matchingTenantIds = new Set(businesses.map((b) => b._id))
+  const matchingIdsArray = Array.from(matchingTenantIds)
+
+  const productFilter =
+    terms.length > 0
+      ? `(((${productMatchFilter}) || (site._ref in $matchingTenantIds))`
+      : 'true'
+
+  const products = await (terms.length
+    ? client.fetch<ProductRow[]>(
+        `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}]._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && ${productFilter}] | order(site->name asc) [0...50] {
+          _id,
+          title_en,
+          title_ar,
+          image,
+          price,
+          currency,
+          "siteRef": site._ref,
+          "siteName": site->name,
+          "siteSlug": site->slug.current,
+          "siteBusinessLogo": site->businessLogo,
+          "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^.site._ref][0].logo,
+          "categoryTitleEn": category->title_en,
+          "categoryTitleAr": category->title_ar
+        }`,
+        { ...params, matchingTenantIds: matchingIdsArray }
+      )
+    : Promise.resolve([]))
 
   const businessResult = businesses.map((t) => {
     const slug = typeof t.slug === 'string' ? t.slug : t.slug?.current ?? ''

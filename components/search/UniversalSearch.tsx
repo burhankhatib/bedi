@@ -4,9 +4,11 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
-import { Search, X, Store, UtensilsCrossed, Loader2, Sparkles } from 'lucide-react'
+import { Search, X, Store, UtensilsCrossed, Loader2, Sparkles, ShoppingCart } from 'lucide-react'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
+import { useCart } from '@/components/Cart/CartContext'
+import type { Product } from '@/app/types/menu'
 import { cn } from '@/lib/utils'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { isLikelyQuestion } from '@/lib/ai/question-detection'
@@ -61,6 +63,7 @@ export function UniversalSearch({
   const isControlled = controlledValue !== undefined && onControlledChange !== undefined
   const { t, lang } = useLanguage()
   const { city, isChosen, setOpenLocationModal } = useLocation()
+  const { addToCart } = useCart()
   const router = useRouter()
   const pathname = usePathname() ?? ''
   const searchParams = useSearchParams()
@@ -240,6 +243,37 @@ export function UniversalSearch({
     }
   }
 
+  const handleAddToCart = async (productId: string) => {
+    try {
+      const res = await fetch(`/api/search/product/${productId}`)
+      if (!res.ok) throw new Error('Failed to fetch product')
+      const { product, tenant } = await res.json()
+      if (!product || !tenant?.slug) throw new Error('Invalid product data')
+      addToCart(product as Product, [], [], { slug: tenant.slug, name: tenant.name })
+    } catch (e) {
+      console.error('Add to cart:', e)
+    }
+  }
+
+  const hasStoredChat = (() => {
+    if (typeof window === 'undefined' || !city) return false
+    try {
+      const raw = localStorage.getItem(`zonify-ai-chat-${city}`)
+      if (!raw) return false
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) && parsed.length > 0
+    } catch {
+      return false
+    }
+  })()
+
+  const handleResumeChat = () => {
+    setAiSubmittedQuery('__resume__')
+    setQuery('')
+    setOpen(true)
+    inputRef.current?.focus()
+  }
+
   const defaultPlaceholder = tenantSlug
     ? t('Search menu...', 'ابحث في القائمة...')
     : t('Search businesses or items...', 'ابحث عن أعمال أو أصناف...')
@@ -334,20 +368,31 @@ export function UniversalSearch({
                 <p className="text-sm text-slate-600">
                   {t('Type your question, then press Enter to ask.', 'اكتب سؤالك واضغط Enter للسؤال.')}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const q = query.trim()
-                    if (q) {
-                      saveQuestion(q)
-                      setAiSubmittedQuery(q)
-                    }
-                  }}
-                  className="self-start inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors"
-                >
-                  <Sparkles className="size-4" />
-                  {t('Ask', 'اسأل')}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const q = query.trim()
+                      if (q) {
+                        saveQuestion(q)
+                        setAiSubmittedQuery(q)
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors"
+                  >
+                    <Sparkles className="size-4" />
+                    {t('Ask', 'اسأل')}
+                  </button>
+                  {hasStoredChat && !tenantSlug && (
+                    <button
+                      type="button"
+                      onClick={handleResumeChat}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-amber-400 bg-amber-50 text-amber-800 text-sm font-medium hover:bg-amber-100 transition-colors"
+                    >
+                      {t('Resume chat', 'استئناف المحادثة')}
+                    </button>
+                  )}
+                </div>
               </div>
             ) : loading && debouncedQuery ? (
               <div className="flex items-center justify-center gap-2 py-12 text-slate-500">
@@ -370,6 +415,16 @@ export function UniversalSearch({
               </div>
             ) : totalItems > 0 ? (
               <div className="p-2">
+                {hasStoredChat && !tenantSlug && (
+                  <button
+                    type="button"
+                    onClick={handleResumeChat}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm font-medium hover:bg-amber-100 transition-colors mb-2"
+                  >
+                    <Sparkles className="size-4 shrink-0" />
+                    {t('Resume AI chat', 'استئناف المحادثة')}
+                  </button>
+                )}
                 {results?.businesses && results.businesses.length > 0 && (
                   <>
                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider px-3 py-2">
@@ -413,35 +468,59 @@ export function UniversalSearch({
                       const idx = (results?.businesses?.length ?? 0) + i
                       const title = lang === 'ar' ? (p.title_ar ?? p.title_en) : (p.title_en ?? p.title_ar)
                       return (
-                        <Link
+                        <div
                           key={p._id}
-                          href={`/t/${p.business.slug}#product-${p._id}`}
-                          onClick={() => { setOpen(false); setQuery('') }}
                           onMouseEnter={() => setFocusedIndex(idx)}
                           className={cn(
-                            'flex items-center gap-3 p-3 rounded-xl transition-colors',
+                            'flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl transition-colors',
                             focusedIndex === idx ? 'bg-slate-100' : 'hover:bg-slate-50'
                           )}
                         >
-                          <div className="relative size-14 shrink-0 rounded-lg overflow-hidden bg-slate-100">
-                            {p.imageUrl ? (
-                              <Image src={p.imageUrl} alt={title ?? ''} fill className="object-cover" sizes="56px" placeholder="blur" blurDataURL={SHIMMER_PLACEHOLDER} />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center">
-                                <UtensilsCrossed className="size-6 text-slate-400" />
-                              </div>
-                            )}
+                          <Link
+                            href={`/t/${p.business.slug}#product-${p._id}`}
+                            onClick={() => { setOpen(false); setQuery('') }}
+                            className="flex min-w-0 flex-1 items-center gap-3"
+                          >
+                            <div className="relative size-14 shrink-0 rounded-lg overflow-hidden bg-slate-100">
+                              {p.imageUrl ? (
+                                <Image src={p.imageUrl} alt={title ?? ''} fill className="object-cover" sizes="56px" placeholder="blur" blurDataURL={SHIMMER_PLACEHOLDER} />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center">
+                                  <UtensilsCrossed className="size-6 text-slate-400" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-slate-900 truncate">{title}</p>
+                              <p className="text-xs text-slate-500">{p.business.name}</p>
+                              {p.price > 0 && (
+                                <p className="text-sm font-bold text-slate-700 mt-0.5">
+                                  {p.price} {p.currency}
+                                </p>
+                              )}
+                            </div>
+                          </Link>
+                          <div className="flex shrink-0 gap-2 flex-wrap">
+                            <Link
+                              href={`/t/${p.business.slug}#product-${p._id}`}
+                              onClick={() => { setOpen(false); setQuery('') }}
+                              className="text-xs font-medium text-amber-600 hover:text-amber-700"
+                            >
+                              {t('View menu', 'عرض القائمة')}
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                handleAddToCart(p._id)
+                              }}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg"
+                            >
+                              <ShoppingCart className="size-3" />
+                              {t('Add', 'أضف')}
+                            </button>
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-slate-900 truncate">{title}</p>
-                            <p className="text-xs text-slate-500">{p.business.name}</p>
-                            {p.price > 0 && (
-                              <p className="text-sm font-bold text-slate-700 mt-0.5">
-                                {p.price} {p.currency}
-                              </p>
-                            )}
-                          </div>
-                        </Link>
+                        </div>
                       )
                     })}
                   </>

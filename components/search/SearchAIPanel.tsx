@@ -99,7 +99,7 @@ export function SearchAIPanel({
 
   const lastSentKey = useRef('')
   useEffect(() => {
-    if (!query.trim() || !city) return
+    if (!query.trim() || query === '__resume__' || !city) return
     if (messages.length > 0) return
     const key = `initial:${city}:${query}`
     if (lastSentKey.current === key) return
