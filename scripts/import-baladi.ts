@@ -8,6 +8,9 @@
  *
  * Usage:
  *   npx tsx scripts/import-baladi.ts                           # Scrape + import
+ *   npm run import:baladi:cat -- 95818                         # Short: category ID only (default: grocery)
+ *   npm run import:baladi:cat -- 95818 retail                  # Category ID + market category
+ *   npm run import:baladi:url -- --url "..." --market-category grocery  # Full URL
  *   npx tsx scripts/import-baladi.ts --backfill-existing --interactive-auth        # Update/skip-ready (200/session)
  *   npx tsx scripts/import-baladi.ts --backfill-existing --interactive-auth --overwrite-all --reset-checkpoint  # One-time overwrite all
  *
@@ -68,18 +71,24 @@ const BALADI_CATEGORIES: Array<{ name: string; url: string; marketCategory: stri
   { name: 'Grocery', url: `${BASE_URL}/categories/79632/products`, marketCategory: 'grocery' },
 ]
 
+/** Positional args (e.g. from "npm run import:baladi:cat -- 95818 grocery") */
+const POSITIONAL = process.argv.filter((a) => !a.startsWith('--') && a !== process.argv[0] && a !== process.argv[1])
+
 /** When set via --url, only scrape this URL. Use with --market-category. */
 const MANUAL_URL = (() => {
   const i = process.argv.indexOf('--url')
   if (i >= 0 && process.argv[i + 1]) return process.argv[i + 1].trim()
+  /** Shortcut: first positional arg = category ID → https://.../categories/ID/products */
+  const catId = POSITIONAL[0]?.replace(/\D/g, '')
+  if (catId) return `${BASE_URL}/categories/${catId}/products`
   return null
 })()
 
-/** When set via --market-category, override category for all products from MANUAL_URL. */
+/** When set via --market-category or second positional, override category for all products from MANUAL_URL. */
 const MANUAL_MARKET_CATEGORY = (() => {
   const i = process.argv.indexOf('--market-category')
   if (i >= 0 && process.argv[i + 1]) return process.argv[i + 1].trim()
-  return null
+  return POSITIONAL[1]?.trim() || null
 })()
 
 const CATEGORY_URLS = MANUAL_URL
