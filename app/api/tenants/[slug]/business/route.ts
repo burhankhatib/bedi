@@ -27,7 +27,7 @@ type RestaurantInfoDoc = {
   customDateHours?: CustomDateHours[] | null
 }
 
-/** GET tenant + restaurantInfo for this site. */
+/** GET tenant + restaurantInfo for this site. ?refresh=1 forces fresh data (bypasses CDN). */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -36,8 +36,12 @@ export async function GET(
   const auth = await checkTenantAuth(slug)
   if (!auth.ok) return NextResponse.json({ error: 'Forbidden' }, { status: auth.status })
 
+  const refresh = new URL(req.url).searchParams.get('refresh') === '1'
+  const tenantClient = refresh ? clientNoCdn : client
+  const restaurantClient = refresh ? clientNoCdn : client
+
   const [tenant, restaurantInfoRaw] = await Promise.all([
-    clientNoCdn.fetch<{
+    tenantClient.fetch<{
       _id: string
       name: string
       country?: string
@@ -66,7 +70,7 @@ export async function GET(
       }`,
       { tenantId: auth.tenantId }
     ),
-    client.fetch<RestaurantInfoDoc | null>(
+    restaurantClient.fetch<RestaurantInfoDoc | null>(
       `*[_type == "restaurantInfo" && site._ref == $siteId][0]{
         name_en, name_ar, tagline_en, tagline_ar,
         address_en, address_ar,
@@ -115,7 +119,10 @@ export async function GET(
         logoUrl: restaurantInfoRaw.logo ? urlFor(restaurantInfoRaw.logo).width(120).height(120).url() : null,
       }
     : null
-  return NextResponse.json({ tenant, restaurantInfo })
+  return NextResponse.json(
+    { tenant, restaurantInfo },
+    { headers: refresh ? { 'Cache-Control': 'no-store' } : { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' } }
+  )
 }
 
 /** PATCH tenant (name, country, city) and create/update restaurantInfo. */
@@ -312,6 +319,8 @@ export async function PATCH(
       await writeClient.patch(auth.tenantId).set({
         businessCreatedAt: now.toISOString(),
         subscriptionExpiresAt: expiresAt.toISOString(),
+        subscriptionStatus: 'trial',
+        subscriptionPlan: 'ultra',
       }).commit()
     }
     if (restPatch.logo) {

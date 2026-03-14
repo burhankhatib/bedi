@@ -39,9 +39,9 @@ export async function POST(
 
     const body = await req.json().catch(() => ({}))
     const planId = (body?.planId ?? '').trim().toLowerCase() as PlanId
-    if (!planId || !SUBSCRIPTION_PLANS[planId]) {
+    if (!planId || !SUBSCRIPTION_PLANS[planId as keyof typeof SUBSCRIPTION_PLANS]) {
       return NextResponse.json(
-        { error: 'Invalid planId. Use one of: 1m, 3m, 6m, 12m' },
+        { error: 'Invalid planId. Use one of: basic-monthly, basic-yearly, pro-monthly, pro-yearly, ultra-monthly, ultra-yearly' },
         { status: 400 }
       )
     }
@@ -51,7 +51,7 @@ export async function POST(
       return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
     }
 
-    const plan = SUBSCRIPTION_PLANS[planId]
+    const plan = SUBSCRIPTION_PLANS[planId as PlanId]
     const internalReference = buildBOPInternalReference(slug, planId)
     const callbackUrl = `${APP_BASE}/api/bop/callback`
     const successUrl = `${callbackUrl}?internalReference=${encodeURIComponent(internalReference)}`

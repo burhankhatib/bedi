@@ -2,8 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { isAbortError } from '@/lib/abort-utils'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useLanguage } from '@/components/LanguageContext'
 import { Menu, MapPin, Truck, ArrowLeft, Store, TrendingUp, History, ShoppingBag, ArrowRightLeft, CreditCard, Table, Users } from 'lucide-react'
 import type { StaffPermission } from '@/lib/staff-permissions'
@@ -14,34 +23,39 @@ const NAV_GROUPS = [
     titleEn: 'Settings',
     titleAr: 'الإعدادات',
     items: [
-      { path: '/business', labelEn: 'Business profile', labelAr: 'الملف التعريفي', icon: Store, permission: 'settings_business' },
-      { path: '/billing', labelEn: 'Billing', labelAr: 'الدفع والفوترة', icon: CreditCard, permission: 'billing' },
-      { path: '/transfer', labelEn: 'Transfer ownership', labelAr: 'نقل الملكية', icon: ArrowRightLeft, permission: 'transfer' },
+      { path: '/business', labelEn: 'Business profile', labelAr: 'الملف التعريفي', icon: Store, permission: 'settings_business', proOnly: false },
+      { path: '/billing', labelEn: 'Billing', labelAr: 'الدفع والفوترة', icon: CreditCard, permission: 'billing', proOnly: false },
+      { path: '/transfer', labelEn: 'Transfer ownership', labelAr: 'نقل الملكية', icon: ArrowRightLeft, permission: 'transfer', proOnly: false },
     ]
   },
   {
     titleEn: 'Operations',
     titleAr: 'العمليات',
     items: [
-      { path: '/menu', labelEn: 'Menu', labelAr: 'القائمة', icon: Menu, permission: 'settings_menu' },
-      { path: '/tables', labelEn: 'Tables', labelAr: 'الطاولات', icon: Table, permission: 'settings_tables' },
-      // Delivery Areas and Drivers hidden: auto distance-based pricing in use; drivers managed centrally
-      // { path: '/areas', labelEn: 'Delivery areas', labelAr: 'مناطق التوصيل', icon: MapPin, permission: 'settings_areas' },
-      // { path: '/drivers', labelEn: 'Drivers', labelAr: 'السائقون', icon: Truck, permission: 'settings_drivers' },
+      { path: '/menu', labelEn: 'Menu', labelAr: 'القائمة', icon: Menu, permission: 'settings_menu', proOnly: false },
+      { path: '/tables', labelEn: 'Tables', labelAr: 'الطاولات', icon: Table, permission: 'settings_tables', proOnly: true },
     ]
   },
   {
     titleEn: 'Management',
     titleAr: 'الإدارة',
     items: [
-      { path: '/staff', labelEn: 'Staff', labelAr: 'الموظفون', icon: Users, permission: 'staff_manage' },
-      { path: '/analytics', labelEn: 'Analytics', labelAr: 'التحليلات', icon: TrendingUp, permission: 'analytics' },
-      { path: '/history', labelEn: 'History', labelAr: 'السجل', icon: History, permission: 'history' },
+      { path: '/staff', labelEn: 'Staff', labelAr: 'الموظفون', icon: Users, permission: 'staff_manage', proOnly: true },
+      { path: '/analytics', labelEn: 'Analytics', labelAr: 'التحليلات', icon: TrendingUp, permission: 'analytics', proOnly: false },
+      { path: '/history', labelEn: 'History', labelAr: 'السجل', icon: History, permission: 'history', proOnly: false },
     ]
   }
 ]
 
-export function ManageNavClient({ slug, permissions }: { slug: string; permissions?: StaffPermission[] }) {
+export function ManageNavClient({
+  slug,
+  permissions,
+  subscriptionPlan = null,
+}: {
+  slug: string
+  permissions?: StaffPermission[]
+  subscriptionPlan?: 'basic' | 'pro' | 'ultra' | null
+}) {
   const hasPermission = (p?: string) => !p || (Array.isArray(permissions) && permissions.includes(p as StaffPermission))
   const [newOrdersCount, setNewOrdersCount] = useState(0)
   const { t, lang } = useLanguage()
@@ -71,7 +85,7 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
         setNewOrdersCount(typeof data?.newCount === 'number' ? data.newCount : 0)
       })
       .catch((err) => {
-        if ((err as Error)?.name === 'AbortError') return
+        if (isAbortError(err)) return
         if (!isMountedRef.current) return
         setNewOrdersCount(0)
       })
@@ -79,6 +93,17 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
 
   const ordersHref = `/t/${slug}/orders`
   const base = `/t/${slug}/manage`
+  const isBasicPlan = subscriptionPlan === 'basic'
+  const billingHref = `${base}/billing`
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false)
+  const [upgradeModalFeature, setUpgradeModalFeature] = useState<{ en: string; ar: string } | null>(null)
+
+  const handleProOnlyClick = (e: React.MouseEvent, labelEn: string, labelAr: string) => {
+    if (!isBasicPlan) return
+    e.preventDefault()
+    setUpgradeModalFeature({ en: labelEn, ar: labelAr })
+    setUpgradeModalOpen(true)
+  }
 
   const NewOrdersBadge = ({ compact = false }: { compact?: boolean }) =>
     newOrdersCount > 0 ? (
@@ -124,21 +149,34 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
       {/* Mobile: Horizontal Scrollable Chip Menu */}
       <div className="md:hidden -mx-4 px-4 mb-6 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         <div className="flex gap-2 w-max pb-2">
-          {allNavItems.map(({ path, labelEn, labelAr, icon: Icon }) => {
+          {allNavItems.map(({ path, labelEn, labelAr, icon: Icon, proOnly }) => {
             const href = `${base}${path}`
             const isActive = pathname === href
+            const isLocked = isBasicPlan && proOnly
+            const className = `relative flex items-center gap-2 px-4 py-3 rounded-full text-sm font-semibold transition-colors touch-manipulation ${
+              isActive ? 'text-amber-400' : 'text-slate-400 bg-slate-900 border border-slate-800'
+            }`
+            if (isLocked) {
+              return (
+                <button
+                  key={href}
+                  type="button"
+                  onClick={(e) => handleProOnlyClick(e, labelEn, labelAr)}
+                  className={className}
+                >
+                  {isActive && (
+                    <div className="absolute inset-0 rounded-full bg-amber-500/10 border border-amber-500/30 pointer-events-none" />
+                  )}
+                  <Icon className="size-4 relative z-10" />
+                  <span className="relative z-10 whitespace-nowrap">{t(labelEn, labelAr)}</span>
+                  <span className="relative z-10 rounded bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-bold text-slate-950">Pro</span>
+                </button>
+              )
+            }
             return (
-              <Link
-                key={href}
-                href={href}
-                className={`relative flex items-center gap-2 px-4 py-3 rounded-full text-sm font-semibold transition-colors touch-manipulation ${
-                  isActive ? 'text-amber-400' : 'text-slate-400 bg-slate-900 border border-slate-800'
-                }`}
-              >
+              <Link key={href} href={href} className={className}>
                 {isActive && (
-                  <div
-                    className="absolute inset-0 rounded-full bg-amber-500/10 border border-amber-500/30 pointer-events-none"
-                  />
+                  <div className="absolute inset-0 rounded-full bg-amber-500/10 border border-amber-500/30 pointer-events-none" />
                 )}
                 <Icon className="size-4 relative z-10" />
                 <span className="relative z-10 whitespace-nowrap">{t(labelEn, labelAr)}</span>
@@ -158,27 +196,43 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
               <h3 className="px-4 text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
                 {t(group.titleEn, group.titleAr)}
               </h3>
-              {items.map(({ path, labelEn, labelAr, icon: Icon }) => {
+              {items.map(({ path, labelEn, labelAr, icon: Icon, proOnly }) => {
                 const href = `${base}${path}`
                 const isActive = pathname === href
+                const isLocked = isBasicPlan && proOnly
+                const className = `relative flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-colors group overflow-hidden touch-manipulation w-full text-start ${
+                  isActive ? 'text-amber-400' : 'text-slate-300 hover:text-white'
+                }`
+                if (isLocked) {
+                  return (
+                    <button
+                      key={href}
+                      type="button"
+                      onClick={(e) => handleProOnlyClick(e, labelEn, labelAr)}
+                      className={className}
+                    >
+                      {isActive && (
+                        <div className="absolute inset-0 rounded-2xl bg-amber-500/10 border border-amber-500/30 pointer-events-none" />
+                      )}
+                      {!isActive && (
+                        <div className="absolute inset-0 rounded-2xl bg-slate-800/0 group-hover:bg-slate-800/50 transition-colors pointer-events-none" />
+                      )}
+                      <Icon className={`size-5 relative z-10 shrink-0 ${isActive ? 'text-amber-400' : 'text-slate-400 group-hover:text-slate-300'}`} />
+                      <span className="relative z-10 flex-1">{t(labelEn, labelAr)}</span>
+                      <span className="relative z-10 rounded bg-amber-500/90 px-2 py-0.5 text-xs font-bold text-slate-950">Pro</span>
+                    </button>
+                  )
+                }
                 return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={`relative flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-colors group overflow-hidden touch-manipulation ${
-                      isActive ? 'text-amber-400' : 'text-slate-300 hover:text-white'
-                    }`}
-                  >
+                  <Link key={href} href={href} className={className}>
                     {isActive && (
-                      <div
-                        className="absolute inset-0 rounded-2xl bg-amber-500/10 border border-amber-500/30 pointer-events-none"
-                      />
+                      <div className="absolute inset-0 rounded-2xl bg-amber-500/10 border border-amber-500/30 pointer-events-none" />
                     )}
                     {!isActive && (
                       <div className="absolute inset-0 rounded-2xl bg-slate-800/0 group-hover:bg-slate-800/50 transition-colors pointer-events-none" />
                     )}
-                    <Icon className={`size-5 relative z-10 ${isActive ? 'text-amber-400' : 'text-slate-400 group-hover:text-slate-300'}`} />
-                    <span className="relative z-10">{t(labelEn, labelAr)}</span>
+                    <Icon className={`size-5 relative z-10 shrink-0 ${isActive ? 'text-amber-400' : 'text-slate-400 group-hover:text-slate-300'}`} />
+                    <span className="relative z-10 flex-1">{t(labelEn, labelAr)}</span>
                   </Link>
                 )
               })}
@@ -195,6 +249,33 @@ export function ManageNavClient({ slug, permissions }: { slug: string; permissio
       <div className="md:hidden mb-4">
         <TenantSidebarActions slug={slug} />
       </div>
+
+      {/* Pro feature upgrade modal */}
+      <Dialog open={upgradeModalOpen} onOpenChange={setUpgradeModalOpen}>
+        <DialogContent className="border-slate-700 bg-slate-900 text-white sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl">
+              {upgradeModalFeature && t(upgradeModalFeature.en, upgradeModalFeature.ar)}
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              {t(
+                'This feature is available in Pro and Ultra plans only. Upgrade your subscription to access Tables and Staff management.',
+                'هذه الميزة متاحة في خطط Pro و Ultra فقط. حدّث اشتراكك للوصول إلى إدارة الطاولات والموظفين.'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setUpgradeModalOpen(false)} className="border-slate-600 text-slate-300">
+              {t('Cancel', 'إلغاء')}
+            </Button>
+            <Button asChild className="bg-amber-500 text-slate-950 hover:bg-amber-400">
+              <Link href={billingHref} onClick={() => setUpgradeModalOpen(false)}>
+                {t('Upgrade in Billing', 'الترقية في الدفع')}
+              </Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

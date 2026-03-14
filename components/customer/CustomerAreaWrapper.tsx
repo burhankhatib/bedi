@@ -11,6 +11,7 @@ import { useCart } from '@/components/Cart/CartContext'
 import { cn } from '@/lib/utils'
 import { CustomerWelcomePushBoot } from '@/components/customer/CustomerWelcomePushBoot'
 import { CustomerPushHealthCheck } from '@/components/customer/CustomerPushHealthCheck'
+import { AiQuestionSyncOnLogin } from '@/components/customer/AiQuestionSyncOnLogin'
 
 /** Paths that should always load with scroll at top (e.g. when navigating from tenant menu). */
 function useScrollToTopOnNavigate() {
@@ -28,6 +29,7 @@ function isCustomerPath(pathname: string): boolean {
   if (pathname === '/') return true
   if (pathname === '/search') return true
   if (pathname === '/my-orders') return true
+  if (pathname === '/my-questions') return true
   if (pathname.startsWith('/order')) return true
   if (pathname.startsWith('/resolve')) return true
   if (pathname.startsWith('/join')) return true
@@ -42,6 +44,7 @@ function isCustomerPWAPath(pathname: string): boolean {
   if (pathname === '/') return true
   if (pathname === '/search') return true
   if (pathname === '/my-orders') return true
+  if (pathname === '/my-questions') return true
   if (pathname.startsWith('/order')) return true
   if (pathname.startsWith('/resolve')) return true
   if (pathname.startsWith('/join')) return true
@@ -81,6 +84,7 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
       </div>
       {canRenderCustomerShell && (
         <>
+          <AiQuestionSyncOnLogin />
           <CustomerPushHealthCheck />
           <CustomerWelcomePushBoot />
           <CartSlider supportsDineIn supportsReceiveInPerson />

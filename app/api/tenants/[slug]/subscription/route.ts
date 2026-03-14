@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 import { getTenantBySlug, isTenantSubscriptionExpired } from '@/lib/tenant'
 import { client } from '@/sanity/lib/client'
@@ -6,9 +6,9 @@ import { token } from '@/sanity/lib/token'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
-/** GET – Return current subscription status for the tenant (for banner and billing page). When trial/subscription has expired, sets status to past_due. */
+/** GET – Return current subscription status. ?refresh=1 forces fresh data. */
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params
@@ -16,7 +16,8 @@ export async function GET(
   if (!auth.ok) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: auth.status })
   }
-  const tenant = await getTenantBySlug(slug, { useCdn: false })
+  const refresh = new URL(req.url).searchParams.get('refresh') === '1'
+  const tenant = await getTenantBySlug(slug, { useCdn: !refresh })
   if (!tenant) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
@@ -33,12 +34,15 @@ export async function GET(
     subscriptionStatus = 'past_due'
   }
 
-  return NextResponse.json({
-    subscriptionExpiresAt: tenant.subscriptionExpiresAt ?? null,
-    subscriptionStatus,
-    subscriptionLastPaymentAt: tenant.subscriptionLastPaymentAt ?? null,
-    paypalSubscriptionId: tenant.paypalSubscriptionId ?? null,
-    createdAt: tenant.createdAt ?? null,
-    businessCreatedAt: tenant.businessCreatedAt ?? null,
-  })
+  return NextResponse.json(
+    {
+      subscriptionExpiresAt: tenant.subscriptionExpiresAt ?? null,
+      subscriptionStatus,
+      subscriptionLastPaymentAt: tenant.subscriptionLastPaymentAt ?? null,
+      paypalSubscriptionId: tenant.paypalSubscriptionId ?? null,
+      createdAt: tenant.createdAt ?? null,
+      businessCreatedAt: tenant.businessCreatedAt ?? null,
+    },
+    { headers: refresh ? { 'Cache-Control': 'no-store' } : { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' } }
+  )
 }

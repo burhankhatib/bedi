@@ -16,6 +16,8 @@ export type Tenant = {
   /** Additional owner emails (lowercase); any of these can manage the business. */
   coOwnerEmails?: string[]
   subscriptionStatus: string
+  /** Plan tier: basic | pro | ultra. Trial uses ultra; set when paid via BOP. */
+  subscriptionPlan?: 'basic' | 'pro' | 'ultra' | null
   createdAt?: string
   businessCreatedAt?: string | null
   /** End of free trial or paid period; business hidden when past this date. */
@@ -53,6 +55,7 @@ const TENANT_QUERY = `*[_type == "tenant" && slug.current == $slug][0] {
   clerkUserEmail,
   coOwnerEmails,
   subscriptionStatus,
+  subscriptionPlan,
   createdAt,
   businessCreatedAt,
   subscriptionExpiresAt,

@@ -10,7 +10,7 @@ import { AppNav } from '@/components/saas/AppNav'
 import { ArrowLeft } from 'lucide-react'
 import type { Order } from '@/app/(main)/orders/OrdersClient'
 import { TenantOrdersLive, type TableRequest } from './TenantOrdersLive'
-import { OrdersPushRefreshButton } from './OrdersPushRefreshButton'
+import { BusinessPushStatusCard } from '@/components/push/BusinessPushStatusCard'
 import { PWAManager } from '@/components/pwa/PWAManager'
 import { OrdersPushGateWrapper } from './OrdersPushGateWrapper'
 import { enforcePhoneVerification } from '@/lib/enforce-phone'
@@ -120,7 +120,6 @@ export default async function TenantOrdersPage({
         <main className="mx-auto max-w-[100vw] px-4 py-4 sm:container sm:py-6">
           <SubscriptionBanner slug={slug} />
           <PWAManager role="business-orders" slug={slug} variant="inline" />
-          <OrdersPushRefreshButton />
           <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2 sm:mb-6 sm:gap-4">
           <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:text-white">
             <Link href="/dashboard">
@@ -146,6 +145,7 @@ export default async function TenantOrdersPage({
           initialOpenOrderId={typeof initialOpenOrderId === 'string' ? initialOpenOrderId : undefined}
           initialNotificationSound={notificationSound ?? undefined}
         />
+        <BusinessPushStatusCard slug={slug} />
         </main>
       </div>
     </OrdersPushGateWrapper>

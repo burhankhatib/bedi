@@ -8,16 +8,12 @@ import { useLanguage } from '@/components/LanguageContext'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { SUBSCRIPTION_PLANS, type PlanId } from '@/lib/subscription'
 import {
-  CreditCard,
   Check,
   Zap,
-  Calendar,
   HelpCircle,
   Store,
   ChevronRight,
 } from 'lucide-react'
-
-const PLAN_ORDER: PlanId[] = ['1m', '3m', '6m', '12m']
 
 export function PricingPageClient() {
   const { lang, t } = useLanguage()
@@ -74,100 +70,59 @@ export function PricingPageClient() {
               </div>
 
               <div className="grid gap-8 lg:grid-cols-2">
-                {/* Monthly subscription */}
-                <div className="rounded-2xl border-2 border-amber-500/40 bg-slate-900/60 p-6 md:p-8">
-                  <div className="flex items-center gap-3">
-                    <div className="flex size-12 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400">
-                      <Calendar className="size-6" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold">
-                        {t('Monthly subscription', 'الاشتراك الشهري')}
-                      </h2>
-                      <p className="text-sm text-slate-400">
-                        {t('Pay each month. Cancel anytime.', 'ادفع كل شهر. ألغِ متى شئت.')}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-6 flex items-baseline gap-2">
-                    <span className="text-4xl font-bold text-white">350</span>
-                    <span className="text-slate-400">ILS</span>
-                    <span className="text-slate-500">/ {t('month', 'شهر')}</span>
-                  </div>
-                  <ul className="mt-6 space-y-3">
-                    {[
-                      t('Your menu link & dashboard', 'رابط قائمتك ولوحة التحكم'),
-                      t('Dine-in & delivery orders', 'طلبات جلوس وتوصيل'),
-                      t('Delivery areas & driver requests', 'مناطق التوصيل وطلب السائقين'),
-                      t('Cancel anytime', 'إلغاء في أي وقت'),
-                    ].map((item) => (
-                      <li key={item} className="flex items-center gap-3 text-sm text-slate-300">
-                        <Check className="size-4 shrink-0 text-amber-500" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                  <Button asChild className="mt-8 w-full bg-amber-500 text-slate-950 hover:bg-amber-400 focus-visible:ring-amber-500/30" size="lg">
-                    <Link href="/sign-up?redirect_url=/">
-                      {t('Start free trial', 'ابدأ التجربة المجانية')}
-                    </Link>
-                  </Button>
-                </div>
-
-                {/* Pay in advance */}
-                <div className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6 md:p-8">
-                  <div className="flex items-center gap-3">
-                    <div className="flex size-12 items-center justify-center rounded-xl bg-sky-500/20 text-sky-400">
-                      <CreditCard className="size-6" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold">
-                        {t('Pay in advance', 'الدفع مقدماً')}
-                      </h2>
-                      <p className="text-sm text-slate-400">
-                        {t('Save more when you pay for 3, 6, or 12 months.', 'وفر أكثر عند الدفع مقابل 3 أو 6 أو 12 شهراً.')}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-6 space-y-4">
-                    {PLAN_ORDER.map((planId) => {
-                      const plan = SUBSCRIPTION_PLANS[planId]
-                      const label = lang === 'ar' ? plan.labelAr : plan.labelEn
-                      const perMonth =
-                        lang === 'ar'
-                          ? `${plan.perMonthIls} ${t('ILS/month', 'شيكل/شهر')}`
-                          : `${plan.perMonthIls} ILS/${t('month', 'شهر')}`
-                      return (
-                        <div
-                          key={planId}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-800/50 px-4 py-3"
-                        >
-                          <span className="font-medium text-white">{label}</span>
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="font-bold text-white">{plan.priceIls} ILS</span>
-                            <span className="text-xs text-slate-500">{perMonth}</span>
-                          </div>
+                {/* Basic, Pro, Ultra plans */}
+                <div className="grid gap-6 sm:grid-cols-3">
+                  {(['basic', 'pro', 'ultra'] as const).map((tier) => {
+                    const monthlyPlan = SUBSCRIPTION_PLANS[`${tier}-monthly` as PlanId]
+                    const yearlyPlan = SUBSCRIPTION_PLANS[`${tier}-yearly` as PlanId]
+                    const labelEn = { basic: 'Basic', pro: 'Pro', ultra: 'Ultra' }[tier]
+                    const labelAr = { basic: 'باسيك', pro: 'برو', ultra: 'ألترا' }[tier]
+                    return (
+                      <div
+                        key={tier}
+                        className={`rounded-2xl border p-6 md:p-8 ${
+                          tier === 'ultra'
+                            ? 'border-2 border-amber-500/40 bg-slate-900/80'
+                            : 'border-slate-700/60 bg-slate-900/60'
+                        }`}
+                      >
+                        {tier === 'ultra' && (
+                          <span className="mb-3 inline-block rounded-full bg-amber-500/20 px-3 py-0.5 text-xs font-semibold text-amber-400">
+                            {t('Best value', 'الأفضل')}
+                          </span>
+                        )}
+                        <h2 className="text-xl font-bold">
+                          {t(labelEn, labelAr)}
+                        </h2>
+                        <div className="mt-4 flex items-baseline gap-2">
+                          <span className="text-3xl font-bold text-white">{monthlyPlan.priceIls}</span>
+                          <span className="text-slate-400">ILS</span>
+                          <span className="text-slate-500">/ {t('month', 'شهر')}</span>
                         </div>
-                      )
-                    })}
-                  </div>
-                  <ul className="mt-6 space-y-3">
-                    {[
-                      t('Same features as monthly', 'نفس المميزات كالاشتراك الشهري'),
-                      t('Pay once via PayPal', 'ادفع مرة عبر PayPal'),
-                      t('No renewal until period ends', 'بدون تجديد حتى نهاية المدة'),
-                    ].map((item) => (
-                      <li key={item} className="flex items-center gap-3 text-sm text-slate-300">
-                        <Check className="size-4 shrink-0 text-sky-500" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                  <Button asChild variant="outline" className="mt-8 w-full border-slate-600 bg-slate-800 text-white hover:bg-slate-700" size="lg">
-                    <Link href="/sign-up?redirect_url=/">
-                      {t('Start free trial', 'ابدأ التجربة المجانية')}
-                    </Link>
-                  </Button>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {t('Yearly', 'سنوي')}: {yearlyPlan.priceIls} ILS ({yearlyPlan.perMonthIls} {t('ILS/month', 'شيكل/شهر')})
+                        </p>
+                        <ul className="mt-6 space-y-2">
+                          {(tier === 'basic'
+                            ? [t('30 products max', '٣٠ منتجاً كحد أقصى'), t('Full menu & analytics', 'قائمة كاملة وتحليلات')]
+                            : tier === 'pro'
+                              ? [t('50 products max', '٥٠ منتجاً كحد أقصى'), t('Tables & Staff', 'الطاولات والموظفون'), t('Full menu & analytics', 'قائمة كاملة وتحليلات')]
+                              : [t('Unlimited products', 'منتجات غير محدودة'), t('Tables & Staff', 'الطاولات والموظفون'), t('Full menu & analytics', 'قائمة كاملة وتحليلات')]
+                          ).map((item) => (
+                            <li key={item} className="flex items-center gap-2 text-sm text-slate-300">
+                              <Check className="size-4 shrink-0 text-amber-500" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                        <Button asChild className="mt-8 w-full bg-amber-500 text-slate-950 hover:bg-amber-400" size="lg">
+                          <Link href="/sign-up?redirect_url=/">
+                            {tier === 'ultra' ? t('Start free trial', 'ابدأ التجربة المجانية') : t('Get started', 'ابدأ')}
+                          </Link>
+                        </Button>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -186,8 +141,8 @@ export function PricingPageClient() {
                   </h3>
                   <p className="mt-2 text-sm text-slate-400">
                     {t(
-                      'After your free trial, go to Billing in your dashboard. Choose monthly (Subscribe with PayPal) or a one-time plan (1, 3, 6, or 12 months). Payment is via PayPal. Your business stays visible to customers as long as your subscription is active.',
-                      'بعد التجربة المجانية، اذهب إلى الفوترة في لوحة التحكم. اختر شهري (الاشتراك عبر PayPal) أو خطة لمرة واحدة (1، 3، 6 أو 12 شهراً). الدفع عبر PayPal. يبقى مشروعك ظاهراً للعملاء طالما اشتراكك نشط.'
+                      'After your free trial, go to Billing in your dashboard. Choose Basic, Pro, or Ultra. Pay monthly or yearly (11 months + 1 free) via Bank of Palestine or PayPal. Your business stays visible as long as your subscription is active.',
+                      'بعد التجربة المجانية، اذهب إلى الفوترة في لوحة التحكم. اختر باسيك أو برو أو ألترا. ادفع شهرياً أو سنوياً (١١ شهراً + ١ مجاني) عبر بنك فلسطين أو PayPal. يبقى مشروعك ظاهراً طالما اشتراكك نشط.'
                     )}
                   </p>
                 </div>

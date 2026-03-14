@@ -9,8 +9,7 @@ const APP_BASE =
 
 /**
  * POST – Create a PayPal checkout order for a one-time plan.
- * Body: { planId: '1m' | '3m' | '6m' | '12m' }
- * Returns { orderId, approveUrl }. Client should redirect to approveUrl.
+ * Body: { planId: 'basic-monthly' | 'basic-yearly' | 'pro-monthly' | 'pro-yearly' | 'ultra-monthly' | 'ultra-yearly' }
  */
 export async function POST(
   req: NextRequest,
@@ -31,14 +30,13 @@ export async function POST(
 
     const body = await req.json().catch(() => ({}))
     const planId = (body?.planId ?? '').trim().toLowerCase() as PlanId
-    if (!planId || !SUBSCRIPTION_PLANS[planId]) {
+    const plan = planId ? SUBSCRIPTION_PLANS[planId as keyof typeof SUBSCRIPTION_PLANS] : null
+    if (!planId || !plan) {
       return NextResponse.json(
-        { error: 'Invalid planId. Use one of: 1m, 3m, 6m, 12m' },
+        { error: 'Invalid planId. Use: basic-monthly, basic-yearly, pro-monthly, pro-yearly, ultra-monthly, ultra-yearly' },
         { status: 400 }
       )
     }
-
-    const plan = SUBSCRIPTION_PLANS[planId]
     const base = APP_BASE || req.nextUrl?.origin || 'http://localhost:3000'
     const billingPath = `/t/${slug}/manage/billing`
     const returnUrl = `${base}${billingPath}?paypal_return=1`

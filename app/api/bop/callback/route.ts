@@ -6,7 +6,7 @@ import {
   isBOPConfigured,
   parseBOPInternalReference,
 } from '@/lib/bop-payments'
-import { SUBSCRIPTION_PLANS, addMonthsToDate, type PlanId } from '@/lib/subscription'
+import { SUBSCRIPTION_PLANS, addMonthsToDate } from '@/lib/subscription'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const plan = SUBSCRIPTION_PLANS[planId as PlanId]
+  const plan = SUBSCRIPTION_PLANS[planId as keyof typeof SUBSCRIPTION_PLANS]
   if (!plan) {
     return NextResponse.redirect(`${APP_BASE}/t/${slug}/manage/billing?bop_error=invalid_plan`)
   }
@@ -81,6 +81,8 @@ export async function GET(req: NextRequest) {
     .set({
       subscriptionExpiresAt: newExpiresAt.toISOString(),
       subscriptionStatus: 'active',
+      subscriptionPlan: plan.tier,
+      subscriptionLastPaymentAt: new Date().toISOString(),
     })
     .commit()
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
+import { getTenantBySlug } from '@/lib/tenant'
+import { getProductLimit, getEffectivePlanTier } from '@/lib/subscription'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -56,6 +58,25 @@ export async function POST(
   )
 
   if (!existing) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
+
+  const tenant = await getTenantBySlug(slug, { useCdn: false })
+  const tier = tenant ? getEffectivePlanTier(tenant) : 'basic'
+  const limit = getProductLimit(tier)
+  if (limit !== null) {
+    const count = await writeClient.fetch<number>(
+      `count(*[_type == "product" && site._ref == $siteId])`,
+      { siteId: auth.tenantId }
+    )
+    if (count >= limit) {
+      const upgradeMsg = tier === 'basic'
+        ? 'Product limit reached (30). Upgrade to Pro or Ultra in Billing.'
+        : 'Product limit reached (50). Upgrade to Ultra for unlimited products in Billing.'
+      return NextResponse.json(
+        { error: upgradeMsg, code: 'PRODUCT_LIMIT_REACHED', limit, currentCount: count },
+        { status: 403 }
+      )
+    }
+  }
 
   const title_en = `${(existing.title_en ?? '').trim() || 'Product'}${COPY_SUFFIX_EN}`
   const title_ar = `${(existing.title_ar ?? '').trim() || 'منتج'}${COPY_SUFFIX_AR}`

@@ -36,7 +36,7 @@ export function parseBOPInternalReference(ref: string): { slug: string; planId: 
   if (parts.length < 2) return null
   const [slug, planId] = parts
   if (!slug || !planId) return null
-  const validPlans = ['1m', '3m', '6m', '12m']
+  const validPlans = ['basic-monthly', 'basic-yearly', 'pro-monthly', 'pro-yearly', 'ultra-monthly', 'ultra-yearly']
   if (!validPlans.includes(planId.toLowerCase())) return null
   return { slug: slug.trim(), planId: planId.toLowerCase() }
 }

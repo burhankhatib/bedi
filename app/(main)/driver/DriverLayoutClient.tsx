@@ -22,6 +22,7 @@ import { DriverSidebarActions } from './DriverSidebarActions'
 import { PWAManager } from '@/components/pwa/PWAManager'
 import { PWAInstallIcon } from '@/components/pwa/PWAInstallIcon'
 import { PWAReinstallHelp } from '@/components/pwa/PWAReinstallHelp'
+import { DriverPushStatusCard } from '@/components/push/DriverPushStatusCard'
 import { getDriverPWAConfig } from '@/lib/pwa/configs'
 import { isStandaloneMode } from '@/lib/pwa/detect'
 import { PREFER_DRIVER_KEY } from '@/components/StandaloneDriverRedirect'
@@ -163,7 +164,8 @@ export function DriverLayoutClient({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <PWAInstallIcon config={getDriverPWAConfig()} className="bg-emerald-500/20 text-emerald-400 ring-emerald-400/30 hover:bg-emerald-500/30" />
-            <PWAReinstallHelp config={getDriverPWAConfig()} variant="icon" />
+            {/* When PWA installed: reinstall moved to bottom PushStatusCard */}
+            {!isStandaloneMode() && <PWAReinstallHelp config={getDriverPWAConfig()} variant="icon" />}
             <DriverDashboardNav />
           </div>
         </div>
@@ -232,7 +234,7 @@ export function DriverLayoutClient({
 
               <div className="my-2 border-t border-slate-800/60 mx-2"></div>
 
-              <PWAReinstallHelp config={getDriverPWAConfig()} variant="menuitem" className="mx-1" />
+              {!isStandaloneMode() && <PWAReinstallHelp config={getDriverPWAConfig()} variant="menuitem" className="mx-1" />}
 
               {!hasNoProfileYet && <DriverInviteInMenu />}
               {!hasNoProfileYet && <DriverSidebarActions />}
@@ -256,6 +258,7 @@ export function DriverLayoutClient({
         <DriverOrdersGate>
           {children}
         </DriverOrdersGate>
+        <DriverPushStatusCard />
       </main>
     </div>
     </DriverStatusProvider>

@@ -6,16 +6,18 @@ import { getTenantBySlug } from '@/lib/tenant'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
-/** GET areas for a tenant. Public (no auth) so customers can load delivery areas on the menu page. Uses no-CDN so customers always see the latest areas. */
+/** GET areas for a tenant. Public (no auth) so customers can load delivery areas on the menu page. Uses CDN by default; add ?refresh=1 for fresh data. */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params
-  const tenant = await getTenantBySlug(slug, { useCdn: false })
+  const refresh = new URL(req.url).searchParams.get('refresh') === '1'
+  const tenant = await getTenantBySlug(slug, { useCdn: !refresh })
   if (!tenant) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const list = await clientNoCdn.fetch<
+  const readClient = refresh ? clientNoCdn : client
+  const list = await readClient.fetch<
     Array<{
       _id: string
       name_en: string
@@ -30,7 +32,9 @@ export async function GET(
     `*[_type == "area" && site._ref == $siteId && isActive == true] | order(sortOrder asc, name_en asc) { _id, name_en, name_ar, deliveryPrice, currency, isActive, sortOrder, estimatedTime }`,
     { siteId: tenant._id }
   )
-  return NextResponse.json(list || [])
+  return NextResponse.json(list || [], {
+    headers: refresh ? { 'Cache-Control': 'no-store' } : { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+  })
 }
 
 export async function POST(

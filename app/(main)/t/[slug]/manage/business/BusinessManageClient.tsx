@@ -11,9 +11,10 @@ import { compressImageForUpload } from '@/lib/compress-image'
 import { getCountryNameAr, getCityNameAr } from '@/lib/registration-translations'
 import { toEnglishDigits } from '@/lib/phone'
 import { detectCityAndCountry } from '@/lib/geofencing-utils'
-import { Upload, ImageIcon, Volume2, Play, AlertTriangle, Trash2, Store, UtensilsCrossed, Clock, MapPin, Save, LocateFixed } from 'lucide-react'
+import { Upload, ImageIcon, Volume2, Play, AlertTriangle, Trash2, Store, UtensilsCrossed, Clock, MapPin, Save, LocateFixed, RefreshCw } from 'lucide-react'
 import { TenantQRCode } from '@/components/TenantQRCode'
 import { useTenantBusiness } from '../TenantBusinessContext'
+import { isAbortError } from '@/lib/abort-utils'
 import dynamic from 'next/dynamic'
 
 const LocationPickerMap = dynamic(() => import('@/components/Cart/LocationPickerMap'), { ssr: false })
@@ -327,7 +328,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
         setCountries(Array.isArray(list) ? list : [])
       })
       .catch((err) => {
-        if ((err as Error)?.name === 'AbortError') return
+        if (isAbortError(err)) return
         if (!mountedRef.current) return
         setCountries([])
       })
@@ -442,7 +443,8 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
       fetch('/api/geo', { signal: controller.signal }).then((r) => r.json()).catch(() => defaultGeo),
     ])
       .then(([d, geo]) => applyBusinessAndGeo(d as BusinessData, geo as typeof defaultGeo))
-      .catch(() => {
+      .catch((err) => {
+        if (isAbortError(err)) return
         if (!controller.signal.aborted) setLoading(false)
       })
       .finally(() => {
@@ -478,7 +480,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
         setCities(Array.isArray(list) ? list : [])
       })
       .catch((err) => {
-        if ((err as Error)?.name === 'AbortError') return
+        if (isAbortError(err)) return
         if (!mountedRef.current) return
         setCities([])
       })
@@ -508,7 +510,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
         setSubcategories(Array.isArray(data) ? data : [])
       })
       .catch((err) => {
-        if ((err as Error)?.name === 'AbortError') return
+        if (isAbortError(err)) return
         if (!mountedRef.current) return
         setSubcategories([])
       })
@@ -702,14 +704,28 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
       initial="hidden"
       animate="show"
     >
-      <motion.div variants={itemVariants} className="px-2 md:px-0">
-        <h1 className="text-2xl font-black md:text-3xl tracking-tight text-white">{t('Manage Business', 'إدارة العمل')}</h1>
-        <p className="mt-2 text-slate-400 text-sm md:text-base leading-relaxed">
-          {t(
-            'Edit your store name, country & city (for delivery), and store details shown on your menu page.',
-            'عدّل اسم المتجر والبلد والمدينة (للتوصيل)، وتفاصيل المتجر المعروضة على صفحة القائمة.'
-          )}
-        </p>
+      <motion.div variants={itemVariants} className="px-2 md:px-0 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black md:text-3xl tracking-tight text-white">{t('Manage Business', 'إدارة العمل')}</h1>
+          <p className="mt-2 text-slate-400 text-sm md:text-base leading-relaxed">
+            {t(
+              'Edit your store name, country & city (for delivery), and store details shown on your menu page.',
+              'عدّل اسم المتجر والبلد والمدينة (للتوصيل)، وتفاصيل المتجر المعروضة على صفحة القائمة.'
+            )}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white shrink-0"
+          onClick={() => businessContext.refetch(true)}
+          disabled={businessContext.loading}
+          title={t('Refresh data', 'تحديث البيانات')}
+        >
+          <RefreshCw className="mr-2 size-4" />
+          {t('Refresh', 'تحديث')}
+        </Button>
       </motion.div>
 
       {/* Menu QR Code — only on Business Profile */}

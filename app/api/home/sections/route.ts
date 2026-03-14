@@ -3,8 +3,8 @@ import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
 import { normalizeSectionKey, canonicalSectionKey } from '@/lib/section-key'
 
-/** Dynamic route to ensure city-specific categories don't get mixed via static cache. */
-export const dynamic = 'force-dynamic'
+/** Cached per URL (city + category) for 60s to reduce Sanity API usage. */
+export const revalidate = 60
 
 type ImageSource = { asset?: { _ref: string } } | null | undefined
 

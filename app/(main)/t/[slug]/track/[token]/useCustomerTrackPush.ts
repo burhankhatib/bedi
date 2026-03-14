@@ -186,13 +186,17 @@ export function useCustomerTrackPush(slug: string, token: string) {
   }, [doSubscribe])
 
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const refreshToken = useCallback(async () => {
+  const refreshToken = useCallback(async (): Promise<boolean> => {
     setIsRefreshing(true)
     const contextKey = PUSH_CONTEXT_KEYS.customer(slug, token)
     clearStoredPushOk(contextKey)
     setHasPush(false)
-    await doSubscribe()
-    setIsRefreshing(false)
+    try {
+      const ok = await doSubscribe()
+      return ok
+    } finally {
+      setIsRefreshing(false)
+    }
   }, [doSubscribe, slug, token])
 
   useEffect(() => {

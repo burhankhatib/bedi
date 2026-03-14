@@ -5,7 +5,7 @@ import { getTenantBySlug, isTenantSubscriptionExpired } from '@/lib/tenant'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { AppNav } from '@/components/saas/AppNav'
-import { TenantPushSetup } from '@/components/TenantPushSetup'
+import { BusinessPushStatusCard } from '@/components/push/BusinessPushStatusCard'
 import { PWAManager } from '@/components/pwa/PWAManager'
 import { ManageNavClient } from './ManageNavClient'
 import { SubscriptionBanner } from './SubscriptionBanner'
@@ -66,6 +66,7 @@ export default async function ManageLayout({
     : null
 
   const permissions = auth.ok ? auth.permissions : []
+  const subscriptionPlan = (tenant?.subscriptionPlan as 'basic' | 'pro' | 'ultra') ?? null
 
   return (
     <div className="dark min-h-screen flex flex-col bg-slate-950 text-white">
@@ -77,12 +78,11 @@ export default async function ManageLayout({
           {/* Utility Components out of the flex-row flow */}
           <PWAManager role="business-manage" slug={slug} variant="inline" />
           <ManageLanguageSync slug={slug} />
-          <TenantPushSetup slug={slug} scope={`/t/${slug}/orders/`} />
 
           <div className="flex-1 flex flex-col md:flex-row w-full">
             {/* Sidebar / Mobile Nav */}
             <aside className="md:w-64 lg:w-72 md:shrink-0 md:border-r md:border-slate-800/60 md:py-8 md:px-2 md:sticky md:top-[73px] md:h-[calc(100vh-73px)] md:overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              <ManageNavClient slug={slug} permissions={permissions} />
+              <ManageNavClient slug={slug} permissions={permissions} subscriptionPlan={subscriptionPlan} />
             </aside>
 
             {/* Main Content */}
@@ -91,6 +91,7 @@ export default async function ManageLayout({
               <div className="pb-12">
                 {children}
               </div>
+              <BusinessPushStatusCard slug={slug} />
             </main>
           </div>
         </div>

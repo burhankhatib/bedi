@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
     clerkUserId: userId,
     ...(clerkUserEmail ? { clerkUserEmail } : {}),
     subscriptionStatus: 'trial',
+    subscriptionPlan: 'ultra',
     createdAt,
     subscriptionExpiresAt,
   })

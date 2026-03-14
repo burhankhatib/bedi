@@ -42,11 +42,12 @@ export async function POST(
 
     const capture = await capturePayPalOrder(orderId)
     let planId = (capture.customId?.trim().toLowerCase() ?? '') as PlanId
-    if (!planId || !SUBSCRIPTION_PLANS[planId]) {
+    if (!planId || !SUBSCRIPTION_PLANS[planId as keyof typeof SUBSCRIPTION_PLANS]) {
       const order = await getPayPalOrder(orderId)
       planId = (order.custom_id?.trim().toLowerCase() ?? '') as PlanId
     }
-    if (!planId || !SUBSCRIPTION_PLANS[planId]) {
+    const planDef = planId ? SUBSCRIPTION_PLANS[planId as keyof typeof SUBSCRIPTION_PLANS] : null
+    if (!planId || !planDef) {
       return NextResponse.json(
         { error: 'Could not determine plan from order' },
         { status: 400 }
@@ -63,7 +64,7 @@ export async function POST(
       new Date(tenant.subscriptionExpiresAt) > new Date()
         ? new Date(tenant.subscriptionExpiresAt)
         : new Date()
-    const months = SUBSCRIPTION_PLANS[planId].months
+    const months = planDef.months
     const newExpiresAt = addMonthsToDate(from, months)
 
     await writeClient
@@ -71,6 +72,8 @@ export async function POST(
       .set({
         subscriptionExpiresAt: newExpiresAt.toISOString(),
         subscriptionStatus: 'active',
+        subscriptionPlan: planDef.tier,
+        subscriptionLastPaymentAt: new Date().toISOString(),
       })
       .commit()
 
@@ -79,6 +82,7 @@ export async function POST(
       subscriptionExpiresAt: newExpiresAt.toISOString(),
       plan: planId,
       monthsAdded: months,
+      subscriptionPlan: planDef.tier,
     })
   } catch (e) {
     console.error('[Subscription capture-order]', e)

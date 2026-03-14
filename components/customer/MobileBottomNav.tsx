@@ -17,6 +17,7 @@ function isCustomerPath(pathname: string): boolean {
   if (pathname === '/') return true
   if (pathname === '/search') return true
   if (pathname === '/my-orders') return true
+  if (pathname === '/my-questions') return true
   if (pathname.startsWith('/order')) return true
   if (pathname.startsWith('/resolve')) return true
   if (pathname.startsWith('/join')) return true

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
+import { getTenantBySlug } from '@/lib/tenant'
+import { getProductLimit, getEffectivePlanTier } from '@/lib/subscription'
 import { uploadImageFromUrl, type ClientWithUpload } from '@/lib/sanity-upload'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
@@ -16,8 +18,10 @@ export async function GET(
   const auth = await checkTenantAuth(slug)
   if (!auth.ok) return NextResponse.json({ error: 'Forbidden' }, { status: auth.status })
 
-  // use writeClient (no CDN) so new products show immediately after create / live refresh
-  const list = await writeClient.fetch<Array<Record<string, unknown>>>(
+  const refresh = new URL(req.url).searchParams.get('refresh') === '1'
+  const readClient = refresh ? writeClient : client
+
+  const list = await readClient.fetch<Array<Record<string, unknown>>>(
     `*[_type == "product" && site._ref == $siteId] | order(sortOrder asc) { ${PRODUCT_FIELDS} }`,
     { siteId: auth.tenantId }
   )
@@ -25,7 +29,9 @@ export async function GET(
     ...p,
     categoryId: p.categoryRef ?? p.category,
   }))
-  return NextResponse.json(normalized, { headers: { 'Cache-Control': 'no-store' } })
+  return NextResponse.json(normalized, {
+    headers: refresh ? { 'Cache-Control': 'no-store' } : { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+  })
 }
 
 export async function POST(
@@ -66,6 +72,26 @@ export async function POST(
 
   if (!title_en || !title_ar || price == null || !categoryId) {
     return NextResponse.json({ error: 'title_en, title_ar, price and categoryId required' }, { status: 400 })
+  }
+
+  // Product limit: Basic 30, Pro 50, Ultra unlimited
+  const tenant = await getTenantBySlug(slug, { useCdn: false })
+  const tier = tenant ? getEffectivePlanTier(tenant) : 'basic'
+  const limit = getProductLimit(tier)
+  if (limit !== null) {
+    const count = await writeClient.fetch<number>(
+      `count(*[_type == "product" && site._ref == $siteId])`,
+      { siteId: auth.tenantId }
+    )
+    if (count >= limit) {
+      const upgradeMsg = tier === 'basic'
+        ? 'Product limit reached (30). Upgrade to Pro (50 products) or Ultra (unlimited) in Billing.'
+        : 'Product limit reached (50). Upgrade to Ultra for unlimited products in Billing.'
+      return NextResponse.json(
+        { error: upgradeMsg, code: 'PRODUCT_LIMIT_REACHED', limit, currentCount: count },
+        { status: 403 }
+      )
+    }
   }
 
   let imageRef: string | null = (imageAssetId && typeof imageAssetId === 'string') ? imageAssetId : null

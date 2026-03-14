@@ -37,7 +37,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/ToastProvider'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
-import { CustomerTrackPushSetup } from './CustomerTrackPushSetup'
+import { CustomerTrackPushStatusCard } from '@/components/push/CustomerTrackPushStatusCard'
 import { CustomerTrackPushGate } from './CustomerTrackPushGate'
 
 type OrderStatus =
@@ -2192,7 +2192,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
               : t('Enable notifications to stay updated on your order status.', 'فعّل الإشعارات لتصلك تحديثات حالة طلبك.')}
           </p>
         </div>
-        <CustomerTrackPushSetup slug={slug} token={token} />
+        <CustomerTrackPushStatusCard slug={slug} token={token} />
         {isDelivery && !['completed', 'cancelled', 'refunded'].includes(data.order.status ?? '') && (
           <CustomerLocationShare orderId={data.order._id} trackingToken={token} />
         )}

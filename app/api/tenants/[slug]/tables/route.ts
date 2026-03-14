@@ -1,27 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { clientNoCdn } from '@/sanity/lib/client'
+import { client, clientNoCdn } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 import { getTenantBySlug } from '@/lib/tenant'
 
 const writeClient = clientNoCdn.withConfig({ token: token || undefined, useCdn: false })
 
-/** GET tables for a tenant. Public so menu can validate ?table= when present. */
+/** GET tables for a tenant. Public so menu can validate ?table= when present. Uses CDN by default; add ?refresh=1 for fresh data. */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params
-  const tenant = await getTenantBySlug(slug, { useCdn: false })
+  const refresh = new URL(req.url).searchParams.get('refresh') === '1'
+  const tenant = await getTenantBySlug(slug, { useCdn: !refresh })
   if (!tenant) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const list = await clientNoCdn.fetch<
-    Array<{ _id: string; tableNumber: string; sortOrder?: number }>
+  const readClient = refresh ? clientNoCdn : client
+  const list = await readClient.fetch<
+  Array<{ _id: string; tableNumber: string; sortOrder?: number }>
   >(
     `*[_type == "tenantTable" && site._ref == $siteId] | order(sortOrder asc, tableNumber asc) { _id, tableNumber, sortOrder }`,
     { siteId: tenant._id }
   )
-  return NextResponse.json(list ?? [])
+  return NextResponse.json(list ?? [], {
+    headers: refresh ? { 'Cache-Control': 'no-store' } : { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+  })
 }
 
 /** POST: add table(s). Body: { tableNumbers: string[] } (e.g. ["1","2"] or ["1","2",...,"20"]) or { single: string } or { rangeFrom: number, rangeTo: number }. */

@@ -5,12 +5,13 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { SUBSCRIPTION_PLANS, addMonthsToDate, type PlanId } from '@/lib/subscription'
 
+type PlanIdKey = keyof typeof SUBSCRIPTION_PLANS
+
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
 /**
- * POST – Extend subscription by plan (after tenant pays via PayPal).
- * Body: { plan: '1m' | '3m' | '6m' | '12m' }
- * Sets subscriptionExpiresAt to (current expiry or now) + plan months; sets subscriptionStatus to 'active'.
+ * POST – Extend subscription by plan (after tenant pays).
+ * Body: { plan: 'basic-monthly' | 'basic-yearly' | 'pro-monthly' | 'pro-yearly' | 'ultra-monthly' | 'ultra-yearly' }
  */
 export async function POST(
   req: NextRequest,
@@ -24,10 +25,11 @@ export async function POST(
     }
 
     const body = await req.json().catch(() => ({}))
-    const plan = (body?.plan ?? '').trim().toLowerCase() as PlanId
-    if (!plan || !SUBSCRIPTION_PLANS[plan]) {
+    const plan = (body?.plan ?? '').trim().toLowerCase() as PlanIdKey
+    const planDef = plan ? SUBSCRIPTION_PLANS[plan] : null
+    if (!plan || !planDef) {
       return NextResponse.json(
-        { error: 'Invalid plan. Use one of: 1m, 3m, 6m, 12m' },
+        { error: 'Invalid plan. Use: basic-monthly, basic-yearly, pro-monthly, pro-yearly, ultra-monthly, ultra-yearly' },
         { status: 400 }
       )
     }
@@ -40,12 +42,14 @@ export async function POST(
     const from = tenant.subscriptionExpiresAt && new Date(tenant.subscriptionExpiresAt) > new Date()
       ? new Date(tenant.subscriptionExpiresAt)
       : new Date()
-    const months = SUBSCRIPTION_PLANS[plan].months
+    const months = planDef.months
     const newExpiresAt = addMonthsToDate(from, months)
 
     await writeClient.patch(tenant._id).set({
       subscriptionExpiresAt: newExpiresAt.toISOString(),
       subscriptionStatus: 'active',
+      subscriptionPlan: planDef.tier,
+      subscriptionLastPaymentAt: new Date().toISOString(),
     }).commit()
 
     return NextResponse.json({

@@ -14,14 +14,18 @@ export async function GET(
   const auth = await checkTenantAuth(slug)
   if (!auth.ok) return NextResponse.json({ error: 'Forbidden' }, { status: auth.status })
 
-  // use writeClient (no CDN) so live refreshes see newly created categories immediately
-  const list = await writeClient.fetch<
+  const refresh = new URL(req.url).searchParams.get('refresh') === '1'
+  const readClient = refresh ? writeClient : client
+
+  const list = await readClient.fetch<
     Array<{ _id: string; title_en: string; title_ar: string; slug: { current: string }; sortOrder?: number; productSortMode?: string }>
   >(
     `*[_type == "category" && site._ref == $siteId] | order(sortOrder asc) { _id, title_en, title_ar, "slug": slug.current, sortOrder, productSortMode }`,
     { siteId: auth.tenantId }
   )
-  return NextResponse.json(list || [], { headers: { 'Cache-Control': 'no-store' } })
+  return NextResponse.json(list || [], {
+    headers: refresh ? { 'Cache-Control': 'no-store' } : { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' },
+  })
 }
 
 export async function POST(

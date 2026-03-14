@@ -3,11 +3,9 @@ import { client } from '@/sanity/lib/client'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 import { getCommonMenuSections } from '@/lib/menu-sections'
 
-const freshClient = client.withConfig({ useCdn: false })
+/** GET: Suggested menu section names for this tenant. Returns common sections + subcategories matching tenant's businessType. Uses CDN (reference data changes rarely). */
+export const revalidate = 300
 
-export const dynamic = 'force-dynamic'
-
-/** GET: Suggested menu section names for this tenant. Returns common sections + subcategories matching tenant's businessType. */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -16,13 +14,13 @@ export async function GET(
   const auth = await checkTenantAuth(slug)
   if (!auth.ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const tenant = await freshClient.fetch<{ businessType?: string } | null>(
+  const tenant = await client.fetch<{ businessType?: string } | null>(
     `*[_type == "tenant" && _id == $tenantId][0]{ businessType }`,
     { tenantId: auth.tenantId }
   )
   const businessType = tenant?.businessType ?? 'restaurant'
 
-  const subcategories = await freshClient.fetch<
+  const subcategories = await client.fetch<
     Array<{ _id: string; title_en?: string; title_ar?: string }>
   >(
     `*[_type == "businessSubcategory" && businessType == $businessType] | order(sortOrder asc, title_en asc) { _id, title_en, title_ar }`,

@@ -13,6 +13,7 @@ import { CustomerSidebarActions } from './CustomerSidebarActions'
 import { PWAInstallIcon } from '@/components/pwa/PWAInstallIcon'
 import { PWAReinstallHelp } from '@/components/pwa/PWAReinstallHelp'
 import { getTenantDashboardPWAConfig } from '@/lib/pwa/configs'
+import { isStandaloneMode } from '@/lib/pwa/detect'
 
 interface AppNavClientProps {
   variant: 'landing' | 'dashboard'
@@ -109,7 +110,8 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
             {variant === 'dashboard' && (
               <>
                 <PWAInstallIcon config={getTenantDashboardPWAConfig()} className="bg-emerald-500/20 text-emerald-400 ring-emerald-400/30 hover:bg-emerald-500/30" />
-                <PWAReinstallHelp config={getTenantDashboardPWAConfig()} variant="icon" />
+                {/* When PWA installed: reinstall moved to bottom PushStatusCard; hide from header */}
+                {!isStandaloneMode() && <PWAReinstallHelp config={getTenantDashboardPWAConfig()} variant="icon" />}
                 <Button asChild variant="ghost" size="sm" className="text-slate-400 hover:text-white">
                   <Link href="/dashboard">
                     <LayoutDashboard className="mr-1.5 size-4" />
@@ -180,7 +182,7 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
               <>
                 {langSwitcher}
                 <PWAInstallIcon config={getTenantDashboardPWAConfig()} className="bg-emerald-500/20 text-emerald-400 ring-emerald-400/30 hover:bg-emerald-500/30" />
-                <PWAReinstallHelp config={getTenantDashboardPWAConfig()} variant="icon" />
+                {!isStandaloneMode() && <PWAReinstallHelp config={getTenantDashboardPWAConfig()} variant="icon" />}
                 <Button
                   variant="ghost"
                   size="icon"

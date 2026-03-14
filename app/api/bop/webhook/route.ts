@@ -6,7 +6,7 @@ import {
   isBOPConfigured,
   parseBOPInternalReference,
 } from '@/lib/bop-payments'
-import { SUBSCRIPTION_PLANS, addMonthsToDate, type PlanId } from '@/lib/subscription'
+import { SUBSCRIPTION_PLANS, addMonthsToDate } from '@/lib/subscription'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const plan = SUBSCRIPTION_PLANS[planId as PlanId]
+  const plan = SUBSCRIPTION_PLANS[planId as keyof typeof SUBSCRIPTION_PLANS]
   if (!plan) {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
   }
@@ -75,6 +75,8 @@ export async function POST(req: NextRequest) {
     .set({
       subscriptionExpiresAt: newExpiresAt.toISOString(),
       subscriptionStatus: 'active',
+      subscriptionPlan: plan.tier,
+      subscriptionLastPaymentAt: new Date().toISOString(),
     })
     .commit()
 

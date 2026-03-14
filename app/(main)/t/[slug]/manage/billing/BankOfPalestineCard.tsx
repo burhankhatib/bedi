@@ -3,9 +3,7 @@
 import Image from 'next/image'
 import { motion } from 'motion/react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { SUBSCRIPTION_PLANS, type PlanId } from '@/lib/subscription'
-
-const PLAN_ORDER: PlanId[] = ['1m', '3m', '6m', '12m']
+import { SUBSCRIPTION_PLANS, BILLING_PLAN_IDS, type PlanId } from '@/lib/subscription'
 const BOP_COLOR = '#aa2267'
 
 type T = (en: string, ar: string) => string
@@ -60,7 +58,7 @@ export function BankOfPalestineCard({ t, isRtl }: { t: T; isRtl: boolean }) {
                 {t('Scan the QR code below with the app.', 'امسح رمز QR أدناه باستخدام التطبيق.')}
               </li>
               <li>
-                {t('Pay 350 ILS or more according to the plan you want (see prices below).', 'ادفع 350 شيكل أو أكثر حسب الخطة التي تريدها (انظر الأسعار أدناه).')}
+                {t('Pay according to the plan you want (see prices below).', 'ادفع حسب الخطة التي تريدها (انظر الأسعار أدناه).')}
               </li>
             </ol>
           </div>
@@ -91,7 +89,7 @@ export function BankOfPalestineCard({ t, isRtl }: { t: T; isRtl: boolean }) {
                 {t('Plans and prices (pay this amount or more)', 'الباقات والأسعار (ادفع هذا المبلغ أو أكثر)')}:
               </p>
               <ul className="space-y-3 text-base text-slate-300 sm:text-lg">
-                {PLAN_ORDER.map((planId) => {
+                {BILLING_PLAN_IDS.map((planId) => {
                   const plan = SUBSCRIPTION_PLANS[planId]
                   return (
                     <li key={planId} className="flex justify-between gap-3">

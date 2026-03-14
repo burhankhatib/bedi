@@ -180,6 +180,20 @@ export const tenantType = defineType({
       initialValue: 'trial',
     }),
     defineField({
+      name: 'subscriptionPlan',
+      title: 'Subscription Plan Tier',
+      type: 'string',
+      description: 'basic | pro | ultra. Trial = ultra for 30 days. Set when tenant pays via BOP.',
+      options: {
+        list: [
+          { title: 'Trial (Ultra)', value: 'ultra' },
+          { title: 'Basic', value: 'basic' },
+          { title: 'Pro', value: 'pro' },
+          { title: 'Ultra', value: 'ultra' },
+        ],
+      },
+    }),
+    defineField({
       name: 'createdAt',
       title: 'Created At',
       type: 'datetime',

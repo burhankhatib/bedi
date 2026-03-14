@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 
-const freshClient = client.withConfig({ useCdn: false })
+/** GET: List business sub-categories, optionally filtered by businessType. Used by onboarding and Studio. Uses CDN (reference data changes rarely). */
+export const revalidate = 300
 
-export const dynamic = 'force-dynamic'
-
-/** GET: List business sub-categories, optionally filtered by businessType. Used by onboarding and Studio. */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const businessType = searchParams.get('businessType') ?? ''
@@ -15,7 +13,7 @@ export async function GET(req: NextRequest) {
     : `_type == "businessSubcategory"`
   const params = businessType ? { businessType } : {}
 
-  const list = await freshClient.fetch<
+  const list = await client.fetch<
     Array<{
       _id: string
       slug?: { current?: string }

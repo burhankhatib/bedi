@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useLanguage } from '@/components/LanguageContext'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, Calendar, WifiOff } from 'lucide-react'
+import { isAbortError } from '@/lib/abort-utils'
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const TRIAL_DAYS = 30
@@ -67,7 +68,7 @@ export function SubscriptionBanner({ slug, initialData = null }: { slug: string;
         setStatus(data?.subscriptionStatus ?? 'trial')
       })
       .catch((err) => {
-        if ((err as Error)?.name === 'AbortError') return
+        if (isAbortError(err)) return
       })
       .finally(() => {
         if (mountedRef.current && !ac.signal.aborted) setLoaded(true)

@@ -23,12 +23,13 @@ export default async function ManageBillingPage({
   const subscriptionExpiresAt = tenant?.subscriptionExpiresAt ?? null
   const subscriptionLastPaymentAt = tenant?.subscriptionLastPaymentAt ?? null
   const subscriptionStatus = tenant?.subscriptionStatus ?? 'trial'
+  const subscriptionPlan = (tenant?.subscriptionPlan as 'basic' | 'pro' | 'ultra') ?? null
   const paypalSubscriptionId = tenant?.paypalSubscriptionId ?? null
   const useOrdersApi = isPayPalOrdersEnabled()
   const subscriptionPlanId =
     process.env.NEXT_PUBLIC_PAYPAL_SUBSCRIPTION_PLAN_ID?.trim() ?? ''
   const useBOP = isBOPConfigured()
-  const hidePayPal = useBOP && HIDE_PAYPAL // Hide PayPal when BOP is primary (set HIDE_PAYPAL_BILLING_OPTION=false to show both)
+  const hidePayPal = useBOP && HIDE_PAYPAL
 
   return (
     <BillingManageClient
@@ -36,6 +37,7 @@ export default async function ManageBillingPage({
       subscriptionExpiresAt={subscriptionExpiresAt}
       subscriptionLastPaymentAt={subscriptionLastPaymentAt}
       subscriptionStatus={subscriptionStatus}
+      subscriptionPlan={subscriptionPlan}
       paypalSubscriptionId={paypalSubscriptionId}
       useOrdersApi={useOrdersApi}
       subscriptionPlanId={subscriptionPlanId}

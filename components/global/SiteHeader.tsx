@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { MapPin, ChevronDown, User, LogIn, Store, Truck, Menu, ClipboardList, LogOut, Bell, ShoppingCart } from 'lucide-react'
+import { MapPin, ChevronDown, User, LogIn, Store, Truck, Menu, ClipboardList, LogOut, Bell, ShoppingCart, Sparkles } from 'lucide-react'
 import { useUser, useClerk } from '@clerk/nextjs'
 import { useLocation } from '@/components/LocationContext'
 import { getCityDisplayName } from '@/lib/registration-translations'
@@ -208,6 +208,14 @@ export function SiteHeader({ variant = 'home' }: SiteHeaderProps) {
           >
             <ClipboardList className="w-5 h-5 text-slate-500" />
             {t('My orders', 'طلباتي')}
+          </Link>
+          <Link
+            href="/my-questions"
+            onClick={() => setMenuOpen(false)}
+            className="flex items-center gap-3 rounded-lg py-3 px-3 text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            <Sparkles className="w-5 h-5 text-slate-500" />
+            {t('Search history', 'سجل البحث')}
           </Link>
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-slate-600">{t('Account', 'الحساب')}</span>

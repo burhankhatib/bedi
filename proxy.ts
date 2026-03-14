@@ -17,6 +17,7 @@ function isPublicApiPath(path: string): boolean {
   if (!path.startsWith('/api/')) return false
   // Home discovery (cities, banners, categories, sections, tenants, popular-products, subcategories)
   if (path.startsWith('/api/home/')) return true
+  if (path.startsWith('/api/search/')) return true
   if (path === '/api/countries' || path === '/api/cities') return true
   if (path === '/api/contact') return true
   if (path === '/api/menu') return true

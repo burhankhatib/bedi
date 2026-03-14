@@ -65,6 +65,13 @@ export const customerType = defineType({
       initialValue: false,
       description: 'Super admin only: when true, this customer cannot place orders. They cannot override this.',
     }),
+    defineField({
+      name: 'aiSearchQuestions',
+      title: 'AI Search Questions',
+      type: 'text',
+      description: 'Questions the customer asked in the AI search. One per line. Used for personalization. Not shown in Studio list.',
+      rows: 8,
+    }),
   ],
   preview: {
     select: {

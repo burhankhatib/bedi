@@ -1,14 +1,17 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { Search, X, Store, UtensilsCrossed, Loader2 } from 'lucide-react'
+import { Search, X, Store, UtensilsCrossed, Loader2, Sparkles } from 'lucide-react'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
 import { cn } from '@/lib/utils'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
+import { isLikelyQuestion } from '@/lib/ai/question-detection'
+import { SearchAIPanel } from './SearchAIPanel'
+import { useSaveAiQuestion } from './useSaveAiQuestion'
 
 type BusinessHit = {
   _id: string
@@ -53,8 +56,11 @@ export function UniversalSearch({
   const { t, lang } = useLanguage()
   const { city, isChosen, setOpenLocationModal } = useLocation()
   const router = useRouter()
+  const { saveQuestion } = useSaveAiQuestion()
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [aiSubmittedQuery, setAiSubmittedQuery] = useState<string | null>(null)
+  const [pendingFollowUp, setPendingFollowUp] = useState<string | null>(null)
   const [results, setResults] = useState<{ businesses: BusinessHit[]; products: ProductHit[]; didYouMean: string | null } | null>(null)
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
@@ -68,8 +74,15 @@ export function UniversalSearch({
     return () => clearTimeout(t)
   }, [query])
 
+  const isAIMode = isLikelyQuestion(debouncedQuery)
+
   useEffect(() => {
     if (!debouncedQuery || debouncedQuery.length < MIN_QUERY_LENGTH) {
+      setResults(null)
+      setLoading(false)
+      return
+    }
+    if (isAIMode) {
       setResults(null)
       setLoading(false)
       return
@@ -110,10 +123,12 @@ export function UniversalSearch({
     }
     doFetch()
     return () => { mounted = false; ac.abort() }
-  }, [debouncedQuery, tenantSlug, city, isChosen, lang])
+  }, [debouncedQuery, tenantSlug, city, isChosen, lang, isAIMode])
 
   const totalItems = (results?.businesses?.length ?? 0) + (results?.products?.length ?? 0)
-  const showDropdown = open && query.trim().length >= MIN_QUERY_LENGTH
+  const showDropdown = open && (query.trim().length >= MIN_QUERY_LENGTH || !!aiSubmittedQuery)
+  const canShowAI = (isAIMode || aiSubmittedQuery) && city && isChosen && !tenantSlug
+  const showAIPanel = canShowAI && aiSubmittedQuery
   const flatItems: Array<{ type: 'business'; item: BusinessHit } | { type: 'product'; item: ProductHit }> = [
     ...(results?.businesses ?? []).map((b) => ({ type: 'business' as const, item: b })),
     ...(results?.products ?? []).map((p) => ({ type: 'product' as const, item: p })),
@@ -124,6 +139,7 @@ export function UniversalSearch({
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setOpen(false)
         setFocusedIndex(-1)
+        setAiSubmittedQuery(null)
       }
     }
     if (open) document.addEventListener('mousedown', handleClickOutside)
@@ -133,6 +149,16 @@ export function UniversalSearch({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!showDropdown) return
+      if (e.key === 'Escape') {
+        setOpen(false)
+        setFocusedIndex(-1)
+        setAiSubmittedQuery(null)
+        inputRef.current?.blur()
+        return
+      }
+      if (canShowAI && !aiSubmittedQuery) {
+        return
+      }
       if (e.key === 'ArrowDown') {
         e.preventDefault()
         setFocusedIndex((prev) => (prev < flatItems.length - 1 ? prev + 1 : prev))
@@ -140,37 +166,51 @@ export function UniversalSearch({
         e.preventDefault()
         setFocusedIndex((prev) => (prev > 0 ? prev - 1 : -1))
       } else if (e.key === 'Enter') {
-        e.preventDefault()
         if (focusedIndex >= 0 && flatItems[focusedIndex]) {
+          e.preventDefault()
           const { type, item } = flatItems[focusedIndex]
           if (type === 'business') router.push(`/t/${(item as BusinessHit).slug}`)
           else router.push(`/t/${(item as ProductHit).business.slug}#product-${(item as ProductHit)._id}`)
           setOpen(false)
           setQuery('')
         }
-      } else if (e.key === 'Escape') {
-        setOpen(false)
-        setFocusedIndex(-1)
-        inputRef.current?.blur()
+        // When in AI follow-up mode with no selection, let form submit (don't preventDefault)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showDropdown, focusedIndex, flatItems, router])
+  }, [showDropdown, focusedIndex, flatItems, router, canShowAI, aiSubmittedQuery])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const q = query.trim()
-    if (q) {
-      if (tenantSlug) {
-        router.push(`/t/${tenantSlug}?q=${encodeURIComponent(q)}`)
-      } else {
-        router.push(`/search?q=${encodeURIComponent(q)}`)
-      }
+    if (!q) return
+    if (tenantSlug) {
+      router.push(`/t/${tenantSlug}?q=${encodeURIComponent(q)}`)
       setOpen(false)
       setQuery('')
+      return
     }
+    if (canShowAI) {
+      saveQuestion(q)
+      if (aiSubmittedQuery) {
+        setPendingFollowUp(q)
+        setQuery('')
+        inputRef.current?.focus()
+      } else {
+        setAiSubmittedQuery(q)
+        setQuery('')
+        setOpen(true)
+        inputRef.current?.focus()
+      }
+      return
+    }
+    router.push(`/search?q=${encodeURIComponent(q)}`)
+    setOpen(false)
+    setQuery('')
   }
+
+  const clearFollowUp = useCallback(() => setPendingFollowUp(null), [])
 
   const applyDidYouMean = () => {
     if (results?.didYouMean) {
@@ -212,11 +252,12 @@ export function UniversalSearch({
           role="combobox"
           aria-expanded={!!showDropdown}
           aria-autocomplete="list"
-          placeholder={placeholder ?? defaultPlaceholder}
+          placeholder={aiSubmittedQuery ? (placeholder ?? t('Ask a follow-up...', 'اسأل سؤالاً إضافياً...')) : (placeholder ?? defaultPlaceholder)}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value)
             setResults(null)
+            if (!aiSubmittedQuery) setAiSubmittedQuery(null)
             setOpen(true)
             setFocusedIndex(-1)
           }}
@@ -237,6 +278,7 @@ export function UniversalSearch({
                   latestRequestRef.current += 1
                   setQuery('')
                   setResults(null)
+                  setAiSubmittedQuery(null)
                   setLoading(false)
                   inputRef.current?.focus()
                 }}
@@ -251,8 +293,40 @@ export function UniversalSearch({
       </form>
 
       {showDropdown && (
-          <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[min(400px,70vh)] overflow-y-auto z-[100]">
-            {loading && debouncedQuery ? (
+          <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[min(400px,70vh)] overflow-hidden z-[100] flex flex-col">
+            {showAIPanel ? (
+              <SearchAIPanel
+                query={aiSubmittedQuery!}
+                city={city!}
+                followUp={pendingFollowUp}
+                onFollowUpSent={clearFollowUp}
+                onSaveQuestion={saveQuestion}
+                onClose={() => { setOpen(false); setAiSubmittedQuery(null); setPendingFollowUp(null) }}
+              />
+            ) : canShowAI ? (
+              <div className="p-4 flex flex-col gap-3">
+                <div className="flex items-center gap-2 text-amber-600">
+                  <Sparkles className="size-4 shrink-0" />
+                  <span className="text-sm font-medium text-slate-700">
+                    {t('Ask AI', 'اسأل الذكاء الاصطناعي')}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600">
+                  {t('Type your question, then press Enter to ask.', 'اكتب سؤالك واضغط Enter للسؤال.')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const q = query.trim()
+                    if (q) setAiSubmittedQuery(q)
+                  }}
+                  className="self-start inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors"
+                >
+                  <Sparkles className="size-4" />
+                  {t('Ask', 'اسأل')}
+                </button>
+              </div>
+            ) : loading && debouncedQuery ? (
               <div className="flex items-center justify-center gap-2 py-12 text-slate-500">
                 <Loader2 className="size-5 animate-spin" />
                 <span className="text-sm">{t('Searching...', 'جاري البحث...')}</span>

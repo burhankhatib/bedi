@@ -29,12 +29,13 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Plus, Pencil, Trash2, Copy, ChevronDown, ChevronRight, GripVertical, AlertTriangle, Package } from 'lucide-react'
+import { Plus, Pencil, Trash2, Copy, ChevronDown, ChevronRight, GripVertical, AlertTriangle, Package, RefreshCw } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
 import { useTenantBusiness } from '../TenantBusinessContext'
 import { CatalogProductsModal } from './CatalogProductsModal'
 import { usePusherStream } from '@/lib/usePusherStream'
+import { isAbortError } from '@/lib/abort-utils'
 import { ProductFormModal, type ProductFormData } from './ProductFormModal'
 
 function SortableItem({
@@ -312,48 +313,60 @@ export function MenuManageClient({
     nameAr?: string
   } | null>(null)
 
-  const api = (path: string, options?: RequestInit) =>
-    fetch(`/api/tenants/${slug}${path}`, {
-      credentials: 'include',
-      ...options,
-      headers: { 'Content-Type': 'application/json', ...options?.headers },
-    })
+  const api = (path: string, options?: RequestInit & { refresh?: boolean }) => {
+    const { refresh, ...rest } = options ?? {}
+    const url = `/api/tenants/${slug}${path}${refresh ? '?refresh=1' : ''}`
+    return fetch(url, { credentials: 'include', ...rest, headers: { 'Content-Type': 'application/json', ...rest.headers } })
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  const reloadCategories = useCallback(async () => {
+  const reloadCategories = useCallback(async (forceRefresh = false) => {
     categoriesAbortRef.current?.abort()
     const ac = new AbortController()
     categoriesAbortRef.current = ac
     const requestId = ++latestCategoriesRequestRef.current
-    const res = await api('/categories', { signal: ac.signal })
-    const data = await res.json()
-    if (!mountedRef.current || ac.signal.aborted || latestCategoriesRequestRef.current !== requestId) return
-    if (res.ok && Array.isArray(data)) setCategories(data)
+    try {
+      const res = await api('/categories', { signal: ac.signal, refresh: forceRefresh })
+      const data = await res.json()
+      if (!mountedRef.current || ac.signal.aborted || latestCategoriesRequestRef.current !== requestId) return
+      if (res.ok && Array.isArray(data)) setCategories(data)
+    } catch (err) {
+      if (isAbortError(err)) return
+    }
   }, [slug])
-  const reloadProducts = useCallback(async () => {
+  const reloadProducts = useCallback(async (forceRefresh = false) => {
     productsAbortRef.current?.abort()
     const ac = new AbortController()
     productsAbortRef.current = ac
     const requestId = ++latestProductsRequestRef.current
-    const res = await api('/products', { signal: ac.signal })
-    const data = await res.json()
-    if (!mountedRef.current || ac.signal.aborted || latestProductsRequestRef.current !== requestId) return
-    if (res.ok && Array.isArray(data)) {
-      const list: Product[] = data.map((p: Product & { categoryRef?: string }) => ({
-        ...p,
-        categoryId: p.categoryId ?? p.categoryRef ?? '',
-      }))
-      setProducts(list)
+    try {
+      const res = await api('/products', { signal: ac.signal, refresh: forceRefresh })
+      const data = await res.json()
+      if (!mountedRef.current || ac.signal.aborted || latestProductsRequestRef.current !== requestId) return
+      if (res.ok && Array.isArray(data)) {
+        const list: Product[] = data.map((p: Product & { categoryRef?: string }) => ({
+          ...p,
+          categoryId: p.categoryId ?? p.categoryRef ?? '',
+        }))
+        setProducts(list)
+      }
+    } catch (err) {
+      if (isAbortError(err)) return
     }
   }, [slug])
 
   const refreshMenu = useCallback(() => {
-    reloadCategories()
-    reloadProducts()
+    reloadCategories(false)
+    reloadProducts(false)
+  }, [reloadCategories, reloadProducts])
+
+  const refreshMenuForce = useCallback(() => {
+    reloadCategories(true)
+    reloadProducts(true)
   }, [reloadCategories, reloadProducts])
 
   const refreshDebounceMs = 400
@@ -403,7 +416,7 @@ export function MenuManageClient({
           setSectionSuggestions({ businessType: d.businessType, commonSections: d.commonSections ?? [], subcategories: d.subcategories ?? [] })
         })
         .catch((err) => {
-          if ((err as Error)?.name === 'AbortError') return
+          if (isAbortError(err)) return
           if (!mountedRef.current) return
           setSectionSuggestions({ commonSections: [], subcategories: [] })
         })
@@ -962,18 +975,32 @@ export function MenuManageClient({
             <h2 className="font-semibold text-white">Categories</h2>
             <p className="text-sm text-slate-400">Add categories (e.g. Starters, Mains). Drag categories to reorder. Drag products to reorder within a category or move between categories.</p>
           </div>
-          {canUseCatalog && (
+          <div className="flex gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="border-amber-500/50 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:border-amber-500/70"
-              onClick={() => setCatalogOpen(true)}
+              className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white"
+              onClick={() => refreshMenuForce()}
+              disabled={loading}
+              title={t('Refresh data', 'تحديث البيانات')}
             >
-              <Package className="mr-2 size-4" />
-              {t('Add from catalog', 'إضافة من الكتالوج')}
+              <RefreshCw className="mr-2 size-4" />
+              {t('Refresh', 'تحديث')}
             </Button>
-          )}
+            {canUseCatalog && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-amber-500/50 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:border-amber-500/70"
+                onClick={() => setCatalogOpen(true)}
+              >
+                <Package className="mr-2 size-4" />
+                {t('Add from catalog', 'إضافة من الكتالوج')}
+              </Button>
+            )}
+          </div>
         </div>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={categories.map((_, i) => `cat-${i}`)} strategy={verticalListSortingStrategy}>

@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { isAbortError } from '@/lib/abort-utils'
 
 export type TenantBusinessData = {
   tenant?: {
@@ -22,7 +23,7 @@ export type TenantBusinessData = {
 type TenantBusinessContextValue = {
   data: TenantBusinessData | null
   loading: boolean
-  refetch: () => Promise<void>
+  refetch: (forceRefresh?: boolean) => Promise<void>
 }
 
 const TenantBusinessContext = createContext<TenantBusinessContextValue | null>(null)
@@ -56,16 +57,17 @@ export function TenantBusinessProvider({ slug, children }: { slug: string; child
     }
   }, [])
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (forceRefresh = false) => {
     if (!slug) return
     refetchAbortRef.current?.abort()
     const ac = new AbortController()
     refetchAbortRef.current = ac
     if (mountedRef.current) setLoading(true)
     try {
-      const res = await fetch(`/api/tenants/${encodeURIComponent(slug)}/business`, {
+      const url = `/api/tenants/${encodeURIComponent(slug)}/business${forceRefresh ? '?refresh=1' : ''}`
+      const res = await fetch(url, {
         credentials: 'include',
-        cache: 'no-store',
+        cache: forceRefresh ? 'no-store' : 'default',
         signal: ac.signal,
       })
       if (res.ok) {
@@ -73,8 +75,7 @@ export function TenantBusinessProvider({ slug, children }: { slug: string; child
         if (mountedRef.current && !ac.signal.aborted) setData(d)
       }
     } catch (err) {
-      if ((err as Error)?.name === 'AbortError') return
-      // ignore
+      if (isAbortError(err)) return
     } finally {
       if (mountedRef.current && !ac.signal.aborted) setLoading(false)
     }
@@ -94,7 +95,7 @@ export function TenantBusinessProvider({ slug, children }: { slug: string; child
     }, 8000)
     fetch(`/api/tenants/${encodeURIComponent(slug)}/business`, {
       credentials: 'include',
-      cache: 'no-store',
+      cache: 'default',
       signal: ac.signal,
     })
       .then((r) => (r.ok ? r.json() : null))
@@ -102,7 +103,7 @@ export function TenantBusinessProvider({ slug, children }: { slug: string; child
         if (mountedRef.current && !ac.signal.aborted) setData(d ?? null)
       })
       .catch((err) => {
-        if ((err as Error)?.name === 'AbortError') return
+        if (isAbortError(err)) return
         if (mountedRef.current) setData(null)
       })
       .finally(() => {
