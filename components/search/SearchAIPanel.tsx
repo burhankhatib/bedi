@@ -266,7 +266,8 @@ export function SearchAIPanel({
                             key={label}
                             type="button"
                             onClick={() => {
-                              onSaveQuestion?.(label)
+                              const isAffirmative = /^(yes|no|yeah|نعم|لا)$/i.test(label.trim())
+                              if (!isAffirmative) onSaveQuestion?.(label)
                               sendMessage({ text: label })
                             }}
                             className="rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 active:scale-[0.98]"
@@ -311,29 +312,53 @@ export function SearchAIPanel({
                             {t('Products', 'المنتجات')}
                           </p>
                           <div className="grid gap-2">
-                            {products.slice(0, 6).map((p) => {
+                            {products.slice(0, 12).map((p) => {
                               const title = lang === 'ar' ? (p.title_ar ?? p.title_en) : (p.title_en ?? p.title_ar)
                               return (
-                                <Link
+                                <div
                                   key={p._id}
-                                  href={`/t/${p.businessSlug}#product-${p._id}`}
-                                  onClick={onClose}
-                                  className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50"
+                                  className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200"
                                 >
-                                  <div className="relative size-12 shrink-0 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center">
-                                    {p.imageUrl ? (
-                                      <Image src={p.imageUrl} alt={title ?? ''} fill className="object-cover" sizes="48px" />
-                                    ) : (
-                                      <Store className="size-5 text-slate-400" />
-                                    )}
+                                  <Link
+                                    href={`/t/${p.businessSlug}#product-${p._id}`}
+                                    onClick={onClose}
+                                    className="flex min-w-0 flex-1 items-center gap-3"
+                                  >
+                                    <div className="relative size-14 shrink-0 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center">
+                                      {p.imageUrl ? (
+                                        <Image src={p.imageUrl} alt={title ?? ''} fill className="object-cover" sizes="56px" />
+                                      ) : (
+                                        <Store className="size-5 text-slate-400" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="font-semibold text-slate-900 truncate">{title}</p>
+                                      <p className="text-xs text-slate-500">{p.businessName}</p>
+                                      {p.price > 0 && (
+                                        <p className="text-sm font-bold text-slate-700 mt-0.5">
+                                          {p.price} {p.currency}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </Link>
+                                  <div className="flex flex-col gap-1 shrink-0">
+                                    <Link
+                                      href={`/t/${p.businessSlug}#product-${p._id}`}
+                                      className="text-xs font-medium text-amber-600 hover:text-amber-700"
+                                      onClick={onClose}
+                                    >
+                                      {t('View menu', 'عرض القائمة')}
+                                    </Link>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddToCart(p)}
+                                      className="inline-flex items-center gap-1 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 px-2 py-1 rounded-lg"
+                                    >
+                                      <ShoppingCart className="size-3" />
+                                      {t('Add', 'أضف')}
+                                    </button>
                                   </div>
-                                  <span className="font-medium text-slate-900 truncate">{title}</span>
-                                  {p.price > 0 && (
-                                    <span className="text-sm font-bold text-slate-700 shrink-0">
-                                      {p.price} {p.currency}
-                                    </span>
-                                  )}
-                                </Link>
+                                </div>
                               )
                             })}
                           </div>

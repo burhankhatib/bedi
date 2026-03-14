@@ -318,7 +318,10 @@ export function UniversalSearch({
                   type="button"
                   onClick={() => {
                     const q = query.trim()
-                    if (q) setAiSubmittedQuery(q)
+                    if (q) {
+                      saveQuestion(q)
+                      setAiSubmittedQuery(q)
+                    }
                   }}
                   className="self-start inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors"
                 >
