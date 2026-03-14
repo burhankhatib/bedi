@@ -4,6 +4,7 @@ import { CustomerAreaWrapper } from '@/components/customer/CustomerAreaWrapper'
 import { StandaloneDriverRedirect, StandaloneTenantRedirect } from '@/components/StandaloneDriverRedirect'
 import { LanguageProvider } from '@/components/LanguageContext'
 import { PageSkeleton } from '@/components/loading'
+import { PortalContainerProvider } from '@/components/ui/PortalContainerContext'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -26,18 +27,20 @@ export default function MainLayout({
 }) {
   return (
     <LanguageProvider>
-      <div className="min-h-screen overflow-x-hidden">
-        <StandaloneDriverRedirect />
-        <StandaloneTenantRedirect />
-        <Suspense fallback={<PageSkeleton />}>
-          <CustomerAreaWrapper>
-            {children}
-          </CustomerAreaWrapper>
-        </Suspense>
-        <Suspense fallback={null}>
-          <SanityLiveGate />
-        </Suspense>
-      </div>
+      <PortalContainerProvider>
+        <div className="min-h-screen overflow-x-hidden">
+          <StandaloneDriverRedirect />
+          <StandaloneTenantRedirect />
+          <Suspense fallback={<PageSkeleton />}>
+            <CustomerAreaWrapper>
+              {children}
+            </CustomerAreaWrapper>
+          </Suspense>
+          <Suspense fallback={null}>
+            <SanityLiveGate />
+          </Suspense>
+        </div>
+      </PortalContainerProvider>
     </LanguageProvider>
   )
 }

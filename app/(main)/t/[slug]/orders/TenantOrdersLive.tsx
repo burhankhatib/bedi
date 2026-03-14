@@ -106,7 +106,8 @@ export function TenantOrdersLive({
     }
   }, [slug, showToast])
 
-  // When Sanity sends an order-change event, refetch immediately then once more for stragglers.
+  // When order-change event fires, refetch once after a short delay (100ms) then again for stragglers (600ms).
+  // Debounced by usePusherStream so rapid events collapse into one trigger.
   const fetchOrdersOnLiveUpdate = useCallback(() => {
     liveUpdateTimeoutsRef.current.forEach(clearTimeout)
     liveUpdateTimeoutsRef.current = []
@@ -143,11 +144,18 @@ export function TenantOrdersLive({
     setStandaloneTableRequests((prev) => prev.filter((r) => r._id !== id))
   }, [])
 
-  // Initial load, plus listener for visibility and SW messages (no polling).
+  // Listeners for visibility and SW messages (no polling). Skip initial client fetch — we use server-rendered data.
+  // Debounce visibility so rapid tab switches don't each trigger a Sanity read.
+  const visibilityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const VISIBILITY_DEBOUNCE_MS = 800
   useEffect(() => {
-    fetchOrders()
     const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') fetchOrders()
+      if (document.visibilityState !== 'visible') return
+      if (visibilityDebounceRef.current) clearTimeout(visibilityDebounceRef.current)
+      visibilityDebounceRef.current = setTimeout(() => {
+        visibilityDebounceRef.current = null
+        fetchOrders()
+      }, VISIBILITY_DEBOUNCE_MS)
     }
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_NOTIFICATION_CLICK') fetchOrders()
@@ -157,6 +165,7 @@ export function TenantOrdersLive({
       navigator.serviceWorker.addEventListener('message', onMessage)
     }
     return () => {
+      if (visibilityDebounceRef.current) clearTimeout(visibilityDebounceRef.current)
       document.removeEventListener('visibilitychange', onVisibilityChange)
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.removeEventListener('message', onMessage)
@@ -164,9 +173,9 @@ export function TenantOrdersLive({
     }
   }, [fetchOrders])
 
-  // Pusher: when any order for this tenant changes (new order, status, table request), refetch with
-  // delay + one retry so we see the update even if Sanity read is briefly stale (no extra polling).
-  usePusherStream(siteId ? `tenant-${siteId}` : null, 'order-update', fetchOrdersOnLiveUpdate)
+  // Pusher: when any order for this tenant changes (new order, status, table request), refetch.
+  // Debounce 500ms so rapid events (e.g. multiple orders) collapse into one fetch — reduces Sanity API usage.
+  usePusherStream(siteId ? `tenant-${siteId}` : null, 'order-update', fetchOrdersOnLiveUpdate, { debounceMs: 500 })
 
   const openOrderIdForTableRequest = initialOpenOrderId || tableRequests[0]?._id
 

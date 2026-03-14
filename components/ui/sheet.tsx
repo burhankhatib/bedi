@@ -6,6 +6,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import { usePortalContainer } from '@/components/ui/PortalContainerContext'
 
 const Sheet = SheetPrimitive.Root
 
@@ -13,7 +14,10 @@ const SheetTrigger = SheetPrimitive.Trigger
 
 const SheetClose = SheetPrimitive.Close
 
-const SheetPortal = SheetPrimitive.Portal
+function SheetPortalWithContainer(props: React.ComponentProps<typeof SheetPrimitive.Portal>) {
+  const container = usePortalContainer()
+  return <SheetPrimitive.Portal {...props} container={container ?? undefined} />
+}
 
 const SheetOverlay = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Overlay>,
@@ -62,7 +66,7 @@ const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
 >(({ side = 'right', className, overlayClassName, contentClassName, portalClassName, children, ...props }, ref) => (
-  <SheetPortal>
+  <SheetPortalWithContainer>
     <div translate="no" style={{ isolation: 'isolate' }} className={cn('z-[250]', portalClassName)}>
       <SheetOverlay className={cn('z-[250] pointer-events-auto', overlayClassName)} />
       <SheetPrimitive.Content
@@ -79,7 +83,7 @@ const SheetContent = React.forwardRef<
       </SheetPrimitive.Close>
     </SheetPrimitive.Content>
     </div>
-  </SheetPortal>
+  </SheetPortalWithContainer>
 ))
 SheetContent.displayName = SheetPrimitive.Content.displayName
 
@@ -137,7 +141,7 @@ SheetDescription.displayName = SheetPrimitive.Description.displayName
 
 export {
   Sheet,
-  SheetPortal,
+  SheetPortalWithContainer as SheetPortal,
   SheetOverlay,
   SheetTrigger,
   SheetClose,

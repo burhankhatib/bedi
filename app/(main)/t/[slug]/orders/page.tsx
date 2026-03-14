@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 import { requirePermission } from '@/lib/staff-permissions'
+import { getTenantBySlug, isTenantSubscriptionExpired } from '@/lib/tenant'
 import { client } from '@/sanity/lib/client'
 
 const freshClient = client.withConfig({ useCdn: false })
@@ -49,6 +50,21 @@ export default async function TenantOrdersPage({
   }
 
   const siteId = auth.tenantId
+  // Tenant already fetched by checkTenantAuth; cache hit, no extra Sanity query.
+  const tenant = await getTenantBySlug(slug)
+  let subscriptionStatus = tenant?.subscriptionStatus ?? 'trial'
+  if (tenant && isTenantSubscriptionExpired(tenant) && (subscriptionStatus === 'active' || subscriptionStatus === 'trial')) {
+    subscriptionStatus = 'past_due'
+  }
+  const subscriptionBannerData = tenant
+    ? {
+        subscriptionExpiresAt: tenant.subscriptionExpiresAt ?? null,
+        createdAt: tenant.createdAt ?? null,
+        businessCreatedAt: tenant.businessCreatedAt ?? null,
+        subscriptionStatus,
+      }
+    : null
+
   /** Strict: only orders belonging to this tenant. */
   const siteFilter = 'site._ref == $siteId'
   const standaloneTableRequestsGROQ = `*[_type == "tableServiceRequest" && site._ref == $siteId && !defined(acknowledgedAt)] | order(createdAt desc) {
@@ -118,7 +134,7 @@ export default async function TenantOrdersPage({
         <AppNav variant="dashboard" />
 
         <main className="mx-auto max-w-[100vw] px-4 py-4 sm:container sm:py-6">
-          <SubscriptionBanner slug={slug} />
+          <SubscriptionBanner slug={slug} initialData={subscriptionBannerData} />
           <PWAManager role="business-orders" slug={slug} variant="inline" />
           <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2 sm:mb-6 sm:gap-4">
           <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:text-white">

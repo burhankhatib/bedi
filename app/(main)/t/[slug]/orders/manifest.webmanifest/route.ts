@@ -72,7 +72,8 @@ export async function GET(
   return new Response(JSON.stringify(manifest), {
     headers: {
       'Content-Type': 'application/manifest+json',
-      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      // Cache 5 min — manifest (name, icon URLs) rarely changes. Reduces Sanity API usage when many tenants keep Orders open.
+      'Cache-Control': 'public, max-age=300, stale-while-revalidate=60',
     },
   })
 }

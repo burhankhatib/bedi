@@ -10,10 +10,11 @@ import { useCart } from '@/components/Cart/CartContext'
 import type { OrderTypeOptions, CartTenant } from '@/components/Cart/CartContext'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Star, Tag, Plus } from 'lucide-react'
+import { Star, Tag, Plus, XCircle } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import { getSaleUnitLabel } from '@/lib/sale-units'
 import { cn } from '@/lib/utils'
+import { isProductUnavailable } from '@/lib/product-availability'
 
 interface ProductCardProps {
   product: Product
@@ -37,6 +38,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
 
   const priceColor = hasSpecialPrice ? 'text-red-600' : 'text-slate-900'
   const shouldHidePrice = catalogOnly && (catalogHidePrices || product.hidePrice)
+  const unavailable = isProductUnavailable(product)
 
   // Get the second image for hover effect (first additional image)
   const hoverImage = product.additionalImages && product.additionalImages.length > 0
@@ -47,7 +49,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (catalogOnly) return
+    if (catalogOnly || unavailable) return
     if (product.addOns && product.addOns.length > 0) onClick(product)
     else if (product.variants && product.variants.length > 0) onClick(product)
     else addToCart(product, undefined, undefined, tenantContext, orderTypeOptions ?? undefined)
@@ -56,18 +58,27 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
   return (
     <div
       onClick={() => onClick(product)}
-      className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 cursor-pointer hover:shadow-xl transition-all duration-500 relative group h-full flex flex-col w-full"
+      className={cn(
+        'bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 transition-all duration-500 relative group h-full flex flex-col w-full',
+        unavailable ? 'opacity-70 grayscale-[0.3]' : 'cursor-pointer hover:shadow-xl'
+      )}
       style={{ position: 'relative' }}
     >
       {/* Badges Overlay */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
-        {product.isPopular && (
+        {unavailable && (
+          <Badge className="bg-slate-500/90 hover:bg-slate-600 text-white border-none flex items-center gap-1 font-black px-2.5 py-1 shadow-lg text-[10px] uppercase">
+            <XCircle className="w-3 h-3" />
+            {t('Unavailable', 'غير متوفر')}
+          </Badge>
+        )}
+        {product.isPopular && !unavailable && (
           <Badge className="bg-amber-400 hover:bg-amber-500 text-amber-950 border-none flex items-center gap-1 font-black px-2.5 py-1 shadow-lg shadow-amber-500/20 text-[10px] uppercase">
             <Star className="w-3 h-3 fill-current" />
             {t('Popular', 'أكثر طلباً')}
           </Badge>
         )}
-        {hasSpecialPrice && (
+        {hasSpecialPrice && !unavailable && (
           <Badge className="bg-red-500 hover:bg-red-600 text-white border-none flex items-center gap-1 font-black px-2.5 py-1 shadow-lg shadow-red-500/20 text-[10px] uppercase">
             <Tag className="w-3 h-3 fill-current" />
             {t('Offer', 'عرض')}
@@ -128,8 +139,8 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
             {t('No Image', 'لا توجد صورة')}
           </div>
         )}
-        {/* Add to Cart Button Overlay - hidden when closed */}
-        {!catalogOnly && (
+        {/* Add to Cart Button Overlay - hidden when closed or unavailable */}
+        {!catalogOnly && !unavailable && (
         <div
           className="absolute bottom-3 right-3 z-20 opacity-100 md:opacity-0 md:group-hover:opacity-100 pointer-events-auto"
         >

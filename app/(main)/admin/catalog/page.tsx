@@ -227,6 +227,10 @@ export default function AdminCatalogPage() {
   const [importCategory, setImportCategory] = useState('grocery')
   const [importResult, setImportResult] = useState<{ ok: boolean; message?: string } | null>(null)
 
+  // Import from Talabat (create full business — run locally)
+  const [talabatUrl, setTalabatUrl] = useState('')
+  const [talabatResult, setTalabatResult] = useState<{ ok: boolean; message?: string } | null>(null)
+
   // AI Translate & Fill
   const [translating, setTranslating] = useState(false)
   const [translateResult, setTranslateResult] = useState<{
@@ -234,8 +238,11 @@ export default function AdminCatalogPage() {
     message?: string
     totalNeedingWork?: number
     processed?: number
-    updated?: number
+    translated?: number
+    skipped?: number
     failed?: number
+    remaining?: number
+    errorSamples?: string[]
     dryRun?: boolean
   } | null>(null)
 
@@ -372,6 +379,26 @@ export default function AdminCatalogPage() {
     }
   }
 
+  const getTalabatCommand = () => {
+    const url = talabatUrl.trim()
+    if (!url || !url.includes('talabat.com')) return ''
+    return `npm run import:talabat:url -- --url "${url}"`
+  }
+
+  const handleCopyTalabatCommand = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const cmd = getTalabatCommand()
+    if (!cmd) return
+    setTalabatResult(null)
+    try {
+      await navigator.clipboard.writeText(cmd)
+      setTalabatResult({ ok: true, message: 'Command copied. Run in your terminal to create the business.' })
+      setTimeout(() => setTalabatResult(null), 6000)
+    } catch {
+      setTalabatResult({ ok: false, message: 'Could not copy. Run the command below in your terminal.' })
+    }
+  }
+
   const handleTranslate = async (dryRun = false) => {
     setTranslateResult(null)
     setTranslating(true)
@@ -379,7 +406,7 @@ export default function AdminCatalogPage() {
       const res = await fetch('/api/admin/translate-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit: 500, dryRun }),
+        body: JSON.stringify({ limit: 50, dryRun }),
       })
       const data = await res.json().catch(() => ({}))
       setTranslateResult({
@@ -387,11 +414,14 @@ export default function AdminCatalogPage() {
         message: data.message ?? (res.ok ? 'Done' : 'Failed'),
         totalNeedingWork: data.totalNeedingWork,
         processed: data.processed,
-        updated: data.updated,
+        translated: data.translated,
+        skipped: data.skipped,
         failed: data.failed,
+        remaining: data.remaining,
+        errorSamples: data.errorSamples,
         dryRun: data.dryRun,
       })
-      if (data.ok && !dryRun && (data.updated ?? 0) > 0) fetchProducts()
+      if (data.ok && !dryRun && (data.translated ?? 0) > 0) fetchProducts()
     } catch {
       setTranslateResult({ ok: false, message: 'Request failed' })
     } finally {
@@ -741,6 +771,61 @@ export default function AdminCatalogPage() {
         )}
       </div>
 
+      {/* ═══ IMPORT FROM TALABAT (create full business) ═══ */}
+      <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="rounded-full bg-amber-500/20 p-3">
+            <Link2 className="size-6 text-amber-400" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-white">Import from Talabat (Jordan)</h2>
+            <p className="text-sm text-slate-400">
+              Paste a Talabat restaurant URL and run locally. Opens visible Chrome (like Baladi)—scroll the menu, press Enter to scrape. Creates business with products. Country: Palestine, City: Bethany, owner: burhank@gmail.com, JOD→ILS.
+            </p>
+          </div>
+        </div>
+        <details className="mb-4 rounded-lg border border-slate-700 bg-slate-800/50" open>
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-300 hover:text-white">
+            Instructions
+          </summary>
+          <ol className="list-decimal list-inside space-y-2 px-4 pb-4 text-sm text-slate-400">
+            <li>Paste a Talabat restaurant URL (e.g. https://www.talabat.com/ar/jordan/restaurant/646801/al-dayaa)</li>
+            <li>Click <strong className="text-white">Run</strong> — the command is copied to your clipboard</li>
+            <li>Open the terminal, paste and run. Chrome opens (like Baladi). Scroll the menu to load items, then press Enter in the terminal.</li>
+            <li>Creates business with logo, name, categories, products. Country: Palestine, city: Bethany.</li>
+          </ol>
+        </details>
+        <form onSubmit={handleCopyTalabatCommand} className="flex flex-col sm:flex-row flex-wrap items-end gap-4 max-w-2xl">
+          <div className="flex-1 min-w-[280px]">
+            <label className="mb-1 block text-xs font-medium text-slate-400">Talabat restaurant URL</label>
+            <Input
+              value={talabatUrl}
+              onChange={(e) => setTalabatUrl(e.target.value)}
+              placeholder="https://www.talabat.com/jordan/restaurant/646801/al-dayaa"
+              className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
+            />
+          </div>
+          <Button type="submit" disabled={!getTalabatCommand()} className="bg-amber-600 hover:bg-amber-500">
+            {talabatResult?.ok ? <CheckCircle className="mr-2 size-4" /> : null}
+            {talabatResult?.ok ? 'Copied' : 'Run'}
+          </Button>
+        </form>
+        {getTalabatCommand() && (
+          <div className="mt-4 rounded-lg bg-slate-800/80 px-3 py-2">
+            <p className="text-xs text-slate-500 mb-1">Command (copied when you click Run):</p>
+            <code className="block font-mono text-sm text-slate-200 break-all select-all">
+              {getTalabatCommand()}
+            </code>
+          </div>
+        )}
+        {talabatResult && (
+          <div className={`mt-4 flex items-center gap-2 rounded-lg p-4 ${talabatResult.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+            {talabatResult.ok && <CheckCircle className="size-5 shrink-0" />}
+            <span>{talabatResult.message}</span>
+          </div>
+        )}
+      </div>
+
       {/* ═══ AI TRANSLATE & FILL ═══ */}
       <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
         <div className="flex items-center gap-3 mb-6">
@@ -750,7 +835,7 @@ export default function AdminCatalogPage() {
           <div>
             <h2 className="font-semibold text-white">AI Translate & Fill</h2>
             <p className="text-sm text-slate-400">
-              Uses OpenAI to translate titles/descriptions (EN↔AR), generate missing descriptions from product names and Palestinian/Israeli market knowledge, and infer unit types. Processes products missing one or more fields.
+              Uses OpenAI to translate titles/descriptions (EN↔AR), including Hebrew to English/Arabic. Generates missing descriptions from product names and Palestinian/Israeli market knowledge. Processes 50 products per run to ensure stability; run multiple times to finish.
             </p>
           </div>
         </div>
@@ -758,10 +843,10 @@ export default function AdminCatalogPage() {
           <Button
             onClick={() => handleTranslate(false)}
             disabled={translating}
-            className="bg-sky-600 hover:bg-sky-500"
+            className="bg-sky-600 hover:bg-sky-500 text-white"
           >
             {translating ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Languages className="mr-2 size-4" />}
-            {translating ? 'Translating…' : 'Translate & Fill (500 max)'}
+            {translating ? 'Translating…' : 'Translate & Fill (50)'}
           </Button>
           <Button
             variant="outline"
@@ -784,21 +869,53 @@ export default function AdminCatalogPage() {
         </div>
         {translateResult && (
           <div
-            className={`mt-4 flex flex-col gap-2 rounded-lg p-4 ${
-              translateResult.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+            className={`mt-4 flex flex-col gap-4 rounded-lg p-4 ${
+              translateResult.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800/80 border border-slate-700'
             }`}
           >
             <div className="flex items-center gap-2">
-              {translateResult.ok && <CheckCircle className="size-5 shrink-0" />}
-              <span>{translateResult.message}</span>
+              {translateResult.ok && <CheckCircle className="size-5 shrink-0 text-emerald-400" />}
+              <span className={translateResult.ok ? 'text-emerald-400' : 'text-slate-200'}>{translateResult.message}</span>
             </div>
-            {translateResult.totalNeedingWork != null && (
-              <span className="text-sm opacity-90">
-                {translateResult.totalNeedingWork} products need work · Processed: {translateResult.processed ?? 0}
-                {!translateResult.dryRun && (
-                  <> · Updated: {translateResult.updated ?? 0} · Failed: {translateResult.failed ?? 0}</>
-                )}
-              </span>
+            {!translateResult.dryRun && translateResult.totalNeedingWork != null && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="flex flex-col rounded-lg bg-slate-800/60 px-4 py-3 border border-slate-700/60">
+                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Translated</span>
+                  <span className="text-lg font-semibold text-emerald-400">{translateResult.translated ?? 0}</span>
+                </div>
+                <div className="flex flex-col rounded-lg bg-slate-800/60 px-4 py-3 border border-slate-700/60">
+                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Skipped</span>
+                  <span className="text-lg font-semibold text-slate-300">{translateResult.skipped ?? 0}</span>
+                </div>
+                <div className="flex flex-col rounded-lg bg-slate-800/60 px-4 py-3 border border-slate-700/60">
+                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Failed</span>
+                  <span className="text-lg font-semibold text-red-400">{translateResult.failed ?? 0}</span>
+                </div>
+                <div className="flex flex-col rounded-lg bg-slate-800/60 px-4 py-3 border border-slate-700/60">
+                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Remaining</span>
+                  <span className="text-lg font-semibold text-amber-400">{translateResult.remaining ?? translateResult.totalNeedingWork}</span>
+                </div>
+              </div>
+            )}
+            {translateResult.dryRun && (
+              <p className="text-sm text-slate-400">
+                Would process {translateResult.processed ?? 0} of {translateResult.totalNeedingWork ?? 0} products needing work.
+              </p>
+            )}
+            {(translateResult.remaining ?? 0) > 0 && !translateResult.dryRun && (
+              <p className="text-sm text-slate-400">
+                Click &quot;Translate & Fill&quot; again to process more products.
+              </p>
+            )}
+            {translateResult.errorSamples && translateResult.errorSamples.length > 0 && (
+              <details className="mt-2 rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+                <summary className="cursor-pointer text-sm font-medium text-red-400">Sample errors</summary>
+                <ul className="mt-2 space-y-1 text-xs text-red-300/90">
+                  {translateResult.errorSamples.map((err, i) => (
+                    <li key={i} className="font-mono break-words">{err}</li>
+                  ))}
+                </ul>
+              </details>
             )}
           </div>
         )}

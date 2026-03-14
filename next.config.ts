@@ -109,6 +109,11 @@ const nextConfig: NextConfig = {
         source: '/apple-touch-icon-precomposed.png',
         destination: '/customersLogo.webp',
       },
+      // Manage has no dedicated SW; use orders SW (avoids 404 when old PWAs or code requests /t/:slug/manage/sw.js)
+      {
+        source: '/t/:slug/manage/sw.js',
+        destination: '/t/:slug/orders/sw.js',
+      },
     ];
   },
 };

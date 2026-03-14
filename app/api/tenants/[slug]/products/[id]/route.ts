@@ -3,6 +3,7 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 import { uploadImageFromUrl, type ClientWithUpload } from '@/lib/sanity-upload'
+import { getNextOpeningForTenant } from '@/lib/next-opening-for-tenant'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -58,7 +59,22 @@ export async function PATCH(
   set('sortOrder', body.sortOrder != null ? Number(body.sortOrder) : undefined)
   set('isPopular', body.isPopular)
   set('isAvailable', body.isAvailable)
-  set('availableAgainAt', body.availableAgainAt)
+  let effectiveAvailableAgainAt = body.availableAgainAt && String(body.availableAgainAt).trim() ? String(body.availableAgainAt).trim() : undefined
+  if (body.isAvailable === false && !effectiveAvailableAgainAt) {
+    const next = await getNextOpeningForTenant(slug)
+    if (next) effectiveAvailableAgainAt = next
+    else {
+      const d = new Date()
+      d.setDate(d.getDate() + 1)
+      d.setHours(9, 0, 0, 0)
+      effectiveAvailableAgainAt = d.toISOString()
+    }
+  }
+  if (body.isAvailable === true) {
+    unsetFields.push('availableAgainAt')
+  } else {
+    set('availableAgainAt', effectiveAvailableAgainAt)
+  }
   set('dietaryTags', Array.isArray(body.dietaryTags) ? body.dietaryTags : undefined)
   set('addOns', Array.isArray(body.addOns) ? body.addOns : undefined)
   set('variants', Array.isArray(body.variants) ? body.variants : undefined)

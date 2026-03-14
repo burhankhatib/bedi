@@ -615,6 +615,117 @@ export function ProductFormModal({
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             <div className="space-y-4">
+              {/* Availability — on top for quick access (M3 style) */}
+              <div className="rounded-2xl border border-slate-600/80 bg-slate-800/60 p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-emerald-500" />
+                  Availability
+                </h3>
+                <p className="text-xs text-slate-500">Mark unavailable when sold out (e.g. ran out of chicken tenders). Product will show as grayed out until it&apos;s back.</p>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.isAvailable}
+                    onChange={async (e) => {
+                      const checked = e.target.checked
+                      if (checked) {
+                        setForm((f) => ({ ...f, isAvailable: true, availableAgainAt: '' }))
+                      } else {
+                        setForm((f) => ({ ...f, isAvailable: false }))
+                        try {
+                          const res = await fetch(`/api/tenants/${slug}/next-opening`, { credentials: 'include' })
+                          const data = await res.json()
+                          if (data?.nextOpenAt) {
+                            setForm((f) => ({ ...f, availableAgainAt: new Date(data.nextOpenAt).toISOString().slice(0, 16) }))
+                          } else {
+                            setPresetAvailableAt(9, 0, 1)
+                          }
+                        } catch {
+                          setPresetAvailableAt(9, 0, 1)
+                        }
+                      }
+                    }}
+                    className="rounded border-slate-600 bg-slate-800 size-5 accent-amber-500"
+                  />
+                  <span className="text-sm font-medium text-slate-200">Available</span>
+                </label>
+                {!form.isAvailable && (
+                  <div className="space-y-3 pt-2 border-t border-slate-600/60">
+                    <p className="text-xs font-medium text-slate-400">Available again:</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date()
+                          d.setHours(d.getHours() + 1, d.getMinutes(), 0, 0)
+                          const y = d.getFullYear()
+                          const m = String(d.getMonth() + 1).padStart(2, '0')
+                          const day = String(d.getDate()).padStart(2, '0')
+                          const h = String(d.getHours()).padStart(2, '0')
+                          const mi = String(d.getMinutes()).padStart(2, '0')
+                          update('availableAgainAt', `${y}-${m}-${day}T${h}:${mi}`)
+                        }}
+                        className="rounded-xl px-4 py-2.5 text-sm font-medium bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-200 transition-colors"
+                      >
+                        1 hour
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/tenants/${slug}/next-opening`, { credentials: 'include' })
+                            const data = await res.json()
+                            if (data?.nextOpenAt) {
+                              update('availableAgainAt', new Date(data.nextOpenAt).toISOString().slice(0, 16))
+                            }
+                          } catch {
+                            setPresetAvailableAt(9, 0, 1)
+                          }
+                        }}
+                        className="rounded-xl px-4 py-2.5 text-sm font-medium bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 transition-colors"
+                      >
+                        Until next opening
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!form.availableAgainAt) setPresetAvailableAt(9, 0, 1)
+                        }}
+                        className={`rounded-xl px-4 py-2.5 text-sm font-medium border transition-colors ${form.availableAgainAt ? 'bg-slate-700/80 border-slate-600 text-slate-200' : 'bg-amber-500/20 border-amber-500/50 text-amber-200'}`}
+                      >
+                        Custom date & time
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs text-slate-500">Date & time (leave empty = until next opening)</label>
+                      <Input
+                        type="datetime-local"
+                        value={form.availableAgainAt}
+                        onChange={(e) => update('availableAgainAt', e.target.value)}
+                        className="bg-slate-800 border-slate-600 text-white"
+                      />
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {[
+                          { label: 'Today 18:00', fn: () => setPresetAvailableAt(18, 0) },
+                          { label: 'Today 21:00', fn: () => setPresetAvailableAt(21, 0) },
+                          { label: 'Tomorrow 09:00', fn: () => setPresetAvailableAt(9, 0, 1) },
+                          { label: 'Tomorrow 12:00', fn: () => setPresetAvailableAt(12, 0, 1) },
+                        ].map(({ label, fn }) => (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={fn}
+                            className="rounded-lg border border-slate-600 bg-slate-700/50 px-2.5 py-1.5 text-[11px] text-slate-400 hover:bg-slate-600/50 hover:text-slate-300 transition-colors"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-400">Title (English) *</label>
                 <Input
@@ -843,52 +954,7 @@ export function ProductFormModal({
                   />
                   Popular
                 </label>
-                <label className="flex items-center gap-2 text-sm text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={form.isAvailable}
-                    onChange={(e) => {
-                      const checked = e.target.checked
-                      setForm((f) => ({
-                        ...f,
-                        isAvailable: checked,
-                        ...(checked ? { availableAgainAt: '' } : {}),
-                      }))
-                    }}
-                    className="rounded border-slate-600 bg-slate-800"
-                  />
-                  Available
-                </label>
               </div>
-              {!form.isAvailable && (
-                <div className="space-y-2 rounded-lg border border-slate-600 bg-slate-800/50 p-3">
-                  <label className="block text-xs font-medium text-slate-400">Unavailable until (date & time) — product will automatically reappear</label>
-                  <Input
-                    type="datetime-local"
-                    value={form.availableAgainAt}
-                    onChange={(e) => update('availableAgainAt', e.target.value)}
-                    className="bg-slate-800 border-slate-600 text-white"
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    <span className="text-[10px] text-slate-500 self-center">Quick set:</span>
-                    {[
-                      { label: 'Today 18:00', fn: () => setPresetAvailableAt(18, 0) },
-                      { label: 'Today 21:00', fn: () => setPresetAvailableAt(21, 0) },
-                      { label: 'Tomorrow 09:00', fn: () => setPresetAvailableAt(9, 0, 1) },
-                      { label: 'Tomorrow 12:00', fn: () => setPresetAvailableAt(12, 0, 1) },
-                    ].map(({ label, fn }) => (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={fn}
-                        className="rounded-md border border-slate-600 bg-slate-700/50 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-700"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-400">Ingredients (EN, one per line)</label>
                 <textarea

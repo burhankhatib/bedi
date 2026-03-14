@@ -47,3 +47,26 @@ export const PUSH_CONTEXT_KEYS = {
   driver: () => 'driver',
   customer: (slug: string, token: string) => `customer_${slug}_${token}`,
 } as const
+
+const LAST_CHECK_PREFIX = PREFIX + 'lastcheck_'
+
+/** Timestamp (ms) of last health check for this context. Used to throttle checks across page loads. */
+export function getLastCheck(contextKey: string): number | null {
+  if (typeof window === 'undefined' || !contextKey) return null
+  try {
+    const raw = localStorage.getItem(LAST_CHECK_PREFIX + contextKey)
+    return typeof raw === 'string' ? parseInt(raw, 10) || null : null
+  } catch {
+    return null
+  }
+}
+
+/** Save last health check timestamp after successful API response. */
+export function setLastCheck(contextKey: string): void {
+  if (typeof window === 'undefined' || !contextKey) return
+  try {
+    localStorage.setItem(LAST_CHECK_PREFIX + contextKey, String(Date.now()))
+  } catch {
+    // ignore
+  }
+}

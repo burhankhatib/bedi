@@ -27,6 +27,25 @@ export const productType = defineType({
       description: 'When set, this product was quick-added from the master catalog.',
     }),
     defineField({
+      name: 'isAvailable',
+      title: 'Available',
+      type: 'boolean',
+      initialValue: true,
+      description: 'By default all products are available. Turn off when sold out (e.g. ran out of chicken tenders). Set when it will be back.',
+    }),
+    defineField({
+      name: 'availableAgainAt',
+      title: 'Available again at',
+      type: 'datetime',
+      description: 'When this product will be available again. Options: 1 hour, until next opening, or custom date & time.',
+      hidden: ({ parent }) => parent?.isAvailable !== false,
+      options: {
+        dateFormat: 'YYYY-MM-DD',
+        timeFormat: 'HH:mm',
+        timeStep: 1,
+      },
+    }),
+    defineField({
       name: 'title_en',
       title: 'Title (English)',
       type: 'string',
@@ -155,25 +174,6 @@ export const productType = defineType({
       title: 'Popular Product',
       type: 'boolean',
       initialValue: false,
-    }),
-    defineField({
-      name: 'isAvailable',
-      title: 'Available',
-      type: 'boolean',
-      initialValue: true,
-      description: 'By default all items are available. Turn off when the item is unavailable; set "Available again at" to when it will be back.',
-    }),
-    defineField({
-      name: 'availableAgainAt',
-      title: 'Available again at',
-      type: 'datetime',
-      description: 'When this item will be available again. The item will automatically reappear in the menu after this date and time.',
-      hidden: ({ parent }) => parent?.isAvailable !== false,
-      options: {
-        dateFormat: 'YYYY-MM-DD',
-        timeFormat: 'HH:mm',
-        timeStep: 1,
-      },
     }),
     defineField({
       name: 'dietaryTags',

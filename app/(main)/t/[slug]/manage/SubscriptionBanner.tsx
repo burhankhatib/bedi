@@ -54,7 +54,14 @@ export function SubscriptionBanner({ slug, initialData = null }: { slug: string;
     }
   }, [])
 
+  // Skip fetch when we have initialData with status (e.g. from Orders page server render) — saves Sanity API usage.
+  const hasCompleteInitialData = initialData != null && initialData.subscriptionStatus != null
+
   useEffect(() => {
+    if (hasCompleteInitialData) {
+      setLoaded(true)
+      return
+    }
     fetchAbortRef.current?.abort()
     const ac = new AbortController()
     fetchAbortRef.current = ac
@@ -74,7 +81,7 @@ export function SubscriptionBanner({ slug, initialData = null }: { slug: string;
         if (mountedRef.current && !ac.signal.aborted) setLoaded(true)
       })
     return () => ac.abort()
-  }, [slug])
+  }, [slug, hasCompleteInitialData])
 
   const expiry = effectiveExpiry(expiresAt, createdAt, businessCreatedAt, status)
   const now = Date.now()

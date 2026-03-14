@@ -9,7 +9,7 @@ export const MENU_QUERY = defineQuery(`{
     image,
     sortOrder,
     productSortMode,
-    "products": *[_type == "product" && references(^._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt))] | order(sortOrder asc) {
+    "products": *[_type == "product" && references(^._id)] | order(sortOrder asc) {
       _id,
       title_en,
       title_ar,
@@ -26,13 +26,15 @@ export const MENU_QUERY = defineQuery(`{
       image,
       additionalImages,
       isPopular,
+      isAvailable,
+      availableAgainAt,
       sortOrder,
       dietaryTags,
       addOns,
       variants
     }
   },
-  "popularProducts": *[_type == "product" && isPopular == true && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt))] | order(sortOrder asc) [0...6] {
+  "popularProducts": *[_type == "product" && isPopular == true] | order(sortOrder asc) [0...6] {
     _id,
     title_en,
     title_ar,
@@ -48,6 +50,8 @@ export const MENU_QUERY = defineQuery(`{
     image,
     additionalImages,
     isPopular,
+    isAvailable,
+    availableAgainAt,
     sortOrder,
     dietaryTags,
     addOns,
@@ -142,7 +146,7 @@ export const MENU_QUERY_TENANT = defineQuery(`{
     image,
     sortOrder,
     productSortMode,
-    "products": *[_type == "product" && references(^._id) && (site._ref == $siteId || !defined(site)) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt))] | order(sortOrder asc) {
+    "products": *[_type == "product" && references(^._id) && (site._ref == $siteId || !defined(site))] | order(sortOrder asc) {
       _id,
       title_en,
       title_ar,
@@ -159,13 +163,15 @@ export const MENU_QUERY_TENANT = defineQuery(`{
       image,
       additionalImages,
       isPopular,
+      isAvailable,
+      availableAgainAt,
       sortOrder,
       dietaryTags,
       addOns,
       variants
     }
   },
-  "popularProducts": *[_type == "product" && ${siteFilter} && isPopular == true && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt))] | order(sortOrder asc) [0...6] {
+  "popularProducts": *[_type == "product" && ${siteFilter} && isPopular == true] | order(sortOrder asc) [0...6] {
     _id,
     title_en,
     title_ar,
@@ -181,6 +187,8 @@ export const MENU_QUERY_TENANT = defineQuery(`{
     image,
     additionalImages,
     isPopular,
+    isAvailable,
+    availableAgainAt,
     sortOrder,
     dietaryTags,
     addOns,

@@ -77,6 +77,7 @@ export interface Product {
   sortOrder?: number
   isPopular?: boolean
   isAvailable?: boolean
+  availableAgainAt?: string
   dietaryTags?: string[]
   addOns?: ProductAddOn[]
   variants?: ProductVariantGroup[]

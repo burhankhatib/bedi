@@ -12,7 +12,7 @@ import {
 import { useToast } from '@/components/ui/ToastProvider'
 import { getFCMToken } from '@/lib/firebase'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
-import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
+import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, getLastCheck, setLastCheck, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
 
 const VAPID_PUBLIC = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY : undefined
 
@@ -85,6 +85,8 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
   const [tokenStatus, setTokenStatus] = useState<TokenStatus>('checking')
   
   const autoSubscribeRef = useRef(false)
+  const lastCheckRef = useRef<number | null>(null)
+  const HEALTH_CHECK_THROTTLE_MS = 2 * 60 * 60 * 1000 // 2 hours — once push is active, token/connection stays valid
 
   useEffect(() => {
     if (typeof window !== 'undefined' && typeof Notification !== 'undefined') {
@@ -98,11 +100,13 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
   }, [])
 
   /**
-   * On every mount, verify push status against the live API.
-   * We pass the current FCM token if available so the server can verify it.
+   * Verify push status against the live API.
+   * Throttled to 2 hours — persisted in localStorage so it survives full page loads.
+   * Admin can manually refresh via the Refresh button.
    */
   useEffect(() => {
     if (!slug) return
+    const now = Date.now()
     const contextKey = PUSH_CONTEXT_KEYS.tenant(slug)
     const perm = typeof Notification !== 'undefined' ? Notification.permission : null
 
@@ -111,6 +115,19 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
       setHasPush(false)
       setChecked(true)
       setTokenStatus('denied')
+      return
+    }
+
+    // In-memory throttle (client-side nav within same session)
+    if (lastCheckRef.current != null && now - lastCheckRef.current < HEALTH_CHECK_THROTTLE_MS) return
+
+    // Persisted throttle (survives full page loads) — skip API if we checked recently
+    const storedLastCheck = getLastCheck(contextKey)
+    if (storedLastCheck != null && now - storedLastCheck < HEALTH_CHECK_THROTTLE_MS) {
+      const localOk = perm === 'granted' && getStoredPushOk(contextKey)
+      setHasPush(localOk)
+      setTokenStatus(localOk ? 'connected' : 'disconnected')
+      setChecked(true)
       return
     }
 
@@ -155,6 +172,8 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
         const data = await res.json()
         if (cancelled) return
 
+        lastCheckRef.current = Date.now()
+        setLastCheck(contextKey)
         const apiSaysHasPush = data?.hasPush === true
         
         if (apiSaysHasPush) {
@@ -267,6 +286,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
             throw new Error(err?.error || 'Failed to save subscription')
           }
           setStoredPushOk(PUSH_CONTEXT_KEYS.tenant(slug))
+          setLastCheck(PUSH_CONTEXT_KEYS.tenant(slug))
           setHasPush(true)
           setTokenStatus('connected')
           if (!silent) showToast(
@@ -298,6 +318,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
             })
             if (res.ok) {
               setStoredPushOk(PUSH_CONTEXT_KEYS.tenant(slug))
+              setLastCheck(PUSH_CONTEXT_KEYS.tenant(slug))
               setHasPush(true)
               setTokenStatus('connected')
               if (!silent) showToast(
@@ -335,6 +356,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
         throw new Error(err?.error || 'Failed to save subscription')
       }
       setStoredPushOk(PUSH_CONTEXT_KEYS.tenant(slug))
+      setLastCheck(PUSH_CONTEXT_KEYS.tenant(slug))
       setHasPush(true)
       setTokenStatus('connected')
       if (!silent) showToast(

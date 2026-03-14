@@ -3,8 +3,8 @@ import { defineField, defineType } from 'sanity'
 /**
  * Sub-category / specialty for businesses (e.g. Burgers, Shawarma, Oriental sweets).
  * Used to categorize tenants by what they offer. Manage and expand in Studio.
- * Suggested slugs for Restaurant: donations, breakfast, pastries, burgers, shawarma,
- * home-cooked, broasted, healthy, toasts, grills, oriental-sweets, gateau, drinks, asian.
+ * Suggested slugs for Restaurant: See docs/business-subcategories-seed.md. Includes DoorDash/Talabat-style
+ * specialties: mandi, kabsa, manakeesh, kunafa, falafel, sushi, lebanese, mediterranean, vegan, etc.
  * Cafe: coffee, tea, smoothies, desserts, light-meals, breakfast.
  * Bakery: bread, pastries, cakes, oriental-sweets, savory.
  * Grocery / Supermarket / Greengrocer: supermarket, mini-market, organic, dairy, fruits-vegetables.

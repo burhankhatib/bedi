@@ -5,6 +5,7 @@ import { checkTenantAuth } from '@/lib/tenant-auth'
 import { getTenantBySlug } from '@/lib/tenant'
 import { getProductLimit, getEffectivePlanTier } from '@/lib/subscription'
 import { uploadImageFromUrl, type ClientWithUpload } from '@/lib/sanity-upload'
+import { getNextOpeningForTenant } from '@/lib/next-opening-for-tenant'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -109,6 +110,18 @@ export async function POST(
     }
   }
 
+  let effectiveAvailableAgainAt: string | null = availableAgainAt && String(availableAgainAt).trim() ? String(availableAgainAt).trim() : null
+  if (isAvailable === false && !effectiveAvailableAgainAt) {
+    const next = await getNextOpeningForTenant(slug)
+    if (next) effectiveAvailableAgainAt = next
+    else {
+      const d = new Date()
+      d.setDate(d.getDate() + 1)
+      d.setHours(9, 0, 0, 0)
+      effectiveAvailableAgainAt = d.toISOString()
+    }
+  }
+
   const doc = {
     _type: 'product',
     site: { _type: 'reference' as const, _ref: auth.tenantId },
@@ -127,7 +140,7 @@ export async function POST(
     ...(specialPrice != null && { specialPrice: Number(specialPrice) }),
     ...(specialPriceExpires != null && { specialPriceExpires }),
     ...(saleUnit != null && typeof saleUnit === 'string' && { saleUnit: saleUnit.trim() || 'piece' }),
-    ...(availableAgainAt != null && { availableAgainAt }),
+    ...(effectiveAvailableAgainAt != null && { availableAgainAt: effectiveAvailableAgainAt }),
     ...(dietaryTags != null && Array.isArray(dietaryTags) && { dietaryTags }),
     ...(addOns != null && Array.isArray(addOns) && { addOns }),
     ...(variants != null && Array.isArray(variants) && { variants }),

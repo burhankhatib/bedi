@@ -1,6 +1,8 @@
 # Business Sub-categories – Seed Data
 
-Create these documents in **Sanity Studio** under **Business sub-category (Specialty)** to categorize restaurants and other businesses. You can add more or edit anytime.
+Create these documents in **Sanity Studio** under **Business sub-category (Specialty)**, or run `npx tsx scripts/seed-business-subcategories.ts` to import automatically.
+
+Based on DoorDash, Talabat, Jahez, and popular MENA food delivery apps.
 
 ## Restaurant (businessType: `restaurant`)
 
@@ -20,7 +22,6 @@ Create these documents in **Sanity Studio** under **Business sub-category (Speci
 | gateau | Gateau | جاتوه | 11 |
 | drinks | Drinks | مشروبات | 12 |
 | asian | Asian | آسيوي | 13 |
-| **Suggested additions:** | | | |
 | pizza | Pizza | بيتزا | 14 |
 | sandwiches | Sandwiches | شطائر | 15 |
 | falafel | Falafel | فلافل | 16 |
@@ -35,6 +36,29 @@ Create these documents in **Sanity Studio** under **Business sub-category (Speci
 | wraps | Wraps | لفائف | 25 |
 | rice-dishes | Rice Dishes | أطباق أرز | 26 |
 | soups | Soups | شوربات | 27 |
+| mandi | Mandi | مندي | 28 |
+| kabsa | Kabsa | كبسة | 29 |
+| manakeesh | Manakeesh | مناقيش | 30 |
+| kunafa | Kunafa | كنافة | 31 |
+| baklava | Baklava | بقلاوة | 32 |
+| hummus | Hummus & Dips | حمص ومقبلات | 33 |
+| lebanese | Lebanese | لبناني | 34 |
+| turkish | Turkish | تركي | 35 |
+| egyptian | Egyptian | مصري | 36 |
+| sushi | Sushi | سوشي | 37 |
+| japanese | Japanese | ياباني | 38 |
+| korean | Korean | كوري | 39 |
+| thai | Thai | تايلاندي | 40 |
+| mediterranean | Mediterranean | متوسطي | 41 |
+| vegan | Vegan | نباتي | 42 |
+| vegetarian | Vegetarian | نباتي صرف | 43 |
+| wings | Chicken Wings | أجنحة دجاج | 44 |
+| barbecue | Barbecue | باربكيو | 45 |
+| noodles | Noodles | نودلز | 46 |
+| ramen | Ramen | رامن | 47 |
+| donuts | Donuts | دونات | 48 |
+| desserts | Desserts | حلويات | 49 |
+| snacks | Snacks | وجبات خفيفة | 50 |
 
 ## Cafe (businessType: `cafe`)
 
@@ -47,6 +71,10 @@ Create these documents in **Sanity Studio** under **Business sub-category (Speci
 | light-meals | Light meals | وجبات خفيفة | 4 |
 | breakfast | Breakfast | فطور | 5 |
 | pastries | Pastries | معجنات | 6 |
+| juices | Juices | عصائر | 7 |
+| ice-cream | Ice Cream | آيس كريم | 8 |
+| sandwiches | Sandwiches | شطائر | 9 |
+| salads | Salads | سلطات | 10 |
 
 ## Bakery (businessType: `bakery`)
 
@@ -57,6 +85,8 @@ Create these documents in **Sanity Studio** under **Business sub-category (Speci
 | cakes | Cakes | كيك | 2 |
 | oriental-sweets | Oriental sweets | حلو شرقي | 3 |
 | savory | Savory | مخبوزات مالحة | 4 |
+| manakeesh | Manakeesh | مناقيش | 5 |
+| cookies | Cookies | كوكيز | 6 |
 
 ## Grocery / Market (businessType: `grocery`)
 
@@ -93,4 +123,4 @@ Create these documents in **Sanity Studio** under **Business sub-category (Speci
 
 ---
 
-**Note:** Add an **Image** for each sub-category in Studio for better display in filters or listing. The slug must match the value in the table (e.g. `burgers`, `shawarma`).
+**Note:** Add an **Image** for each sub-category in Studio for better display in filters or listing. The slug must match the value in the table.

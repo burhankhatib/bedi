@@ -15,6 +15,9 @@
     "import:baladi:backfill:reset": "PLAYWRIGHT_BROWSERS_PATH=0 BALADI_HEADLESS=false tsx scripts/import-baladi.ts --backfill-existing --interactive-auth --reset-checkpoint",
     "import:baladi:url": "PLAYWRIGHT_BROWSERS_PATH=0 BALADI_HEADLESS=false tsx scripts/import-baladi.ts --interactive-auth",
     "import:baladi:cat": "PLAYWRIGHT_BROWSERS_PATH=0 BALADI_HEADLESS=false tsx scripts/import-baladi.ts --interactive-auth",
+    "seed:subcategories": "tsx scripts/seed-business-subcategories.ts",
+    "import:talabat": "PLAYWRIGHT_BROWSERS_PATH=0 tsx scripts/import-talabat.ts",
+    "import:talabat:url": "PLAYWRIGHT_BROWSERS_PATH=0 TALABAT_HEADLESS=false tsx scripts/import-talabat.ts --interactive-auth",
     "deploy": "clear && npm run build && git add . && (git commit -m \"deploy\" || true) && git push origin main && vercel --prod"
   },
   "dependencies": {

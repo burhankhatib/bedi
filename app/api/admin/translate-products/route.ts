@@ -3,6 +3,7 @@
  * Uses OpenAI to translate and fill missing fields in master catalog products.
  * Targets products missing one or more of: nameEn, nameAr, descriptionEn, descriptionAr, unitType.
  * Generates descriptions from title + Palestinian/Israeli market knowledge when missing.
+ * Handles Hebrew product names: translates to both English and Arabic.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
@@ -18,6 +19,9 @@ const writeClient = clientNoCdn.withConfig({ token: token || undefined })
 
 const CATEGORIES = ['restaurant', 'cafe', 'bakery', 'grocery', 'retail', 'pharmacy', 'other'] as const
 const UNIT_TYPES = ['kg', 'piece', 'pack'] as const
+
+const BATCH_DELAY_MS = 400
+const DEFAULT_LIMIT = 50
 
 const TranslationSchema = z.object({
   nameEn: z.string().min(1).describe('Product name in English'),
@@ -76,7 +80,7 @@ export async function POST(req: NextRequest) {
   } catch {
     /* empty body ok */
   }
-  const limit = Math.min(Math.max(0, body.limit ?? 500), 500)
+  const limit = Math.min(Math.max(1, body.limit ?? DEFAULT_LIMIT), 100)
   const dryRun = body.dryRun === true
 
   const products = await clientNoCdn.fetch<
@@ -96,20 +100,25 @@ export async function POST(req: NextRequest) {
     }`
   )
 
+  const totalNeedingWork = (products ?? []).filter(needsTranslation).length
   const toProcess = (products ?? []).filter(needsTranslation).slice(0, limit)
   const results: { _id: string; ok: boolean; error?: string; updated?: string[] }[] = []
 
-  for (const p of toProcess) {
-    try {
-      const titleEn = (p.nameEn ?? '').trim()
-      const titleAr = (p.nameAr ?? '').trim()
-      const descEn = (p.descriptionEn ?? '').trim()
-      const descAr = (p.descriptionAr ?? '').trim()
-      const category = p.category ?? 'grocery'
-      const existingUnit = p.unitType
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-      const prompt = `You are helping fill a product catalog for a Palestinian/Israeli food delivery platform.
-Product: ${titleEn || titleAr || 'Unknown'}
+  const processProduct = async (
+    p: (typeof toProcess)[0]
+  ): Promise<{ ok: boolean; error?: string; updated?: string[] }> => {
+    const titleEn = (p.nameEn ?? '').trim()
+    const titleAr = (p.nameAr ?? '').trim()
+    const descEn = (p.descriptionEn ?? '').trim()
+    const descAr = (p.descriptionAr ?? '').trim()
+    const category = p.category ?? 'grocery'
+    const existingUnit = p.unitType
+    const productDisplay = titleEn || titleAr || 'Unknown'
+
+    const prompt = `You are helping fill a product catalog for a Palestinian/Israeli food delivery platform.
+Product name(s): ${productDisplay}
 English name: ${titleEn || '(missing)'}
 Arabic name: ${titleAr || '(missing)'}
 Category: ${category}
@@ -117,62 +126,91 @@ Current unit: ${existingUnit || '(missing)'}
 English description: ${descEn || '(missing)'}
 Arabic description: ${descAr || '(missing)'}
 
+IMPORTANT: Product names may be in English, Arabic, or Hebrew. If the name is in Hebrew, translate it to BOTH proper English and Arabic using terminology common in Palestinian/Israeli markets (e.g. גבנה → Labaneh / لبنة).
+
 Tasks:
-1. TRANSLATE: If only one name exists, translate to the other. If both exist, keep them.
+1. TRANSLATE: If only one name exists, translate to the other. If name is Hebrew, provide both English and Arabic. If both exist, keep them.
 2. DESCRIBE: If description is missing, write a SHORT (1-2 sentences) description. Use product name + knowledge of Palestinian/Israeli markets (Tnuva, Osem, Strauss, Bamba, local produce, traditional foods like hummus, labaneh, zaatar).
 3. UNIT: Infer unitType: "kg" for produce/bulk (tomatoes, flour, rice), "piece" for single items (eggs, milk, bread, cheese), "pack" for multi-packs (6-pack soda, box of 12).
 4. SEARCH: Suggest Unsplash query (2-4 words) for product image if useful.
 
-Output: nameEn, nameAr, descriptionEn, descriptionAr, unitType, searchQuery (optional).`
+Output: nameEn, nameAr, descriptionEn, descriptionAr, unitType, searchQuery (optional). All required fields must be non-empty strings.`
 
-      const { object } = await generateObject({
-        model: openai('gpt-4o-mini'),
-        schema: TranslationSchema,
-        system: `You are a bilingual catalog editor for Palestinian/Israeli markets. Output only valid JSON. Use proper Arabic script. Keep descriptions concise (max 2 sentences).`,
-        prompt,
-      })
+    const { object } = await generateObject({
+      model: openai('gpt-4o-mini'),
+      schema: TranslationSchema,
+      system: `You are a bilingual catalog editor for Palestinian/Israeli markets. Output only valid JSON. Use proper Arabic script. Keep descriptions concise (max 2 sentences). Never return empty strings for nameEn, nameAr, descriptionEn, or descriptionAr.`,
+      prompt,
+    })
 
-      if (dryRun) {
-        results.push({ _id: p._id, ok: true, updated: ['dry run - no changes'] })
-        continue
-      }
-
-      const patch: Record<string, unknown> = {}
-      if (!titleEn && object.nameEn) patch.nameEn = object.nameEn
-      if (!titleAr && object.nameAr) patch.nameAr = object.nameAr
-      if (!descEn && object.descriptionEn) patch.descriptionEn = object.descriptionEn
-      if (!descAr && object.descriptionAr) patch.descriptionAr = object.descriptionAr
-      if (!existingUnit && object.unitType) patch.unitType = object.unitType
-      const hasSearch = typeof p.searchQuery === 'string' && p.searchQuery.trim().length >= 2
-      if (!hasSearch && object.searchQuery && object.searchQuery.length >= 2) patch.searchQuery = object.searchQuery
-
-      const updatedFields = Object.keys(patch)
-      if (updatedFields.length === 0) {
-        results.push({ _id: p._id, ok: true, updated: ['no changes needed'] })
-        continue
-      }
-
-      await writeClient.patch(p._id).set(patch).commit()
-      results.push({ _id: p._id, ok: true, updated: updatedFields })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error'
-      results.push({ _id: p._id, ok: false, error: msg })
-      console.error('[admin translate-products]', p._id, err)
+    if (dryRun) {
+      return { ok: true, updated: ['dry run - no changes'] }
     }
+
+    const patch: Record<string, unknown> = {}
+    if (!titleEn && object.nameEn) patch.nameEn = object.nameEn
+    if (!titleAr && object.nameAr) patch.nameAr = object.nameAr
+    if (!descEn && object.descriptionEn) patch.descriptionEn = object.descriptionEn
+    if (!descAr && object.descriptionAr) patch.descriptionAr = object.descriptionAr
+    if (!existingUnit && object.unitType) patch.unitType = object.unitType
+    const hasSearch = typeof p.searchQuery === 'string' && p.searchQuery.trim().length >= 2
+    if (!hasSearch && object.searchQuery && object.searchQuery.length >= 2) patch.searchQuery = object.searchQuery
+
+    const updatedFields = Object.keys(patch)
+    if (updatedFields.length === 0) {
+      return { ok: true, updated: ['no changes needed'] }
+    }
+
+    await writeClient.patch(p._id).set(patch).commit()
+    return { ok: true, updated: updatedFields }
   }
 
-  const okCount = results.filter((r) => r.ok).length
-  const errCount = results.filter((r) => !r.ok).length
+  for (let i = 0; i < toProcess.length; i++) {
+    const p = toProcess[i]
+    let lastError: string | undefined
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        if (attempt > 0) await sleep(2000)
+        const r = await processProduct(p)
+        results.push({ _id: p._id, ...r })
+        break
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : 'Unknown error'
+        if (attempt === 0 && (lastError.includes('rate') || lastError.includes('429') || lastError.includes('overloaded'))) {
+          continue
+        }
+        results.push({ _id: p._id, ok: false, error: lastError })
+        console.error('[admin translate-products]', p._id, err)
+        break
+      }
+    }
+    if (i < toProcess.length - 1) await sleep(BATCH_DELAY_MS)
+  }
+
+  const translated = results.filter((r) => r.ok && r.updated && r.updated.length > 0 && r.updated[0] !== 'no changes needed' && r.updated[0] !== 'dry run - no changes').length
+  const skipped = results.filter((r) => r.ok && r.updated && (r.updated[0] === 'no changes needed' || r.updated[0] === 'dry run - no changes')).length
+  const failed = results.filter((r) => !r.ok).length
+  const remaining = Math.max(0, totalNeedingWork - toProcess.length)
+
+  const errorSamples = results
+    .filter((r) => !r.ok && r.error)
+    .slice(0, 3)
+    .map((r) => r.error)
 
   return NextResponse.json({
-    ok: errCount === 0,
+    ok: failed === 0,
     message: dryRun
       ? `Dry run: would process ${toProcess.length} products`
-      : `Processed ${toProcess.length} products: ${okCount} updated, ${errCount} failed`,
-    totalNeedingWork: (products ?? []).filter(needsTranslation).length,
+      : failed === 0
+        ? `Translated ${translated}, skipped ${skipped}. ${remaining} remaining.`
+        : `Translated ${translated}, skipped ${skipped}, failed ${failed}. ${remaining} remaining.`,
+    totalNeedingWork,
     processed: toProcess.length,
-    updated: okCount,
-    failed: errCount,
+    translated,
+    skipped,
+    failed,
+    remaining,
+    errorSamples: errorSamples.length > 0 ? errorSamples : undefined,
     dryRun,
     results,
   })

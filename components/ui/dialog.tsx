@@ -6,6 +6,7 @@ import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { usePortalContainer } from "@/components/ui/PortalContainerContext"
 
 function Dialog({
   ...props
@@ -61,8 +62,9 @@ function DialogContent({
   /** Z-index for the content; use same as overlayClassName so content sits above overlay (e.g. contentClassName="z-[350]") */
   contentClassName?: string
 }) {
+  const portalContainer = usePortalContainer()
   return (
-    <DialogPortal data-slot="dialog-portal">
+    <DialogPortal data-slot="dialog-portal" container={portalContainer ?? undefined}>
       <div translate="no" style={{ isolation: 'isolate' }}>
         <DialogOverlay className={overlayClassName} />
         <DialogPrimitive.Content

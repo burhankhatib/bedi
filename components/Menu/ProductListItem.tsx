@@ -9,10 +9,11 @@ import { useCart } from '@/components/Cart/CartContext'
 import type { OrderTypeOptions, CartTenant } from '@/components/Cart/CartContext'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Star, Tag, Plus } from 'lucide-react'
+import { Star, Tag, Plus, XCircle } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import { getSaleUnitLabel } from '@/lib/sale-units'
 import { cn } from '@/lib/utils'
+import { isProductUnavailable } from '@/lib/product-availability'
 
 interface ProductListItemProps {
   product: Product
@@ -34,6 +35,7 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
 
   const priceColor = hasSpecialPrice ? 'text-red-600' : 'text-slate-900'
   const shouldHidePrice = catalogOnly && (catalogHidePrices || product.hidePrice)
+  const unavailable = isProductUnavailable(product)
 
   const displayImage = product.image || restaurantLogo
 
@@ -76,13 +78,19 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
         <div>
           {/* Badges */}
           <div className="flex items-center gap-2 mb-2">
-            {product.isPopular && (
+            {unavailable && (
+              <Badge className="bg-slate-500/90 hover:bg-slate-600 text-white border-none flex items-center gap-1 font-black px-2 py-0.5 shadow-lg text-[9px] uppercase">
+                <XCircle className="w-2.5 h-2.5" />
+                {t('Unavailable', 'غير متوفر')}
+              </Badge>
+            )}
+            {product.isPopular && !unavailable && (
               <Badge className="bg-amber-400 hover:bg-amber-500 text-amber-950 border-none flex items-center gap-1 font-black px-2 py-0.5 shadow-lg shadow-amber-500/20 text-[9px] uppercase">
                 <Star className="w-2.5 h-2.5 fill-current" />
                 {t('Popular', 'أكثر طلباً')}
               </Badge>
             )}
-            {hasSpecialPrice && (
+            {hasSpecialPrice && !unavailable && (
               <Badge className="bg-red-500 hover:bg-red-600 text-white border-none flex items-center gap-1 font-black px-2 py-0.5 shadow-lg shadow-red-500/20 text-[9px] uppercase">
                 <Tag className="w-2.5 h-2.5 fill-current" />
                 {t('Offer', 'عرض')}
@@ -145,7 +153,7 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
                 </>
               )}
             </div>
-            {!catalogOnly && (
+            {!catalogOnly && !unavailable && (
             <Button
               size="sm"
               onClick={handleAddToCart}

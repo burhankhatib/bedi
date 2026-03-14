@@ -92,6 +92,35 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
   fish: FaFish,
   sushi: MdRamenDining,
   asian: MdRamenDining,
+  japanese: MdRamenDining,
+  korean: MdRamenDining,
+  thai: MdRamenDining,
+  ramen: MdRamenDining,
+  noodles: MdRamenDining,
+
+  // MENA specialties
+  mandi: MdSetMeal,
+  kabsa: MdSetMeal,
+  manakeesh: MdBakeryDining,
+  kunafa: FaCandyCane,
+  baklava: FaCandyCane,
+  falafel: FaLeaf,
+  hummus: MdTapas,
+  mezze: MdTapas,
+  lebanese: MdRestaurant,
+  turkish: MdRestaurant,
+  egyptian: MdRestaurant,
+
+  // More cuisines & formats
+  mexican: MdLocalDining,
+  indian: MdRestaurantMenu,
+  mediterranean: MdRestaurant,
+  barbecue: FaFireAlt,
+  'fried-chicken': FaDrumstickBite,
+  wraps: MdLunchDining,
+  'rice-dishes': MdSetMeal,
+  donuts: MdCake,
+  snacks: MdLocalDining,
 
   // Mains & dishes
   'main dishes': MdDinnerDining,
@@ -223,6 +252,15 @@ const KEYWORD_FALLBACKS: Array<{ keyword: string; icon: IconType }> = [
   { keyword: 'bake', icon: MdBakeryDining },
   { keyword: 'break', icon: MdFreeBreakfast },
   { keyword: 'kid', icon: MdChildCare },
+  { keyword: 'mandi', icon: MdSetMeal },
+  { keyword: 'kabsa', icon: MdSetMeal },
+  { keyword: 'manakeesh', icon: MdBakeryDining },
+  { keyword: 'kunafa', icon: FaCandyCane },
+  { keyword: 'falafel', icon: FaLeaf },
+  { keyword: 'hummus', icon: MdTapas },
+  { keyword: 'mezze', icon: MdTapas },
+  { keyword: 'ramen', icon: MdRamenDining },
+  { keyword: 'noodle', icon: MdRamenDining },
 ]
 
 export function getSectionIcon(key: string): IconType {

@@ -9,12 +9,13 @@ import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
 import type { OrderTypeOptions, CartTenant } from '@/components/Cart/CartContext'
 import { Button } from '@/components/ui/button'
-import { X, Star, Tag, Check, Plus, Minus } from 'lucide-react'
+import { X, Star, Tag, Check, Plus, Minus, XCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/currency'
 import { getSaleUnitLabel } from '@/lib/sale-units'
 import { cn } from '@/lib/utils'
 import { getVariantOptionModifier } from '@/lib/cart-price'
+import { isProductUnavailable } from '@/lib/product-availability'
 
 interface ProductModalProps {
   product: Product | null
@@ -52,6 +53,7 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
 
   if (!product) return null
 
+  const unavailable = isProductUnavailable(product)
   const hasSpecialPrice = product.specialPrice &&
     (!product.specialPriceExpires || new Date(product.specialPriceExpires) > new Date())
 
@@ -128,6 +130,7 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
   }
 
   const handleAddToCart = () => {
+    if (unavailable) return
     const selectedAddOns = Object.entries(addOnQuantities).flatMap(([key, qty]) =>
       qty > 0 ? Array(qty).fill(key) : []
     )
@@ -204,13 +207,19 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
               )}
 
               <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-                {product.isPopular && (
+                {unavailable && (
+                  <Badge className="bg-slate-500/90 text-white border-none font-black px-2.5 py-1 shadow-lg text-[10px] uppercase tracking-wider flex items-center gap-1">
+                    <XCircle className="w-3 h-3" />
+                    {t('Unavailable', 'غير متوفر')}
+                  </Badge>
+                )}
+                {product.isPopular && !unavailable && (
                   <Badge className="bg-amber-400 text-amber-950 border-none font-black px-2.5 py-1 shadow-lg text-[10px] uppercase tracking-wider">
                     <Star className="w-3 h-3 fill-current mr-1" />
                     {t('Popular', 'الأكثر طلباً')}
                   </Badge>
                 )}
-                {hasSpecialPrice && (
+                {hasSpecialPrice && !unavailable && (
                   <Badge className="bg-red-500 text-white border-none font-black px-2.5 py-1 shadow-lg text-[10px] uppercase tracking-wider">
                     <Tag className="w-3 h-3 fill-current mr-1" />
                     {t('Offer', 'عرض')}
@@ -403,12 +412,12 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
               <div className="shrink-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom,0px)]">
                 <div className="px-4 py-3 flex items-center justify-between gap-4 md:px-6">
                   <div className="flex items-baseline gap-1.5 min-w-0">
-                    {hasSpecialPrice && (
+                    {hasSpecialPrice && !unavailable && (
                       <span className="text-sm text-slate-400 line-through shrink-0">{product.price}</span>
                     )}
                     <span className={cn(
                       'text-2xl md:text-3xl font-black tracking-tight leading-none truncate',
-                      hasSpecialPrice ? 'text-red-600' : 'text-slate-900'
+                      unavailable ? 'text-slate-500' : hasSpecialPrice ? 'text-red-600' : 'text-slate-900'
                     )}>
                       {totalPrice}
                     </span>
@@ -422,11 +431,14 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                   <Button
                     className="shrink-0 h-12 px-6 rounded-2xl font-black text-base md:h-14 md:px-8 md:text-lg shadow-lg"
                     onClick={handleAddToCart}
-                    disabled={!variantsComplete}
+                    disabled={unavailable || !variantsComplete}
+                    variant={unavailable ? 'secondary' : 'default'}
                   >
-                    {!variantsComplete
-                      ? t('Choose required', 'اختر الإلزامي')
-                      : t('Add to Cart', 'إضافة إلى السلة')}
+                    {unavailable
+                      ? t('Unavailable', 'غير متوفر')
+                      : !variantsComplete
+                        ? t('Choose required', 'اختر الإلزامي')
+                        : t('Add to Cart', 'إضافة إلى السلة')}
                   </Button>
                 </div>
               </div>

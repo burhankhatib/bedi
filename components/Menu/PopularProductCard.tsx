@@ -9,9 +9,10 @@ import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
 import type { OrderTypeOptions, CartTenant } from '@/components/Cart/CartContext'
 import { Badge } from '@/components/ui/badge'
-import { Star, Tag, Plus } from 'lucide-react'
+import { Star, Tag, Plus, XCircle } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import { cn } from '@/lib/utils'
+import { isProductUnavailable } from '@/lib/product-availability'
 
 interface PopularProductCardProps {
   product: Product
@@ -44,6 +45,7 @@ export function PopularProductCard({
     (!product.specialPriceExpires || new Date(product.specialPriceExpires) > new Date())
 
   const shouldHidePrice = catalogOnly && (catalogHidePrices || product.hidePrice)
+  const unavailable = isProductUnavailable(product)
   const displayImage = product.image || restaurantLogo
 
   // Get the second image for hover effect
@@ -64,7 +66,10 @@ export function PopularProductCard({
       onClick={() => onClick(product)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="relative w-[320px] md:w-[450px] h-[220px] md:h-[280px] rounded-[32px] overflow-hidden cursor-pointer group shrink-0 shadow-xl shadow-black/5"
+      className={cn(
+        'relative w-[320px] md:w-[450px] h-[220px] md:h-[280px] rounded-[32px] overflow-hidden group shrink-0 shadow-xl shadow-black/5',
+        unavailable ? 'opacity-70 grayscale-[0.2]' : 'cursor-pointer'
+      )}
     >
       {/* Background Image Layer */}
       <div className="absolute inset-0 bg-slate-100">
@@ -108,11 +113,17 @@ export function PopularProductCard({
 
       {/* Top Badges */}
       <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+        {unavailable && (
+          <Badge className="bg-slate-500/90 text-white border-none font-black px-3 py-1 shadow-lg text-[10px] uppercase tracking-wider rounded-full flex items-center gap-1">
+            <XCircle className="w-3 h-3" />
+            {t('Unavailable', 'غير متوفر')}
+          </Badge>
+        )}
         <Badge className="bg-amber-400 text-amber-950 border-none font-black px-3 py-1 shadow-lg text-[10px] uppercase tracking-wider rounded-full">
           <Star className="w-3 h-3 fill-current mr-1" />
           {t('Popular', 'الأكثر طلباً')}
         </Badge>
-        {hasSpecialPrice && (
+        {hasSpecialPrice && !unavailable && (
           <Badge className="bg-red-500 text-white border-none font-black px-3 py-1 shadow-lg text-[10px] uppercase tracking-wider rounded-full">
             <Tag className="w-3 h-3 fill-current mr-1" />
             {t('Offer', 'عرض')}
@@ -158,8 +169,8 @@ export function PopularProductCard({
             )}
           </div>
 
-          {/* Floating Add to Cart Button - hidden when closed */}
-          {!catalogOnly && (
+          {/* Floating Add to Cart Button - hidden when closed or unavailable */}
+          {!catalogOnly && !unavailable && (
           <button
             onClick={handleAddToCart}
             className="relative bg-black hover:bg-slate-800 active:bg-slate-700 shadow-2xl rounded-2xl h-12 w-12 flex items-center justify-center cursor-pointer pointer-events-auto shrink-0 transition-colors"
