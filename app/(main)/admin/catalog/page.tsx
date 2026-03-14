@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Loader2, Package, CheckCircle, Plus, Upload, Link2, Pencil, Languages } from 'lucide-react'
+import { Loader2, Package, CheckCircle, Plus, Upload, Link2, Pencil, Languages, Copy, Trash2, Merge } from 'lucide-react'
 import { compressImageForUpload } from '@/lib/compress-image'
 
 const CATEGORIES = [
@@ -239,6 +239,20 @@ export default function AdminCatalogPage() {
     dryRun?: boolean
   } | null>(null)
 
+  // Duplicates (find, merge, delete)
+  type DuplicateProduct = {
+    _id: string
+    nameEn?: string | null
+    nameAr?: string | null
+    category?: string | null
+    imageUrl?: string | null
+  }
+  const [findingDuplicates, setFindingDuplicates] = useState(false)
+  const [duplicateGroups, setDuplicateGroups] = useState<Array<{ key: string; products: DuplicateProduct[] }>>([])
+  const [duplicateResult, setDuplicateResult] = useState<{ ok: boolean; message?: string } | null>(null)
+  const [actingOnDuplicate, setActingOnDuplicate] = useState<string | null>(null)
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set())
+
   // Existing products (paginated)
   const [products, setProducts] = useState<MasterCatalogItem[]>([])
   const [productsLoading, setProductsLoading] = useState(true)
@@ -351,13 +365,8 @@ export default function AdminCatalogPage() {
     setImportResult(null)
     try {
       await navigator.clipboard.writeText(cmd)
-      setImportResult({ ok: true, message: 'Command copied. Terminal should focus—press Enter to run (or paste with Ctrl+V / Cmd+V first).' })
+      setImportResult({ ok: true, message: 'Command copied. Paste in your terminal and run.' })
       setTimeout(() => setImportResult(null), 6000)
-      try {
-        window.open('vscode://', '_blank', 'noopener')
-      } catch {
-        /* vscode:// not supported */
-      }
     } catch {
       setImportResult({ ok: false, message: 'Could not copy. Run the command below in your terminal.' })
     }
@@ -388,6 +397,84 @@ export default function AdminCatalogPage() {
     } finally {
       setTranslating(false)
     }
+  }
+
+  const handleFindDuplicates = async () => {
+    setDuplicateResult(null)
+    setDuplicateGroups([])
+    setDismissedKeys(new Set())
+    setFindingDuplicates(true)
+    try {
+      const res = await fetch('/api/admin/duplicate-products', { cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Failed to fetch')
+      setDuplicateGroups(data.groups ?? [])
+      setDuplicateResult({
+        ok: true,
+        message:
+          (data.groups ?? []).length === 0
+            ? 'No duplicates found.'
+            : `Found ${data.totalDuplicates ?? 0} products in ${(data.groups ?? []).length} duplicate groups.`,
+      })
+    } catch (err) {
+      setDuplicateResult({ ok: false, message: err instanceof Error ? err.message : 'Request failed' })
+    } finally {
+      setFindingDuplicates(false)
+    }
+  }
+
+  const handleMergeDuplicates = async (keepId: string, mergeIds: string[]) => {
+    setActingOnDuplicate(keepId)
+    setDuplicateResult(null)
+    try {
+      const res = await fetch('/api/admin/duplicate-products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'merge', keepId, mergeIds }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Merge failed')
+      setDuplicateResult({ ok: true, message: data.message ?? 'Merged successfully.' })
+      setDuplicateGroups((prev) => prev.filter((g) => !g.products.some((p) => p._id === keepId || mergeIds.includes(p._id))))
+      fetchProducts()
+    } catch (err) {
+      setDuplicateResult({ ok: false, message: err instanceof Error ? err.message : 'Merge failed' })
+    } finally {
+      setActingOnDuplicate(null)
+    }
+  }
+
+  const handleDeleteDuplicate = async (id: string, groupKey: string) => {
+    setActingOnDuplicate(id)
+    setDuplicateResult(null)
+    try {
+      const res = await fetch('/api/admin/duplicate-products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Delete failed')
+      setDuplicateResult({ ok: true, message: data.message ?? 'Deleted.' })
+      setDuplicateGroups((prev) =>
+        prev
+          .map((g) =>
+            g.key === groupKey
+              ? { ...g, products: g.products.filter((p) => p._id !== id) }
+              : g
+          )
+          .filter((g) => g.products.length >= 2)
+      )
+      fetchProducts()
+    } catch (err) {
+      setDuplicateResult({ ok: false, message: err instanceof Error ? err.message : 'Delete failed' })
+    } finally {
+      setActingOnDuplicate(null)
+    }
+  }
+
+  const handleLeaveDuplicates = (key: string) => {
+    setDismissedKeys((prev) => new Set(prev).add(key))
   }
 
   const handleManualAdd = async (e: React.FormEvent) => {
@@ -602,7 +689,7 @@ export default function AdminCatalogPage() {
           <ol className="list-decimal list-inside space-y-2 px-4 pb-4 text-sm text-slate-400">
             <li>Enter Baladi category numbers (e.g. 95818, 79673). From URL: .../categories/95818/products</li>
             <li>Select market category (grocery, bakery, retail, etc.)</li>
-            <li>Click <strong className="text-white">Run</strong> — the command is copied and Cursor/VS Code will focus</li>
+            <li>Click <strong className="text-white">Run</strong> — the command is copied to your clipboard</li>
             <li>Press <kbd className="rounded border border-slate-600 bg-slate-700 px-1.5 py-0.5 font-mono text-xs">Ctrl+`</kbd> or <kbd className="rounded border border-slate-600 bg-slate-700 px-1.5 py-0.5 font-mono text-xs">Cmd+`</kbd> to open the terminal, then <kbd className="rounded border border-slate-600 bg-slate-700 px-1.5 py-0.5 font-mono text-xs">Ctrl+V</kbd> / <kbd className="rounded border border-slate-600 bg-slate-700 px-1.5 py-0.5 font-mono text-xs">Cmd+V</kbd> to paste and <kbd className="rounded border border-slate-600 bg-slate-700 px-1.5 py-0.5 font-mono text-xs">Enter</kbd> to run</li>
             <li>A browser window opens—solve Cloudflare check if shown, then press Enter in the terminal</li>
             <li>When done, refresh this page to see the new products</li>
@@ -685,6 +772,15 @@ export default function AdminCatalogPage() {
             {translating ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
             Dry run (preview)
           </Button>
+          <Button
+            variant="outline"
+            onClick={handleFindDuplicates}
+            disabled={findingDuplicates}
+            className="border-amber-600/60 text-amber-400 hover:bg-amber-500/10"
+          >
+            {findingDuplicates ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Copy className="mr-2 size-4" />}
+            {findingDuplicates ? 'Finding…' : 'Find Duplicates'}
+          </Button>
         </div>
         {translateResult && (
           <div
@@ -704,6 +800,106 @@ export default function AdminCatalogPage() {
                 )}
               </span>
             )}
+          </div>
+        )}
+
+        {/* Duplicate groups */}
+        {duplicateResult && (
+          <div
+            className={`mt-4 flex items-center gap-2 rounded-lg p-4 ${
+              duplicateResult.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+            }`}
+          >
+            {duplicateResult.ok && <CheckCircle className="size-5 shrink-0" />}
+            <span>{duplicateResult.message}</span>
+          </div>
+        )}
+        {duplicateGroups.length > 0 && (
+          <div className="mt-4 space-y-4">
+            <h3 className="text-sm font-medium text-slate-300">Duplicate groups (same name + category)</h3>
+            {duplicateGroups
+              .filter((g) => !dismissedKeys.has(g.key))
+              .map((group) => (
+                <div
+                  key={group.key}
+                  className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-xs text-amber-400/80">
+                      {group.products.length} duplicates · {(group.products[0]?.category ?? '').replace(/^./, (c) => c.toUpperCase())}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleLeaveDuplicates(group.key)}
+                      className="text-slate-400 hover:text-white"
+                    >
+                      Leave as is
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {group.products.map((p) => (
+                      <div
+                        key={p._id}
+                        className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-800/50 p-3"
+                      >
+                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-700">
+                          {p.imageUrl ? (
+                            <Image src={p.imageUrl} alt="" fill className="object-cover" sizes="56px" unoptimized />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Package className="size-6 text-slate-500" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="truncate text-sm font-medium text-white">{p.nameEn || p.nameAr || '—'}</p>
+                          {(p.nameAr || p.nameEn) && (
+                            <p className="truncate text-xs text-slate-400" dir="rtl">
+                              {p.nameAr || p.nameEn}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 flex-col gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              handleMergeDuplicates(
+                                p._id,
+                                group.products.filter((x) => x._id !== p._id).map((x) => x._id)
+                              )
+                            }
+                            disabled={!!actingOnDuplicate}
+                            className="border-emerald-600/60 text-emerald-400 hover:bg-emerald-500/10"
+                          >
+                            {actingOnDuplicate === p._id ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              <Merge className="size-3" />
+                            )}
+                            <span className="hidden sm:inline">Merge</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteDuplicate(p._id, group.key)}
+                            disabled={!!actingOnDuplicate}
+                            className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                          >
+                            {actingOnDuplicate === p._id ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-3" />
+                            )}
+                            <span className="hidden sm:inline">Delete</span>
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
           </div>
         )}
       </div>

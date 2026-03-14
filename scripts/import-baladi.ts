@@ -74,8 +74,8 @@ const BALADI_CATEGORIES: Array<{ name: string; url: string; marketCategory: stri
 /** Known market category values (if last positional matches, it's market not a category ID) */
 const MARKET_WORDS = new Set(['grocery', 'bakery', 'retail', 'pharmacy', 'restaurant', 'cafe', 'other'])
 
-/** Positional args (e.g. from "npm run import:baladi:cat -- 95818 grocery" or "95818 95010 grocery") */
-const POSITIONAL = process.argv.filter((a) => !a.startsWith('--') && a !== process.argv[0] && a !== process.argv[1])
+/** Positional args: exclude flags, node path, and script/tsx path (often argv[0], argv[1]) */
+const POSITIONAL = process.argv.slice(2).filter((a) => !a.startsWith('--'))
 
 /** --category-ids 95818,95010,95817 or comma-separated */
 const CATEGORY_IDS_ARG = (() => {
@@ -723,8 +723,12 @@ async function main() {
 
   const backfillExisting = process.argv.includes('--backfill-existing')
   console.log(backfillExisting ? '🔄 Backfill mode: fixing existing products with Baladi images' : '🚀 Starting Baladi Supermarket import...')
-  if (MANUAL_URL) {
-    console.log(`   📎 Single URL mode: ${MANUAL_URL}`)
+  if (MANUAL_CATEGORY_IDS?.length) {
+    console.log(`   📎 Categories: ${MANUAL_CATEGORY_IDS.join(', ')} (${MANUAL_CATEGORY_IDS.length} total)`)
+  } else if (MANUAL_URL) {
+    console.log(`   📎 Single URL: ${MANUAL_URL}`)
+  }
+  if (MANUAL_URL || MANUAL_CATEGORY_IDS?.length) {
     console.log(`   📎 Market category: ${MANUAL_MARKET_CATEGORY ?? 'grocery'}`)
   }
   console.log(`   Limit: ${EFFECTIVE_LIMIT} products per session${INTERACTIVE_AUTH ? ' (interactive)' : ''}`)
@@ -833,18 +837,25 @@ async function main() {
       await new Promise((r) => setTimeout(r, 1000))
     }
 
+    const totalCategories = CATEGORY_URLS.length
+    let categoryIndex = 0
     for (const targetUrl of CATEGORY_URLS) {
       if (products.length >= SCRAPE_POOL_LIMIT) break
-
-      console.log(`   Scraping: ${targetUrl}`)
-      const ok = await gotoBaladi(page, targetUrl, 45000)
-      if (!ok) {
-        console.log(`   ⚠ Cloudflare challenge not passed for ${targetUrl}`)
-        continue
+      categoryIndex++
+      if (totalCategories > 1) {
+        console.log(`\n   [${categoryIndex}/${totalCategories}] Scraping: ${targetUrl}`)
+      } else {
+        console.log(`   Scraping: ${targetUrl}`)
       }
+      try {
+        const ok = await gotoBaladi(page, targetUrl, 45000)
+        if (!ok) {
+          console.log(`   ⚠ Cloudflare challenge not passed for ${targetUrl}`)
+          continue
+        }
 
-      // Wait for dynamic content. Product image: img.image (Angular ng-src, CloudFront)
-      await page.waitForSelector('img.image, .name, .price', { timeout: 15000 }).catch(() => {})
+        // Wait for dynamic content. Product image: img.image (Angular ng-src, CloudFront)
+        await page.waitForSelector('img.image, .name, .price', { timeout: 15000 }).catch(() => {})
       await new Promise((r) => setTimeout(r, 2000)) // Extra wait for lazy-loaded images
 
       // Scroll to load all products (Baladi uses infinite scroll / load-on-scroll)
@@ -872,12 +883,15 @@ async function main() {
         products.push(p)
       }
       if (spProducts.length > 0) {
-        console.log(`   Found ${spProducts.length} products from sp-product`)
-        // When importing from a single URL, skip extra strategies to avoid browser navigation issues
-        if (MANUAL_URL) {
-          console.log(`   Skipping extra extraction (manual URL mode). Proceeding to import...`)
+        console.log(`   Found ${spProducts.length} products from ${targetUrl}`)
+        if (CATEGORY_URLS.length === 1) {
+          console.log(`   Single category done. Proceeding to import...`)
           break
         }
+        // Multiple categories: move to next URL immediately so we don't hang on extra strategies
+        console.log(`   Moving to next category...`)
+        await new Promise((r) => setTimeout(r, 1500))
+        continue
       }
 
       // Strategy 0: Try to extract from preloaded data (ZuZ/Baladi data.js or window vars)
@@ -1032,7 +1046,13 @@ async function main() {
         }
       }
 
-      await new Promise((r) => setTimeout(r, 1500)) // Rate limit between pages
+        await new Promise((r) => setTimeout(r, 1500)) // Rate limit between pages
+      } catch (err) {
+        console.error(`   ✗ Error scraping ${targetUrl}:`, err instanceof Error ? err.message : String(err))
+        if (totalCategories > 1) {
+          console.log(`   Continuing to next category...`)
+        }
+      }
     }
 
     // Backfill images: visit product pages for products that need images but we didn't get from listing.
