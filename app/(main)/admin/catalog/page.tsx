@@ -379,7 +379,7 @@ export default function AdminCatalogPage() {
       const res = await fetch('/api/admin/translate-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit: 50, dryRun }),
+        body: JSON.stringify({ limit: 500, dryRun }),
       })
       const data = await res.json().catch(() => ({}))
       setTranslateResult({
@@ -761,7 +761,7 @@ export default function AdminCatalogPage() {
             className="bg-sky-600 hover:bg-sky-500"
           >
             {translating ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Languages className="mr-2 size-4" />}
-            {translating ? 'Translating…' : 'Translate & Fill (50 max)'}
+            {translating ? 'Translating…' : 'Translate & Fill (500 max)'}
           </Button>
           <Button
             variant="outline"

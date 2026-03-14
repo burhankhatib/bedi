@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
   } catch {
     /* empty body ok */
   }
-  const limit = Math.min(Math.max(0, body.limit ?? 50), 100)
+  const limit = Math.min(Math.max(0, body.limit ?? 500), 500)
   const dryRun = body.dryRun === true
 
   const products = await clientNoCdn.fetch<
