@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
-import { Loader2, Sparkles, Store, ShoppingCart, Send } from 'lucide-react'
+import type { UIMessage } from 'ai'
+import { Loader2, Sparkles, Store, ShoppingCart, Send, RotateCcw } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
 import { cn } from '@/lib/utils'
@@ -13,6 +14,36 @@ import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { SanitizedMarkdown } from '@/components/ai/SanitizedMarkdown'
 import type { Product } from '@/app/types/menu'
 import type { ToolProduct } from '@/lib/ai/search-tools'
+
+const CHAT_STORAGE_PREFIX = 'zonify-ai-chat-'
+
+function loadStoredMessages(city: string): UIMessage[] {
+  if (typeof window === 'undefined' || !city) return []
+  try {
+    const raw = localStorage.getItem(`${CHAT_STORAGE_PREFIX}${city}`)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function saveStoredMessages(city: string, messages: UIMessage[]) {
+  if (typeof window === 'undefined' || !city) return
+  try {
+    localStorage.setItem(`${CHAT_STORAGE_PREFIX}${city}`, JSON.stringify(messages))
+  } catch (e) {
+    console.warn('[SearchAIPanel] Failed to persist chat:', e)
+  }
+}
+
+function clearStoredMessages(city: string) {
+  if (typeof window === 'undefined' || !city) return
+  try {
+    localStorage.removeItem(`${CHAT_STORAGE_PREFIX}${city}`)
+  } catch {}
+}
 
 interface SearchAIPanelProps {
   /** Initial question (sent on first load) */
@@ -50,22 +81,39 @@ export function SearchAIPanel({
   const [replyInput, setReplyInput] = useState('')
   const replyInputRef = useRef<HTMLInputElement>(null)
 
-  const { messages, sendMessage, status } = useChat({
+  const initialMessages = useMemo(() => loadStoredMessages(city), [city])
+
+  const { messages, sendMessage, setMessages, status } = useChat({
     id: `search-ai-${city}`,
+    messages: initialMessages,
     transport: new DefaultChatTransport({
       api: '/api/search/chat',
       body: { city, country, lang: lang === 'ar' ? 'ar' : 'en' },
     }),
   })
 
+  useEffect(() => {
+    if (messages.length === 0) return
+    saveStoredMessages(city, messages)
+  }, [city, messages])
+
   const lastSentKey = useRef('')
   useEffect(() => {
     if (!query.trim() || !city) return
+    if (messages.length > 0) return
     const key = `initial:${city}:${query}`
     if (lastSentKey.current === key) return
     lastSentKey.current = key
     sendMessage({ text: query })
-  }, [query, city, sendMessage])
+  }, [query, city, sendMessage, messages.length])
+
+  const handleResetChat = () => {
+    clearStoredMessages(city)
+    lastSentKey.current = ''
+    setMessages([])
+    setReplyInput('')
+    replyInputRef.current?.focus()
+  }
 
   const lastFollowUpRef = useRef('')
   useEffect(() => {
@@ -112,16 +160,27 @@ export function SearchAIPanel({
 
   return (
     <div className={cn('flex flex-col', className)}>
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200 bg-slate-50/80">
-        <Sparkles className="size-4 text-amber-500" />
-        <span className="text-sm font-medium text-slate-700">
-          {t('AI assistant', 'المساعد الذكي')}
-        </span>
+      <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 bg-slate-50/80">
+        <div className="flex items-center gap-2">
+          <Sparkles className="size-4 text-amber-500" />
+          <span className="text-sm font-medium text-slate-700">
+            {t('AI assistant', 'المساعد الذكي')}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={handleResetChat}
+          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200/80 hover:text-slate-800 transition-colors"
+          aria-label={t('New chat', 'محادثة جديدة')}
+        >
+          <RotateCcw className="size-3.5" />
+          {t('New chat', 'محادثة جديدة')}
+        </button>
       </div>
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto max-h-[320px] px-4 py-4 pb-6 min-h-[120px]"
+        className="flex-1 overflow-y-auto max-h-[320px] px-4 py-4 pb-8 min-h-[120px]"
       >
         {loading && messages.length === 0 && (
           <div className="flex items-center gap-2 text-slate-500">
@@ -257,7 +316,14 @@ export function SearchAIPanel({
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="font-semibold text-slate-900 truncate">{title}</p>
-                                  <p className="text-xs text-slate-500">{p.businessName}</p>
+                                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                                    {p.businessName}
+                                    {p.businessOpenNow && (
+                                      <span className="inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                                        {t('Open', 'مفتوح')}
+                                      </span>
+                                    )}
+                                  </p>
                                   {p.price > 0 && (
                                     <p className="text-sm font-bold text-slate-700 mt-0.5">
                                       {p.price} {p.currency}
@@ -298,6 +364,24 @@ export function SearchAIPanel({
                     </div>
                   )
                 }
+                if (part.type === 'tool-get_business_hours') {
+                  if (part.state !== 'output-available' || !part.output) return null
+                  const data = part.output as { found?: boolean; name?: string; isOpenNow?: boolean; todayHours?: string; fullWeekHours?: string }
+                  if (!data.found) return null
+                  return (
+                    <div key={idx} className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-sm font-medium text-slate-800">
+                        {data.name} — {data.isOpenNow ? t('Open now', 'مفتوح الآن') : t('Closed', 'مغلق')}
+                      </p>
+                      {data.todayHours && (
+                        <p className="mt-1 text-xs text-slate-600">{t("Today's hours:", "ساعات اليوم:")} {data.todayHours}</p>
+                      )}
+                      {data.fullWeekHours && (
+                        <p className="mt-1 text-xs text-slate-500">{data.fullWeekHours}</p>
+                      )}
+                    </div>
+                  )
+                }
                 if (part.type === 'tool-show_quick_reply_buttons') {
                   if (part.state !== 'output-available' || !part.output) return null
                   const data = part.output as { type?: string; options?: string[]; prompt?: string | null }
@@ -305,6 +389,7 @@ export function SearchAIPanel({
                   const opts = data.type === 'yes_no' && lang === 'ar' ? [t('Yes', 'نعم'), t('No', 'لا')] : rawOpts
                   if (opts.length === 0) return null
                   const prompt = data.prompt
+                  const isNumericGrid = opts.length >= 6 && opts.every((o) => /^\d+$/.test(o.trim()))
                   return (
                     <div key={idx} className="mt-3 flex flex-col gap-2">
                       {prompt && (
@@ -312,7 +397,13 @@ export function SearchAIPanel({
                           {prompt}
                         </p>
                       )}
-                      <div className="flex flex-wrap gap-2">
+                      <div
+                        className={
+                          isNumericGrid
+                            ? 'grid grid-cols-5 gap-2'
+                            : 'flex flex-wrap gap-2'
+                        }
+                      >
                         {opts.map((label) => (
                           <button
                             key={label}
@@ -321,7 +412,10 @@ export function SearchAIPanel({
                               onSaveQuestion?.(label)
                               sendMessage({ text: label })
                             }}
-                            className="rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 active:scale-[0.98]"
+                            className={cn(
+                              'rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 active:scale-[0.98]',
+                              isNumericGrid && 'px-3 py-2'
+                            )}
                             dir={lang === 'ar' ? 'rtl' : 'ltr'}
                           >
                             {label}
@@ -384,7 +478,14 @@ export function SearchAIPanel({
                                     </div>
                                     <div className="min-w-0 flex-1">
                                       <p className="font-semibold text-slate-900 truncate">{title}</p>
-                                      <p className="text-xs text-slate-500">{p.businessName}</p>
+                                      <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                                        {p.businessName}
+                                        {p.businessOpenNow && (
+                                          <span className="inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                                            {t('Open', 'مفتوح')}
+                                          </span>
+                                        )}
+                                      </p>
                                       {p.price > 0 && (
                                         <p className="text-sm font-bold text-slate-700 mt-0.5">
                                           {p.price} {p.currency}
@@ -428,7 +529,7 @@ export function SearchAIPanel({
       {/* Dedicated reply input — always visible so user can type follow-ups */}
       <form
         onSubmit={handleSendReply}
-        className="sticky bottom-0 flex gap-2 border-t border-slate-200 bg-white pt-5 pb-4 px-4"
+        className="sticky bottom-0 flex gap-2 border-t border-slate-200 bg-white pt-6 pb-5 px-4"
       >
         <input
           ref={replyInputRef}

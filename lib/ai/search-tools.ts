@@ -4,6 +4,8 @@
  */
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
+import { getBusinessHoursForCity } from '@/lib/ai/business-hours-helper'
+import { getProductOrderCounts } from '@/lib/ai/product-order-counts'
 
 const CITY_TENANT_FILTER = `(city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now())))`
 
@@ -20,6 +22,10 @@ export type ToolProduct = {
   businessName: string
   businessType?: string
   isPopular?: boolean
+  /** Whether the business is currently open */
+  businessOpenNow?: boolean
+  /** Number of times this product was ordered (for popularity sort) */
+  orderCount?: number
 }
 
 export type ToolBusiness = {
@@ -40,8 +46,12 @@ export async function searchProducts(params: {
   country?: string
   query: string
   limit?: number
+  /** Prefer products from businesses that are currently open */
+  preferOpenOnly?: boolean
+  /** Sort: price_asc (cheapest first), price_desc, popularity (most ordered first) */
+  sortBy?: 'price_asc' | 'price_desc' | 'popularity'
 }): Promise<SearchProductsResult> {
-  const { city, country = '', query, limit = 30 } = params
+  const { city, country = '', query, limit = 30, preferOpenOnly, sortBy } = params
   const q = query.toLowerCase().trim()
   const terms = q.split(/\s+/).filter(Boolean)
 
@@ -125,7 +135,18 @@ export async function searchProducts(params: {
       }
     })
 
-  const productList = (products ?? []).slice(0, limit)
+  let productList = (products ?? []).slice(0, limit * 2)
+  const [hoursList, orderCounts] = await Promise.all([
+    getBusinessHoursForCity(city, country || undefined),
+    sortBy === 'popularity' ? getProductOrderCounts(city, country || undefined) : Promise.resolve(new Map<string, number>()),
+  ])
+  const openBySlug = new Map(hoursList.map((h) => [h.slug, h.isOpenNow]))
+
+  if (preferOpenOnly) {
+    const openSlugs = new Set(hoursList.filter((h) => h.isOpenNow).map((h) => h.slug))
+    productList = productList.filter((p) => openSlugs.has(p.siteSlug ?? ''))
+  }
+
   const productResults: ToolProduct[] = productList.map((p) => {
     const imageUrl = p.image?.asset?._ref ? urlFor(p.image).width(300).height(300).url() : null
     return {
@@ -139,10 +160,16 @@ export async function searchProducts(params: {
       businessName: p.siteName ?? '',
       businessType: p.siteBusinessType ?? undefined,
       isPopular: p.isPopular ?? false,
+      businessOpenNow: openBySlug.get(p.siteSlug ?? ''),
+      orderCount: orderCounts.get(p._id),
     }
   })
 
-  return { products: productResults, businesses }
+  if (sortBy === 'price_asc') productResults.sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
+  else if (sortBy === 'price_desc') productResults.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
+  else if (sortBy === 'popularity') productResults.sort((a, b) => (b.orderCount ?? 0) - (a.orderCount ?? 0))
+
+  return { products: productResults.slice(0, limit), businesses }
 }
 
 /** Product is relevant if its title contains at least one ingredient (avoids suggesting cheese when user asked for chicken). */
@@ -162,6 +189,8 @@ export async function searchIngredients(params: {
   country?: string
   ingredients: string[]
   lang?: 'en' | 'ar'
+  preferOpenOnly?: boolean
+  sortBy?: 'price_asc' | 'popularity'
 }): Promise<{
   products: ToolProduct[]
   byStore: Record<string, ToolProduct[]>
@@ -169,7 +198,7 @@ export async function searchIngredients(params: {
   matchedIngredients: string[]
   missingIngredients: string[]
 }> {
-  const { city, country = '' } = params
+  const { city, country = '', preferOpenOnly, sortBy } = params
   const sought = params.ingredients.slice(0, 15).map((i) => i.trim()).filter(Boolean)
   if (sought.length === 0) return { products: [], byStore: {}, soughtIngredients: [], matchedIngredients: [], missingIngredients: [] }
 
@@ -209,7 +238,13 @@ export async function searchIngredients(params: {
     { city, ...(country ? { country } : {}), ...ingParams }
   )
 
-  const rawList = (products ?? []).map((p) => {
+  const [hoursList, orderCounts] = await Promise.all([
+    getBusinessHoursForCity(city, country || undefined),
+    sortBy === 'popularity' ? getProductOrderCounts(city, country || undefined) : Promise.resolve(new Map<string, number>()),
+  ])
+  const openBySlug = new Map(hoursList.map((h) => [h.slug, h.isOpenNow]))
+
+  let rawList = (products ?? []).map((p) => {
     const imageUrl = p.image?.asset?._ref ? urlFor(p.image).width(300).height(300).url() : null
     return {
       _id: p._id,
@@ -220,10 +255,19 @@ export async function searchIngredients(params: {
       imageUrl,
       businessSlug: p.siteSlug ?? '',
       businessName: p.siteName ?? '',
+      businessOpenNow: openBySlug.get(p.siteSlug ?? ''),
+      orderCount: orderCounts.get(p._id),
     }
   })
 
-  const list = rawList.filter((p) => isProductRelevantForIngredients(p, sought))
+  if (preferOpenOnly) {
+    const openSlugs = new Set(hoursList.filter((h) => h.isOpenNow).map((h) => h.slug))
+    rawList = rawList.filter((p) => openSlugs.has(p.businessSlug))
+  }
+
+  let list = rawList.filter((p) => isProductRelevantForIngredients(p, sought))
+  if (sortBy === 'price_asc') list = [...list].sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
+  else if (sortBy === 'popularity') list = [...list].sort((a, b) => (b.orderCount ?? 0) - (a.orderCount ?? 0))
 
   const matchedIngredients = sought.filter((ing) => list.some((p) => isProductRelevantForIngredients(p, [ing])))
   const missingIngredients = sought.filter((ing) => !matchedIngredients.some((m) => m.trim().toLowerCase() === ing.trim().toLowerCase()))

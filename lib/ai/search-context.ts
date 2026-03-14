@@ -3,6 +3,7 @@
  * Uses existing search API logic to keep token usage low.
  */
 import { client } from '@/sanity/lib/client'
+import { getBusinessHoursForCity } from '@/lib/ai/business-hours-helper'
 
 const CITY_TENANT_FILTER = `(city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now())))`
 
@@ -132,9 +133,17 @@ export async function buildSearchContext(input: SearchContextInput): Promise<Sea
   })
 
   const lines: string[] = []
-  if (businesses.length > 0) {
-    lines.push('Businesses in your area:')
-    businesses.forEach((b) => lines.push(`- ${b.name} (slug: ${b.slug}, type: ${b.businessType})`))
+  const hoursList = await getBusinessHoursForCity(city, country)
+  if (hoursList.length > 0) {
+    lines.push('All businesses with opening hours (use this when user asks when a business opens/closes):')
+    hoursList.slice(0, 30).forEach((h) => {
+      const status = h.isOpenNow ? 'OPEN now' : 'CLOSED'
+      lines.push(`- ${h.name} (slug: ${h.slug}): ${status}. Today: ${h.todayHours}`)
+    })
+  }
+  if (businesses.length > 0 && terms.length > 0) {
+    lines.push('\nBusinesses matching your search:')
+    businesses.forEach((b) => lines.push(`- ${b.name} (slug: ${b.slug})`))
   }
   if (productContexts.length > 0) {
     lines.push('\nProducts available:')
