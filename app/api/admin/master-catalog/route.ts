@@ -5,8 +5,12 @@ import { token } from '@/sanity/lib/token'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { urlFor } from '@/sanity/lib/image'
+import { needsTranslation } from '@/lib/master-catalog-translation'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 const CATEGORIES = ['restaurant', 'cafe', 'bakery', 'grocery', 'retail', 'pharmacy', 'other'] as const
 const UNIT_TYPES = ['kg', 'piece', 'pack'] as const
@@ -37,6 +41,7 @@ export async function GET(req: NextRequest) {
 
   const q = (req.nextUrl.searchParams.get('q') ?? '').trim()
   const category = req.nextUrl.searchParams.get('category')?.trim()
+  const needsWorkOnly = req.nextUrl.searchParams.get('needsTranslation') === '1' || req.nextUrl.searchParams.get('needsWork') === '1'
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '50', 10) || 50, 100)
   const offset = Math.max(0, parseInt(req.nextUrl.searchParams.get('offset') ?? '0', 10))
 
@@ -61,6 +66,7 @@ export async function GET(req: NextRequest) {
   )
 
   const filtered = (items ?? []).filter((item) => {
+    if (needsWorkOnly && !needsTranslation(item)) return false
     if (!q) return true
     const haystack = [item.nameEn, item.nameAr, item.descriptionEn, item.descriptionAr, item.searchQuery].filter(Boolean).join(' ').toLowerCase()
     return haystack.includes(q.toLowerCase())

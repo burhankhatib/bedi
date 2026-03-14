@@ -233,6 +233,9 @@ export default function AdminCatalogPage() {
 
   // AI Translate & Fill
   const [translating, setTranslating] = useState(false)
+  const [translateProgress, setTranslateProgress] = useState<
+    Array<{ _id: string; index: number; total: number; nameEn?: string; nameAr?: string; ok?: boolean; error?: string; updated?: string[]; translatedNameEn?: string; translatedNameAr?: string }>
+  >([])
   const [translateResult, setTranslateResult] = useState<{
     ok: boolean
     message?: string
@@ -268,6 +271,7 @@ export default function AdminCatalogPage() {
   const [total, setTotal] = useState(0)
   const [searchFilter, setSearchFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  const [needsTranslationFilter, setNeedsTranslationFilter] = useState(true)
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
 
   const fetchProducts = useCallback(async (offset = 0) => {
@@ -278,6 +282,7 @@ export default function AdminCatalogPage() {
       const params = new URLSearchParams()
       if (searchFilter.trim()) params.set('q', searchFilter.trim())
       if (categoryFilter) params.set('category', categoryFilter)
+      if (needsTranslationFilter) params.set('needsTranslation', '1')
       params.set('limit', String(PAGE_SIZE))
       params.set('offset', String(offset))
       const res = await fetch(`/api/admin/master-catalog?${params}`, { cache: 'no-store' })
@@ -295,7 +300,7 @@ export default function AdminCatalogPage() {
       setProductsLoading(false)
       setLoadingMore(false)
     }
-  }, [searchFilter, categoryFilter])
+  }, [searchFilter, categoryFilter, needsTranslationFilter])
 
   useEffect(() => {
     fetchProducts(0)
@@ -401,27 +406,100 @@ export default function AdminCatalogPage() {
 
   const handleTranslate = async (dryRun = false) => {
     setTranslateResult(null)
+    setTranslateProgress([])
     setTranslating(true)
     try {
       const res = await fetch('/api/admin/translate-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit: 50, dryRun }),
+        body: JSON.stringify({ limit: 50, dryRun, stream: !dryRun }),
       })
-      const data = await res.json().catch(() => ({}))
-      setTranslateResult({
-        ok: data.ok ?? false,
-        message: data.message ?? (res.ok ? 'Done' : 'Failed'),
-        totalNeedingWork: data.totalNeedingWork,
-        processed: data.processed,
-        translated: data.translated,
-        skipped: data.skipped,
-        failed: data.failed,
-        remaining: data.remaining,
-        errorSamples: data.errorSamples,
-        dryRun: data.dryRun,
-      })
-      if (data.ok && !dryRun && (data.translated ?? 0) > 0) fetchProducts()
+      const contentType = res.headers.get('content-type') ?? ''
+      if (contentType.includes('x-ndjson') && res.body) {
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() ?? ''
+          for (const line of lines) {
+            if (!line.trim()) continue
+            try {
+              const data = JSON.parse(line) as {
+                type?: string
+                index?: number
+                total?: number
+                _id?: string
+                nameEn?: string
+                nameAr?: string
+                ok?: boolean
+                error?: string
+                updated?: string[]
+                translatedNameEn?: string
+                translatedNameAr?: string
+                totalNeedingWork?: number
+                translated?: number
+                skipped?: number
+                failed?: number
+                remaining?: number
+              }
+              if (data.type === 'product') {
+                setTranslateProgress((prev) => [
+                  ...prev.filter((p) => p._id !== data._id),
+                  {
+                    _id: data._id ?? '',
+                    index: data.index ?? 0,
+                    total: data.total ?? 0,
+                    nameEn: data.nameEn,
+                    nameAr: data.nameAr,
+                    ok: data.ok,
+                    error: data.error,
+                    updated: data.updated,
+                    translatedNameEn: data.translatedNameEn,
+                    translatedNameAr: data.translatedNameAr,
+                  },
+                ])
+              } else if (data.type === 'done') {
+                setTranslateResult({
+                  ok: data.ok ?? false,
+                  message:
+                    (data.failed ?? 0) === 0
+                      ? `Translated ${data.translated ?? 0}, skipped ${data.skipped ?? 0}. ${data.remaining ?? 0} remaining.`
+                      : `Translated ${data.translated ?? 0}, skipped ${data.skipped ?? 0}, failed ${data.failed ?? 0}. ${data.remaining ?? 0} remaining.`,
+                  totalNeedingWork: data.totalNeedingWork,
+                  processed: data.total,
+                  translated: data.translated,
+                  skipped: data.skipped,
+                  failed: data.failed,
+                  remaining: data.remaining,
+                  dryRun: false,
+                })
+                if ((data.translated ?? 0) > 0) fetchProducts()
+              }
+            } catch {
+              /* skip malformed lines */
+            }
+          }
+        }
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setTranslateResult({
+          ok: data.ok ?? false,
+          message: data.message ?? (res.ok ? 'Done' : 'Failed'),
+          totalNeedingWork: data.totalNeedingWork,
+          processed: data.processed,
+          translated: data.translated,
+          skipped: data.skipped,
+          failed: data.failed,
+          remaining: data.remaining,
+          errorSamples: data.errorSamples,
+          dryRun: data.dryRun,
+        })
+        if (data.ok && !dryRun && (data.translated ?? 0) > 0) fetchProducts()
+      }
     } catch {
       setTranslateResult({ ok: false, message: 'Request failed' })
     } finally {
@@ -867,6 +945,39 @@ export default function AdminCatalogPage() {
             {findingDuplicates ? 'Finding…' : 'Find Duplicates'}
           </Button>
         </div>
+        {translating && translateProgress.length > 0 && (
+          <div className="mt-4 max-h-64 overflow-y-auto rounded-lg border border-slate-700 bg-slate-900/80 p-3 space-y-2">
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Translating…</p>
+            {[...translateProgress].sort((a, b) => a.index - b.index).map((p) => (
+              <div
+                key={p._id}
+                className="flex flex-col gap-1 rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-500">{p.index}/{p.total}</span>
+                  {p.ok === true ? (
+                    <CheckCircle className="size-4 text-emerald-400 shrink-0" />
+                  ) : p.ok === false ? (
+                    <span className="text-red-400 text-xs">Failed</span>
+                  ) : (
+                    <Loader2 className="size-4 animate-spin text-sky-400 shrink-0" />
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-slate-300">
+                  <span>EN: {p.nameEn || '—'}</span>
+                  <span dir="rtl">AR: {p.nameAr || '—'}</span>
+                </div>
+                {(p.translatedNameEn || p.translatedNameAr) && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-emerald-400/90 text-xs">
+                    {p.translatedNameEn && <span>→ {p.translatedNameEn}</span>}
+                    {p.translatedNameAr && <span dir="rtl">→ {p.translatedNameAr}</span>}
+                  </div>
+                )}
+                {p.error && <p className="text-xs text-red-400 truncate">{p.error}</p>}
+              </div>
+            ))}
+          </div>
+        )}
         {translateResult && (
           <div
             className={`mt-4 flex flex-col gap-4 rounded-lg p-4 ${
@@ -1025,9 +1136,43 @@ export default function AdminCatalogPage() {
       <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
         <h2 className="font-semibold text-white mb-4">Master catalog products</h2>
         <p className="text-sm text-slate-400 mb-4">
-          Edit directly below. Scroll down to load more (50 per page). Search finds any product.
+          {needsTranslationFilter
+            ? 'Showing only products that need translations (missing EN/AR names or descriptions, or Arabic has English text). Toggle off to see all.'
+            : 'Edit directly below. Scroll down to load more (50 per page). Search finds any product.'}
         </p>
         <div className="flex flex-wrap gap-3 mb-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={needsTranslationFilter}
+              onChange={(e) => {
+                const next = e.target.checked
+                setNeedsTranslationFilter(next)
+                setProducts([])
+                setTotal(0)
+                setHasMore(false)
+                const params = new URLSearchParams()
+                if (searchFilter.trim()) params.set('q', searchFilter.trim())
+                if (categoryFilter) params.set('category', categoryFilter)
+                if (next) params.set('needsTranslation', '1')
+                params.set('limit', String(PAGE_SIZE))
+                params.set('offset', '0')
+                setProductsLoading(true)
+                fetch(`/api/admin/master-catalog?${params}`, { cache: 'no-store' })
+                  .then((r) => (r.ok ? r.json() : { items: [], total: 0, hasMore: false }))
+                  .then((data) => {
+                    const items = data.items ?? []
+                    setProducts(items)
+                    setTotal(data.total ?? items.length)
+                    setHasMore(data.hasMore ?? false)
+                  })
+                  .catch(() => setProducts([]))
+                  .finally(() => setProductsLoading(false))
+              }}
+              className="rounded border-slate-600 bg-slate-800 text-sky-500 focus:ring-sky-500"
+            />
+            <span className="text-sm text-slate-300">Needs translation only</span>
+          </label>
           <Input
             placeholder="Search by name…"
             value={searchFilter}
@@ -1056,7 +1201,9 @@ export default function AdminCatalogPage() {
           </div>
         ) : products.length === 0 ? (
           <p className="py-8 text-center text-slate-500">
-            No products yet. Use &quot;Manually add product&quot; above or run &quot;Seed master catalog&quot; below.
+            {needsTranslationFilter
+              ? 'No products need translation. Uncheck &quot;Needs translation only&quot; to see all products.'
+              : 'No products yet. Use &quot;Manually add product&quot; above or run &quot;Seed master catalog&quot; below.'}
           </p>
         ) : (
           <div
