@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Loader2, Package, CheckCircle, Plus, Upload, Link2, Pencil } from 'lucide-react'
+import { Loader2, Package, CheckCircle, Plus, Upload, Link2, Pencil, Languages } from 'lucide-react'
 import { compressImageForUpload } from '@/lib/compress-image'
 
 const CATEGORIES = [
@@ -228,6 +228,18 @@ export default function AdminCatalogPage() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ ok: boolean; message?: string; productsCreated?: number; productsUpdated?: number } | null>(null)
 
+  // AI Translate & Fill
+  const [translating, setTranslating] = useState(false)
+  const [translateResult, setTranslateResult] = useState<{
+    ok: boolean
+    message?: string
+    totalNeedingWork?: number
+    processed?: number
+    updated?: number
+    failed?: number
+    dryRun?: boolean
+  } | null>(null)
+
   // Existing products (paginated)
   const [products, setProducts] = useState<MasterCatalogItem[]>([])
   const [productsLoading, setProductsLoading] = useState(true)
@@ -348,6 +360,33 @@ export default function AdminCatalogPage() {
       setImportResult({ ok: false, message: 'Request failed' })
     } finally {
       setImporting(false)
+    }
+  }
+
+  const handleTranslate = async (dryRun = false) => {
+    setTranslateResult(null)
+    setTranslating(true)
+    try {
+      const res = await fetch('/api/admin/translate-products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: 50, dryRun }),
+      })
+      const data = await res.json().catch(() => ({}))
+      setTranslateResult({
+        ok: data.ok ?? false,
+        message: data.message ?? (res.ok ? 'Done' : 'Failed'),
+        totalNeedingWork: data.totalNeedingWork,
+        processed: data.processed,
+        updated: data.updated,
+        failed: data.failed,
+        dryRun: data.dryRun,
+      })
+      if (data.ok && !dryRun && (data.updated ?? 0) > 0) fetchProducts()
+    } catch {
+      setTranslateResult({ ok: false, message: 'Request failed' })
+    } finally {
+      setTranslating(false)
     }
   }
 
@@ -603,6 +642,60 @@ export default function AdminCatalogPage() {
                 </code>
                 <p className="text-slate-600">Or use the full command: <code className="rounded bg-slate-800/50 px-1">npx tsx scripts/import-baladi.ts --url &quot;{importUrl}&quot; --market-category {importCategory} --interactive-auth</code></p>
               </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ═══ AI TRANSLATE & FILL ═══ */}
+      <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="rounded-full bg-sky-500/20 p-3">
+            <Languages className="size-6 text-sky-400" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-white">AI Translate & Fill</h2>
+            <p className="text-sm text-slate-400">
+              Uses OpenAI to translate titles/descriptions (EN↔AR), generate missing descriptions from product names and Palestinian/Israeli market knowledge, and infer unit types. Processes products missing one or more fields.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button
+            onClick={() => handleTranslate(false)}
+            disabled={translating}
+            className="bg-sky-600 hover:bg-sky-500"
+          >
+            {translating ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Languages className="mr-2 size-4" />}
+            {translating ? 'Translating…' : 'Translate & Fill (50 max)'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleTranslate(true)}
+            disabled={translating}
+            className="border-slate-600 text-slate-300 hover:bg-slate-800"
+          >
+            {translating ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+            Dry run (preview)
+          </Button>
+        </div>
+        {translateResult && (
+          <div
+            className={`mt-4 flex flex-col gap-2 rounded-lg p-4 ${
+              translateResult.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {translateResult.ok && <CheckCircle className="size-5 shrink-0" />}
+              <span>{translateResult.message}</span>
+            </div>
+            {translateResult.totalNeedingWork != null && (
+              <span className="text-sm opacity-90">
+                {translateResult.totalNeedingWork} products need work · Processed: {translateResult.processed ?? 0}
+                {!translateResult.dryRun && (
+                  <> · Updated: {translateResult.updated ?? 0} · Failed: {translateResult.failed ?? 0}</>
+                )}
+              </span>
             )}
           </div>
         )}

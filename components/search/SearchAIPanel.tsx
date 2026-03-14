@@ -178,46 +178,76 @@ export function SearchAIPanel({
                       </div>
                     )
                   }
+                  const byStore = data.byStore ?? {}
+                  const hasByStore = Object.keys(byStore).length > 0
+                  const displayProducts = hasByStore ? Object.values(byStore).flat() : products
                   return (
                     <div key={idx} className="space-y-2 mt-3">
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                         {t('Ingredients found', 'المكونات المتوفرة')}
                       </p>
-                      <div className="grid gap-2">
-                        {products.slice(0, 12).map((p) => {
+                      {(hasByStore ? Object.entries(byStore) : [['_flat', products] as [string, ToolProduct[]]]).map(([storeSlug, storeProds]) => (
+                        <div key={String(storeSlug)} className="space-y-2">
+                          {storeProds.length > 1 && hasByStore && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                for (const prod of storeProds) {
+                                  try {
+                                    const res = await fetch(`/api/search/product/${prod._id}`)
+                                    if (res.ok) {
+                                      const { product, tenant } = await res.json()
+                                      if (product && tenant?.slug) {
+                                        addToCart(product as Product, [], [], { slug: tenant.slug, name: tenant.name })
+                                      }
+                                    }
+                                  } catch (e) {
+                                    console.error('Add to cart:', e)
+                                  }
+                                }
+                              }}
+                              className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1"
+                            >
+                              <ShoppingCart className="size-3.5" />
+                              {t('Add all from', 'أضف الكل من')} {storeProds[0]?.businessName}
+                            </button>
+                          )}
+                          {storeProds.slice(0, 12).map((p) => {
                           const title = lang === 'ar' ? (p.title_ar ?? p.title_en) : (p.title_en ?? p.title_ar)
                           return (
                             <div
                               key={p._id}
-                              className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200"
+                              className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200"
                             >
-                              <div className="relative size-14 shrink-0 rounded-lg overflow-hidden bg-slate-100">
-                                {p.imageUrl ? (
-                                  <Image
-                                    src={p.imageUrl}
-                                    alt={title ?? ''}
-                                    fill
-                                    className="object-cover"
-                                    sizes="56px"
-                                    placeholder="blur"
-                                    blurDataURL={SHIMMER_PLACEHOLDER}
-                                  />
-                                ) : (
-                                  <div className="flex h-full w-full items-center justify-center">
-                                    <Store className="size-6 text-slate-400" />
-                                  </div>
-                                )}
+                              <div className="flex min-w-0 flex-1 items-center gap-3">
+                                <div className="relative size-14 shrink-0 rounded-lg overflow-hidden bg-slate-100">
+                                  {p.imageUrl ? (
+                                    <Image
+                                      src={p.imageUrl}
+                                      alt={title ?? ''}
+                                      fill
+                                      className="object-cover"
+                                      sizes="56px"
+                                      placeholder="blur"
+                                      blurDataURL={SHIMMER_PLACEHOLDER}
+                                    />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center">
+                                      <Store className="size-6 text-slate-400" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-semibold text-slate-900 truncate">{title}</p>
+                                  <p className="text-xs text-slate-500">{p.businessName}</p>
+                                  {p.price > 0 && (
+                                    <p className="text-sm font-bold text-slate-700 mt-0.5">
+                                      {p.price} {p.currency}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="font-semibold text-slate-900 truncate">{title}</p>
-                                <p className="text-xs text-slate-500">{p.businessName}</p>
-                                {p.price > 0 && (
-                                  <p className="text-sm font-bold text-slate-700 mt-0.5">
-                                    {p.price} {p.currency}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="flex flex-col gap-1 shrink-0">
+                              <div className="flex shrink-0 gap-2 flex-wrap">
                                 <Link
                                   href={`/t/${p.businessSlug}#product-${p._id}`}
                                   className="text-xs font-medium text-amber-600 hover:text-amber-700"
@@ -228,7 +258,7 @@ export function SearchAIPanel({
                                 <button
                                   type="button"
                                   onClick={() => handleAddToCart(p)}
-                                  className="inline-flex items-center gap-1 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 px-2 py-1 rounded-lg"
+                                  className="inline-flex items-center gap-1 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg"
                                 >
                                   <ShoppingCart className="size-3" />
                                   {t('Add', 'أضف')}
@@ -237,10 +267,14 @@ export function SearchAIPanel({
                             </div>
                           )
                         })}
-                      </div>
-                      {products.length > 12 && (
+                        </div>
+                      ))}
+                      {!hasByStore && displayProducts.length === 0 && (
+                        <p className="text-xs text-slate-500">{t('No products found.', 'لم يتم العثور على منتجات.')}</p>
+                      )}
+                      {displayProducts.length > 12 && (
                         <p className="text-xs text-slate-500">
-                          {t(`+ ${products.length - 12} more`, `+ ${products.length - 12} المزيد`)}
+                          {t(`+ ${displayProducts.length - 12} more`, `+ ${displayProducts.length - 12} المزيد`)}
                         </p>
                       )}
                     </div>
@@ -317,7 +351,7 @@ export function SearchAIPanel({
                               return (
                                 <div
                                   key={p._id}
-                                  className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200"
+                                  className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200"
                                 >
                                   <Link
                                     href={`/t/${p.businessSlug}#product-${p._id}`}
@@ -341,7 +375,7 @@ export function SearchAIPanel({
                                       )}
                                     </div>
                                   </Link>
-                                  <div className="flex flex-col gap-1 shrink-0">
+                                  <div className="flex shrink-0 gap-2 flex-wrap">
                                     <Link
                                       href={`/t/${p.businessSlug}#product-${p._id}`}
                                       className="text-xs font-medium text-amber-600 hover:text-amber-700"
@@ -352,7 +386,7 @@ export function SearchAIPanel({
                                     <button
                                       type="button"
                                       onClick={() => handleAddToCart(p)}
-                                      className="inline-flex items-center gap-1 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 px-2 py-1 rounded-lg"
+                                      className="inline-flex items-center gap-1 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg"
                                     >
                                       <ShoppingCart className="size-3" />
                                       {t('Add', 'أضف')}

@@ -18,6 +18,7 @@ export type ToolProduct = {
   imageUrl: string | null
   businessSlug: string
   businessName: string
+  businessType?: string
   isPopular?: boolean
 }
 
@@ -76,6 +77,7 @@ export async function searchProducts(params: {
     isPopular?: boolean
     siteName?: string
     siteSlug?: string
+    siteBusinessType?: string
     siteBusinessLogo?: ImageSource
     restaurantLogo?: ImageSource
   }
@@ -92,7 +94,7 @@ export async function searchProducts(params: {
       ? client.fetch<ProductRow[]>(
           `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}]._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && ${productMatchFilter}] | order(isPopular desc, site->name asc) [0...${limit}] {
             _id, title_en, title_ar, image, price, currency, isPopular,
-            "siteName": site->name, "siteSlug": site->slug.current,
+            "siteName": site->name, "siteSlug": site->slug.current, "siteBusinessType": site->businessType,
             "siteBusinessLogo": site->businessLogo,
             "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^.site._ref][0].logo
           }`,
@@ -135,6 +137,7 @@ export async function searchProducts(params: {
       imageUrl,
       businessSlug: p.siteSlug ?? '',
       businessName: p.siteName ?? '',
+      businessType: p.siteBusinessType ?? undefined,
       isPopular: p.isPopular ?? false,
     }
   })
