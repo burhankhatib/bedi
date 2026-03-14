@@ -67,16 +67,20 @@ export async function POST(req: NextRequest) {
 
   const categoryIdsArg = categoryIds.join(',')
 
+  const scriptPath = path.join(process.cwd(), 'scripts', 'import-baladi.ts')
+  const isWin = process.platform === 'win32'
+  const tsxBin = path.join(process.cwd(), 'node_modules', '.bin', isWin ? 'tsx.cmd' : 'tsx')
+
   return new Promise<NextResponse>((resolve) => {
-    const scriptPath = path.join(process.cwd(), 'scripts', 'import-baladi.ts')
     const proc = spawn(
-      'npx',
-      ['tsx', scriptPath, '--category-ids', categoryIdsArg, '--market-category', marketCategory],
+      tsxBin,
+      [scriptPath, '--category-ids', categoryIdsArg, '--market-category', marketCategory],
       {
-      cwd: process.cwd(),
-      env: { ...process.env, BALADI_HEADLESS: 'true' },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
+        cwd: process.cwd(),
+        env: { ...process.env, BALADI_HEADLESS: 'true', PLAYWRIGHT_BROWSERS_PATH: '0' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }
+    )
 
     const stdout: string[] = []
     const stderr: string[] = []
