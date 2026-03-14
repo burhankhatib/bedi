@@ -71,29 +71,69 @@ const BALADI_CATEGORIES: Array<{ name: string; url: string; marketCategory: stri
   { name: 'Grocery', url: `${BASE_URL}/categories/79632/products`, marketCategory: 'grocery' },
 ]
 
-/** Positional args (e.g. from "npm run import:baladi:cat -- 95818 grocery") */
+/** Known market category values (if last positional matches, it's market not a category ID) */
+const MARKET_WORDS = new Set(['grocery', 'bakery', 'retail', 'pharmacy', 'restaurant', 'cafe', 'other'])
+
+/** Positional args (e.g. from "npm run import:baladi:cat -- 95818 grocery" or "95818 95010 grocery") */
 const POSITIONAL = process.argv.filter((a) => !a.startsWith('--') && a !== process.argv[0] && a !== process.argv[1])
+
+/** --category-ids 95818,95010,95817 or comma-separated */
+const CATEGORY_IDS_ARG = (() => {
+  const i = process.argv.indexOf('--category-ids')
+  if (i >= 0 && process.argv[i + 1]) {
+    return process.argv[i + 1]
+      .split(/[,\s]+/)
+      .map((s) => s.replace(/\D/g, ''))
+      .filter(Boolean)
+  }
+  return null
+})()
+
+/** Category IDs from positional: all numeric except last if it's a market word */
+const POSITIONAL_IDS = (() => {
+  if (CATEGORY_IDS_ARG) return CATEGORY_IDS_ARG
+  if (POSITIONAL.length === 0) return []
+  const last = POSITIONAL[POSITIONAL.length - 1]?.toLowerCase()
+  const ids = MARKET_WORDS.has(last ?? '')
+    ? POSITIONAL.slice(0, -1)
+    : POSITIONAL
+  return ids.map((s) => s.replace(/\D/g, '')).filter(Boolean)
+})()
 
 /** When set via --url, only scrape this URL. Use with --market-category. */
 const MANUAL_URL = (() => {
   const i = process.argv.indexOf('--url')
   if (i >= 0 && process.argv[i + 1]) return process.argv[i + 1].trim()
-  /** Shortcut: first positional arg = category ID → https://.../categories/ID/products */
-  const catId = POSITIONAL[0]?.replace(/\D/g, '')
+  /** Shortcut: first category ID → single URL */
+  const catId = POSITIONAL_IDS[0]
   if (catId) return `${BASE_URL}/categories/${catId}/products`
   return null
 })()
 
-/** When set via --market-category or second positional, override category for all products from MANUAL_URL. */
+/** Multiple category IDs to process (for --category-ids or multiple positionals) */
+const MANUAL_CATEGORY_IDS =
+  POSITIONAL_IDS.length > 1
+    ? POSITIONAL_IDS
+    : CATEGORY_IDS_ARG && CATEGORY_IDS_ARG.length > 1
+      ? CATEGORY_IDS_ARG
+      : null
+
+/** When set via --market-category or last positional, override category for all products from MANUAL_URL. */
 const MANUAL_MARKET_CATEGORY = (() => {
   const i = process.argv.indexOf('--market-category')
   if (i >= 0 && process.argv[i + 1]) return process.argv[i + 1].trim()
-  return POSITIONAL[1]?.trim() || null
+  if (POSITIONAL.length > 0) {
+    const last = POSITIONAL[POSITIONAL.length - 1]?.toLowerCase()
+    if (MARKET_WORDS.has(last ?? '')) return last ?? null
+  }
+  return null
 })()
 
-const CATEGORY_URLS = MANUAL_URL
-  ? [MANUAL_URL.startsWith('http') ? MANUAL_URL : `${BASE_URL}${MANUAL_URL.startsWith('/') ? '' : '/'}${MANUAL_URL}`]
-  : [BASE_URL, ...BALADI_CATEGORIES.map((c) => c.url)]
+const CATEGORY_URLS = MANUAL_CATEGORY_IDS?.length
+  ? MANUAL_CATEGORY_IDS.map((id) => `${BASE_URL}/categories/${id}/products`)
+  : MANUAL_URL
+    ? [MANUAL_URL.startsWith('http') ? MANUAL_URL : `${BASE_URL}${MANUAL_URL.startsWith('/') ? '' : '/'}${MANUAL_URL}`]
+    : [BASE_URL, ...BALADI_CATEGORIES.map((c) => c.url)]
 const SCRAPE_POOL_LIMIT = Math.max(EFFECTIVE_LIMIT * 6, 150)
 
 /** Baladi category ID → our market category (grocery, bakery, retail, pharmacy). */

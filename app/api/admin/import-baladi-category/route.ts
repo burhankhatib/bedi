@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export const maxDuration = 180
+export const maxDuration = 600
 import { auth } from '@clerk/nextjs/server'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
@@ -8,7 +8,6 @@ import { spawn } from 'node:child_process'
 import path from 'node:path'
 
 const VALID_MARKET_CATEGORIES = ['grocery', 'bakery', 'retail', 'pharmacy', 'restaurant', 'cafe', 'other'] as const
-const BALADI_CATEGORY_PATTERN = /^https?:\/\/(www\.)?baladisupermarket\.com\/categories\/\d+(\/products)?(\?.*)?$/i
 
 async function checkSuperAdmin() {
   const { userId, sessionClaims } = await auth()
@@ -24,9 +23,10 @@ async function checkSuperAdmin() {
 }
 
 /**
- * POST: Import products from a Baladi category URL (super admin only).
- * Body: { url: string, marketCategory: string }
- * Spawns the import script. May fail if Cloudflare blocks headless scraping.
+ * POST: Import products from Baladi category IDs (super admin only).
+ * Body: { categoryIds: string[], marketCategory: string }
+ * Spawns the import script with same functionality as npm run import:baladi:cat.
+ * May fail if Cloudflare blocks headless scraping.
  */
 export async function POST(req: NextRequest) {
   const authResult = await checkSuperAdmin()
@@ -37,22 +37,24 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: { url?: string; marketCategory?: string }
+  let body: { categoryIds?: string | string[]; marketCategory?: string }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const url = typeof body.url === 'string' ? body.url.trim() : ''
+  const rawIds = body.categoryIds
+  const categoryIds = Array.isArray(rawIds)
+    ? rawIds.map((s) => String(s).replace(/\D/g, '')).filter(Boolean)
+    : typeof rawIds === 'string'
+      ? rawIds.split(/[,\s]+/).map((s) => s.replace(/\D/g, '')).filter(Boolean)
+      : []
   const marketCategory = typeof body.marketCategory === 'string' ? body.marketCategory.trim() : 'grocery'
 
-  if (!url) {
-    return NextResponse.json({ error: 'url is required' }, { status: 400 })
-  }
-  if (!BALADI_CATEGORY_PATTERN.test(url)) {
+  if (categoryIds.length === 0) {
     return NextResponse.json(
-      { error: 'URL must be a Baladi category page, e.g. https://www.baladisupermarket.com/categories/95010/products' },
+      { error: 'categoryIds is required: Baladi category numbers, e.g. 95818, 95010 (comma or space separated)' },
       { status: 400 }
     )
   }
@@ -63,9 +65,14 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const categoryIdsArg = categoryIds.join(',')
+
   return new Promise<NextResponse>((resolve) => {
     const scriptPath = path.join(process.cwd(), 'scripts', 'import-baladi.ts')
-    const proc = spawn('npx', ['tsx', scriptPath, '--url', url, '--market-category', marketCategory], {
+    const proc = spawn(
+      'npx',
+      ['tsx', scriptPath, '--category-ids', categoryIdsArg, '--market-category', marketCategory],
+      {
       cwd: process.cwd(),
       env: { ...process.env, BALADI_HEADLESS: 'true' },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -82,12 +89,12 @@ export async function POST(req: NextRequest) {
       resolve(
         NextResponse.json({
           ok: false,
-          message: 'Import timed out (max 3 minutes). Cloudflare may be blocking. Try running locally: npx tsx scripts/import-baladi.ts --url "' + url + '" --market-category ' + marketCategory,
+          message: `Import timed out (max 10 min). Cloudflare may be blocking. Try locally: npm run import:baladi:cat -- ${categoryIds[0]} ${marketCategory}`,
           stdout: stdout.join('').slice(-2000),
           stderr: stderr.join('').slice(-1000),
         }, { status: 408 })
       )
-    }, 180_000)
+    }, 480_000)
 
     proc.on('close', (code) => {
       clearTimeout(timeout)

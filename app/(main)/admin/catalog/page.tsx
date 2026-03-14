@@ -222,8 +222,8 @@ export default function AdminCatalogPage() {
   const [addError, setAddError] = useState<string | null>(null)
   const [addSuccess, setAddSuccess] = useState(false)
 
-  // Import from Baladi URL
-  const [importUrl, setImportUrl] = useState('')
+  // Import from Baladi (category numbers)
+  const [categoryIdsInput, setCategoryIdsInput] = useState('')
   const [importCategory, setImportCategory] = useState('grocery')
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ ok: boolean; message?: string; productsCreated?: number; productsUpdated?: number } | null>(null)
@@ -336,17 +336,20 @@ export default function AdminCatalogPage() {
     setImagePreview(null)
   }
 
-  const handleImportFromUrl = async (e: React.FormEvent) => {
+  const handleImportFromBaladi = async (e: React.FormEvent) => {
     e.preventDefault()
     setImportResult(null)
-    const url = importUrl.trim()
-    if (!url) return
+    const ids = categoryIdsInput
+      .split(/[,\s]+/)
+      .map((s) => s.replace(/\D/g, ''))
+      .filter(Boolean)
+    if (ids.length === 0) return
     setImporting(true)
     try {
       const res = await fetch('/api/admin/import-baladi-category', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, marketCategory: importCategory }),
+        body: JSON.stringify({ categoryIds: ids, marketCategory: importCategory }),
       })
       const data = await res.json().catch(() => ({}))
       setImportResult({
@@ -581,28 +584,29 @@ export default function AdminCatalogPage() {
         </form>
       </div>
 
-      {/* ═══ IMPORT FROM BALADI URL ═══ */}
+      {/* ═══ IMPORT FROM BALADI ═══ */}
       <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="rounded-full bg-violet-500/20 p-3">
             <Link2 className="size-6 text-violet-400" />
           </div>
           <div>
-            <h2 className="font-semibold text-white">Import from Baladi category URL</h2>
+            <h2 className="font-semibold text-white">Import from Baladi</h2>
             <p className="text-sm text-slate-400">
-              Paste a Baladi category URL to scrape and import products. Example: https://www.baladisupermarket.com/categories/95010/products
+              Enter Baladi category numbers (e.g. 95818, 95010). Same as <code className="rounded bg-slate-800 px-1">npm run import:baladi:cat</code>.
             </p>
           </div>
         </div>
-        <form onSubmit={handleImportFromUrl} className="flex flex-wrap items-end gap-4 max-w-2xl">
-          <div className="flex-1 min-w-[280px]">
-            <label className="mb-1 block text-xs font-medium text-slate-400">Category URL</label>
+        <form onSubmit={handleImportFromBaladi} className="flex flex-col sm:flex-row flex-wrap items-end gap-4 max-w-2xl">
+          <div className="flex-1 min-w-[200px]">
+            <label className="mb-1 block text-xs font-medium text-slate-400">Category numbers</label>
             <Input
-              value={importUrl}
-              onChange={(e) => setImportUrl(e.target.value)}
-              placeholder="https://www.baladisupermarket.com/categories/95010/products"
+              value={categoryIdsInput}
+              onChange={(e) => setCategoryIdsInput(e.target.value)}
+              placeholder="95818, 95010, 95817"
               className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
             />
+            <p className="mt-1 text-[11px] text-slate-500">Comma or space separated. From Baladi URLs: .../categories/95818/products</p>
           </div>
           <div className="w-40">
             <label className="mb-1 block text-xs font-medium text-slate-400">Market category</label>
@@ -620,7 +624,7 @@ export default function AdminCatalogPage() {
           </div>
           <Button type="submit" disabled={importing} className="bg-violet-600 hover:bg-violet-500">
             {importing ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-            {importing ? 'Importing…' : 'Import'}
+            {importing ? 'Importing…' : 'Run'}
           </Button>
         </form>
         {importResult && (
@@ -636,11 +640,10 @@ export default function AdminCatalogPage() {
             )}
             {!importResult.ok && (
               <div className="mt-2 space-y-2 text-xs text-slate-500">
-                <p>Cloudflare blocks headless scraping. Run this in your terminal (a browser will open—solve the Cloudflare check, then press Enter):</p>
+                <p>Cloudflare may block headless scraping. Run locally:</p>
                 <code className="block rounded bg-slate-800 px-2 py-1.5 font-mono text-[11px] break-all select-all">
-                  npm run import:baladi:url -- --url &quot;{importUrl}&quot; --market-category {importCategory}
+                  npm run import:baladi:cat -- {categoryIdsInput.split(/[,\s]+/)[0] || '95818'} {importCategory}
                 </code>
-                <p className="text-slate-600">Or use the full command: <code className="rounded bg-slate-800/50 px-1">npx tsx scripts/import-baladi.ts --url &quot;{importUrl}&quot; --market-category {importCategory} --interactive-auth</code></p>
               </div>
             )}
           </div>
