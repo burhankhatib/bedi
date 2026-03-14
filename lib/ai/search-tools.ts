@@ -142,17 +142,29 @@ export async function searchProducts(params: {
   return { products: productResults, businesses }
 }
 
+/** Product is relevant if its title contains at least one ingredient (avoids suggesting cheese when user asked for chicken). */
+function isProductRelevantForIngredients(
+  p: { title_en?: string | null; title_ar?: string | null },
+  ingredients: string[]
+): boolean {
+  const title = `${(p.title_en ?? '').toLowerCase()} ${(p.title_ar ?? '').toLowerCase()}`
+  return ingredients.some((ing) => {
+    const term = ing.trim().toLowerCase()
+    return term.length > 1 && title.includes(term)
+  })
+}
+
 export async function searchIngredients(params: {
   city: string
   country?: string
   ingredients: string[]
   lang?: 'en' | 'ar'
-}): Promise<{ products: ToolProduct[]; byStore: Record<string, ToolProduct[]> }> {
+}): Promise<{ products: ToolProduct[]; byStore: Record<string, ToolProduct[]>; soughtIngredients: string[] }> {
   const { city, country = '', ingredients, lang = 'en' } = params
-  if (ingredients.length === 0) return { products: [], byStore: {} }
+  const sought = ingredients.slice(0, 15).map((i) => i.trim()).filter(Boolean)
+  if (sought.length === 0) return { products: [], byStore: {}, soughtIngredients: [] }
 
-  const matchClauses = ingredients
-    .slice(0, 15)
+  const matchClauses = sought
     .map(
       (_, i) =>
         `(title_en match $ing${i} || title_ar match $ing${i} || description_en match $ing${i} || description_ar match $ing${i})`
@@ -161,8 +173,8 @@ export async function searchIngredients(params: {
 
   const countryFilter = country ? '&& (country == $country || lower(country) == lower($country))' : ''
   const ingParams: Record<string, string> = {}
-  ingredients.slice(0, 15).forEach((ing, i) => {
-    ingParams[`ing${i}`] = `*${ing.trim().toLowerCase()}*`
+  sought.forEach((ing, i) => {
+    ingParams[`ing${i}`] = `*${ing.toLowerCase()}*`
   })
 
   type ProductRow = {
@@ -188,7 +200,7 @@ export async function searchIngredients(params: {
     { city, ...(country ? { country } : {}), ...ingParams }
   )
 
-  const list = (products ?? []).map((p) => {
+  const rawList = (products ?? []).map((p) => {
     const imageUrl = p.image?.asset?._ref ? urlFor(p.image).width(300).height(300).url() : null
     return {
       _id: p._id,
@@ -202,6 +214,8 @@ export async function searchIngredients(params: {
     }
   })
 
+  const list = rawList.filter((p) => isProductRelevantForIngredients(p, sought))
+
   const byStore: Record<string, ToolProduct[]> = {}
   for (const p of list) {
     const key = p.businessSlug || 'unknown'
@@ -209,5 +223,5 @@ export async function searchIngredients(params: {
     byStore[key].push(p)
   }
 
-  return { products: list, byStore }
+  return { products: list, byStore, soughtIngredients: sought }
 }

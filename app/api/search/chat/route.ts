@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { openai } from '@ai-sdk/openai'
 import { buildSearchContext } from '@/lib/ai/search-context'
 import { searchProducts, searchIngredients } from '@/lib/ai/search-tools'
+import { extractSearchQuery } from '@/lib/ai/extract-search-query'
 
 export const maxDuration = 30
 
@@ -53,47 +54,55 @@ export async function POST(req: Request) {
       }
     }
 
+    const searchQuery = extractSearchQuery(query || '')
+    const effectiveQuery = searchQuery || query || 'food restaurant'
+
     const ctx = await buildSearchContext({
       city: cityVal,
       country: (country ?? '').trim(),
-      query: query || 'food restaurant',
+      query: effectiveQuery,
       lang: langVal,
     })
 
-    const systemPrompt = `You are a helpful assistant for Bedi Delivery, a food and goods delivery platform.
-You help customers find businesses (restaurants, cafes, grocery stores, etc.) and products in their city.
+    const systemPrompt = `You are a Personal Shopping Helper for Bedi Delivery, a food and goods delivery platform.
+Your PRIMARY goal is to help users FIND and BUY from local businesses. You proactively suggest restaurants, cafes, grocery stores, and menu items to help them order.
 
-**Context for ${cityVal}:**
+**Context for ${cityVal}** (search: "${effectiveQuery}"):
 ${ctx.contextText}
 
-**For RECIPES and HOW-TO questions** (e.g. "how to make broast", "what is the best broast recipe"):
-- Use your general knowledge to provide a clear, step-by-step recipe or instructions.
-- Format recipes with numbered steps. Keep them concise but complete.
-- After the recipe, recommend local businesses from the context above that offer this dish.
-- After the recipe, ask "Would you like me to find these ingredients in our stores? Reply with the ingredient names (e.g. chicken, spices) to search."
+**CRITICAL: ALWAYS SEARCH WHEN USER WANTS FOOD/PRODUCTS**
+When the user expresses ANY desire for food or products (e.g. "I feel like eating tenders", "I want pizza", "suggest places for shawarma", "craving burgers", "looking for coffee"), you MUST call search_products FIRST with the key item name (e.g. "tenders", "pizza", "shawarma", "burgers", "coffee"). Extract the main food/product term from conversational language—do NOT pass the full sentence. Use 1–3 keywords max (e.g. "chicken tenders", "pizza", "fresh juice").
+- NEVER respond without concrete suggestions when the user is asking for recommendations.
+- If context is empty, you MUST still call search_products—the tool searches the live database.
+- Recommend BOTH: restaurants that serve cooked dishes AND markets/stores that sell ingredients/products.
+- For each suggestion: name the business, mention specific menu items if available, and include the link: /t/[slug]
 
-**For "BEST" and RECOMMENDATION questions** (e.g. "what is the best broast you have"):
-- Use the context and search_products tool. Prefer products/businesses marked [POPULAR].
-- Call search_products to get fresh results when needed.
-- Recommend specific businesses with their name and link: /t/[slug]
+**RECIPES and HOW-TO** (e.g. "how to make broast"):
+- Provide a concise recipe, then call search_products for businesses that offer the dish.
+- Ask "Would you like me to find these ingredients in our stores?" and use show_quick_reply_buttons type "yes_no".
 
-**For general SEARCH**:
-- Use search_products to find matching items.
-- Always respond in the same language as the user (English or Arabic).
-- Keep responses concise and helpful.
-- When recommending, mention the business name and suggest visiting /t/[slug] for the full menu.
+**INGREDIENTS SEARCH (search_ingredients tool)**:
+- When the tool returns products: ONLY suggest products that match the user's requested ingredients. Never suggest irrelevant items (e.g. do NOT suggest cheese when user asked for chicken ingredients).
+- When the tool returns NO products (empty): Inform the user clearly: "I couldn't find [ingredients] in our stores." Offer to search for alternatives or different ingredient names.
+- The tool returns soughtIngredients—use these to verify relevance. If products don't match, say you couldn't find them.
 
-**INTERACTIVE BUTTONS** (use only when applicable):
-- When you ask a Yes/No question (e.g. "Would you like me to find these ingredients in our stores?"), call show_quick_reply_buttons with type "yes_no" so the user can tap Yes or No.
-- When you want to offer 2-4 quick options (e.g. "Find ingredients", "Show me stores", "View recipe again"), call show_quick_reply_buttons with type "custom" and options array.
-- Use show_quick_reply_buttons ONLY when it clearly improves UX—not for every message.`
+**FORMATTING**: Use markdown for better readability: **bold** for emphasis, numbered lists for recipes/steps, bullet lists for options. Format links as [text](/t/slug).
+
+**GENERAL**:
+- Always respond in the user's language (English or Arabic).
+- Prefer products/businesses marked [POPULAR].
+- Keep responses concise but actionable—always include at least one /t/[slug] link when suggesting places.
+
+**INTERACTIVE BUTTONS** (when applicable):
+- Yes/No questions → show_quick_reply_buttons type "yes_no"
+- Quick options (e.g. "Find ingredients", "Show stores") → show_quick_reply_buttons type "custom" with options array`
 
     const tools = {
       search_products: tool({
         description:
-          'Search for products and businesses by keyword. Use for finding items, "best" recommendations, or when user asks what is available.',
+          'Search the database for products and businesses by keyword. ALWAYS call this when user wants food/product suggestions. Use 1-3 keywords only (e.g. "tenders", "pizza", "chicken broast")—never the full conversational sentence.',
         inputSchema: z.object({
-          query: z.string().describe('Search terms (e.g. broast, pizza, chicken)'),
+          query: z.string().describe('1-3 search keywords, e.g. tenders, pizza, chicken, shawarma'),
         }),
         execute: async ({ query: q }) => {
           return searchProducts({
@@ -106,7 +115,7 @@ ${ctx.contextText}
       }),
       search_ingredients: tool({
         description:
-          'Search for products that match a list of recipe ingredients. Use AFTER user confirms they want to shop for ingredients. Prefer stores with most matching items. Return products grouped by store.',
+          'Search for products matching recipe ingredients. Use ONLY after user confirms. Returns products, byStore, and soughtIngredients. If empty—inform user, do NOT suggest unrelated products.',
         inputSchema: z.object({
           ingredients: z.array(z.string()).describe('List of ingredient names to search for'),
         }),
@@ -143,18 +152,20 @@ ${ctx.contextText}
     }
 
     const hasMessages = Array.isArray(messages) && messages.length > 0
+    const streamOptions = {
+      model: openai('gpt-4o-mini'),
+      system: systemPrompt,
+      tools,
+      maxSteps: 5,
+    }
     const result = hasMessages
       ? streamText({
-          model: openai('gpt-4o-mini'),
-          system: systemPrompt,
+          ...streamOptions,
           messages: await convertToModelMessages(messages as UIMessage[]),
-          tools,
         })
       : streamText({
-          model: openai('gpt-4o-mini'),
-          system: systemPrompt,
+          ...streamOptions,
           prompt: query || 'Help me find food',
-          tools,
         })
 
     return result.toUIMessageStreamResponse()

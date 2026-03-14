@@ -159,3 +159,71 @@
     padding: 2rem;
   }
 }
+
+/* AI search: formatted markdown responses (DOMPurify-sanitized) */
+.ai-prose {
+  @apply text-sm text-slate-700 leading-relaxed;
+}
+.ai-prose p {
+  margin-bottom: 0.5em;
+}
+.ai-prose p:last-child {
+  margin-bottom: 0;
+}
+.ai-prose strong,
+.ai-prose b {
+  @apply font-semibold text-slate-900;
+}
+.ai-prose em,
+.ai-prose i {
+  font-style: italic;
+}
+.ai-prose ul {
+  list-style: disc;
+  margin: 0.5em 0 0.5em 1.25em;
+  padding-left: 0;
+}
+.ai-prose ol {
+  list-style: decimal;
+  margin: 0.5em 0 0.5em 1.25em;
+  padding-left: 0;
+}
+.ai-prose li {
+  margin: 0.25em 0;
+}
+.ai-prose h1,
+.ai-prose h2,
+.ai-prose h3,
+.ai-prose h4 {
+  @apply font-bold text-slate-900;
+  margin-top: 0.75em;
+  margin-bottom: 0.35em;
+}
+.ai-prose h1 { font-size: 1.25em; }
+.ai-prose h2 { font-size: 1.1em; }
+.ai-prose h3,
+.ai-prose h4 { font-size: 1em; }
+.ai-prose blockquote {
+  @apply border-l-4 border-amber-300 pl-3 italic text-slate-600;
+}
+.ai-prose a {
+  @apply text-amber-600 font-medium underline underline-offset-2 hover:text-amber-700;
+}
+.ai-prose code {
+  @apply rounded bg-slate-100 px-1.5 py-0.5 text-xs font-mono;
+}
+.ai-prose pre {
+  @apply overflow-x-auto rounded-lg bg-slate-100 p-3 text-xs;
+}
+.ai-prose pre code {
+  @apply bg-transparent p-0;
+}
+[dir="rtl"] .ai-prose ul,
+[dir="rtl"] .ai-prose ol {
+  margin-left: 0;
+  margin-right: 1.25em;
+}
+[dir="rtl"] .ai-prose blockquote {
+  border-left: none;
+  @apply border-r-4 border-amber-300 pl-0 pr-3;
+}

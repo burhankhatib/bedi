@@ -16,6 +16,10 @@ const QUESTION_PATTERNS_EN = [
   /\bget\s+me\b/i,
   /\bi\s+want\b/i,
   /\bshow\s+me\b/i,
+  /\bfeel\s+like\b/i,
+  /\bcraving\b/i,
+  /\blooking\s+for\b/i,
+  /\bin\s+the\s+mood\s+for\b/i,
 ]
 const QUESTION_PATTERNS_AR = [
   /ما\s*(هو|هي|أفضل|أحسن)/,

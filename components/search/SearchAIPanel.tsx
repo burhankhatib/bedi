@@ -10,6 +10,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
 import { cn } from '@/lib/utils'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
+import { SanitizedMarkdown } from '@/components/ai/SanitizedMarkdown'
 import type { Product } from '@/app/types/menu'
 import type { ToolProduct } from '@/lib/ai/search-tools'
 
@@ -150,20 +151,33 @@ export function SearchAIPanel({
               {(message.parts ?? []).map((part, idx) => {
                 if (part.type === 'text') {
                   return (
-                    <div
+                    <SanitizedMarkdown
                       key={idx}
-                      className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap px-1"
+                      content={part.text ?? ''}
+                      className="ai-prose px-1"
                       dir={lang === 'ar' ? 'rtl' : 'ltr'}
-                    >
-                      {part.text}
-                    </div>
+                    />
                   )
                 }
                 if (part.type === 'tool-search_ingredients') {
                   if (part.state !== 'output-available' || !part.output) return null
-                  const data = part.output as { products?: ToolProduct[]; byStore?: Record<string, ToolProduct[]> }
+                  const data = part.output as { products?: ToolProduct[]; byStore?: Record<string, ToolProduct[]>; soughtIngredients?: string[] }
                   const products = data.products ?? Object.values(data.byStore ?? {}).flat()
-                  if (products.length === 0) return null
+                  if (products.length === 0) {
+                    const sought = data.soughtIngredients ?? []
+                    return (
+                      <div key={idx} className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                        <p className="text-sm font-medium text-amber-800">
+                          {t('No matching ingredients found in our stores.', 'لم يتم العثور على هذه المكونات في متاجرنا.')}
+                        </p>
+                        {sought.length > 0 && (
+                          <p className="mt-1 text-xs text-amber-700">
+                            {t('Searched for:', 'تم البحث عن:')} {sought.join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    )
+                  }
                   return (
                     <div key={idx} className="space-y-2 mt-3">
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
