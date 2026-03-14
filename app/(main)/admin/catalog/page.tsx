@@ -222,11 +222,10 @@ export default function AdminCatalogPage() {
   const [addError, setAddError] = useState<string | null>(null)
   const [addSuccess, setAddSuccess] = useState(false)
 
-  // Import from Baladi (category numbers)
+  // Import from Baladi (category numbers — run locally)
   const [categoryIdsInput, setCategoryIdsInput] = useState('')
   const [importCategory, setImportCategory] = useState('grocery')
-  const [importing, setImporting] = useState(false)
-  const [importResult, setImportResult] = useState<{ ok: boolean; message?: string; productsCreated?: number; productsUpdated?: number } | null>(null)
+  const [importResult, setImportResult] = useState<{ ok: boolean; message?: string } | null>(null)
 
   // AI Translate & Fill
   const [translating, setTranslating] = useState(false)
@@ -336,33 +335,31 @@ export default function AdminCatalogPage() {
     setImagePreview(null)
   }
 
-  const handleImportFromBaladi = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setImportResult(null)
+  const getImportCommand = () => {
     const ids = categoryIdsInput
       .split(/[,\s]+/)
       .map((s) => s.replace(/\D/g, ''))
       .filter(Boolean)
-    if (ids.length === 0) return
-    setImporting(true)
+    if (ids.length === 0) return ''
+    return `npm run import:baladi:cat -- ${ids.join(' ')} ${importCategory}`
+  }
+
+  const handleCopyImportCommand = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const cmd = getImportCommand()
+    if (!cmd) return
+    setImportResult(null)
     try {
-      const res = await fetch('/api/admin/import-baladi-category', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ categoryIds: ids, marketCategory: importCategory }),
-      })
-      const data = await res.json().catch(() => ({}))
-      setImportResult({
-        ok: data.ok ?? false,
-        message: data.message ?? (res.ok ? 'Import complete' : 'Import failed'),
-        productsCreated: data.productsCreated,
-        productsUpdated: data.productsUpdated,
-      })
-      if (data.ok) fetchProducts()
+      await navigator.clipboard.writeText(cmd)
+      setImportResult({ ok: true, message: 'Command copied. Terminal should focus—press Enter to run (or paste with Ctrl+V / Cmd+V first).' })
+      setTimeout(() => setImportResult(null), 6000)
+      try {
+        window.open('vscode://', '_blank', 'noopener')
+      } catch {
+        /* vscode:// not supported */
+      }
     } catch {
-      setImportResult({ ok: false, message: 'Request failed' })
-    } finally {
-      setImporting(false)
+      setImportResult({ ok: false, message: 'Could not copy. Run the command below in your terminal.' })
     }
   }
 
@@ -584,7 +581,7 @@ export default function AdminCatalogPage() {
         </form>
       </div>
 
-      {/* ═══ IMPORT FROM BALADI ═══ */}
+      {/* ═══ IMPORT FROM BALADI (run locally) ═══ */}
       <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/50 p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="rounded-full bg-violet-500/20 p-3">
@@ -593,11 +590,26 @@ export default function AdminCatalogPage() {
           <div>
             <h2 className="font-semibold text-white">Import from Baladi</h2>
             <p className="text-sm text-slate-400">
-              Enter Baladi category numbers (e.g. 95818, 95010). Same as <code className="rounded bg-slate-800 px-1">npm run import:baladi:cat</code>.
+              Enter category numbers and run locally. Import requires Playwright—it cannot run on Vercel.
             </p>
           </div>
         </div>
-        <form onSubmit={handleImportFromBaladi} className="flex flex-col sm:flex-row flex-wrap items-end gap-4 max-w-2xl">
+
+        <details className="mb-4 rounded-lg border border-slate-700 bg-slate-800/50" open>
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-300 hover:text-white">
+            Instructions
+          </summary>
+          <ol className="list-decimal list-inside space-y-2 px-4 pb-4 text-sm text-slate-400">
+            <li>Enter Baladi category numbers (e.g. 95818, 79673). From URL: .../categories/95818/products</li>
+            <li>Select market category (grocery, bakery, retail, etc.)</li>
+            <li>Click <strong className="text-white">Run</strong> — the command is copied and Cursor/VS Code will focus</li>
+            <li>Press <kbd className="rounded border border-slate-600 bg-slate-700 px-1.5 py-0.5 font-mono text-xs">Ctrl+`</kbd> or <kbd className="rounded border border-slate-600 bg-slate-700 px-1.5 py-0.5 font-mono text-xs">Cmd+`</kbd> to open the terminal, then <kbd className="rounded border border-slate-600 bg-slate-700 px-1.5 py-0.5 font-mono text-xs">Ctrl+V</kbd> / <kbd className="rounded border border-slate-600 bg-slate-700 px-1.5 py-0.5 font-mono text-xs">Cmd+V</kbd> to paste and <kbd className="rounded border border-slate-600 bg-slate-700 px-1.5 py-0.5 font-mono text-xs">Enter</kbd> to run</li>
+            <li>A browser window opens—solve Cloudflare check if shown, then press Enter in the terminal</li>
+            <li>When done, refresh this page to see the new products</li>
+          </ol>
+        </details>
+
+        <form onSubmit={handleCopyImportCommand} className="flex flex-col sm:flex-row flex-wrap items-end gap-4 max-w-2xl">
           <div className="flex-1 min-w-[200px]">
             <label className="mb-1 block text-xs font-medium text-slate-400">Category numbers</label>
             <Input
@@ -606,7 +618,6 @@ export default function AdminCatalogPage() {
               placeholder="95818, 95010, 95817"
               className="bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
             />
-            <p className="mt-1 text-[11px] text-slate-500">Comma or space separated. From Baladi URLs: .../categories/95818/products</p>
           </div>
           <div className="w-40">
             <label className="mb-1 block text-xs font-medium text-slate-400">Market category</label>
@@ -622,30 +633,23 @@ export default function AdminCatalogPage() {
               ))}
             </select>
           </div>
-          <Button type="submit" disabled={importing} className="bg-violet-600 hover:bg-violet-500">
-            {importing ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-            {importing ? 'Importing…' : 'Run'}
+          <Button type="submit" disabled={!getImportCommand()} className="bg-violet-600 hover:bg-violet-500">
+            {importResult?.ok ? <CheckCircle className="mr-2 size-4" /> : null}
+            {importResult?.ok ? 'Copied' : 'Run'}
           </Button>
         </form>
+        {getImportCommand() && (
+          <div className="mt-4 rounded-lg bg-slate-800/80 px-3 py-2">
+            <p className="text-xs text-slate-500 mb-1">Command (copied when you click Run):</p>
+            <code className="block font-mono text-sm text-slate-200 break-all select-all">
+              {getImportCommand()}
+            </code>
+          </div>
+        )}
         {importResult && (
-          <div className={`mt-4 flex flex-col gap-2 rounded-lg p-4 ${importResult.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-            <div className="flex items-center gap-2">
-              {importResult.ok && <CheckCircle className="size-5 shrink-0" />}
-              <span>{importResult.message}</span>
-            </div>
-            {importResult.ok && ((importResult.productsCreated ?? 0) + (importResult.productsUpdated ?? 0) > 0) && (
-              <span className="text-sm opacity-90">
-                Created: {importResult.productsCreated ?? 0}, Updated: {importResult.productsUpdated ?? 0}
-              </span>
-            )}
-            {!importResult.ok && (
-              <div className="mt-2 space-y-2 text-xs text-slate-500">
-                <p>Cloudflare may block headless scraping. Run locally:</p>
-                <code className="block rounded bg-slate-800 px-2 py-1.5 font-mono text-[11px] break-all select-all">
-                  npm run import:baladi:cat -- {categoryIdsInput.split(/[,\s]+/)[0] || '95818'} {importCategory}
-                </code>
-              </div>
-            )}
+          <div className={`mt-4 flex items-center gap-2 rounded-lg p-4 ${importResult.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+            {importResult.ok && <CheckCircle className="size-5 shrink-0" />}
+            <span>{importResult.message}</span>
           </div>
         )}
       </div>
