@@ -218,6 +218,12 @@ export function UniversalSearch({
         setPendingFollowUp(q)
         setQuery('')
         inputRef.current?.focus()
+      } else if (hasStoredChat) {
+        setPendingFollowUp(q)
+        setQuery('')
+        setAiSubmittedQuery('__resume__')
+        setOpen(true)
+        inputRef.current?.focus()
       } else {
         setAiSubmittedQuery(q)
         setQuery('')
@@ -268,8 +274,12 @@ export function UniversalSearch({
   })()
 
   const handleResumeChat = () => {
+    const typedQuestion = query.trim()
+    if (typedQuestion) {
+      setPendingFollowUp(typedQuestion)
+      setQuery('')
+    }
     setAiSubmittedQuery('__resume__')
-    setQuery('')
     setOpen(true)
     inputRef.current?.focus()
   }
