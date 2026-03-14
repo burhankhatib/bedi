@@ -121,7 +121,7 @@ export function SearchAIPanel({
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto max-h-[320px] px-4 py-4 min-h-[120px]"
+        className="flex-1 overflow-y-auto max-h-[320px] px-4 py-4 pb-6 min-h-[120px]"
       >
         {loading && messages.length === 0 && (
           <div className="flex items-center gap-2 text-slate-500">
@@ -161,20 +161,30 @@ export function SearchAIPanel({
                 }
                 if (part.type === 'tool-search_ingredients') {
                   if (part.state !== 'output-available' || !part.output) return null
-                  const data = part.output as { products?: ToolProduct[]; byStore?: Record<string, ToolProduct[]>; soughtIngredients?: string[] }
+                  const data = part.output as {
+                    products?: ToolProduct[]
+                    byStore?: Record<string, ToolProduct[]>
+                    soughtIngredients?: string[]
+                    matchedIngredients?: string[]
+                    missingIngredients?: string[]
+                  }
                   const products = data.products ?? Object.values(data.byStore ?? {}).flat()
+                  const missing = data.missingIngredients ?? []
                   if (products.length === 0) {
-                    const sought = data.soughtIngredients ?? []
                     return (
                       <div key={idx} className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                         <p className="text-sm font-medium text-amber-800">
                           {t('No matching ingredients found in our stores.', 'لم يتم العثور على هذه المكونات في متاجرنا.')}
                         </p>
-                        {sought.length > 0 && (
+                        {missing.length > 0 ? (
                           <p className="mt-1 text-xs text-amber-700">
-                            {t('Searched for:', 'تم البحث عن:')} {sought.join(', ')}
+                            {t('Ingredients from the recipe not available:', 'مكونات الوصفة غير متوفرة:')} {missing.join(', ')}
                           </p>
-                        )}
+                        ) : (data.soughtIngredients ?? []).length > 0 ? (
+                          <p className="mt-1 text-xs text-amber-700">
+                            {t('Searched for:', 'تم البحث عن:')} {(data.soughtIngredients ?? []).join(', ')}
+                          </p>
+                        ) : null}
                       </div>
                     )
                   }
@@ -183,6 +193,14 @@ export function SearchAIPanel({
                   const displayProducts = hasByStore ? Object.values(byStore).flat() : products
                   return (
                     <div key={idx} className="space-y-2 mt-3">
+                      {missing.length > 0 && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2">
+                          <p className="text-xs font-medium text-amber-800">
+                            {t('Some ingredients from the recipe are not available in our stores:', 'بعض مكونات الوصفة غير متوفرة في متاجرنا:')}
+                          </p>
+                          <p className="mt-1 text-xs text-amber-700">{missing.join(', ')}</p>
+                        </div>
+                      )}
                       <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                         {t('Ingredients found', 'المكونات المتوفرة')}
                       </p>
@@ -300,8 +318,7 @@ export function SearchAIPanel({
                             key={label}
                             type="button"
                             onClick={() => {
-                              const isAffirmative = /^(yes|no|yeah|نعم|لا)$/i.test(label.trim())
-                              if (!isAffirmative) onSaveQuestion?.(label)
+                              onSaveQuestion?.(label)
                               sendMessage({ text: label })
                             }}
                             className="rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 active:scale-[0.98]"
@@ -411,7 +428,7 @@ export function SearchAIPanel({
       {/* Dedicated reply input — always visible so user can type follow-ups */}
       <form
         onSubmit={handleSendReply}
-        className="sticky bottom-0 flex gap-2 border-t border-slate-200 bg-white p-3"
+        className="sticky bottom-0 flex gap-2 border-t border-slate-200 bg-white pt-5 pb-4 px-4"
       >
         <input
           ref={replyInputRef}

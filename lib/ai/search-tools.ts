@@ -162,10 +162,16 @@ export async function searchIngredients(params: {
   country?: string
   ingredients: string[]
   lang?: 'en' | 'ar'
-}): Promise<{ products: ToolProduct[]; byStore: Record<string, ToolProduct[]>; soughtIngredients: string[] }> {
-  const { city, country = '', ingredients, lang = 'en' } = params
-  const sought = ingredients.slice(0, 15).map((i) => i.trim()).filter(Boolean)
-  if (sought.length === 0) return { products: [], byStore: {}, soughtIngredients: [] }
+}): Promise<{
+  products: ToolProduct[]
+  byStore: Record<string, ToolProduct[]>
+  soughtIngredients: string[]
+  matchedIngredients: string[]
+  missingIngredients: string[]
+}> {
+  const { city, country = '' } = params
+  const sought = params.ingredients.slice(0, 15).map((i) => i.trim()).filter(Boolean)
+  if (sought.length === 0) return { products: [], byStore: {}, soughtIngredients: [], matchedIngredients: [], missingIngredients: [] }
 
   const matchClauses = sought
     .map(
@@ -219,6 +225,9 @@ export async function searchIngredients(params: {
 
   const list = rawList.filter((p) => isProductRelevantForIngredients(p, sought))
 
+  const matchedIngredients = sought.filter((ing) => list.some((p) => isProductRelevantForIngredients(p, [ing])))
+  const missingIngredients = sought.filter((ing) => !matchedIngredients.some((m) => m.trim().toLowerCase() === ing.trim().toLowerCase()))
+
   const byStore: Record<string, ToolProduct[]> = {}
   for (const p of list) {
     const key = p.businessSlug || 'unknown'
@@ -226,5 +235,5 @@ export async function searchIngredients(params: {
     byStore[key].push(p)
   }
 
-  return { products: list, byStore, soughtIngredients: sought }
+  return { products: list, byStore, soughtIngredients: sought, matchedIngredients, missingIngredients }
 }

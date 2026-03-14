@@ -93,7 +93,7 @@ export async function GET() {
       key,
       products: list.map((p) => {
         const imageRef = p.image?.asset?._ref
-        const imageUrl = imageRef ? urlFor({ _type: 'image', asset: { _ref: imageRef } }).width(80).height(80).url() : null
+        const imageUrl = imageRef ? urlFor({ _type: 'image', asset: { _ref: imageRef } }).width(200).height(200).url() : null
         return {
           _id: p._id,
           nameEn: p.nameEn,

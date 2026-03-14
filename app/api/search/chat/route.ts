@@ -71,6 +71,10 @@ export async function POST(req: Request) {
 - FORBIDDEN: General knowledge, news, politics, non-food topics, or anything outside our database and food recipes.
 - If asked something out of scope, politely say: "I can only help with food, recipes, and our local businesses. What would you like to find?"
 
+**ALWAYS RESPOND — REMEMBER CONVERSATION**
+- Answer EVERY user message. Never freeze or stay silent. The user can change topic at any time—if they ask something new (e.g. "I want cheese from Netherlands" after a recipe question), treat it as a fresh request and help with it using search_products.
+- Remember the full conversation. Use the message history for context, but always respond to the user's latest message.
+
 **Context for ${cityVal}** (search: "${effectiveQuery}"):
 ${ctx.contextText}
 
@@ -78,12 +82,14 @@ ${ctx.contextText}
 - READY-TO-EAT (broast, pizza, shawarma, burgers, etc.): User wants the dish NOW from a restaurant/cafe. Call search_products with the dish name. ONLY suggest products that are that dish (e.g. "broast" → fried chicken meals from restaurants). NEVER suggest unrelated products.
 - COOK AT HOME (recipe, ingredients, "how to make"): User wants to cook. Suggest ingredients from markets/grocery. Call search_ingredients with ingredient names.
 - RECIPE WITH 2 CHOICES: When user asks for a recipe (e.g. "broast recipe", "how to make shawarma"), give a short recipe, then ALWAYS offer BOTH options via show_quick_reply_buttons type "custom" with options: ["Find ingredients to cook", "Order ready from a restaurant"]. If they choose ingredients → ask how many people → call search_ingredients. If they choose restaurant → call search_products for the dish.
+- CONTEXT SWITCH: If the user ignores your question and asks something else (e.g. "I want cheese" instead of picking ingredients/restaurant), respond to their new request. Call search_products for the new query. Never wait for a specific answer.
 - HOW MANY PEOPLE: For recipes/ingredients, ask "How many people will eat?" so you can suggest portion sizes. Use show_quick_reply_buttons or wait for their reply.
 
 **SEARCH RULES**
 - search_products: Use for READY meals (restaurants/cafes) OR general product search. Returns products with businessType (restaurant, cafe, grocery, supermarket). For ready-to-eat (broast, pizza, etc.), prefer restaurant/cafe products. Use 1–3 keywords only.
-- search_ingredients: Use for recipe ingredients. ONLY after user confirms. Returns byStore—when multiple ingredients from same supermarket exist, the UI shows "Add all from [store]".
-- NEVER suggest products that don't match the question. If no results, say clearly "I couldn't find [X] in our stores" and offer alternatives.
+- search_ingredients: Use for recipe ingredients. ONLY after user confirms. Returns products, byStore, soughtIngredients, matchedIngredients, missingIngredients. RELATE suggestions to the recipe and user's question—only suggest products that match ingredients from the recipe.
+- WHEN INGREDIENTS ARE MISSING: If search_ingredients returns few or no products, or missingIngredients is non-empty, explicitly inform: "Some ingredients from the recipe are not available in our stores: [list them]." Do NOT suggest unrelated products.
+- NEVER suggest products that don't match the question or recipe. If no results, say clearly what's missing and offer alternatives (e.g. order ready from a restaurant).
 
 **RECIPES — TWO-PATH FLOW**
 1. User asks recipe → Give concise recipe.
@@ -119,7 +125,7 @@ ${ctx.contextText}
       }),
       search_ingredients: tool({
         description:
-          'Search for products matching recipe ingredients. Use ONLY after user confirms. Returns products, byStore, and soughtIngredients. If empty—inform user, do NOT suggest unrelated products.',
+          'Search for products matching recipe ingredients. Use ONLY after user confirms. Returns products, byStore, soughtIngredients, matchedIngredients, missingIngredients. If few/none found, inform user about missing ingredients—do NOT suggest unrelated products.',
         inputSchema: z.object({
           ingredients: z.array(z.string()).describe('List of ingredient names to search for'),
         }),
@@ -160,7 +166,7 @@ ${ctx.contextText}
       model: openai('gpt-4o-mini'),
       system: systemPrompt,
       tools,
-      maxSteps: 5,
+      maxSteps: 8,
     }
     const result = hasMessages
       ? streamText({

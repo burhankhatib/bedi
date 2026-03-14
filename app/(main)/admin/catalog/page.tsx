@@ -841,14 +841,14 @@ export default function AdminCatalogPage() {
                     {group.products.map((p) => (
                       <div
                         key={p._id}
-                        className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-800/50 p-3"
+                        className="flex items-start gap-4 rounded-lg border border-slate-700 bg-slate-800/50 p-4"
                       >
-                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-slate-700">
+                        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg bg-slate-700">
                           {p.imageUrl ? (
-                            <Image src={p.imageUrl} alt="" fill className="object-cover" sizes="56px" unoptimized />
+                            <Image src={p.imageUrl} alt="" fill className="object-cover" sizes="96px" unoptimized />
                           ) : (
                             <div className="absolute inset-0 flex items-center justify-center">
-                              <Package className="size-6 text-slate-500" />
+                              <Package className="size-10 text-slate-500" />
                             </div>
                           )}
                         </div>
