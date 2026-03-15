@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { isLikelyQuestion } from '@/lib/ai/question-detection'
 import { SearchAIPanel } from './SearchAIPanel'
+import { SearchChatOverlay } from './SearchChatOverlay'
+import { OPEN_AI_CHAT_EVENT, OPEN_CHAT_ON_LOAD_KEY } from './ChatFab'
 import { useSaveAiQuestion } from './useSaveAiQuestion'
 
 type BusinessHit = {
@@ -49,6 +51,8 @@ interface UniversalSearchProps {
   /** Controlled mode for search page: parent owns value and syncs to URL. */
   value?: string
   onChange?: (value: string) => void
+  /** When true, dropdown opens above the input (for fixed bottom search bar on mobile). */
+  anchorBottom?: boolean
 }
 
 export function UniversalSearch({
@@ -59,6 +63,7 @@ export function UniversalSearch({
   compact = false,
   value: controlledValue,
   onChange: onControlledChange,
+  anchorBottom = false,
 }: UniversalSearchProps) {
   const isControlled = controlledValue !== undefined && onControlledChange !== undefined
   const { t, lang } = useLanguage()
@@ -147,9 +152,14 @@ export function UniversalSearch({
   }, [skipFetch, debouncedQuery, tenantSlug, city, isChosen, lang, isAIMode])
 
   const totalItems = (results?.businesses?.length ?? 0) + (results?.products?.length ?? 0)
-  const showDropdown = open && (query.trim().length >= MIN_QUERY_LENGTH || !!aiSubmittedQuery)
   const canShowAI = (isAIMode || aiSubmittedQuery) && city && isChosen && !tenantSlug
-  const showAIPanel = canShowAI && aiSubmittedQuery
+  /** Can receive "open chat" event (e.g. from ChatFab) — needs location, regardless of current query. */
+  const canReceiveOpenChat = !!city && isChosen && !tenantSlug
+  const chatOverlayOpen = canShowAI && !!aiSubmittedQuery
+  // Don't show the "Ask AI" popup when user typed a question — they just press Enter to fire AI
+  const wouldShowAskAIPrompt = canShowAI && !aiSubmittedQuery && totalItems === 0
+  const showDropdown = open && (query.trim().length >= MIN_QUERY_LENGTH || !!aiSubmittedQuery) && !chatOverlayOpen && !wouldShowAskAIPrompt
+  const showAIPanel = canShowAI && aiSubmittedQuery && !chatOverlayOpen
   const flatItems: Array<{ type: 'business'; item: BusinessHit } | { type: 'product'; item: ProductHit }> = [
     ...(results?.businesses ?? []).map((b) => ({ type: 'business' as const, item: b })),
     ...(results?.products ?? []).map((p) => ({ type: 'product' as const, item: p })),
@@ -222,12 +232,12 @@ export function UniversalSearch({
         setPendingFollowUp(q)
         setQuery('')
         setAiSubmittedQuery('__resume__')
-        setOpen(true)
+        setOpen(false)
         inputRef.current?.focus()
       } else {
         setAiSubmittedQuery(q)
         setQuery('')
-        setOpen(true)
+        setOpen(false)
         inputRef.current?.focus()
       }
       return
@@ -273,20 +283,44 @@ export function UniversalSearch({
     }
   })()
 
-  const handleResumeChat = () => {
+  const handleResumeChat = useCallback(() => {
     const typedQuestion = query.trim()
     if (typedQuestion) {
       setPendingFollowUp(typedQuestion)
       setQuery('')
     }
     setAiSubmittedQuery('__resume__')
-    setOpen(true)
+    setOpen(false)
     inputRef.current?.focus()
-  }
+  }, [query])
+
+  const handleChatOverlayClose = useCallback(() => {
+    setAiSubmittedQuery(null)
+    setPendingFollowUp(null)
+    setOpen(false)
+  }, [])
+
+  useEffect(() => {
+    if (!canReceiveOpenChat) return
+    const handler = () => handleResumeChat()
+    window.addEventListener(OPEN_AI_CHAT_EVENT, handler)
+    return () => window.removeEventListener(OPEN_AI_CHAT_EVENT, handler)
+  }, [canReceiveOpenChat, handleResumeChat])
+
+  useEffect(() => {
+    if (!canReceiveOpenChat || !city) return
+    try {
+      if (sessionStorage.getItem(OPEN_CHAT_ON_LOAD_KEY) === '1') {
+        sessionStorage.removeItem(OPEN_CHAT_ON_LOAD_KEY)
+        setAiSubmittedQuery('__resume__')
+        setOpen(false)
+      }
+    } catch { /* ignore */ }
+  }, [canReceiveOpenChat, city])
 
   const defaultPlaceholder = tenantSlug
     ? t('Search menu...', 'ابحث في القائمة...')
-    : t('Search businesses or items...', 'ابحث عن أعمال أو أصناف...')
+    : t("e.g. Broast, pizza, or How to cook Broast", "مثال: بروست، بيتزا، أو كيف أطبخ البروست")
 
   if (!tenantSlug && (!city || !isChosen)) {
     return (
@@ -308,7 +342,7 @@ export function UniversalSearch({
   return (
     <div ref={wrapperRef} className={cn('relative w-full', className)}>
       <form onSubmit={handleSubmit} className="relative group">
-        <Search className="absolute start-4 top-1/2 size-5 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
+        <Search className="absolute start-4 top-1/2 size-5 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors pointer-events-none" aria-hidden />
         <input
           ref={inputRef}
           type="search"
@@ -327,9 +361,11 @@ export function UniversalSearch({
           }}
           onFocus={() => setOpen(true)}
           className={cn(
-            'w-full rounded-full bg-slate-100 px-11 py-3 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-500 focus:bg-white focus:ring-2 focus:ring-brand-yellow/50 focus:shadow-sm',
-            compact && 'py-2 px-10 text-xs',
-            inputClassName
+            'w-full rounded-full bg-slate-100 py-3 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-500 focus:bg-white focus:ring-2 focus:ring-brand-yellow/50 focus:shadow-sm',
+            'ps-12 pe-11',
+            compact && 'py-2 text-xs',
+            inputClassName,
+            'ps-12 pe-11'
           )}
         />
         {(query || loading) && (
@@ -356,8 +392,26 @@ export function UniversalSearch({
         )}
       </form>
 
+      {chatOverlayOpen && city && (
+        <SearchChatOverlay
+          open={chatOverlayOpen}
+          onOpenChange={(open) => !open && handleChatOverlayClose()}
+          query={aiSubmittedQuery!}
+          city={city}
+          followUp={pendingFollowUp}
+          onFollowUpSent={clearFollowUp}
+          onSaveQuestion={saveQuestion}
+        />
+      )}
       {showDropdown && (
-          <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[min(400px,70vh)] overflow-hidden z-[100] flex flex-col">
+          <div
+            className={cn(
+              'absolute left-0 right-0 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-[100] flex flex-col',
+              anchorBottom
+                ? 'bottom-full mb-2 max-h-[min(400px,65vh)]'
+                : 'top-full mt-2 max-h-[min(400px,70vh)]'
+            )}
+          >
             {showAIPanel ? (
               <SearchAIPanel
                 query={aiSubmittedQuery!}

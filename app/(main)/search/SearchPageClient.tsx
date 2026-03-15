@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { FullPageLink } from '@/components/ui/FullPageLink'
 import Image from 'next/image'
 import { useSearchParams, useRouter } from 'next/navigation'
@@ -9,13 +10,14 @@ import { useLanguage } from '@/components/LanguageContext'
 import { SiteHeader } from '@/components/global/SiteHeader'
 import { LocationModal } from '@/components/global/LocationModal'
 import { Button } from '@/components/ui/button'
-import { Store, UtensilsCrossed, Flame, ChevronRight, Search, MapPin, Filter, LayoutGrid, List } from 'lucide-react'
+import { Store, UtensilsCrossed, Flame, ChevronRight, Search, MapPin, Filter, LayoutGrid, List, Sparkles } from 'lucide-react'
 import { MdRestaurant } from 'react-icons/md'
 import { BUSINESS_TYPES } from '@/lib/constants'
 import { getSectionIcon } from '@/lib/section-icons'
 import { getCityDisplayName } from '@/lib/registration-translations'
 import { UniversalSearch } from '@/components/search/UniversalSearch'
 import { CategoryIconsBar } from '@/components/home/CategoryIconsBar'
+import { isLikelyQuestion } from '@/lib/ai/question-detection'
 
 type SectionWithImage = {
   key: string
@@ -202,6 +204,7 @@ export function SearchPageClient() {
       imageUrl: string | null
       price: number
       currency: string
+      orderCount?: number
       business: { name: string; slug: string; logoUrl: string | null }
     }>
   } | null>(null)
@@ -224,7 +227,13 @@ export function SearchPageClient() {
   const latestSearchRequestRef = useRef(0)
   const lastUrlUpdateRef = useRef<string | null>(null)
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300)
+    const trimmed = searchQuery.trim()
+    if (!trimmed) {
+      setDebouncedQuery('')
+      setSearchResults(null)
+      return
+    }
+    const t = setTimeout(() => setDebouncedQuery(trimmed), 300)
     return () => clearTimeout(t)
   }, [searchQuery])
 
@@ -371,13 +380,13 @@ export function SearchPageClient() {
     return () => { mounted = false; ac.abort() }
   }, [isChosen, city, category])
 
-  const showSearchResults = debouncedQuery && (searchResults || loading)
+  const showSearchResults = searchQuery.trim() && debouncedQuery && (searchResults || loading)
   const displayTenants = showSearchResults ? [] : tenants
   const hasSearchResults = searchResults && (searchResults.businesses.length > 0 || searchResults.products.length > 0)
 
-  // View & sort for search results (mobile-friendly)
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [sortBy, setSortBy] = useState<'relevance' | 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc'>('relevance')
+  // View & sort: businesses always list/scroll; products default to list, sort by popularity
+  const [productViewMode, setProductViewMode] = useState<'grid' | 'list'>('list')
+  const [sortBy, setSortBy] = useState<'popularity' | 'relevance' | 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc'>('popularity')
 
   const sortedSearchResults = useMemo(() => {
     if (!searchResults) return null
@@ -388,7 +397,9 @@ export function SearchPageClient() {
     const getProductName = (p: { title_en?: string | null; title_ar?: string | null }) =>
       (lang === 'ar' ? p.title_ar : p.title_en) || (p.title_en ?? p.title_ar) || ''
 
-    if (sortBy === 'name-asc') {
+    if (sortBy === 'popularity') {
+      products.sort((a, b) => (b.orderCount ?? 0) - (a.orderCount ?? 0))
+    } else if (sortBy === 'name-asc') {
       businesses.sort((a, b) => getName(a).localeCompare(getName(b), lang === 'ar' ? 'ar' : 'en'))
       products.sort((a, b) => getProductName(a).localeCompare(getProductName(b), lang === 'ar' ? 'ar' : 'en'))
     } else if (sortBy === 'name-desc') {
@@ -426,23 +437,73 @@ export function SearchPageClient() {
         : BUSINESS_TYPES.find((b) => b.value === category)!.label
       : null
 
+  const isQuestionMode = searchQuery.trim().length > 0 && isLikelyQuestion(searchQuery)
+  const showAIAssistantState = showSearchResults && !hasSearchResults && isQuestionMode
+
   return (
     <div className="min-h-screen bg-slate-50" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <SiteHeader variant="home" showSearch={false} />
       <LocationModal />
 
-      {isChosen && (category === 'restaurant' || category === 'cafe' || !category) && (
+      {/* Desktop: category strip. Mobile: search/AI usage instructions */}
+      {isChosen && (
         <div className="bg-white border-b border-slate-100 shadow-sm sticky z-20" style={{ top: 'calc(72px + env(safe-area-inset-top))' }}>
           <div className="container mx-auto px-4">
-            <CategoryIconsBar
-              activeSection={section}
-              category={category || 'restaurant'}
-            />
+            {(category === 'restaurant' || category === 'cafe' || !category) && (
+              <div className="hidden md:block">
+                <CategoryIconsBar
+                  activeSection={section}
+                  category={category || 'restaurant'}
+                />
+              </div>
+            )}
+            <AnimatePresence mode="wait">
+              {!searchQuery.trim() && (
+                <motion.div
+                  key="search-instructions"
+                  className="md:hidden overflow-hidden"
+                  initial={{ opacity: 1, maxHeight: 320 }}
+                  exit={{ opacity: 0, maxHeight: 0 }}
+                  transition={{ duration: 0.28, ease: [0.2, 0, 0, 1] }}
+                >
+                  <div className="py-4 px-1">
+                    <div className="rounded-2xl bg-gradient-to-br from-slate-50 to-amber-50/60 dark:from-slate-800/80 dark:to-amber-950/20 border border-slate-200/80 dark:border-slate-700/60 p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-2xl" aria-hidden>✨</span>
+                        <p className="text-base font-semibold text-slate-800 dark:text-slate-200">
+                          {t('How to use Search & AI Chat', 'كيفية استخدام البحث والمحادثة')}
+                        </p>
+                      </div>
+                      <ul className="space-y-3">
+                        <li className="flex items-start gap-3 rounded-xl bg-white/70 dark:bg-slate-800/50 p-3 border border-slate-100 dark:border-slate-700/50">
+                          <span className="text-xl shrink-0 mt-0.5" aria-hidden>🔍</span>
+                          <span className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                            {t('Type keywords (e.g. broast, pizza) to search businesses & products', 'اكتب كلمات (مثل: بروست، بيتزا) للبحث عن الأعمال والمنتجات')}
+                          </span>
+                        </li>
+                        <li className="flex items-start gap-3 rounded-xl bg-white/70 dark:bg-slate-800/50 p-3 border border-slate-100 dark:border-slate-700/50">
+                          <span className="text-xl shrink-0 mt-0.5" aria-hidden>🍳</span>
+                          <span className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                            {t('Ask questions (e.g. How do I make an omelette?) for recipes & recommendations', 'اسأل أسئلة (مثل: كيف أصنع أومليت؟) للحصول على وصفات وأوصيات')}
+                          </span>
+                        </li>
+                        <li className="flex items-start gap-3 rounded-xl bg-white/70 dark:bg-slate-800/50 p-3 border border-slate-100 dark:border-slate-700/50">
+                          <span className="text-xl shrink-0 mt-0.5" aria-hidden>👍</span>
+                          <span className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                            {t('Use the search bar at the bottom — easy to reach with your thumb', 'استخدم شريط البحث أسفل الشاشة — سهل الوصول بإصبعك')}
+                          </span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       )}
 
-      <main className="container mx-auto px-4 py-8 max-w-7xl">
+      <main className="container mx-auto px-4 py-8 max-w-7xl md:py-8 max-md:pb-[calc(4rem+72px+max(16px,env(safe-area-inset-bottom,0px)))]">
         {!isChosen ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <p className="text-lg text-slate-600">
@@ -457,24 +518,26 @@ export function SearchPageClient() {
           </div>
         ) : (
           <>
-            <h1 className="mb-6 text-2xl font-bold text-slate-900">
-              {categoryLabel
-                ? t('{category} in {city}', '{category} في {city}')
-                    .replace('{category}', categoryLabel)
-                    .replace('{city}', (getCityDisplayName(city ?? null, lang) || city) ?? '')
-                : t('All businesses in {city}', 'جميع الأعمال في {city}').replace(
-                    '{city}',
-                    (getCityDisplayName(city ?? null, lang) || city) ?? ''
-                  )}
+            <h1 className="mb-6 text-2xl font-bold text-slate-900 max-md:mb-4">
+              {showAIAssistantState
+                ? t('Ask a question', 'اسأل سؤالاً')
+                : categoryLabel
+                  ? t('{category} in {city}', '{category} في {city}')
+                      .replace('{category}', categoryLabel)
+                      .replace('{city}', (getCityDisplayName(city ?? null, lang) || city) ?? '')
+                  : t('All businesses in {city}', 'جميع الأعمال في {city}').replace(
+                      '{city}',
+                      (getCityDisplayName(city ?? null, lang) || city) ?? ''
+                    )}
             </h1>
 
-            {/* M3 Search Header - unified UniversalSearch (keywords + AI) */}
-            <div className="mb-6 flex gap-3 items-center">
+            {/* M3 Search Header - desktop: inline. Mobile: fixed above nav (see fixed bar below) */}
+            <div className="mb-6 flex gap-3 items-center max-md:hidden">
               <div className="min-w-0 flex-1">
                 <UniversalSearch
                   value={searchQuery}
                   onChange={setSearchQuery}
-                  placeholder={t('Search businesses or items...', 'ابحث عن أعمال أو أصناف...')}
+                  placeholder={t("e.g. Broast, pizza, or How to cook Broast", "مثال: بروست، بيتزا، أو كيف أطبخ البروست")}
                   inputClassName="h-14 rounded-full border-0 bg-slate-100/80 px-12 text-base shadow-inner focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-brand-red/50 transition-all font-medium placeholder:text-slate-400 placeholder:font-normal"
                 />
               </div>
@@ -545,33 +608,36 @@ export function SearchPageClient() {
                 {/* View & sort controls - mobile-friendly */}
                 {hasSearchResults && (
                   <div className="flex flex-wrap items-center justify-between gap-3 py-4 border-b border-slate-200/80">
-                    <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1">
-                      <button
-                        type="button"
-                        onClick={() => setViewMode('grid')}
-                        className={`flex size-9 items-center justify-center rounded-full transition-colors ${
-                          viewMode === 'grid' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                        aria-label={t('Grid view', 'عرض شبكي')}
-                      >
-                        <LayoutGrid className="size-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setViewMode('list')}
-                        className={`flex size-9 items-center justify-center rounded-full transition-colors ${
-                          viewMode === 'list' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
-                        }`}
-                        aria-label={t('List view', 'عرض قائمة')}
-                      >
-                        <List className="size-4" />
-                      </button>
-                    </div>
+                    {sortedSearchResults && sortedSearchResults.products.length > 0 && (
+                      <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1">
+                        <button
+                          type="button"
+                          onClick={() => setProductViewMode('grid')}
+                          className={`flex size-9 items-center justify-center rounded-full transition-colors ${
+                            productViewMode === 'grid' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                          aria-label={t('Grid view', 'عرض شبكي')}
+                        >
+                          <LayoutGrid className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProductViewMode('list')}
+                          className={`flex size-9 items-center justify-center rounded-full transition-colors ${
+                            productViewMode === 'list' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                          aria-label={t('List view', 'عرض قائمة')}
+                        >
+                          <List className="size-4" />
+                        </button>
+                      </div>
+                    )}
                     <select
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
                       className="h-9 min-w-[140px] rounded-full border-0 bg-slate-100 px-4 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-brand-red/30"
                     >
+                      <option value="popularity">{t('Popularity', 'الأكثر طلباً')}</option>
                       <option value="relevance">{t('Relevance', 'الأكثر صلة')}</option>
                       <option value="name-asc">{t('Name A–Z', 'الاسم أ–ي')}</option>
                       <option value="name-desc">{t('Name Z–A', 'الاسم ي–أ')}</option>
@@ -588,31 +654,23 @@ export function SearchPageClient() {
                         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
                           {t('Businesses', 'الأعمال')}
                         </h2>
-                        <div
-                          className={
-                            viewMode === 'grid'
-                              ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-                              : 'flex flex-col gap-3'
-                          }
-                        >
+                        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 no-scrollbar snap-x snap-mandatory scroll-smooth">
                           {sortedSearchResults.businesses.map((b) => (
-                            <div key={b._id}>
+                            <div key={b._id} className="shrink-0 w-[140px] sm:w-[160px] snap-start">
                               <FullPageLink
                                 href={b.slug ? `/t/${b.slug}` : '#'}
-                                className={`group flex rounded-2xl bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200 ${
-                                  viewMode === 'list' ? 'items-center gap-4 p-4' : 'flex-col items-center gap-3 p-5'
-                                }`}
+                                className="group flex flex-col items-center gap-2 rounded-2xl bg-white p-4 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200"
                               >
-                                <div className={`relative shrink-0 overflow-hidden rounded-2xl bg-slate-100 ${viewMode === 'list' ? 'size-14' : 'size-20 sm:size-24'}`}>
+                                <div className="relative size-16 sm:size-20 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
                                   {b.logoUrl ? (
-                                    <Image src={b.logoUrl} alt={b.name} fill className="object-contain p-2" sizes={viewMode === 'list' ? '56px' : '96px'} />
+                                    <Image src={b.logoUrl} alt={b.name} fill className="object-contain p-2" sizes="80px" />
                                   ) : (
                                     <div className="flex h-full w-full items-center justify-center">
-                                      <Store className={viewMode === 'list' ? 'size-6' : 'size-10'} />
+                                      <Store className="size-8" />
                                     </div>
                                   )}
                                 </div>
-                                <h3 className={`font-bold text-slate-900 line-clamp-1 ${viewMode === 'list' ? 'text-base flex-1 min-w-0' : 'text-lg text-center'}`}>
+                                <h3 className="w-full font-bold text-slate-900 line-clamp-2 text-sm text-center">
                                   {(lang === 'ar' ? b.name_ar : b.name_en) || b.name}
                                 </h3>
                               </FullPageLink>
@@ -628,7 +686,7 @@ export function SearchPageClient() {
                         </h2>
                         <div
                           className={
-                            viewMode === 'grid'
+                            productViewMode === 'grid'
                               ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
                               : 'flex flex-col gap-3'
                           }
@@ -638,20 +696,20 @@ export function SearchPageClient() {
                               <FullPageLink
                                 href={p.business.slug ? `/t/${p.business.slug}#product-${p._id}` : '#'}
                                 className={`group flex overflow-hidden rounded-2xl bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200 ${
-                                  viewMode === 'list' ? 'flex-row items-center gap-4 p-4' : 'flex-col'
+                                  productViewMode === 'list' ? 'flex-row items-center gap-4 p-4' : 'flex-col'
                                 }`}
                               >
-                                <div className={`relative shrink-0 bg-slate-100 ${viewMode === 'list' ? 'size-20 rounded-xl' : 'aspect-square sm:aspect-[4/3]'}`}>
+                                <div className={`relative shrink-0 bg-slate-100 ${productViewMode === 'list' ? 'size-20 rounded-xl' : 'aspect-square sm:aspect-[4/3]'}`}>
                                   {p.imageUrl ? (
-                                    <Image src={p.imageUrl} alt={(lang === 'ar' ? p.title_ar : p.title_en) || ''} fill className="object-cover" sizes={viewMode === 'list' ? '80px' : '(max-width: 640px) 100vw, 280px'} />
+                                    <Image src={p.imageUrl} alt={(lang === 'ar' ? p.title_ar : p.title_en) || ''} fill className="object-cover" sizes={productViewMode === 'list' ? '80px' : '(max-width: 640px) 100vw, 280px'} />
                                   ) : (
                                     <div className="flex h-full w-full items-center justify-center">
-                                      <UtensilsCrossed className={viewMode === 'list' ? 'size-8' : 'size-12'} />
+                                      <UtensilsCrossed className={productViewMode === 'list' ? 'size-8' : 'size-12'} />
                                     </div>
                                   )}
                                 </div>
-                                <div className={`min-w-0 flex-1 ${viewMode === 'grid' ? 'p-4' : 'py-1'}`}>
-                                  <h3 className={`font-bold text-slate-900 line-clamp-2 ${viewMode === 'list' ? 'text-base' : 'text-lg'}`}>
+                                <div className={`min-w-0 flex-1 ${productViewMode === 'grid' ? 'p-4' : 'py-1'}`}>
+                                  <h3 className={`font-bold text-slate-900 line-clamp-2 ${productViewMode === 'list' ? 'text-base' : 'text-lg'}`}>
                                     {(lang === 'ar' ? p.title_ar : p.title_en) || ''}
                                   </h3>
                                   <p className="mt-1 text-sm text-slate-500 font-medium">
@@ -669,6 +727,24 @@ export function SearchPageClient() {
                         </div>
                       </section>
                     )}
+                  </div>
+                ) : showAIAssistantState ? (
+                  <div className="rounded-3xl border border-amber-200/60 bg-gradient-to-br from-amber-50/80 to-white dark:from-amber-950/20 dark:to-slate-900/50 p-12 text-center shadow-sm">
+                    <div className="mx-auto mb-4 flex size-20 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/40">
+                      <Sparkles className="size-10 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <p className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+                      {t('Press Enter to ask — our AI will help', 'اضغط Enter للسؤال — الذكاء الاصطناعي سيساعدك')}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                      {t('Recipes, recommendations, and more for {city}', 'وصفات وأوصيات والمزيد في {city}').replace(
+                        '{city}',
+                        (getCityDisplayName(city ?? null, lang) || city) ?? ''
+                      )}
+                    </p>
+                    <Button variant="outline" className="mt-6 rounded-full shadow-sm px-6 h-12 border-amber-300 text-amber-800 hover:bg-amber-50" onClick={() => setSearchQuery('')}>
+                      {t('Clear and search differently', 'مسح والبحث بطريقة أخرى')}
+                    </Button>
                   </div>
                 ) : (
                   <div className="rounded-3xl border border-slate-100 bg-white p-12 text-center shadow-sm">
@@ -754,6 +830,41 @@ export function SearchPageClient() {
           </>
         )}
       </main>
+
+      {/* Mobile: fixed Search/AI bar above nav — thumb-zone friendly, results scroll above */}
+      {isChosen && (
+        <div
+          className="md:hidden fixed left-0 right-0 z-30 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-t border-slate-200/90 dark:border-slate-800/80 px-4 py-3"
+          style={{
+            bottom: 'calc(72px + max(16px, env(safe-area-inset-bottom, 0px)))',
+          }}
+        >
+          <div className="flex gap-3 items-center max-w-7xl mx-auto">
+            <div className="min-w-0 flex-1">
+              <UniversalSearch
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder={t("e.g. Broast, pizza, or How to cook Broast", "مثال: بروست، بيتزا، أو كيف أطبخ البروست")}
+                anchorBottom
+                inputClassName="h-12 rounded-full border-0 bg-slate-100/80 dark:bg-slate-800/80 px-4 text-sm shadow-inner focus-visible:bg-white dark:focus-visible:bg-slate-800 focus-visible:ring-2 focus-visible:ring-brand-red/50 transition-all font-medium placeholder:text-slate-400"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setFiltersExpanded(!filtersExpanded)}
+              className={`flex size-12 shrink-0 items-center justify-center rounded-full transition-all duration-300 ${
+                filtersExpanded
+                  ? 'bg-brand-yellow text-brand-black shadow-sm'
+                  : 'bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+              aria-label={t('Filters', 'الفلاتر')}
+              aria-expanded={filtersExpanded}
+            >
+              <Filter className="size-5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

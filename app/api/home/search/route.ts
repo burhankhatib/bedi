@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
 import { suggestCorrection, type SearchableItem } from '@/lib/search/fuzzy-suggest'
+import { getProductOrderCounts } from '@/lib/ai/product-order-counts'
 
 /** Cache 60s per (city, country, q) to reduce Sanity API calls. */
 export const revalidate = 60
@@ -17,6 +18,7 @@ const CITY_TENANT_FILTER = `(city == $city || lower(city) == lower($city)) && !d
  * city: required. q: search query. country: optional.
  */
 export async function GET(req: NextRequest) {
+  try {
   const { searchParams } = new URL(req.url)
   const city = (searchParams.get('city') ?? '').trim()
   const qRaw = (searchParams.get('q') ?? '').trim()
@@ -52,6 +54,7 @@ export async function GET(req: NextRequest) {
     ...termParams,
   }
 
+  type SubcategoryTitle = { title_en?: string | null; title_ar?: string | null }
   type TenantRow = {
     _id: string
     name: string
@@ -61,7 +64,7 @@ export async function GET(req: NextRequest) {
     businessType: string
     businessLogo?: LogoSource
     restaurantLogo?: LogoSource
-    subcategoryTitles?: string[]
+    subcategoryTitles?: SubcategoryTitle[]
   }
 
   type ProductRow = {
@@ -90,7 +93,7 @@ export async function GET(req: NextRequest) {
       businessType,
       businessLogo,
       "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^._id][0].logo,
-      "subcategoryTitles": *[_type == "businessSubcategory" && _id in ^.businessSubcategories[]._ref].(title_en + " " + title_ar)
+      "subcategoryTitles": *[_type == "businessSubcategory" && _id in ^.businessSubcategories[]._ref]{title_en, title_ar}
     }`,
     params
   )
@@ -102,7 +105,10 @@ export async function GET(req: NextRequest) {
         const name = (t.name ?? '').toLowerCase()
         const nameEn = (t.name_en ?? '').toLowerCase()
         const nameAr = (t.name_ar ?? '').toLowerCase()
-        const specialtyText = (t.subcategoryTitles ?? []).join(' ').toLowerCase()
+        const specialtyText = (t.subcategoryTitles ?? [])
+          .map((s) => [s.title_en, s.title_ar].filter(Boolean).join(' '))
+          .join(' ')
+          .toLowerCase()
         return terms.every(
           (term) =>
             name.includes(term) ||
@@ -114,17 +120,12 @@ export async function GET(req: NextRequest) {
     : tenants
   ).slice(0, 30)
 
-  const matchingTenantIds = new Set(businesses.map((b) => b._id))
-  const matchingIdsArray = Array.from(matchingTenantIds)
-
-  const productFilter =
-    terms.length > 0
-      ? `(((${productMatchFilter}) || (site._ref in $matchingTenantIds))`
-      : 'true'
+  // Only return products that match the search keyword — not the full menu of matching businesses
+  const productFilter = terms.length > 0 ? `(${productMatchFilter})` : 'true'
 
   const products = await (terms.length
     ? client.fetch<ProductRow[]>(
-        `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}]._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && ${productFilter}] | order(site->name asc) [0...50] {
+        `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}]._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && ${productFilter}] | order(site->name asc) [0...100] {
           _id,
           title_en,
           title_ar,
@@ -139,7 +140,7 @@ export async function GET(req: NextRequest) {
           "categoryTitleEn": category->title_en,
           "categoryTitleAr": category->title_ar
         }`,
-        { ...params, matchingTenantIds: matchingIdsArray }
+        params
       )
     : Promise.resolve([]))
 
@@ -159,7 +160,8 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  const productResult = (products ?? []).map((p) => {
+  const orderCounts = terms.length > 0 ? await getProductOrderCounts(city, country || undefined) : new Map<string, number>()
+  const productResultUnsorted = (products ?? []).map((p) => {
     const imageUrl = p.image?.asset?._ref
       ? urlFor(p.image).width(600).height(400).url()
       : null
@@ -183,6 +185,7 @@ export async function GET(req: NextRequest) {
       imageUrl,
       price: p.price ?? 0,
       currency: p.currency ?? 'ILS',
+      orderCount: orderCounts.get(p._id),
       business: {
         name: p.siteName ?? '',
         slug: p.siteSlug ?? '',
@@ -191,6 +194,8 @@ export async function GET(req: NextRequest) {
       category: categoryTitle,
     }
   })
+  // Sort products by popularity (order count) — most ordered first
+  const productResult = productResultUnsorted.sort((a, b) => (b.orderCount ?? 0) - (a.orderCount ?? 0))
 
   let didYouMean: string | null = null
   if (qRaw && businessResult.length === 0 && productResult.length === 0) {
@@ -234,4 +239,13 @@ export async function GET(req: NextRequest) {
     products: productResult,
     didYouMean,
   })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    const stack = err instanceof Error ? err.stack : undefined
+    console.error('[api/home/search]', message, stack)
+    return Response.json(
+      { error: 'Search failed', message, ...(process.env.NODE_ENV === 'development' && { stack }) },
+      { status: 500 }
+    )
+  }
 }

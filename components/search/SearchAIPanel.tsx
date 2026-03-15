@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { UIMessage } from 'ai'
-import { Loader2, Sparkles, Store, ShoppingCart, Send, RotateCcw } from 'lucide-react'
+import { Loader2, Sparkles, Store, ShoppingCart, Send, RotateCcw, X } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
 import { cn } from '@/lib/utils'
@@ -57,6 +57,8 @@ interface SearchAIPanelProps {
   /** Called when user sends a question (for saving to profile) */
   onSaveQuestion?: (question: string) => void
   className?: string
+  /** When true, limit height (dropdown). When false, fill available space (drawer/modal). */
+  fullHeight?: boolean
 }
 
 function getTextFromParts(parts: Array<{ type?: string; text?: string }> | undefined): string {
@@ -74,6 +76,7 @@ export function SearchAIPanel({
   onClose,
   onSaveQuestion,
   className,
+  fullHeight = false,
 }: SearchAIPanelProps) {
   const { lang } = useLanguage()
   const { addToCart } = useCart()
@@ -160,17 +163,29 @@ export function SearchAIPanel({
 
   return (
     <div className={cn('flex flex-col', className)}>
-      <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 bg-slate-50/80">
-        <div className="flex items-center gap-2">
-          <Sparkles className="size-4 text-amber-500" />
-          <span className="text-sm font-medium text-slate-700">
-            {t('AI assistant', 'المساعد الذكي')}
-          </span>
+      <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 bg-slate-50/80 shrink-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex size-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition-colors"
+              aria-label={t('Close', 'إغلاق')}
+            >
+              <X className="size-5" />
+            </button>
+          )}
+          <div className="flex items-center gap-2 min-w-0">
+            <Sparkles className="size-4 shrink-0 text-amber-500" />
+            <span className="text-sm font-medium text-slate-700 truncate">
+              {t('AI assistant', 'المساعد الذكي')}
+            </span>
+          </div>
         </div>
         <button
           type="button"
           onClick={handleResetChat}
-          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200/80 hover:text-slate-800 transition-colors"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200/80 hover:text-slate-800 transition-colors"
           aria-label={t('New chat', 'محادثة جديدة')}
         >
           <RotateCcw className="size-3.5" />
@@ -180,7 +195,10 @@ export function SearchAIPanel({
 
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto max-h-[320px] px-4 py-4 pb-8 min-h-[120px]"
+        className={cn(
+          'flex-1 overflow-y-auto px-4 py-4 pb-8 min-h-[120px]',
+          fullHeight ? 'min-h-0' : 'max-h-[320px]'
+        )}
       >
         {loading && messages.length === 0 && (
           <div className="flex items-center gap-2 text-slate-500">
@@ -391,18 +409,17 @@ export function SearchAIPanel({
                   const prompt = data.prompt
                   const isNumericGrid = opts.length >= 6 && opts.every((o) => /^\d+$/.test(o.trim()))
                   return (
-                    <div key={idx} className="mt-3 flex flex-col gap-2">
+                    <div key={idx} className="mt-4 flex flex-col gap-3">
                       {prompt && (
-                        <p className="text-sm text-slate-600" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+                        <p className="text-sm font-medium text-slate-700" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
                           {prompt}
                         </p>
                       )}
                       <div
-                        className={
-                          isNumericGrid
-                            ? 'grid grid-cols-5 gap-2'
-                            : 'flex flex-wrap gap-2'
-                        }
+                        className={cn(
+                          'gap-2',
+                          isNumericGrid ? 'grid grid-cols-5 sm:grid-cols-5' : 'flex flex-wrap'
+                        )}
                       >
                         {opts.map((label) => (
                           <button
@@ -413,8 +430,10 @@ export function SearchAIPanel({
                               sendMessage({ text: label })
                             }}
                             className={cn(
-                              'rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 active:scale-[0.98]',
-                              isNumericGrid && 'px-3 py-2'
+                              'rounded-2xl px-4 py-3 text-sm font-semibold transition-all duration-200 ease-out',
+                              'shadow-sm hover:shadow-md active:scale-[0.98]',
+                              'border-2 border-amber-500/80 bg-amber-500 text-white hover:bg-amber-600 hover:border-amber-600',
+                              isNumericGrid && 'px-3 py-2.5 min-w-[2.5rem]'
                             )}
                             dir={lang === 'ar' ? 'rtl' : 'ltr'}
                           >
@@ -529,7 +548,7 @@ export function SearchAIPanel({
       {/* Dedicated reply input — always visible so user can type follow-ups */}
       <form
         onSubmit={handleSendReply}
-        className="sticky bottom-0 flex gap-2 border-t border-slate-200 bg-white pt-6 pb-5 px-4"
+        className="sticky bottom-0 flex gap-2 border-t border-slate-200 bg-white pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] px-4"
       >
         <input
           ref={replyInputRef}

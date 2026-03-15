@@ -81,8 +81,9 @@ ${ctx.contextText}
 
 **UNDERSTAND USER INTENT — BE RELEVANT**
 - READY-TO-EAT (broast, pizza, shawarma, burgers, etc.): User wants the dish NOW from a restaurant/cafe. Call search_products with the dish name. ONLY suggest products that are that dish (e.g. "broast" → fried chicken meals from restaurants). NEVER suggest unrelated products.
-- COOK AT HOME (recipe, ingredients, "how to make"): User wants to cook. Suggest ingredients from markets/grocery. Call search_ingredients with ingredient names.
+- COOK AT HOME (recipe, ingredients, "how to make"): User wants to cook. Suggest ingredients from markets/grocery ONLY. search_ingredients returns only grocery/supermarket/greengrocer products—never restaurant meals like "Fries with Cheese". NEVER suggest restaurant dishes as ingredients.
 - RECIPE WITH 2 CHOICES: When user asks for a recipe (e.g. "broast recipe", "how to make shawarma"), give a short recipe, then ALWAYS offer BOTH options via show_quick_reply_buttons type "custom" with options: ["Find ingredients to cook", "Order ready from a restaurant"]. If they choose ingredients → ask how many people → call search_ingredients. If they choose restaurant → call search_products for the dish.
+- AFTER SHOWING INGREDIENTS: Always offer: "Would you also like to find something ready and delicious from our restaurants?" Use show_quick_reply_buttons type "yes_no" with prompt: "Find something ready from restaurants too?"
 - CONTEXT SWITCH: If the user ignores your question and asks something else (e.g. "I want cheese" instead of picking ingredients/restaurant), respond to their new request. Call search_products for the new query. Never wait for a specific answer.
 - HOW MANY PEOPLE: For recipes/ingredients, ask "How many people will eat?" so you can suggest portion sizes. ALWAYS use show_quick_reply_buttons type "custom" with options: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"] (the user can also type a number). Do not offer only 2/4/6—always show 1–10.
 
@@ -111,10 +112,12 @@ ${ctx.contextText}
 - Links: [name](/t/slug)
 - Prefer [POPULAR] items.
 
-**INTERACTIVE BUTTONS**:
-- Yes/No → show_quick_reply_buttons type "yes_no"
-- Two choices (ingredients vs ready) → type "custom" with options: ["Find ingredients to cook", "Order ready from a restaurant"]
-- Portion options → type "custom" with options: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]`
+**INTERACTIVE BUTTONS (CRITICAL — ALWAYS USE FOR SHORT ANSWERS)**:
+- NEVER write "Yes or No?" or "Type 1-10" in plain text. ALWAYS use show_quick_reply_buttons so the user can CLICK instead of typing.
+- Yes/No questions → ALWAYS call show_quick_reply_buttons type "yes_no" (e.g. "Would you like delivery?" → use the tool)
+- Binary choices (ingredients vs ready) → type "custom" with options: ["Find ingredients to cook", "Order ready from a restaurant"]
+- Portion/number questions → type "custom" with options: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+- Any question with 2–10 possible short answers → use show_quick_reply_buttons. The user must be able to tap a button, not type.`
 
     const tools = {
       search_products: tool({
@@ -167,7 +170,7 @@ ${ctx.contextText}
       }),
       show_quick_reply_buttons: tool({
         description:
-          'Show clickable Yes/No or custom quick-reply buttons to the user. Use when asking a Yes/No question (type yes_no) or when offering quick options (type custom). For portion/number questions use options like ["1","2",..."10"]. For binary choices use ["Find ingredients to cook", "Order ready from a restaurant"].',
+          'MANDATORY for Yes/No and short-answer questions. Renders clickable buttons so users do NOT have to type. Use type yes_no for any Yes/No question. Use type custom for 2–10 options (e.g. portion numbers, binary choices). Examples: "Would you like delivery?" → yes_no. "How many people?" → custom ["1","2",..."10"]. "Ingredients or ready?" → custom ["Find ingredients to cook", "Order ready from a restaurant"]. NEVER ask these in plain text—always call this tool.',
         inputSchema: z.object({
           type: z.enum(['yes_no', 'custom']).describe('yes_no for Yes/No buttons, custom for specific options'),
           options: z

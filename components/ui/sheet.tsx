@@ -60,12 +60,14 @@ interface SheetContentProps
   contentClassName?: string
   /** Applied to the portal wrapper (overlay + content). Use for high z-index (e.g. Cart z-[600]). */
   portalClassName?: string
+  /** When false, hide the default close button (use custom close in children). Default true. */
+  showCloseButton?: boolean
 }
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = 'right', className, overlayClassName, contentClassName, portalClassName, children, ...props }, ref) => (
+>(({ side = 'right', className, overlayClassName, contentClassName, portalClassName, showCloseButton = true, children, ...props }, ref) => (
   <SheetPortalWithContainer>
     <div translate="no" style={{ isolation: 'isolate' }} className={cn('z-[250]', portalClassName)}>
       <SheetOverlay className={cn('z-[250] pointer-events-auto', overlayClassName)} />
@@ -75,12 +77,14 @@ const SheetContent = React.forwardRef<
       {...props}
     >
       {children}
-      <SheetPrimitive.Close
-        className="absolute end-4 top-[max(1rem,env(safe-area-inset-top))] rounded-full p-2 opacity-70 ring-offset-white transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-slate-100"
-        aria-label="Close"
-      >
-        <X className="h-5 w-5" />
-      </SheetPrimitive.Close>
+      {showCloseButton && (
+        <SheetPrimitive.Close
+          className="absolute end-4 top-[max(1rem,env(safe-area-inset-top))] rounded-full p-2 opacity-70 ring-offset-white transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-slate-100"
+          aria-label="Close"
+        >
+          <X className="h-5 w-5" />
+        </SheetPrimitive.Close>
+      )}
     </SheetPrimitive.Content>
     </div>
   </SheetPortalWithContainer>

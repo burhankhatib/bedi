@@ -187,7 +187,7 @@ export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderPr
     <>
       {showSearch && (
         <div className="md:hidden mb-4">
-          <UniversalSearch compact placeholder={t('Search businesses or items...', 'ابحث عن أعمال أو أصناف...')} />
+          <UniversalSearch compact placeholder={t("e.g. Broast, pizza, or How to cook Broast", "مثال: بروست، بيتزا، أو كيف أطبخ البروست")} />
         </div>
       )}
       <button

@@ -9,6 +9,9 @@ import { getProductOrderCounts } from '@/lib/ai/product-order-counts'
 
 const CITY_TENANT_FILTER = `(city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now())))`
 
+/** Business types that sell ingredients (grocery/market). Excludes restaurants, cafes, bakeries. */
+const INGREDIENT_BUSINESS_TYPES = ['grocery', 'supermarket', 'greengrocer', 'retail', 'pharmacy']
+
 type ImageSource = { asset?: { _ref: string } } | null | undefined
 
 export type ToolProduct = {
@@ -228,14 +231,15 @@ export async function searchIngredients(params: {
     restaurantLogo?: ImageSource
   }
 
+  const ingredientTenantFilter = `(site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter} && businessType in $ingredientTypes]._id)`
   const products = await client.fetch<ProductRow[]>(
-    `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}]._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && (${matchClauses})] | order(site->name asc) [0...50] {
+    `*[_type == "product" && defined(site) && ${ingredientTenantFilter} && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && (${matchClauses})] | order(site->name asc) [0...50] {
       _id, title_en, title_ar, image, price, currency,
       "siteName": site->name, "siteSlug": site->slug.current,
       "siteBusinessLogo": site->businessLogo,
       "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^.site._ref][0].logo
     }`,
-    { city, ...(country ? { country } : {}), ...ingParams }
+    { city, ingredientTypes: INGREDIENT_BUSINESS_TYPES, ...(country ? { country } : {}), ...ingParams }
   )
 
   const [hoursList, orderCounts] = await Promise.all([

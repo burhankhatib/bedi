@@ -534,12 +534,15 @@ export default function AdminCatalogPage() {
 
     let skip = 0
 
-    const runBatch = async (): Promise<{ remaining: number; translated: number; failed: number; processed: number } | null> => {
+    const runBatch = async (
+      currentSkip: number,
+      prevTotals: { done: number; translated: number; failed: number }
+    ): Promise<{ remaining: number; translated: number; failed: number; processed: number } | null> => {
       if (backgroundCancelledRef.current) return null
       const res = await fetch('/api/admin/translate-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit: BATCH_SIZE, skip, dryRun: false, stream: true }),
+        body: JSON.stringify({ limit: BATCH_SIZE, skip: currentSkip, dryRun: false, stream: true }),
       })
       if (!res.ok || !res.body) return null
       const contentType = res.headers.get('content-type') ?? ''
@@ -556,6 +559,8 @@ export default function AdminCatalogPage() {
       const decoder = new TextDecoder()
       let buffer = ''
       let lastDone: { remaining: number; translated: number; failed: number; processed: number } | null = null
+      let translatedThisBatch = 0
+      let failedThisBatch = 0
       while (true) {
         if (backgroundCancelledRef.current) break
         const { done, value } = await reader.read()
@@ -586,6 +591,15 @@ export default function AdminCatalogPage() {
               remaining?: number
             }
             if (data.type === 'product' && data._id) {
+              const meaningfulUpdate =
+                data.ok &&
+                data.updated?.length &&
+                !['no changes needed', 'dry run - no changes'].includes(data.updated[0] ?? '')
+              if (data.ok) {
+                if (meaningfulUpdate) translatedThisBatch += 1
+              } else {
+                failedThisBatch += 1
+              }
               setTranslateProgress((prev) => [
                 ...prev.filter((p) => p._id !== data._id),
                 {
@@ -601,6 +615,12 @@ export default function AdminCatalogPage() {
                   translatedNameAr: data.translatedNameAr,
                 },
               ])
+              setBackgroundStats({
+                done: prevTotals.done + (data.index ?? 0),
+                translated: prevTotals.translated + translatedThisBatch,
+                failed: prevTotals.failed + failedThisBatch,
+                remaining: lastDone?.remaining ?? 0,
+              })
             } else if (data.type === 'done') {
               lastDone = {
                 remaining: data.remaining ?? 0,
@@ -608,10 +628,45 @@ export default function AdminCatalogPage() {
                 failed: data.failed ?? 0,
                 processed: data.processed ?? data.total ?? 0,
               }
+              setBackgroundStats({
+                done: prevTotals.done + lastDone.processed,
+                translated: prevTotals.translated + lastDone.translated,
+                failed: prevTotals.failed + lastDone.failed,
+                remaining: lastDone.remaining,
+              })
             }
           } catch {
             /* skip */
           }
+        }
+      }
+      // Process any remaining buffer (the 'done' event can be in the final chunk)
+      if (buffer.trim()) {
+        try {
+          const data = JSON.parse(buffer) as {
+            type?: string
+            processed?: number
+            total?: number
+            translated?: number
+            failed?: number
+            remaining?: number
+          }
+          if (data.type === 'done') {
+            lastDone = {
+              remaining: data.remaining ?? 0,
+              translated: data.translated ?? 0,
+              failed: data.failed ?? 0,
+              processed: data.processed ?? data.total ?? 0,
+            }
+            setBackgroundStats({
+              done: prevTotals.done + lastDone.processed,
+              translated: prevTotals.translated + lastDone.translated,
+              failed: prevTotals.failed + lastDone.failed,
+              remaining: lastDone.remaining,
+            })
+          }
+        } catch {
+          /* skip */
         }
       }
       return lastDone
@@ -623,7 +678,7 @@ export default function AdminCatalogPage() {
     let remaining = 1
 
     while (remaining > 0 && !backgroundCancelledRef.current) {
-      const result = await runBatch()
+      const result = await runBatch(skip, { done: totalDone, translated: totalTranslated, failed: totalFailed })
       if (!result || backgroundCancelledRef.current) break
       totalDone += result.processed
       totalTranslated += result.translated
@@ -796,32 +851,6 @@ export default function AdminCatalogPage() {
 
   return (
     <div>
-      {backgroundTranslating && (
-        <div className="sticky top-0 z-50 mb-4 flex items-center justify-between gap-4 rounded-xl border border-emerald-500/50 bg-emerald-950/90 px-4 py-3 shadow-lg backdrop-blur-sm">
-          <div className="flex items-center gap-4">
-            <Loader2 className="size-5 animate-spin text-emerald-400 shrink-0" />
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-              <span className="text-emerald-200">
-                Translated: <strong className="text-emerald-400">{backgroundStats.translated}</strong>
-              </span>
-              <span className="text-slate-400">
-                Done: {backgroundStats.done} · Remaining: {backgroundStats.remaining}
-              </span>
-              {backgroundStats.failed > 0 && (
-                <span className="text-red-400">Failed: {backgroundStats.failed}</span>
-              )}
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleStopBackgroundTranslate}
-            className="border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/20 hover:text-white"
-          >
-            Stop
-          </Button>
-        </div>
-      )}
       <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">Product Catalog</h1>
       <p className="mt-1 text-sm text-slate-400 sm:text-base">
         Palestinian market product catalog for grocery, supermarket, and greengrocer tenants. Seed categories and products so markets can add them to their menus.
@@ -1095,6 +1124,32 @@ export default function AdminCatalogPage() {
             </p>
           </div>
         </div>
+        {backgroundTranslating && (
+          <div className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-emerald-500/50 bg-emerald-950/90 px-4 py-3 shadow-lg backdrop-blur-sm">
+            <div className="flex items-center gap-4">
+              <Loader2 className="size-5 animate-spin text-emerald-400 shrink-0" />
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                <span className="text-emerald-200">
+                  Translated: <strong className="text-emerald-400">{backgroundStats.translated}</strong>
+                </span>
+                <span className="text-slate-400">
+                  Done: {backgroundStats.done} · Remaining: {backgroundStats.remaining}
+                </span>
+                {backgroundStats.failed > 0 && (
+                  <span className="text-red-400">Failed: {backgroundStats.failed}</span>
+                )}
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleStopBackgroundTranslate}
+              className="border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/20 hover:text-white"
+            >
+              Stop
+            </Button>
+          </div>
+        )}
         <div className="flex flex-wrap gap-3">
           <Button
             onClick={() => handleBackgroundTranslate()}

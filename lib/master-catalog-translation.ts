@@ -40,9 +40,9 @@ const RUINED_ARABIC_PATTERNS = [
 
 /**
  * Patterns that must match as whole words (space/start/end boundaries only).
- * Avoids false positives: تي matches "أحمد تي" but NOT "التيراميسو" (tiramisu) or "لروتينك" (routine).
+ * Avoids false positives: تي matches "أحمد تي" but NOT "التيراميسو" (tiramisu); سوب matches "سوب" (soup) but NOT "سوبر" (super).
  */
-const WORD_BOUNDARY_PATTERNS = ['تي']
+const WORD_BOUNDARY_PATTERNS = ['تي', 'سوب']
 
 /**
  * Returns true if the Arabic text contains known transliteration mistakes
@@ -69,19 +69,33 @@ function escapeRegex(s: string): string {
 }
 
 /**
+ * Minimum Arabic character ratio (0.0–1.0) to consider mixed text acceptable.
+ * When brand names stay in Latin (e.g. "باقة Giga الطويلة من Always Daily Protect"),
+ * we allow it if Arabic provides substantial content (≥25% of letters).
+ */
+const MIN_ARABIC_RATIO_FOR_MIXED = 0.25
+
+/**
  * Returns true if the text appears to contain English/Latin when it should be Arabic.
  * E.g. "Tomatoes" in the nameAr field, or "Milk" - these should be translated to proper Arabic.
+ * Accepts mixed text when Arabic is substantial (e.g. brand names in Latin + Arabic description).
  */
 export function hasEnglishInArabicField(text: string | null | undefined): boolean {
   const s = typeof text === 'string' ? text.trim() : ''
   if (s.length < 2) return false
   const hasLatin = LATIN_REGEX.test(s)
   const hasArabic = ARABIC_REGEX.test(s)
-  // If it has Latin letters and few/no Arabic letters, treat as English
+  // If it has Latin and no Arabic, treat as English-only (needs translation)
   if (hasLatin && !hasArabic) return true
-  // If it has both but Latin dominates (e.g. "Tomatoes طماطم" - rare but possible)
+  // If it has both: allow when Arabic is substantial (brand names often stay in Latin)
   const arabicCount = (s.match(/[\u0600-\u06FF]/g) ?? []).length
   const latinCount = (s.match(/[a-zA-Z]/g) ?? []).length
+  const totalLetters = arabicCount + latinCount
+  if (totalLetters < 3) return hasLatin
+  const arabicRatio = arabicCount / totalLetters
+  // Accept mixed text when Arabic provides ≥25% (e.g. "باقة Giga الطويلة من Always")
+  if (arabicRatio >= MIN_ARABIC_RATIO_FOR_MIXED) return false
+  // Latin dominates and Arabic is minimal → flag
   return hasLatin && latinCount > arabicCount
 }
 

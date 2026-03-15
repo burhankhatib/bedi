@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { CustomerWelcomePushBoot } from '@/components/customer/CustomerWelcomePushBoot'
 import { CustomerPushHealthCheck } from '@/components/customer/CustomerPushHealthCheck'
 import { AiQuestionSyncOnLogin } from '@/components/customer/AiQuestionSyncOnLogin'
+import { ChatFab } from '@/components/search/ChatFab'
 
 /** Paths that should always load with scroll at top (e.g. when navigating from tenant menu). */
 function useScrollToTopOnNavigate() {
@@ -89,6 +90,7 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
           <CustomerWelcomePushBoot />
           <CartSlider supportsDineIn supportsReceiveInPerson />
           <CartToast />
+          <ChatFab />
         </>
       )}
     </>
