@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Loader2, Package, CheckCircle, Plus, Upload, Link2, Pencil, Languages, Copy, Trash2, Merge, Zap } from 'lucide-react'
 import { compressImageForUpload } from '@/lib/compress-image'
 import { needsTranslation } from '@/lib/master-catalog-translation'
@@ -42,10 +43,12 @@ function ProductCard({
   product,
   categories,
   onSaved,
+  onDeleted,
 }: {
   product: MasterCatalogItem
   categories: typeof CATEGORIES
   onSaved: (updated?: MasterCatalogItem) => void
+  onDeleted?: (id: string) => void
 }) {
   const [nameEn, setNameEn] = useState(product.nameEn ?? '')
   const [nameAr, setNameAr] = useState(product.nameAr ?? '')
@@ -57,6 +60,8 @@ function ProductCard({
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -120,6 +125,21 @@ function ProductCard({
       setError(err instanceof Error ? err.message : 'Failed to save')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/admin/master-catalog/${product._id}`, { method: 'DELETE', cache: 'no-store' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Failed to delete')
+      setDeleteOpen(false)
+      onDeleted?.(product._id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -189,18 +209,49 @@ function ProductCard({
           </option>
         ))}
       </select>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={handleSave}
+            disabled={saving}
+            className="bg-blue-600 hover:bg-blue-500 text-white"
+          >
+            {saving ? <Loader2 className="size-4 animate-spin" /> : saved ? <CheckCircle className="size-4" /> : null}
+            {saving ? ' Saving…' : saved ? ' Saved' : ' Save'}
+          </Button>
+          {error && <span className="text-xs text-red-400">{error}</span>}
+        </div>
         <Button
           size="sm"
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-blue-600 hover:bg-blue-500 text-white"
+          variant="ghost"
+          onClick={() => setDeleteOpen(true)}
+          disabled={saving || deleting}
+          className="shrink-0 size-8 p-0 text-slate-400 hover:text-red-400 hover:bg-red-500/10"
+          aria-label="Delete product"
         >
-          {saving ? <Loader2 className="size-4 animate-spin" /> : saved ? <CheckCircle className="size-4" /> : null}
-          {saving ? ' Saving…' : saved ? ' Saved' : ' Save'}
+          <Trash2 className="size-4" />
         </Button>
-        {error && <span className="text-xs text-red-400">{error}</span>}
       </div>
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent showCloseButton={!deleting} className="border-slate-700 bg-slate-800">
+          <DialogHeader>
+            <DialogTitle>Delete product</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-slate-300">
+            Are you sure you want to delete &quot;{product.nameEn || product.nameAr || 'this product'}&quot;? This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting} className="border-slate-600">
+              Cancel
+            </Button>
+            <Button onClick={handleDelete} disabled={deleting} className="bg-red-600 hover:bg-red-500 text-white">
+              {deleting ? <Loader2 className="size-4 animate-spin" /> : null}
+              {deleting ? ' Deleting…' : ' Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -329,6 +380,11 @@ export default function AdminCatalogPage() {
     },
     [needsTranslationFilter]
   )
+
+  const handleProductDeleted = useCallback((id: string) => {
+    setProducts((prev) => prev.filter((p) => p._id !== id))
+    setTotal((t) => Math.max(0, t - 1))
+  }, [])
 
   const handleSeed = async () => {
     setLoading(true)
@@ -1440,6 +1496,7 @@ export default function AdminCatalogPage() {
                 product={p}
                 categories={CATEGORIES}
                 onSaved={handleProductSaved}
+                onDeleted={handleProductDeleted}
               />
             ))}
           </div>

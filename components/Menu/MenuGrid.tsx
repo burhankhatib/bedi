@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { motion } from 'motion/react'
 import { MenuData, Product } from '@/app/types/menu'
 import { ProductCard } from './ProductCard'
 import { ProductListItem } from './ProductListItem'
@@ -50,7 +51,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
         return (
           <div className="space-y-3 px-4">
             {products.map((product) => (
-              <div key={product._id} id={`product-${product._id}`}>
+              <div key={product._id} id={`product-${product._id}`} className="min-h-[48px]">
                 <ProductListItem
                   product={product}
                   onClick={(p) => onProductClick(p, prefix)}
@@ -68,7 +69,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
 
       case 'horizontal':
         return (
-          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-6 snap-x scroll-smooth px-4 items-stretch">
+          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-6 snap-x scroll-smooth px-4 items-stretch">
             {products.map((product, index) => (
               <div
                 key={product._id}
@@ -93,7 +94,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
 
       case 'thumbnail-2col':
         return (
-          <div className="grid grid-cols-2 gap-3 md:gap-6 px-4 auto-rows-fr">
+          <div className="grid grid-cols-2 gap-4 md:gap-6 px-4 auto-rows-fr">
             {products.map((product) => (
               <div key={product._id} id={`product-${product._id}`} className="h-full">
                 <ProductCard
@@ -114,7 +115,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
       case 'thumbnail':
       default:
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4 auto-rows-fr">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 px-4 auto-rows-fr">
             {products.map((product) => (
               <div key={product._id} id={`product-${product._id}`} className="h-full">
                 <ProductCard
@@ -134,43 +135,60 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
     }
   }
 
+  const M3_EASE = [0.2, 0, 0, 1] as const
+  const M3_DURATION = 0.28
+
   return (
-    <div className="space-y-12 pb-20">
-      {groups.map(({ root, subs }) => (
-        <section
-          key={root._id}
-          id={root._id}
-          style={{ scrollMarginTop: `${scrollOffset + 8}px` }}
-        >
-          <div className="px-4 mb-6">
-            <h2 className="text-2xl font-bold mb-1">
-              {t(root.title_en, root.title_ar)}
-            </h2>
-            <div className="h-1 w-12 bg-primary rounded-full" />
-          </div>
-
-          {root.products && root.products.length > 0 && (
-            <div className="mb-8">
-              {renderProducts(root.products, 'grid')}
+    <div className="space-y-16 pb-24">
+      {groups.map(({ root, subs }, gIdx) => {
+        return (
+          <motion.section
+            key={root._id}
+            id={root._id}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: M3_DURATION, ease: M3_EASE, delay: gIdx * 0.04 }}
+            style={{ scrollMarginTop: `${scrollOffset + 8}px` }}
+            className="space-y-8"
+          >
+            {/* M3 Headline: main category */}
+            <div className="px-4">
+              <h2 className="text-[1.75rem] font-bold tracking-tight text-foreground leading-tight">
+                {t(root.title_en, root.title_ar)}
+              </h2>
+              <div className="mt-2 h-1 w-14 rounded-full bg-primary" />
             </div>
-          )}
 
-          {subs.map((sub) => (
-            <div key={sub._id} className="mb-10 last:mb-0">
-              <h3 className="text-base font-semibold text-slate-600 px-4 mb-4 border-s-2 border-slate-300 ps-4">
-                {t(sub.title_en, sub.title_ar)}
-              </h3>
-              {sub.products && sub.products.length > 0 ? (
-                renderProducts(sub.products, 'grid')
-              ) : (
-                <p className="text-sm text-slate-500 px-4 italic">
-                  {t('No products in this category yet.', 'لا توجد منتجات في هذه الفئة بعد.')}
-                </p>
-              )}
-            </div>
-          ))}
-        </section>
-      ))}
+            {root.products && root.products.length > 0 && (
+              <div className="mb-10">
+                {renderProducts(root.products, 'grid')}
+              </div>
+            )}
+
+            {subs.map((sub) => (
+              <div key={sub._id} className="space-y-4">
+                {/* M3 Title: subcategory with tonal divider */}
+                <div className="flex items-center gap-3 px-4">
+                  <div
+                    className="h-5 w-0.5 shrink-0 rounded-full bg-primary/40"
+                    aria-hidden
+                  />
+                  <h3 className="text-base font-semibold text-muted-foreground tracking-tight">
+                    {t(sub.title_en, sub.title_ar)}
+                  </h3>
+                </div>
+                {sub.products && sub.products.length > 0 ? (
+                  renderProducts(sub.products, 'grid')
+                ) : (
+                  <p className="text-sm text-muted-foreground px-4 italic">
+                    {t('No products in this category yet.', 'لا توجد منتجات في هذه الفئة بعد.')}
+                  </p>
+                )}
+              </div>
+            ))}
+          </motion.section>
+        )
+      })}
     </div>
   )
 }

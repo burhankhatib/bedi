@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { motion } from 'motion/react'
 import { urlFor } from '@/sanity/lib/image'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { Product } from '@/app/types/menu'
@@ -48,12 +49,14 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
   }
 
   return (
-    <div
+    <motion.div
       onClick={() => onClick(product)}
-      className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 cursor-pointer hover:shadow-lg transition-all duration-300 flex gap-4 p-4"
+      className="bg-card rounded-2xl overflow-hidden cursor-pointer flex gap-4 p-4 border border-border/60 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_2px_6px_rgba(0,0,0,0.04)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.05)] transition-all duration-[280ms] ease-[cubic-bezier(0.2,0,0,1)]"
+      whileTap={!unavailable ? { scale: 0.99 } : undefined}
+      transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
     >
-      {/* Image */}
-      <div className="relative w-24 h-24 rounded-xl overflow-hidden bg-slate-50 shrink-0">
+      {/* Image - M3 thumbnail */}
+      <div className="relative w-24 h-24 rounded-xl overflow-hidden bg-muted/50 shrink-0">
         {displayImage ? (
           <Image
             src={urlFor(displayImage).width(200).height(200).url()}
@@ -98,14 +101,14 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
             )}
           </div>
 
-          {/* Title */}
-          <h3 className="font-black text-lg leading-tight mb-1 line-clamp-1">
+          {/* M3 Title Medium */}
+          <h3 className="text-base font-semibold leading-tight mb-1 line-clamp-1 tracking-tight">
             {t(product.title_en, product.title_ar)}
           </h3>
 
-          {/* Description - Optional */}
+          {/* M3 Body Small */}
           {(product.description_en || product.description_ar) && (
-            <p className="text-sm text-slate-500 line-clamp-2 mb-2">
+            <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
               {t(product.description_en || '', product.description_ar || '')}
             </p>
           )}
@@ -114,7 +117,7 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
           {product.dietaryTags && product.dietaryTags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2 mt-2">
               {product.dietaryTags.slice(0, 3).map((tag) => (
-                <Badge key={tag} variant="secondary" className="text-[9px] px-2 py-0.5 bg-slate-100/50 text-slate-500 border-none font-bold uppercase tracking-wider">
+                <Badge key={tag} variant="secondary" className="text-[10px] px-2 py-0.5 bg-muted/80 text-muted-foreground border-none font-medium tracking-wide rounded-full">
                   {tag}
                 </Badge>
               ))}
@@ -122,9 +125,9 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
           )}
         </div>
 
-        {/* Price and Add Button */}
+        {/* Price and Add Button - M3 48dp touch target */}
         {!shouldHidePrice && (
-          <div className="flex items-center justify-between gap-3 pt-2 mt-auto border-t border-slate-50 min-h-[44px]">
+          <div className="flex items-center justify-between gap-3 pt-3 mt-auto border-t border-border/40 min-h-[48px]">
             <div className="flex items-center gap-2 h-[36px]">
               {product.variants && product.variants.length > 0 ? (
                 <span className="text-sm font-bold text-slate-600">
@@ -138,7 +141,7 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
                     </span>
                   )}
                   <div className={`flex flex-wrap items-baseline gap-1 ${priceColor}`}>
-                    <span className="text-2xl md:text-3xl font-black tracking-tighter leading-none">
+                    <span className="text-xl md:text-2xl font-semibold tracking-tight leading-none">
                       {hasSpecialPrice ? product.specialPrice : product.price}
                     </span>
                     <span className="text-base md:text-lg font-bold opacity-70 leading-none">
@@ -157,7 +160,7 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
             <Button
               size="sm"
               onClick={handleAddToCart}
-              className="rounded-full h-9 px-4 bg-black hover:bg-slate-800 shrink-0"
+              className="rounded-full h-10 px-5 bg-primary text-primary-foreground hover:opacity-90 shrink-0 min-h-[40px] font-medium transition-opacity duration-200"
             >
               <Plus className="w-4 h-4 mr-1.5" />
               {t('Add', 'إضافة')}
@@ -166,6 +169,6 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }

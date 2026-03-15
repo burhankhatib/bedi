@@ -137,3 +137,33 @@ export async function PATCH(
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
+
+/**
+ * DELETE: Remove a master catalog product (super admin only).
+ */
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authResult = await checkSuperAdmin()
+  if (!authResult.ok) {
+    return NextResponse.json(
+      { error: authResult.status === 401 ? 'Unauthorized' : 'Forbidden' },
+      { status: authResult.status }
+    )
+  }
+
+  const { id } = await params
+  if (!id) {
+    return NextResponse.json({ error: 'Product ID required' }, { status: 400 })
+  }
+
+  try {
+    await writeClient.delete(id)
+    return NextResponse.json({ ok: true, message: 'Product deleted' })
+  } catch (err) {
+    console.error('[admin master-catalog] delete error:', err)
+    const msg = err instanceof Error ? err.message : 'Failed to delete'
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+}

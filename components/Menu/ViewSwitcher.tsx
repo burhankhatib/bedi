@@ -43,7 +43,7 @@ export function ViewSwitcher({ view, onViewChange }: ViewSwitcherProps) {
   ]
 
   return (
-    <div className="flex items-center gap-2 bg-slate-100 rounded-full p-1">
+    <div className="flex items-center gap-1 bg-muted/60 rounded-full p-1">
       {views.map((viewOption) => (
         <Button
           key={viewOption.type}
@@ -51,10 +51,10 @@ export function ViewSwitcher({ view, onViewChange }: ViewSwitcherProps) {
           size="sm"
           onClick={() => onViewChange(viewOption.type)}
           className={cn(
-            "h-8 px-3 rounded-full transition-all",
+            "h-9 px-3 rounded-full transition-all duration-200 ease-[cubic-bezier(0.2,0,0,1)]",
             view === viewOption.type
-              ? "bg-white shadow-sm text-black"
-              : "text-slate-600 hover:text-black"
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
           )}
           title={t(viewOption.label, viewOption.labelAr)}
         >

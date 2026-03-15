@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
+import { motion } from 'motion/react'
 import { urlFor } from '@/sanity/lib/image'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { Product } from '@/app/types/menu'
@@ -56,13 +57,20 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
   }
 
   return (
-    <div
+    <motion.div
       onClick={() => onClick(product)}
       className={cn(
-        'bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 transition-all duration-500 relative group h-full flex flex-col w-full',
-        unavailable ? 'opacity-70 grayscale-[0.3]' : 'cursor-pointer hover:shadow-xl'
+        'bg-card rounded-[28px] overflow-hidden relative group h-full flex flex-col w-full',
+        'transition-[box-shadow,transform] duration-[280ms] ease-[cubic-bezier(0.2,0,0,1)]',
+        unavailable ? 'opacity-70 grayscale-[0.3]' : 'cursor-pointer',
+        !unavailable && 'shadow-[0_1px_2px_rgba(0,0,0,0.04),0_2px_6px_rgba(0,0,0,0.04)]',
+        !unavailable && 'hover:shadow-[0_4px_12px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.05)]',
+        !unavailable && 'hover:-translate-y-0.5',
+        'border border-border/60'
       )}
       style={{ position: 'relative' }}
+      whileTap={!unavailable ? { scale: 0.98 } : undefined}
+      transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
     >
       {/* Badges Overlay */}
       <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
@@ -87,7 +95,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
       </div>
 
       <div
-        className="relative aspect-square w-full overflow-hidden bg-slate-50"
+        className="relative aspect-square w-full overflow-hidden bg-muted/50 rounded-t-[20px]"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -139,41 +147,44 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
             {t('No Image', 'لا توجد صورة')}
           </div>
         )}
-        {/* Add to Cart Button Overlay - hidden when closed or unavailable */}
+        {/* M3 FAB - Add to Cart */}
         {!catalogOnly && !unavailable && (
         <div
-          className="absolute bottom-3 right-3 z-20 opacity-100 md:opacity-0 md:group-hover:opacity-100 pointer-events-auto"
+          className="absolute bottom-3 right-3 z-20 opacity-100 md:opacity-0 md:group-hover:opacity-100 pointer-events-auto transition-opacity duration-200"
         >
-          <button
+          <motion.button
             onClick={handleAddToCart}
-            className="relative bg-black hover:bg-slate-800 active:bg-slate-700 shadow-2xl rounded-full h-11 w-11 flex items-center justify-center cursor-pointer pointer-events-auto transition-colors"
+            className="relative bg-primary text-primary-foreground hover:opacity-90 active:opacity-80 shadow-[0_2px_6px_rgba(0,0,0,0.15)] rounded-full h-12 w-12 flex items-center justify-center cursor-pointer pointer-events-auto transition-opacity duration-200 min-h-[48px] min-w-[48px]"
+            whileTap={{ scale: 0.92 }}
+            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
           >
-            <span className="transition-transform duration-300 group-hover:rotate-180">
-              <Plus className="w-5 h-5 text-white shrink-0" />
+            <span className="transition-transform duration-200 group-hover:rotate-90">
+              <Plus className="w-6 h-6 shrink-0" />
             </span>
-          </button>
+          </motion.button>
         </div>
         )}
       </div>
 
       <div className="p-5 flex flex-col grow min-h-0">
         <div className="flex flex-col grow">
-          <h3 className="font-black text-xl leading-tight mb-2 tracking-tight group-hover:text-primary transition-colors line-clamp-2 min-h-[2.75rem]">
+          {/* M3 Title Large */}
+          <h3 className="text-[1.25rem] font-semibold leading-tight tracking-[-0.01em] mb-2 group-hover:text-primary transition-colors duration-200 line-clamp-2 min-h-[2.75rem]">
             {t(product.title_en, product.title_ar)}
           </h3>
 
-          {/* Description - Optional, show only if it exists */}
+          {/* M3 Body Medium - optional description */}
           {(product.description_en || product.description_ar) && (
-            <p className="text-sm text-slate-500 line-clamp-2 mb-4 leading-relaxed min-h-[2.5rem]">
+            <p className="text-sm text-muted-foreground line-clamp-2 mb-4 leading-relaxed min-h-[2.5rem]">
               {t(product.description_en || '', product.description_ar || '')}
             </p>
           )}
 
-          {/* Dietary Tags */}
+          {/* Dietary Tags - M3 assistive chips */}
           {product.dietaryTags && product.dietaryTags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-3 mt-auto">
               {product.dietaryTags?.slice(0, 3).map((tag) => (
-                <Badge key={tag} variant="secondary" className="text-[9px] px-2 py-0.5 bg-slate-100/50 text-slate-500 border-none font-bold uppercase tracking-wider">
+                <Badge key={tag} variant="secondary" className="text-[10px] px-2 py-0.5 bg-muted/80 text-muted-foreground border-none font-medium tracking-wide rounded-full">
                   {tag}
                 </Badge>
               ))}
@@ -182,7 +193,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
         </div>
 
         {!shouldHidePrice && (
-          <div className="flex items-center justify-between gap-3 pt-3 mt-auto border-t border-slate-50 min-h-[44px]">
+          <div className="flex items-center justify-between gap-3 pt-4 mt-auto border-t border-border/40 min-h-[48px]">
             <div className="flex items-center gap-2 shrink-0 h-[44px]">
               {product.variants && product.variants.length > 0 ? (
                 <span className="text-sm font-bold text-slate-600">
@@ -196,10 +207,10 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
                     </span>
                   )}
                   <div className={`flex flex-wrap items-baseline gap-1 ${priceColor}`}>
-                    <span className="text-3xl md:text-4xl font-black tracking-tighter leading-none">
+                    <span className="text-2xl md:text-[1.75rem] font-semibold tracking-tight leading-none">
                       {hasSpecialPrice ? product.specialPrice : product.price}
                     </span>
-                    <span className="text-base md:text-lg font-bold opacity-70 leading-none">
+                    <span className="text-sm md:text-base font-medium opacity-75 leading-none">
                       {formatCurrency(product.currency)}
                     </span>
                     {product.saleUnit && product.saleUnit !== 'piece' && (
@@ -214,6 +225,6 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }

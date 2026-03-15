@@ -182,8 +182,8 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [activeLayoutPrefix, setActiveLayoutPrefix] = useState<string>('grid')
   const [isModalOpen, setIsModalOpen] = useState(false)
-  // Initialize with default to match server render, preventing hydration mismatch
-  const [viewType, setViewType] = useState<ViewType>('thumbnail')
+  // Initialize with default to match server render, preventing hydration mismatch (Scroll for all screen sizes)
+  const [viewType, setViewType] = useState<ViewType>('horizontal')
   const [isHydrated, setIsHydrated] = useState(false)
   const [stickyBlockHeight, setStickyBlockHeight] = useState(140) // header + menu bar for scroll offset
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -219,9 +219,8 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
         if (savedView && ['thumbnail', 'list', 'horizontal', 'thumbnail-2col'].includes(savedView)) {
           setViewType(savedView)
         } else {
-          // No saved preference: desktop = thumbnail, mobile = horizontal (scroll)
-          const isMobile = window.matchMedia('(max-width: 767px)').matches
-          setViewType(isMobile ? 'horizontal' : 'thumbnail')
+          // No saved preference: Scroll (horizontal) for all screen sizes
+          setViewType('horizontal')
         }
       }
     }, 0)
@@ -745,7 +744,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
             menuData={categories}
             onProductClick={handleProductClick}
             scrollOffset={stickyBlockHeight}
-            viewType={isHydrated ? viewType : 'thumbnail'}
+            viewType={isHydrated ? viewType : 'horizontal'}
             restaurantLogo={restaurantInfo?.logo}
             catalogOnly={catalogOnly}
                 tenantContext={tenantSlug ? { 
