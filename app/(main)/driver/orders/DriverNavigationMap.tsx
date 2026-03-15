@@ -603,6 +603,26 @@ export default function DriverNavigationMap({
             <Locate className="w-5 h-5" />
           </button>
         )}
+
+        {/* Fail-safe controls: keep close/minimize always reachable even if top bar overlaps */}
+        <div className="absolute left-4 bottom-28 z-[600] flex items-center gap-2">
+          <button
+            onClick={onMinimize}
+            className="h-10 rounded-full px-3 bg-slate-900/90 backdrop-blur-md border border-slate-700/60 text-slate-100 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-transform"
+            title={t('Minimize', 'تصغير')}
+          >
+            <Minimize2 className="w-3.5 h-3.5" />
+            {t('Min', 'تصغير')}
+          </button>
+          <button
+            onClick={onClose}
+            className="h-10 rounded-full px-3 bg-slate-900/90 backdrop-blur-md border border-slate-700/60 text-slate-100 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-transform"
+            title={t('Close', 'إغلاق')}
+          >
+            <X className="w-3.5 h-3.5" />
+            {t('Close', 'إغلاق')}
+          </button>
+        </div>
       </div>
 
       {/* ── I Arrived Slider Modal (within 100m) ─────── */}

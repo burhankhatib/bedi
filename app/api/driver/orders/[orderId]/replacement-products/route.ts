@@ -30,8 +30,82 @@ export async function GET(
   const query = rawQuery.replace(/\s+/g, ' ').trim()
   const queryPattern = query ? `*${query}*` : ''
 
+  // No source product means driver wants to add a brand-new item from this business.
+  // Return a searchable list of available products from the same site.
   if (!sourceProductId) {
-    return NextResponse.json({ products: [] })
+    const products = await client.fetch<
+      Array<{
+        _id: string
+        title_en?: string
+        title_ar?: string
+        image?: unknown
+        tempImageUrl?: string
+        price?: number
+        specialPrice?: number
+        specialPriceExpires?: string
+        currency?: string
+      }>
+    >(
+      `*[
+        _type == "product" &&
+        site._ref == $siteId &&
+        (isAvailable != false) &&
+        (
+          !defined($queryPattern) ||
+          title_en match $queryPattern ||
+          title_ar match $queryPattern
+        )
+      ] | order(title_en asc)[0...120]{
+        _id,
+        title_en,
+        title_ar,
+        image,
+        tempImageUrl,
+        price,
+        specialPrice,
+        specialPriceExpires,
+        currency
+      }`,
+      {
+        siteId: order.siteRef,
+        queryPattern: queryPattern || undefined,
+      }
+    )
+
+    const now = Date.now()
+    const normalized = (products || []).map((p) => {
+      const specialActive =
+        typeof p.specialPrice === 'number' &&
+        (!p.specialPriceExpires || new Date(p.specialPriceExpires).getTime() > now)
+      const effectivePrice = specialActive ? p.specialPrice : (p.price ?? 0)
+      let imageUrl = ''
+      if (p.tempImageUrl) {
+        imageUrl = p.tempImageUrl
+      } else if (p.image) {
+        try {
+          imageUrl = urlFor(p.image).width(160).height(160).fit('crop').url()
+        } catch {
+          imageUrl = ''
+        }
+      }
+      return {
+        _id: p._id,
+        title_en: p.title_en || 'Item',
+        title_ar: p.title_ar || p.title_en || 'صنف',
+        price: Number.isFinite(effectivePrice) ? Number(effectivePrice) : 0,
+        currency: p.currency || 'ILS',
+        imageUrl,
+      }
+    })
+
+    return NextResponse.json({
+      products: normalized,
+      meta: {
+        sourceProductId: null,
+        sourceEffectivePrice: null,
+        query,
+      },
+    })
   }
 
   const sourceProduct = await client.fetch<{

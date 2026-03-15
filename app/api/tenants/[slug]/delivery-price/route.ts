@@ -11,19 +11,31 @@ export async function GET(
   const latStr = searchParams.get('lat')
   const lngStr = searchParams.get('lng')
 
+  const tenant = await getTenantBySlug(slug, { useCdn: false })
+  if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+  const flags = {
+    requiresPersonalShopper: tenant.requiresPersonalShopper === true,
+    supportsDriverPickup: tenant.supportsDriverPickup === true,
+  }
+
+  // Allow reading tenant delivery flags even before location is selected.
   if (!latStr || !lngStr) {
-    return NextResponse.json({ error: 'lat and lng required' }, { status: 400 })
+    return NextResponse.json({
+      ...flags,
+      distanceKm: null,
+      suggestedFee: null,
+      currency: 'ILS',
+      minFee: null,
+      maxFee: null,
+    })
   }
 
   const customerLat = parseFloat(latStr)
   const customerLng = parseFloat(lngStr)
 
   if (isNaN(customerLat) || isNaN(customerLng)) {
-    return NextResponse.json({ error: 'Invalid coordinates' }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid coordinates', ...flags }, { status: 400 })
   }
-
-  const tenant = await getTenantBySlug(slug, { useCdn: false })
-  if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
 
   if (tenant.locationLat == null || tenant.locationLng == null) {
     return NextResponse.json({ error: 'Business location not set' }, { status: 400 })
@@ -79,10 +91,11 @@ export async function GET(
   fee = Math.max(minFee, Math.min(fee, maxFee))
 
   return NextResponse.json({
+    ...flags,
     distanceKm: distKm,
     suggestedFee: fee,
     currency: 'ILS', // Can be parameterized per tenant later
     minFee,
-    maxFee
+    maxFee,
   })
 }

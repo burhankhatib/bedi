@@ -214,6 +214,10 @@ function DriverOrdersV2Content() {
   const [replacementSelectionByOrder, setReplacementSelectionByOrder] = useState<Record<string, Record<number, string>>>({})
   const [replacementSearchByOrder, setReplacementSearchByOrder] = useState<Record<string, Record<number, string>>>({})
   const [replacementLoadingByOrder, setReplacementLoadingByOrder] = useState<Record<string, Record<number, boolean>>>({})
+  const [additionalProductsByOrder, setAdditionalProductsByOrder] = useState<Record<string, ReplacementProduct[]>>({})
+  const [additionalProductSelectionByOrder, setAdditionalProductSelectionByOrder] = useState<Record<string, string>>({})
+  const [additionalProductSearchByOrder, setAdditionalProductSearchByOrder] = useState<Record<string, string>>({})
+  const [additionalProductLoadingByOrder, setAdditionalProductLoadingByOrder] = useState<Record<string, boolean>>({})
   const [pendingPickupManualConfirmOrderId, setPendingPickupManualConfirmOrderId] = useState<string | null>(null)
 
   const [driverLat, setDriverLat] = useState<number | null>(null)
@@ -804,6 +808,27 @@ function DriverOrdersV2Content() {
     }
   }
 
+  const loadAdditionalProducts = async (orderId: string, query?: string) => {
+    const search = (query || '').trim()
+    setAdditionalProductLoadingByOrder((prev) => ({ ...prev, [orderId]: true }))
+    try {
+      const params = new URLSearchParams({
+        ...(search ? { q: search } : {}),
+      })
+      const res = await fetch(`/api/driver/orders/${orderId}/replacement-products?${params.toString()}`, { cache: 'no-store' })
+      if (!res.ok) return
+      const data = await res.json()
+      setAdditionalProductsByOrder((prev) => ({
+        ...prev,
+        [orderId]: Array.isArray(data.products) ? data.products : [],
+      }))
+    } catch {
+      // keep editor usable even if additional products fetch fails
+    } finally {
+      setAdditionalProductLoadingByOrder((prev) => ({ ...prev, [orderId]: false }))
+    }
+  }
+
   const openOrderDetails = (order: DriverOrder) => {
     const isSame = detailsOrderId === order.orderId
     if (isSame) {
@@ -835,6 +860,7 @@ function DriverOrdersV2Content() {
         void loadReplacementProducts(order.orderId, idx, item.productId)
       }
     })
+    void loadAdditionalProducts(order.orderId, additionalProductSearchByOrder[order.orderId] || '')
   }
 
   const togglePickedItem = (orderId: string, index: number) => {
@@ -849,13 +875,6 @@ function DriverOrdersV2Content() {
           notPickedReason: isPicked ? '' : (item.notPickedReason || t('Unavailable at store', 'غير متوفر في المتجر')),
         }
       }),
-    }))
-  }
-
-  const removeEditingItem = (orderId: string, index: number) => {
-    setEditingItemsByOrder((prev) => ({
-      ...prev,
-      [orderId]: (prev[orderId] || []).filter((_, idx) => idx !== index),
     }))
   }
 
@@ -892,6 +911,31 @@ function DriverOrdersV2Content() {
     }))
   }
 
+  const addSelectedProductToOrder = (orderId: string) => {
+    const productId = additionalProductSelectionByOrder[orderId]
+    if (!productId) return
+    const product = (additionalProductsByOrder[orderId] || []).find((p) => p._id === productId)
+    if (!product) return
+    setEditingItemsByOrder((prev) => ({
+      ...prev,
+      [orderId]: [
+        ...(prev[orderId] || []),
+        {
+          _key: `driver-added-${Date.now()}`,
+          productId: product._id,
+          productName: lang === 'ar' ? product.title_ar : product.title_en,
+          quantity: 1,
+          notes: '',
+          addOns: '',
+          price: product.price,
+          isPicked: true,
+          notPickedReason: '',
+        },
+      ],
+    }))
+    setAdditionalProductSelectionByOrder((prev) => ({ ...prev, [orderId]: '' }))
+  }
+
   const saveDriverItemChanges = async (order: DriverOrder) => {
     const edited = editingItemsByOrder[order.orderId] || []
     if (!edited.length) {
@@ -908,7 +952,7 @@ function DriverOrdersV2Content() {
       if (from && !to) {
         changeSummary.push({ type: 'removed', fromName: from.productName, fromQuantity: from.quantity })
       } else if (!from && to) {
-        changeSummary.push({ type: 'edited', toName: to.productName, toQuantity: to.quantity, note: t('Added replacement item', 'تمت إضافة صنف بديل') })
+        changeSummary.push({ type: 'edited', toName: to.productName, toQuantity: to.quantity, note: t('Added item by driver', 'تمت إضافة صنف بواسطة السائق') })
       } else if (from && to) {
         const becameNotPicked = from.isPicked !== false && to.isPicked === false
         if (becameNotPicked) {
@@ -1008,7 +1052,7 @@ function DriverOrdersV2Content() {
     return (
       <div className="rounded-2xl border border-amber-500/40 bg-slate-900/70 p-3.5 mb-4 space-y-3">
         <p className="text-xs text-amber-300 font-semibold">
-          {t('Mark picked items, remove unavailable ones, or replace from same business.', 'حدّد الأصناف الملتقطة، احذف غير المتوفر، أو استبدل من نفس المتجر.')}
+          {t('Mark picked/not picked, adjust quantity, or replace from same business. Original items cannot be deleted.', 'حدّد ملتقط/غير ملتقط، عدّل الكمية، أو استبدل من نفس المتجر. لا يمكن حذف الأصناف الأصلية.')}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
@@ -1060,13 +1104,6 @@ function DriverOrdersV2Content() {
                       className="h-7 w-7 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-700"
                     >
                       +
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeEditingItem(order.orderId, idx)}
-                      className="ml-auto rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-xs font-semibold text-rose-300 hover:bg-rose-500/20"
-                    >
-                      🗑️ {t('Remove', 'حذف')}
                     </button>
                   </div>
                   <div className="mt-2 space-y-2 rounded-xl border border-indigo-500/20 bg-indigo-950/20 p-2.5">
@@ -1193,6 +1230,82 @@ function DriverOrdersV2Content() {
             </div>
           )
         })}
+        <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/15 p-3 space-y-2.5">
+          <p className="text-[11px] font-semibold text-emerald-200">
+            {t('Add a missing item requested by customer', 'أضف صنفاً ناقصاً بطلب من العميل')}
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              value={additionalProductSearchByOrder[order.orderId] || ''}
+              onChange={(e) => setAdditionalProductSearchByOrder((prev) => ({ ...prev, [order.orderId]: e.target.value }))}
+              placeholder={t('Search business products', 'ابحث في أصناف المتجر')}
+              className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
+            />
+            <button
+              type="button"
+              onClick={() => void loadAdditionalProducts(order.orderId, additionalProductSearchByOrder[order.orderId] || '')}
+              disabled={additionalProductLoadingByOrder[order.orderId] === true}
+              className="rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-2.5 py-1.5 text-xs font-semibold text-emerald-200 disabled:opacity-40"
+            >
+              {additionalProductLoadingByOrder[order.orderId] ? t('Searching...', 'جارٍ البحث...') : t('Search', 'بحث')}
+            </button>
+          </div>
+          {(additionalProductsByOrder[order.orderId] || []).length > 0 ? (
+            <div className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
+              {(additionalProductsByOrder[order.orderId] || []).map((p) => {
+                const selected = additionalProductSelectionByOrder[order.orderId] === p._id
+                return (
+                  <button
+                    key={`add-${p._id}`}
+                    type="button"
+                    onClick={() => setAdditionalProductSelectionByOrder((prev) => ({ ...prev, [order.orderId]: p._id }))}
+                    className={`w-full rounded-lg border px-2 py-1.5 text-left transition-colors ${selected ? 'border-emerald-400 bg-emerald-500/15' : 'border-slate-700 bg-slate-900/70 hover:bg-slate-800'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {p.imageUrl ? (
+                        <img
+                          src={p.imageUrl}
+                          alt={lang === 'ar' ? p.title_ar : p.title_en}
+                          className="h-10 w-10 rounded-md object-cover border border-slate-700"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 rounded-md border border-slate-700 bg-slate-800 flex items-center justify-center text-[10px] text-slate-400">
+                          {t('No image', 'بدون صورة')}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-semibold text-slate-100">
+                          {lang === 'ar' ? p.title_ar : p.title_en}
+                        </p>
+                        <p className="text-[11px] text-emerald-300 font-bold">
+                          {p.price.toFixed(2)} {fmtCurrency(p.currency)}
+                        </p>
+                      </div>
+                      {selected && <span className="text-[11px] font-bold text-emerald-300">{t('Selected', 'تم الاختيار')}</span>}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-[11px] text-slate-400">
+              {additionalProductLoadingByOrder[order.orderId]
+                ? t('Searching products...', 'جارٍ البحث عن الأصناف...')
+                : t('No products found for this search.', 'لا توجد أصناف مطابقة لهذا البحث.')}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => addSelectedProductToOrder(order.orderId)}
+            disabled={!additionalProductSelectionByOrder[order.orderId]}
+            className="w-full rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-2.5 py-2 text-xs font-semibold text-emerald-200 disabled:opacity-40"
+          >
+            ➕ {t('Add selected item', 'إضافة الصنف المحدد')}
+          </button>
+          <p className="text-[10px] text-slate-400">
+            {t('Any added/edited items are sent to customer for approval before pickup confirmation.', 'أي أصناف مضافة أو معدلة تُرسل للعميل للموافقة قبل تأكيد الاستلام.')}
+          </p>
+        </div>
         <button
           type="button"
           onClick={() => saveDriverItemChanges(order)}

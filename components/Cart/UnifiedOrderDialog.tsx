@@ -98,6 +98,10 @@ export function UnifiedOrderDialog({
   const [distanceFee, setDistanceFee] = useState<number | null>(null)
   const [distanceKm, setDistanceKm] = useState<number | null>(null)
   const [priceLoading, setPriceLoading] = useState(false)
+  const [tenantDeliveryFlags, setTenantDeliveryFlags] = useState<{
+    requiresPersonalShopper: boolean
+    supportsDriverPickup: boolean
+  } | null>(null)
 
   // Fetch distance price when location changes
   useEffect(() => {
@@ -110,10 +114,28 @@ export function UnifiedOrderDialog({
           setDistanceFee(data.suggestedFee)
           setDistanceKm(data.distanceKm)
         }
+        setTenantDeliveryFlags({
+          requiresPersonalShopper: data.requiresPersonalShopper === true,
+          supportsDriverPickup: data.supportsDriverPickup === true,
+        })
       })
       .catch(err => console.error('Failed to fetch delivery price', err))
       .finally(() => setPriceLoading(false))
   }, [orderType, isDistanceMode, tenantSlug, deliveryLat, deliveryLng])
+
+  // Always fetch tenant delivery flags for visibility logic, even before location is selected.
+  useEffect(() => {
+    if (orderType !== 'delivery' || !tenantSlug) return
+    fetch(`/api/tenants/${tenantSlug}/delivery-price`)
+      .then((res) => res.json())
+      .then((data) => {
+        setTenantDeliveryFlags({
+          requiresPersonalShopper: data.requiresPersonalShopper === true,
+          supportsDriverPickup: data.supportsDriverPickup === true,
+        })
+      })
+      .catch(() => {})
+  }, [orderType, tenantSlug])
 
   // Reset form only when dialog transitions from closed to open (not when location/callbacks update while open)
   useEffect(() => {
@@ -735,7 +757,15 @@ export function UnifiedOrderDialog({
                   </div>
                 )}
 
-                {((cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && items.length > 0) && (
+                {(
+                  (
+                    cartTenant?.requiresPersonalShopper ||
+                    cartTenant?.supportsDriverPickup ||
+                    tenantDeliveryFlags?.requiresPersonalShopper ||
+                    tenantDeliveryFlags?.supportsDriverPickup
+                  ) &&
+                  items.length > 0
+                ) && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-4">
                     {(() => {
                       const fee = getShopperFeeByItemCount(totalItems)
