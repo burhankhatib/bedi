@@ -2,6 +2,9 @@ import type { MetadataRoute } from "next";
 import { client } from "@/sanity/lib/client";
 import { SITEMAP_TENANTS_QUERY } from "@/sanity/lib/queries";
 
+/** Generate sitemap on each request so Googlebot gets fresh content (avoids build-time Sanity fetch failures). */
+export const dynamic = "force-dynamic";
+
 const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://www.bedi.delivery";
 

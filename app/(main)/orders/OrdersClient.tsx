@@ -376,7 +376,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
   const assignDriver = async (orderId: string, driverId: string) => {
     try {
       const res = await fetch(`/api/tenants/${tenantSlug}/orders/assign-driver`, {
-        method: 'POST',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId, driverId })
       })
