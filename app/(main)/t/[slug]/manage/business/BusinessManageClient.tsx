@@ -37,6 +37,7 @@ type BusinessData = {
     supportsDineIn?: boolean
     supportsReceiveInPerson?: boolean
     supportsDelivery?: boolean
+    supportsDriverPickup?: boolean
     prioritizeWhatsapp?: boolean
     locationLat?: number
     locationLng?: number
@@ -180,6 +181,7 @@ type FormState = {
   supportsDineIn: boolean
   supportsReceiveInPerson: boolean
   supportsDelivery: boolean
+  supportsDriverPickup: boolean
   prioritizeWhatsapp: boolean
   openingHours: Array<{ open: string; close: string; shifts: { open: string; close: string }[] }>
   customDateHours: Array<{ date: string; open: string; close: string; shifts: { open: string; close: string }[] }>
@@ -219,6 +221,7 @@ function formSnapshotFromData(d: BusinessData): FormState {
     supportsDineIn: tenant?.supportsDineIn ?? true,
     supportsReceiveInPerson: tenant?.supportsReceiveInPerson ?? true,
     supportsDelivery: tenant?.supportsDelivery ?? true,
+    supportsDriverPickup: tenant?.supportsDriverPickup ?? false,
     prioritizeWhatsapp: tenant?.prioritizeWhatsapp ?? false,
     openingHours: Array.isArray(r?.openingHours) && r.openingHours.length > 0
       ? Array.from({ length: 7 }, (_, i) => ({ 
@@ -279,6 +282,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     supportsDineIn: true as boolean,
     supportsReceiveInPerson: true as boolean,
     supportsDelivery: true as boolean,
+    supportsDriverPickup: false as boolean,
     prioritizeWhatsapp: false as boolean,
     openingHours: Array.from({ length: 7 }, () => ({ open: '', close: '', shifts: [] as { open: string; close: string }[] })),
     customDateHours: [] as Array<{ date: string; open: string; close: string; shifts?: { open: string; close: string }[] }>,
@@ -362,6 +366,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           supportsDineIn: d.tenant!.supportsDineIn ?? true,
           supportsReceiveInPerson: d.tenant!.supportsReceiveInPerson ?? true,
           supportsDelivery: d.tenant!.supportsDelivery ?? true,
+          supportsDriverPickup: d.tenant!.supportsDriverPickup ?? false,
           prioritizeWhatsapp: d.tenant!.prioritizeWhatsapp ?? false,
           locationLat: d.tenant!.locationLat ?? null,
           locationLng: d.tenant!.locationLng ?? null,
@@ -621,6 +626,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           supportsDineIn: form.catalogMode ? false : form.supportsDineIn,
           supportsReceiveInPerson: form.catalogMode ? false : form.supportsReceiveInPerson,
           supportsDelivery: form.catalogMode ? false : form.supportsDelivery,
+          supportsDriverPickup: form.catalogMode ? false : form.supportsDriverPickup,
           catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false,
           prioritizeWhatsapp: form.prioritizeWhatsapp,
           openingHours: form.openingHours,
@@ -639,7 +645,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
         showToast('Business saved successfully.', 'تم حفظ البيانات بنجاح.', 'success')
         lastSavedRef.current = JSON.parse(JSON.stringify(form))
         skipNextApplyRef.current = true
-        setData((prev) => prev ? { ...prev, tenant: { ...prev.tenant, name: form.name, businessType: form.businessType, businessSubcategoryIds: form.businessSubcategoryIds, country: form.country, city: form.city, ownerPhone: form.ownerPhone, catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false } } : null)
+        setData((prev) => prev ? { ...prev, tenant: { ...prev.tenant, name: form.name, businessType: form.businessType, businessSubcategoryIds: form.businessSubcategoryIds, country: form.country, city: form.city, ownerPhone: form.ownerPhone, catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false, supportsDriverPickup: form.catalogMode ? false : form.supportsDriverPickup } } : null)
         businessContext.refetch()
       } else {
         const errData = await res.json().catch(() => ({}))
@@ -1036,7 +1042,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                     type="radio"
                     name="catalogMode"
                     checked={form.catalogMode === true}
-                    onChange={() => setForm((f) => ({ ...f, catalogMode: true, supportsDineIn: false, supportsReceiveInPerson: false, supportsDelivery: false }))}
+                    onChange={() => setForm((f) => ({ ...f, catalogMode: true, supportsDineIn: false, supportsReceiveInPerson: false, supportsDelivery: false, supportsDriverPickup: false }))}
                     className="size-5 border-slate-600 bg-slate-800 accent-amber-500"
                   />
                   <span className="text-sm font-bold text-white">{t('Yes — menu is view-only', 'نعم — القائمة للعرض فقط')}</span>
@@ -1046,7 +1052,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                     type="radio"
                     name="catalogMode"
                     checked={form.catalogMode === false}
-                    onChange={() => setForm((f) => ({ ...f, catalogMode: false, supportsDineIn: f.supportsDineIn || true, supportsReceiveInPerson: f.supportsReceiveInPerson || true, supportsDelivery: f.supportsDelivery || true }))}
+                    onChange={() => setForm((f) => ({ ...f, catalogMode: false, supportsDineIn: f.supportsDineIn || true, supportsReceiveInPerson: f.supportsReceiveInPerson || true, supportsDelivery: f.supportsDelivery || true, supportsDriverPickup: f.supportsDelivery ? f.supportsDriverPickup : false }))}
                     className="size-5 border-slate-600 bg-slate-800 accent-amber-500"
                   />
                   <span className="text-sm font-bold text-white">{t('No — accept orders', 'لا — قبول الطلبات')}</span>
@@ -1119,13 +1125,31 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                       <input
                         type="checkbox"
                         checked={form.supportsDelivery}
-                        onChange={(e) => setForm((f) => ({ ...f, supportsDelivery: e.target.checked }))}
+                        onChange={(e) => setForm((f) => ({ ...f, supportsDelivery: e.target.checked, supportsDriverPickup: e.target.checked ? f.supportsDriverPickup : false }))}
                         className="size-5 rounded border-slate-600 bg-slate-800 accent-amber-500"
                       />
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400">
                         <MapPin className="size-4" />
                       </div>
                       <span className="text-sm font-semibold text-white">{t('Delivery', 'التوصيل')}</span>
+                    </label>
+                    <label className={`flex items-center gap-3 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3.5 transition-colors ${form.supportsDelivery ? 'cursor-pointer hover:bg-slate-800' : 'opacity-60 cursor-not-allowed'}`}>
+                      <input
+                        type="checkbox"
+                        checked={form.supportsDriverPickup}
+                        disabled={!form.supportsDelivery}
+                        onChange={(e) => setForm((f) => ({ ...f, supportsDriverPickup: e.target.checked }))}
+                        className="size-5 rounded border-slate-600 bg-slate-800 accent-amber-500 disabled:opacity-60"
+                      />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400">
+                        <Store className="size-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white">{t('Driver Pickup (auto dispatch)', 'استلام السائق (إرسال تلقائي)')}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {t('For manual-collection stores. New delivery orders are sent to drivers automatically, no manual request needed.', 'للمتاجر التي تحتاج تجميع يدوي. طلبات التوصيل الجديدة تُرسل للسائقين تلقائياً بدون طلب يدوي.')}
+                        </p>
+                      </div>
                     </label>
                     <p className="mt-2 text-xs text-slate-400">
                       {t('Customers see Delivery only when this is checked and you have at least one delivery area.', 'يرى العملاء خيار التوصيل فقط عند تفعيله هنا مع وجود منطقة توصيل واحدة على الأقل.')}

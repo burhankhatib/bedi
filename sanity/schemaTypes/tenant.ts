@@ -282,6 +282,13 @@ export const tenantType = defineType({
       description: 'When on and you have at least one delivery area, customers see the Delivery option. When off, customers never see Delivery even if you have areas. When on but no delivery areas, Delivery is still hidden until you add areas.',
     }),
     defineField({
+      name: 'supportsDriverPickup',
+      title: 'Driver Pickup (Auto Dispatch)',
+      type: 'boolean',
+      initialValue: false,
+      description: 'When enabled, new delivery orders are automatically sent to drivers (online and offline reminders) without manual "request driver" from the business.',
+    }),
+    defineField({
       name: 'businessLogo',
       title: 'Business logo',
       type: 'image',

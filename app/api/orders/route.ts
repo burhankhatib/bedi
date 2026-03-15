@@ -195,8 +195,14 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    const targetTenant = await writeClient.fetch<{ blockedBySuperAdmin?: boolean; deactivated?: boolean; deactivateUntil?: string | null } | null>(
-      `*[_type == "tenant" && _id == $id][0]{ blockedBySuperAdmin, deactivated, deactivateUntil }`,
+    const targetTenant = await writeClient.fetch<{
+      blockedBySuperAdmin?: boolean
+      deactivated?: boolean
+      deactivateUntil?: string | null
+      requiresPersonalShopper?: boolean
+      supportsDriverPickup?: boolean
+    } | null>(
+      `*[_type == "tenant" && _id == $id][0]{ blockedBySuperAdmin, deactivated, deactivateUntil, requiresPersonalShopper, supportsDriverPickup }`,
       { id: siteRef._ref }
     )
     if (!targetTenant || targetTenant.blockedBySuperAdmin || isTenantDeactivated(targetTenant)) {
@@ -242,12 +248,19 @@ export async function POST(request: NextRequest) {
       orderDoc.deliveryAddress = deliveryAddress
       const safeDeliveryFee = typeof deliveryFee === 'number' && Number.isFinite(deliveryFee) ? Math.max(0, deliveryFee) : 0
       orderDoc.deliveryFee = safeDeliveryFee
-      const shopperFee = requiresPersonalShopper === true ? getShopperFeeByItemCount(totalItemCount) : 0
-      if (requiresPersonalShopper === true) {
+      const tenantRequiresPersonalShopper = targetTenant?.requiresPersonalShopper === true || requiresPersonalShopper === true
+      const shopperFee = tenantRequiresPersonalShopper ? getShopperFeeByItemCount(totalItemCount) : 0
+      if (tenantRequiresPersonalShopper) {
         orderDoc.requiresPersonalShopper = true
         orderDoc.shopperFee = shopperFee
       }
       orderDoc.totalAmount = computedSubtotal + safeDeliveryFee + shopperFee
+      const shouldAutoDispatchDriverPickup =
+        targetTenant?.supportsDriverPickup === true &&
+        !scheduledFor
+      if (shouldAutoDispatchDriverPickup) {
+        orderDoc.deliveryRequestedAt = new Date().toISOString()
+      }
       if (typeof deliveryLat === 'number' && Number.isFinite(deliveryLat) && typeof deliveryLng === 'number' && Number.isFinite(deliveryLng)) {
         orderDoc.deliveryLat = deliveryLat
         orderDoc.deliveryLng = deliveryLng
@@ -342,6 +355,15 @@ export async function POST(request: NextRequest) {
           tenantPhone: tenantDoc?.ownerPhone,
           prioritizeWhatsapp: tenantDoc?.prioritizeWhatsapp
         })
+
+        if (orderType === 'delivery' && targetTenant?.supportsDriverPickup === true && !scheduledFor) {
+          const { notifyDriversOfDeliveryOrder } = await import('@/lib/notify-drivers-for-order')
+          await notifyDriversOfDeliveryOrder(result._id)
+          console.info('[API] Auto-dispatched driver pickup order:', {
+            orderId: result._id,
+            tenantId: siteRef._ref,
+          })
+        }
       } catch (e) {
         console.error('[API] Tenant pusher trigger or push notification on new order failed:', e)
       }

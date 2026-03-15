@@ -12,6 +12,7 @@ import { OrderType } from './CartContext'
 import { parseCoordsFromGoogleMapsUrl } from '@/lib/maps-utils'
 import { useCart } from './CartContext'
 import { isWithinShift } from '@/lib/business-hours'
+import { getShopperFeeByItemCount, getShopperFeeExplanation } from '@/lib/shopper-fee'
 
 const LocationPickerMap = dynamic(() => import('./LocationPickerMap'), { 
   ssr: false, 
@@ -64,7 +65,7 @@ export function UnifiedOrderDialog({
 }: UnifiedOrderDialogProps) {
   const isTableLocked = Boolean(lockedTableNumber)
   const { t, lang } = useLanguage()
-  const { cartTenant } = useCart()
+  const { cartTenant, items, totalItems } = useCart()
   const [step, setStep] = useState<'type' | 'details'>(lockedTableNumber ? 'details' : 'type')
   const [orderType, setOrderType] = useState<OrderType | null>(lockedTableNumber ? 'dine-in' : null)
 
@@ -731,6 +732,41 @@ export function UnifiedOrderDialog({
                         {t('Could not calculate delivery fee. Please try a different location.', 'تعذر حساب رسوم التوصيل. يرجى تجربة موقع آخر.')}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {cartTenant?.requiresPersonalShopper && items.length > 0 && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-4">
+                    {(() => {
+                      const fee = getShopperFeeByItemCount(totalItems)
+                      const expl = getShopperFeeExplanation(totalItems, lang, '₪')
+                      const currencySymbol = items[0]?.currency === 'USD' ? '$' : items[0]?.currency === 'EUR' ? '€' : '₪'
+                      return (
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-start gap-2">
+                            <div>
+                              <span className="font-bold text-amber-900 flex items-center gap-1.5">
+                                <span aria-hidden>🛍️</span>
+                                {t('Save Time fee', 'رسوم توفير الوقت')}
+                              </span>
+                              <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                                {expl.body}
+                              </p>
+                            </div>
+                            <span className="font-black text-amber-700 text-lg shrink-0">
+                              {fee === 0
+                                ? t('FREE', 'مجاناً')
+                                : `${fee.toFixed(2)} ${currencySymbol}`}
+                            </span>
+                          </div>
+                          {fee === 0 && (
+                            <p className="text-[11px] text-amber-700/90">
+                              {t('Up to 3 items = free. Your driver collects your order at the store at no extra cost.', 'حتى 3 أصناف = مجاناً. سائقنا يجمع طلبك من المتجر دون تكلفة إضافية.')}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
                 {setDeliveryLocation && (

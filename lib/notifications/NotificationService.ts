@@ -57,16 +57,22 @@ export const NotificationService = {
       try {
         const orderDoc = await writeClient.fetch<{
           scheduledFor?: string
-        }>(`*[_type == "order" && _id == $orderId][0]{ scheduledFor }`, { orderId })
+          deliveryRequestedAt?: string
+          orderType?: string
+        }>(`*[_type == "order" && _id == $orderId][0]{ scheduledFor, deliveryRequestedAt, orderType }`, { orderId })
 
         const isScheduled = !!orderDoc?.scheduledFor
+        const isDriverPickupAutoDispatch =
+          orderDoc?.orderType === 'delivery' && !!orderDoc?.deliveryRequestedAt
         const titleText = isScheduled 
           ? `${businessName}: طلب مجدول جديد — #${orderNumber || orderId.slice(-6)}`
           : `${businessName}: طلب جديد — #${orderNumber || orderId.slice(-6)}`
 
         const pushPayload = {
           title: titleText,
-          body: 'تم استلام طلب جديد. افتح التطبيق للمراجعة والقبول.',
+          body: isDriverPickupAutoDispatch
+            ? 'تم استلام طلب جديد وتم إرساله تلقائياً للسائقين. يمكنك المتابعة من صفحة الطلبات.'
+            : 'تم استلام طلب جديد. افتح التطبيق للمراجعة والقبول.',
           url,
           icon,
           dir: 'rtl' as const,

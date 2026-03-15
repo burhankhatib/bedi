@@ -22,3 +22,32 @@ export function getShopperFeeByItemCount(itemCount: number): number {
   })
   return tier?.fee ?? 0
 }
+
+/** Friendly explanation for the Save Time fee (driver picks items at store). */
+export function getShopperFeeExplanation(
+  itemCount: number,
+  lang: 'en' | 'ar',
+  currencySymbol: string
+): { title: string; body: string; freeLabel?: string } {
+  const fee = getShopperFeeByItemCount(itemCount)
+  const safeCount = Number.isFinite(itemCount) ? Math.max(0, Math.floor(itemCount)) : 0
+
+  if (fee === 0) {
+    return {
+      title: lang === 'ar' ? 'رسوم توفير الوقت' : 'Save Time fee',
+      body:
+        lang === 'ar'
+          ? 'سائقنا يجمع طلبك من المتجر لتوفير وقتك. مجاناً للطلبات الصغيرة (حتى 3 أصناف).'
+          : 'Our driver picks your order at the store to save you time. Free for small orders (up to 3 items).',
+      freeLabel: lang === 'ar' ? 'مجاناً' : 'FREE',
+    }
+  }
+
+  return {
+    title: lang === 'ar' ? 'رسوم توفير الوقت' : 'Save Time fee',
+    body:
+      lang === 'ar'
+        ? `سائقنا يجمع ${safeCount} صنفاً من المتجر نيابة عنك لتوفير وقتك.`
+        : `Our driver picks your ${safeCount} items at the store for you to save your time.`,
+  }
+}

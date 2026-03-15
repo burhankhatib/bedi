@@ -18,7 +18,7 @@ import { formatCurrency } from '@/lib/currency'
 import { getSaleUnitLabel } from '@/lib/sale-units'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { getVariantOptionModifier } from '@/lib/cart-price'
-import { getShopperFeeByItemCount, SHOPPER_FEE_TIERS } from '@/lib/shopper-fee'
+import { getShopperFeeByItemCount, getShopperFeeExplanation } from '@/lib/shopper-fee'
 import { UnifiedOrderDialog } from './UnifiedOrderDialog'
 import { OrderType } from './CartContext'
 import type { ProductAddOn } from '@/app/types/menu'
@@ -732,27 +732,27 @@ export function CartDrawer() {
                             </div>
                           )}
                           {cartTenant?.requiresPersonalShopper && (
-                            <>
-                              <div className="flex justify-between items-center">
-                                <span className="text-slate-600 flex items-center gap-1.5">
+                            <div className="rounded-xl border border-amber-200/60 bg-amber-50/70 p-2.5 space-y-1">
+                              <div className="flex justify-between items-start gap-2">
+                                <span className="text-slate-700 flex items-center gap-1.5 font-semibold">
                                   <span aria-hidden>🛍️</span>
-                                  {t('Personal shopper fee', 'رسوم المتسوق الشخصي')}
+                                  {t('Save Time fee', 'رسوم توفير الوقت')}
                                 </span>
-                                <span className="font-bold">
-                                  {getShopperFeeByItemCount(totalItems).toFixed(2)} {formatCurrency(items[0]?.currency)}
+                                <span className="font-bold shrink-0">
+                                  {getShopperFeeByItemCount(totalItems) === 0
+                                    ? t('FREE', 'مجاناً')
+                                    : `${getShopperFeeByItemCount(totalItems).toFixed(2)} ${formatCurrency(items[0]?.currency)}`}
                                 </span>
                               </div>
-                              <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-2.5 text-xs text-emerald-900">
-                                <p className="font-semibold mb-1">{t('Fee tiers', 'شرائح الرسوم')}</p>
-                                <div className="space-y-0.5">
-                                  {SHOPPER_FEE_TIERS.map((tier) => (
-                                    <p key={`${tier.minItems}-${tier.maxItems ?? 'plus'}`}>
-                                      {(lang === 'ar' ? tier.labelAr : tier.labelEn)}: {tier.fee === 0 ? t('FREE', 'مجاناً') : `${tier.fee} ${formatCurrency(items[0]?.currency)}`}
-                                    </p>
-                                  ))}
-                                </div>
-                              </div>
-                            </>
+                              <p className="text-[11px] text-amber-900/90 leading-relaxed">
+                                {getShopperFeeExplanation(totalItems, lang, formatCurrency(items[0]?.currency)).body}
+                              </p>
+                              {getShopperFeeByItemCount(totalItems) === 0 && (
+                                <p className="text-[10px] text-amber-800/80">
+                                  {t('Up to 3 items = free. Your driver collects your order at the store at no extra cost.', 'حتى 3 أصناف = مجاناً. سائقنا يجمع طلبك من المتجر دون تكلفة إضافية.')}
+                                </p>
+                              )}
+                            </div>
                           )}
                         </div>
                       )}

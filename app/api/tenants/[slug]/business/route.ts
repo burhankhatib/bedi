@@ -54,6 +54,7 @@ export async function GET(
       supportsDineIn?: boolean
       supportsReceiveInPerson?: boolean
       supportsDelivery?: boolean
+      supportsDriverPickup?: boolean
       catalogHidePrices?: boolean
       prioritizeWhatsapp?: boolean
       ownerPhone?: string
@@ -65,7 +66,7 @@ export async function GET(
         _id, name, country, city,
         businessType,
         "businessSubcategoryIds": businessSubcategories[]._ref,
-        deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, catalogHidePrices, prioritizeWhatsapp,
+        deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, supportsDriverPickup, catalogHidePrices, prioritizeWhatsapp,
         ownerPhone, normalizedOwnerPhone, locationLat, locationLng
       }`,
       { tenantId: auth.tenantId }
@@ -200,6 +201,9 @@ export async function PATCH(
   }
   if (body.supportsDelivery !== undefined) {
     await writeClient.patch(auth.tenantId).set({ supportsDelivery: Boolean(body.supportsDelivery) }).commit()
+  }
+  if (body.supportsDriverPickup !== undefined) {
+    await writeClient.patch(auth.tenantId).set({ supportsDriverPickup: Boolean(body.supportsDriverPickup) }).commit()
   }
   if (body.catalogHidePrices !== undefined) {
     await writeClient.patch(auth.tenantId).set({ catalogHidePrices: Boolean(body.catalogHidePrices) }).commit()

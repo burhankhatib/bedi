@@ -4,6 +4,7 @@ import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
+const OFFLINE_REMINDER_INTERVAL_MS = 3 * 60 * 1000
 
 type CentralSub = { clerkUserId: string; devices?: Array<{ fcmToken?: string; webPush?: { endpoint?: string; p256dh?: string; auth?: string } }> }
 
@@ -120,7 +121,7 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
     }
     // Include clerkUserId; don't require fcmToken on driver doc — we also use central userPushSubscription
     const drivers = await writeClient.fetch<DriverRow[]>(
-      `*[_type == "driver" && isOnline == true]{ _id, clerkUserId, fcmToken, "pushSubscription": pushSubscription, country, city }`
+      `*[_type == "driver" && isOnline == true && isVerifiedByAdmin == true && (!defined(blockedBySuperAdmin) || blockedBySuperAdmin == false)]{ _id, clerkUserId, fcmToken, "pushSubscription": pushSubscription, country, city }`
     )
     const list = drivers ?? []
     const clerkIds = list.map((d) => (d.clerkUserId ?? '').trim()).filter(Boolean)
@@ -179,10 +180,10 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       await sendToDriverTokens(tokens, payload)
     }
 
-    // Send offline driver reminders (once per 5 minutes) — "go online to receive orders"
+    // Send offline driver reminders (once per 3 minutes) — "go online to receive orders"
     if (order?.siteRef) {
       const nowMs = Date.now()
-      const fiveMinsAgo = new Date(nowMs - 5 * 60 * 1000).toISOString()
+      const reminderCutoff = new Date(nowMs - OFFLINE_REMINDER_INTERVAL_MS).toISOString()
       type OfflineDriverRow = {
         _id: string
         clerkUserId?: string
@@ -213,7 +214,7 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       const hasGeo = Boolean(site?.country && site?.city)
 
       const eligibleOffline = (offlineDrivers ?? []).filter((d) => {
-        if (d.lastOfflineReminderAt && d.lastOfflineReminderAt >= fiveMinsAgo) return false
+        if (d.lastOfflineReminderAt && d.lastOfflineReminderAt >= reminderCutoff) return false
         if (hasGeo) {
           const matchArea = norm(d.country) === siteCountryNorm && norm(d.city) === siteCityNorm
           const noArea = !d.country && !d.city

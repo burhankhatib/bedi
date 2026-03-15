@@ -18,9 +18,7 @@ async function checkOrderOwnership(slug: string, orderId: string) {
 
 /**
  * POST - Set deliveryRequestedAt so order appears in drivers' pending list.
- * Push is sent only to drivers who are:
- * 1. Online (isOnline == true)
- * 2. Same country and city as the business (tenant)
+ * Push fanout targets same-city online drivers and sends offline reminders.
  */
 export async function POST(
   req: NextRequest,
