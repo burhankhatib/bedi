@@ -1323,7 +1323,7 @@ export default function AdminCatalogPage() {
         <h2 className="font-semibold text-white mb-4">Master catalog products</h2>
         <p className="text-sm text-slate-400 mb-4">
           {needsTranslationFilter
-            ? 'Showing only products that need translations (missing EN/AR names or descriptions, or Arabic has English text). Toggle off to see all.'
+            ? 'Showing only products needing translation: missing Arabic name/description, English text in Arabic fields, or missing descriptions. Toggle off to see all.'
             : 'Edit directly below. Scroll down to load more (50 per page). Search finds any product.'}
         </p>
         <div className="flex flex-wrap gap-3 mb-4">

@@ -65,6 +65,121 @@
     }
   },
   {
+    "name": "whatsappMessage",
+    "type": "document",
+    "attributes": {
+      "_id": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "_type": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string",
+          "value": "whatsappMessage"
+        }
+      },
+      "_createdAt": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "_updatedAt": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "_rev": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "participantPhone": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "direction": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "union",
+          "of": [
+            {
+              "type": "string",
+              "value": "in"
+            },
+            {
+              "type": "string",
+              "value": "out"
+            }
+          ]
+        },
+        "optional": true
+      },
+      "text": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "waMessageId": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "messageType": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "union",
+          "of": [
+            {
+              "type": "string",
+              "value": "text"
+            },
+            {
+              "type": "string",
+              "value": "image"
+            },
+            {
+              "type": "string",
+              "value": "audio"
+            },
+            {
+              "type": "string",
+              "value": "video"
+            },
+            {
+              "type": "string",
+              "value": "document"
+            },
+            {
+              "type": "string",
+              "value": "unsupported"
+            }
+          ]
+        },
+        "optional": true
+      },
+      "createdAt": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      }
+    }
+  },
+  {
     "name": "broadcastHistory",
     "type": "document",
     "attributes": {
@@ -1177,6 +1292,14 @@
             },
             {
               "type": "string",
+              "value": "supermarket"
+            },
+            {
+              "type": "string",
+              "value": "greengrocer"
+            },
+            {
+              "type": "string",
               "value": "retail"
             },
             {
@@ -2031,6 +2154,10 @@
             {
               "type": "string",
               "value": "tenant"
+            },
+            {
+              "type": "string",
+              "value": "admin"
             }
           ]
         },
@@ -2245,36 +2372,6 @@
   },
   {
     "type": "type",
-    "name": "area.reference",
-    "value": {
-      "type": "object",
-      "attributes": {
-        "_ref": {
-          "type": "objectAttribute",
-          "value": {
-            "type": "string"
-          }
-        },
-        "_type": {
-          "type": "objectAttribute",
-          "value": {
-            "type": "string",
-            "value": "reference"
-          }
-        },
-        "_weak": {
-          "type": "objectAttribute",
-          "value": {
-            "type": "boolean"
-          },
-          "optional": true
-        }
-      },
-      "dereferencesTo": "area"
-    }
-  },
-  {
-    "type": "type",
     "name": "driver.reference",
     "value": {
       "type": "object",
@@ -2482,14 +2579,6 @@
         },
         "optional": true
       },
-      "deliveryArea": {
-        "type": "objectAttribute",
-        "value": {
-          "type": "inline",
-          "name": "area.reference"
-        },
-        "optional": true
-      },
       "deliveryAddress": {
         "type": "objectAttribute",
         "value": {
@@ -2512,6 +2601,20 @@
         "optional": true
       },
       "deliveryFee": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "number"
+        },
+        "optional": true
+      },
+      "requiresPersonalShopper": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "boolean"
+        },
+        "optional": true
+      },
+      "shopperFee": {
         "type": "objectAttribute",
         "value": {
           "type": "number"
@@ -3145,6 +3248,13 @@
           "type": "boolean"
         },
         "optional": true
+      },
+      "aiSearchQuestions": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
       }
     }
   },
@@ -3285,28 +3395,6 @@
         "type": "objectAttribute",
         "value": {
           "type": "boolean"
-        },
-        "optional": true
-      },
-      "deliveryAreas": {
-        "type": "objectAttribute",
-        "value": {
-          "type": "array",
-          "of": {
-            "type": "object",
-            "attributes": {
-              "_key": {
-                "type": "objectAttribute",
-                "value": {
-                  "type": "string"
-                }
-              }
-            },
-            "rest": {
-              "type": "inline",
-              "name": "area.reference"
-            }
-          }
         },
         "optional": true
       }
@@ -3535,28 +3623,6 @@
         },
         "optional": true
       },
-      "deliveryAreas": {
-        "type": "objectAttribute",
-        "value": {
-          "type": "array",
-          "of": {
-            "type": "object",
-            "attributes": {
-              "_key": {
-                "type": "objectAttribute",
-                "value": {
-                  "type": "string"
-                }
-              }
-            },
-            "rest": {
-              "type": "inline",
-              "name": "area.reference"
-            }
-          }
-        },
-        "optional": true
-      },
       "notes": {
         "type": "objectAttribute",
         "value": {
@@ -3713,7 +3779,7 @@
     }
   },
   {
-    "name": "area",
+    "name": "platformArea",
     "type": "document",
     "attributes": {
       "_id": {
@@ -3726,7 +3792,7 @@
         "type": "objectAttribute",
         "value": {
           "type": "string",
-          "value": "area"
+          "value": "platformArea"
         }
       },
       "_createdAt": {
@@ -3747,60 +3813,17 @@
           "type": "string"
         }
       },
-      "site": {
-        "type": "objectAttribute",
-        "value": {
-          "type": "inline",
-          "name": "tenant.reference"
-        },
-        "optional": true
-      },
-      "name_en": {
+      "name": {
         "type": "objectAttribute",
         "value": {
           "type": "string"
         },
         "optional": true
       },
-      "name_ar": {
+      "coordinates": {
         "type": "objectAttribute",
         "value": {
           "type": "string"
-        },
-        "optional": true
-      },
-      "deliveryPrice": {
-        "type": "objectAttribute",
-        "value": {
-          "type": "number"
-        },
-        "optional": true
-      },
-      "currency": {
-        "type": "objectAttribute",
-        "value": {
-          "type": "string"
-        },
-        "optional": true
-      },
-      "estimatedTime": {
-        "type": "objectAttribute",
-        "value": {
-          "type": "number"
-        },
-        "optional": true
-      },
-      "isActive": {
-        "type": "objectAttribute",
-        "value": {
-          "type": "boolean"
-        },
-        "optional": true
-      },
-      "sortOrder": {
-        "type": "objectAttribute",
-        "value": {
-          "type": "number"
         },
         "optional": true
       }
@@ -4289,6 +4312,66 @@
   },
   {
     "type": "type",
+    "name": "catalogProduct.reference",
+    "value": {
+      "type": "object",
+      "attributes": {
+        "_ref": {
+          "type": "objectAttribute",
+          "value": {
+            "type": "string"
+          }
+        },
+        "_type": {
+          "type": "objectAttribute",
+          "value": {
+            "type": "string",
+            "value": "reference"
+          }
+        },
+        "_weak": {
+          "type": "objectAttribute",
+          "value": {
+            "type": "boolean"
+          },
+          "optional": true
+        }
+      },
+      "dereferencesTo": "catalogProduct"
+    }
+  },
+  {
+    "type": "type",
+    "name": "masterCatalogProduct.reference",
+    "value": {
+      "type": "object",
+      "attributes": {
+        "_ref": {
+          "type": "objectAttribute",
+          "value": {
+            "type": "string"
+          }
+        },
+        "_type": {
+          "type": "objectAttribute",
+          "value": {
+            "type": "string",
+            "value": "reference"
+          }
+        },
+        "_weak": {
+          "type": "objectAttribute",
+          "value": {
+            "type": "boolean"
+          },
+          "optional": true
+        }
+      },
+      "dereferencesTo": "masterCatalogProduct"
+    }
+  },
+  {
+    "type": "type",
     "name": "category.reference",
     "value": {
       "type": "object",
@@ -4357,6 +4440,36 @@
         "value": {
           "type": "inline",
           "name": "tenant.reference"
+        },
+        "optional": true
+      },
+      "catalogRef": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "inline",
+          "name": "catalogProduct.reference"
+        },
+        "optional": true
+      },
+      "masterCatalogRef": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "inline",
+          "name": "masterCatalogProduct.reference"
+        },
+        "optional": true
+      },
+      "isAvailable": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "boolean"
+        },
+        "optional": true
+      },
+      "availableAgainAt": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
         },
         "optional": true
       },
@@ -4443,6 +4556,63 @@
         },
         "optional": true
       },
+      "saleUnit": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "union",
+          "of": [
+            {
+              "type": "string",
+              "value": "piece"
+            },
+            {
+              "type": "string",
+              "value": "kg"
+            },
+            {
+              "type": "string",
+              "value": "g"
+            },
+            {
+              "type": "string",
+              "value": "liter"
+            },
+            {
+              "type": "string",
+              "value": "ml"
+            },
+            {
+              "type": "string",
+              "value": "pack"
+            },
+            {
+              "type": "string",
+              "value": "box"
+            },
+            {
+              "type": "string",
+              "value": "bottle"
+            },
+            {
+              "type": "string",
+              "value": "can"
+            },
+            {
+              "type": "string",
+              "value": "bag"
+            },
+            {
+              "type": "string",
+              "value": "dozen"
+            },
+            {
+              "type": "string",
+              "value": "jar"
+            }
+          ]
+        },
+        "optional": true
+      },
       "image": {
         "type": "objectAttribute",
         "value": {
@@ -4487,6 +4657,13 @@
               }
             }
           }
+        },
+        "optional": true
+      },
+      "tempImageUrl": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
         },
         "optional": true
       },
@@ -4570,20 +4747,6 @@
         "type": "objectAttribute",
         "value": {
           "type": "boolean"
-        },
-        "optional": true
-      },
-      "isAvailable": {
-        "type": "objectAttribute",
-        "value": {
-          "type": "boolean"
-        },
-        "optional": true
-      },
-      "availableAgainAt": {
-        "type": "objectAttribute",
-        "value": {
-          "type": "string"
         },
         "optional": true
       },
@@ -4821,6 +4984,522 @@
     }
   },
   {
+    "name": "masterCatalogProduct",
+    "type": "document",
+    "attributes": {
+      "_id": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "_type": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string",
+          "value": "masterCatalogProduct"
+        }
+      },
+      "_createdAt": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "_updatedAt": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "_rev": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "nameEn": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "nameAr": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "descriptionEn": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "descriptionAr": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "category": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "union",
+          "of": [
+            {
+              "type": "string",
+              "value": "restaurant"
+            },
+            {
+              "type": "string",
+              "value": "cafe"
+            },
+            {
+              "type": "string",
+              "value": "bakery"
+            },
+            {
+              "type": "string",
+              "value": "grocery"
+            },
+            {
+              "type": "string",
+              "value": "retail"
+            },
+            {
+              "type": "string",
+              "value": "pharmacy"
+            },
+            {
+              "type": "string",
+              "value": "other"
+            }
+          ]
+        },
+        "optional": true
+      },
+      "image": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "object",
+          "attributes": {
+            "asset": {
+              "type": "objectAttribute",
+              "value": {
+                "type": "inline",
+                "name": "sanity.imageAsset.reference"
+              },
+              "optional": true
+            },
+            "media": {
+              "type": "objectAttribute",
+              "value": {
+                "type": "unknown"
+              },
+              "optional": true
+            },
+            "hotspot": {
+              "type": "objectAttribute",
+              "value": {
+                "type": "inline",
+                "name": "sanity.imageHotspot"
+              },
+              "optional": true
+            },
+            "crop": {
+              "type": "objectAttribute",
+              "value": {
+                "type": "inline",
+                "name": "sanity.imageCrop"
+              },
+              "optional": true
+            },
+            "_type": {
+              "type": "objectAttribute",
+              "value": {
+                "type": "string",
+                "value": "image"
+              }
+            }
+          }
+        },
+        "optional": true
+      },
+      "searchQuery": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "unitType": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "union",
+          "of": [
+            {
+              "type": "string",
+              "value": "kg"
+            },
+            {
+              "type": "string",
+              "value": "piece"
+            },
+            {
+              "type": "string",
+              "value": "pack"
+            }
+          ]
+        },
+        "optional": true
+      }
+    }
+  },
+  {
+    "type": "type",
+    "name": "catalogCategory.reference",
+    "value": {
+      "type": "object",
+      "attributes": {
+        "_ref": {
+          "type": "objectAttribute",
+          "value": {
+            "type": "string"
+          }
+        },
+        "_type": {
+          "type": "objectAttribute",
+          "value": {
+            "type": "string",
+            "value": "reference"
+          }
+        },
+        "_weak": {
+          "type": "objectAttribute",
+          "value": {
+            "type": "boolean"
+          },
+          "optional": true
+        }
+      },
+      "dereferencesTo": "catalogCategory"
+    }
+  },
+  {
+    "name": "catalogProduct",
+    "type": "document",
+    "attributes": {
+      "_id": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "_type": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string",
+          "value": "catalogProduct"
+        }
+      },
+      "_createdAt": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "_updatedAt": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "_rev": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "title_en": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "title_ar": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "brand": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "slug": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "inline",
+          "name": "slug"
+        },
+        "optional": true
+      },
+      "category": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "inline",
+          "name": "catalogCategory.reference"
+        },
+        "optional": true
+      },
+      "images": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "array",
+          "of": {
+            "type": "object",
+            "attributes": {
+              "asset": {
+                "type": "objectAttribute",
+                "value": {
+                  "type": "inline",
+                  "name": "sanity.imageAsset.reference"
+                },
+                "optional": true
+              },
+              "media": {
+                "type": "objectAttribute",
+                "value": {
+                  "type": "unknown"
+                },
+                "optional": true
+              },
+              "hotspot": {
+                "type": "objectAttribute",
+                "value": {
+                  "type": "inline",
+                  "name": "sanity.imageHotspot"
+                },
+                "optional": true
+              },
+              "crop": {
+                "type": "objectAttribute",
+                "value": {
+                  "type": "inline",
+                  "name": "sanity.imageCrop"
+                },
+                "optional": true
+              },
+              "_type": {
+                "type": "objectAttribute",
+                "value": {
+                  "type": "string",
+                  "value": "image"
+                }
+              }
+            },
+            "rest": {
+              "type": "object",
+              "attributes": {
+                "_key": {
+                  "type": "objectAttribute",
+                  "value": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "optional": true
+      },
+      "defaultUnit": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "union",
+          "of": [
+            {
+              "type": "string",
+              "value": "piece"
+            },
+            {
+              "type": "string",
+              "value": "kg"
+            },
+            {
+              "type": "string",
+              "value": "g"
+            },
+            {
+              "type": "string",
+              "value": "liter"
+            },
+            {
+              "type": "string",
+              "value": "ml"
+            },
+            {
+              "type": "string",
+              "value": "pack"
+            },
+            {
+              "type": "string",
+              "value": "box"
+            },
+            {
+              "type": "string",
+              "value": "bottle"
+            },
+            {
+              "type": "string",
+              "value": "can"
+            },
+            {
+              "type": "string",
+              "value": "bag"
+            },
+            {
+              "type": "string",
+              "value": "dozen"
+            },
+            {
+              "type": "string",
+              "value": "jar"
+            }
+          ]
+        },
+        "optional": true
+      },
+      "description_en": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "description_ar": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "sortOrder": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "number"
+        },
+        "optional": true
+      }
+    }
+  },
+  {
+    "name": "slug",
+    "type": "type",
+    "value": {
+      "type": "object",
+      "attributes": {
+        "_type": {
+          "type": "objectAttribute",
+          "value": {
+            "type": "string",
+            "value": "slug"
+          }
+        },
+        "current": {
+          "type": "objectAttribute",
+          "value": {
+            "type": "string"
+          },
+          "optional": true
+        },
+        "source": {
+          "type": "objectAttribute",
+          "value": {
+            "type": "string"
+          },
+          "optional": true
+        }
+      }
+    }
+  },
+  {
+    "name": "catalogCategory",
+    "type": "document",
+    "attributes": {
+      "_id": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "_type": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string",
+          "value": "catalogCategory"
+        }
+      },
+      "_createdAt": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "_updatedAt": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "_rev": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        }
+      },
+      "title_en": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "title_ar": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "string"
+        },
+        "optional": true
+      },
+      "slug": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "inline",
+          "name": "slug"
+        },
+        "optional": true
+      },
+      "sortOrder": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "number"
+        },
+        "optional": true
+      }
+    }
+  },
+  {
     "type": "type",
     "name": "businessSubcategory.reference",
     "value": {
@@ -4969,11 +5648,40 @@
         },
         "optional": true
       },
+      "productSortMode": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "union",
+          "of": [
+            {
+              "type": "string",
+              "value": "manual"
+            },
+            {
+              "type": "string",
+              "value": "name"
+            },
+            {
+              "type": "string",
+              "value": "price"
+            }
+          ]
+        },
+        "optional": true
+      },
       "subcategoryRef": {
         "type": "objectAttribute",
         "value": {
           "type": "inline",
           "name": "businessSubcategory.reference"
+        },
+        "optional": true
+      },
+      "parentCategory": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "inline",
+          "name": "category.reference"
         },
         "optional": true
       }
@@ -5106,6 +5814,14 @@
             },
             {
               "type": "string",
+              "value": "supermarket"
+            },
+            {
+              "type": "string",
+              "value": "greengrocer"
+            },
+            {
+              "type": "string",
               "value": "retail"
             },
             {
@@ -5126,36 +5842,6 @@
           "type": "number"
         },
         "optional": true
-      }
-    }
-  },
-  {
-    "name": "slug",
-    "type": "type",
-    "value": {
-      "type": "object",
-      "attributes": {
-        "_type": {
-          "type": "objectAttribute",
-          "value": {
-            "type": "string",
-            "value": "slug"
-          }
-        },
-        "current": {
-          "type": "objectAttribute",
-          "value": {
-            "type": "string"
-          },
-          "optional": true
-        },
-        "source": {
-          "type": "objectAttribute",
-          "value": {
-            "type": "string"
-          },
-          "optional": true
-        }
       }
     }
   },
@@ -5267,6 +5953,14 @@
             },
             {
               "type": "string",
+              "value": "supermarket"
+            },
+            {
+              "type": "string",
+              "value": "greengrocer"
+            },
+            {
+              "type": "string",
               "value": "retail"
             },
             {
@@ -5315,10 +6009,6 @@
         "value": {
           "type": "union",
           "of": [
-            {
-              "type": "string",
-              "value": "areas"
-            },
             {
               "type": "string",
               "value": "distance"
@@ -5406,6 +6096,31 @@
             {
               "type": "string",
               "value": "cancelled"
+            }
+          ]
+        },
+        "optional": true
+      },
+      "subscriptionPlan": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "union",
+          "of": [
+            {
+              "type": "string",
+              "value": "ultra"
+            },
+            {
+              "type": "string",
+              "value": "basic"
+            },
+            {
+              "type": "string",
+              "value": "pro"
+            },
+            {
+              "type": "string",
+              "value": "ultra"
             }
           ]
         },
@@ -5610,6 +6325,20 @@
         "type": "objectAttribute",
         "value": {
           "type": "boolean"
+        },
+        "optional": true
+      },
+      "requiresPersonalShopper": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "boolean"
+        },
+        "optional": true
+      },
+      "shopperFee": {
+        "type": "objectAttribute",
+        "value": {
+          "type": "number"
         },
         "optional": true
       }

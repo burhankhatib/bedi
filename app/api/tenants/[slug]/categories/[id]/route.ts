@@ -28,12 +28,20 @@ export async function PATCH(
 
   const body = await req.json()
   const patch: Record<string, unknown> = {}
+  const unsetFields: string[] = []
   if (body.title_en != null) patch.title_en = body.title_en
   if (body.title_ar != null) patch.title_ar = body.title_ar
   if (body.sortOrder != null) patch.sortOrder = body.sortOrder
   if (body.productSortMode != null) {
     const v = body.productSortMode
     patch.productSortMode = v === 'manual' || v === 'name' || v === 'price' ? v : 'manual'
+  }
+  if (body.parentCategoryId !== undefined) {
+    if (body.parentCategoryId && typeof body.parentCategoryId === 'string') {
+      patch.parentCategory = { _type: 'reference', _ref: body.parentCategoryId.trim() }
+    } else {
+      unsetFields.push('parentCategory')
+    }
   }
   if (body.slug != null) {
     const baseSlug = slugify(body.slug)
@@ -48,9 +56,12 @@ export async function PATCH(
       patch.slug = { _type: 'slug', current: slugValue }
     }
   }
-  if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
+  if (Object.keys(patch).length === 0 && unsetFields.length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
 
-  await writeClient.patch(id).set(patch).commit()
+  let p = writeClient.patch(id)
+  if (Object.keys(patch).length > 0) p = p.set(patch)
+  if (unsetFields.length > 0) p = p.unset(unsetFields)
+  await p.commit()
   return NextResponse.json({ ok: true })
 }
 

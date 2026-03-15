@@ -176,9 +176,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
     }
   }, [searchParams, setIsOpen])
   const hasMostPopular = Boolean(popularProducts?.length)
-  const [activeCategory, setActiveCategory] = useState<string | null>(() =>
-    hasMostPopular ? MOST_POPULAR_ID : (categories.length > 0 ? categories[0]._id : null)
-  )
+  const rootCategories = categories.filter((c) => !c.parentCategoryRef)
+  const defaultActive = hasMostPopular ? MOST_POPULAR_ID : (rootCategories[0]?._id ?? categories[0]?._id ?? null)
+  const [activeCategory, setActiveCategory] = useState<string | null>(() => defaultActive)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [activeLayoutPrefix, setActiveLayoutPrefix] = useState<string>('grid')
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -312,30 +312,30 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
     return () => { ro.disconnect(); window.removeEventListener('resize', updateHeight); clearTimeout(t) }
   }, [restaurantInfo, lang, categories])
 
-  // Scroll spy: update active nav item based on which section is in view
+  // Scroll spy: nav shows roots only; sections use root ids. When a sub is in view, highlight its root.
   useEffect(() => {
     const sectionIds: string[] = hasMostPopular ? [MOST_POPULAR_ID] : []
-    categories.forEach((cat) => sectionIds.push(cat._id))
+    rootCategories.forEach((r) => sectionIds.push(r._id))
 
     const getScrollOffset = () => stickyBlockHeight + 24
 
     const onScroll = () => {
       const offset = getScrollOffset()
-      let current: string | null = null
+      let currentRoot: string | null = null
       for (const id of sectionIds) {
         const el = document.getElementById(id)
         if (el) {
           const top = el.getBoundingClientRect().top
-          if (top <= offset) current = id
+          if (top <= offset) currentRoot = id
         }
       }
-      if (current !== null) setActiveCategory((prev) => (prev === current ? prev : current))
+      if (currentRoot !== null) setActiveCategory((prev) => (prev === currentRoot ? prev : currentRoot))
     }
 
     window.addEventListener('scroll', onScroll, { passive: true })
     onScroll()
     return () => window.removeEventListener('scroll', onScroll)
-  }, [hasMostPopular, categories, stickyBlockHeight])
+  }, [hasMostPopular, rootCategories, stickyBlockHeight])
 
   const handleCategoryClick = (id: string) => {
     setActiveCategory(id)
@@ -344,11 +344,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
       const totalOffset = stickyBlockHeight + 8
       const elementPosition = element.getBoundingClientRect().top + window.pageYOffset
       const offsetPosition = elementPosition - totalOffset
-
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: 'smooth'
-      })
+      window.scrollTo({ top: offsetPosition, behavior: 'smooth' })
     }
   }
 
@@ -602,7 +598,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
           <div className="flex-1 min-w-0 overflow-x-auto no-scrollbar pl-4 pr-2">
             <CategoryNav
               ref={categoryNavRef}
-              categories={categories}
+              categories={rootCategories}
               activeCategory={activeCategory}
               onCategoryClick={handleCategoryClick}
               showMostPopular={Boolean(popularProducts?.length)}

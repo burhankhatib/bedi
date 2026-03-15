@@ -146,6 +146,7 @@ export const MENU_QUERY_TENANT = defineQuery(`{
     image,
     sortOrder,
     productSortMode,
+    "parentCategoryRef": parentCategory._ref,
     "products": *[_type == "product" && references(^._id) && (site._ref == $siteId || !defined(site))] | order(sortOrder asc) {
       _id,
       title_en,

@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import {
   DndContext,
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDraggable,
@@ -36,6 +37,7 @@ import { useTenantBusiness } from '../TenantBusinessContext'
 import { CatalogProductsModal } from './CatalogProductsModal'
 import { usePusherStream } from '@/lib/usePusherStream'
 import { isAbortError } from '@/lib/abort-utils'
+import { cn } from '@/lib/utils'
 import { ProductFormModal, type ProductFormData } from './ProductFormModal'
 
 function SortableItem({
@@ -96,6 +98,7 @@ function SortableProduct({
   onDuplicate,
   onDelete,
   onMove,
+  dragTitle,
 }: {
   product: { _id: string; title_en: string; price: number; currency: string }
   loading: boolean
@@ -105,6 +108,7 @@ function SortableProduct({
   onDuplicate: () => void
   onDelete: () => void
   onMove: (targetCategoryId: string) => void
+  dragTitle?: string
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `product-${product._id}`,
@@ -120,8 +124,8 @@ function SortableProduct({
       <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 text-sm">
         <button
           type="button"
-          className="touch-none select-none flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-lg border border-slate-600/80 bg-slate-700/50 p-2 text-slate-500 hover:bg-slate-700 hover:text-slate-300 cursor-grab active:cursor-grabbing"
-          title="Drag to reorder or move to another category"
+          className="touch-none select-none flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-slate-500/60 bg-slate-700/60 p-2.5 text-slate-400 hover:border-amber-500/50 hover:bg-slate-700 hover:text-amber-400 cursor-grab active:cursor-grabbing transition-colors"
+          title={dragTitle ?? 'Drag to reorder or move'}
           {...attributes}
           {...listeners}
         >
@@ -223,7 +227,7 @@ function ProductRow({
   )
 }
 
-type Category = { _id: string; title_en: string; title_ar: string; slug: string; sortOrder?: number; productSortMode?: string }
+type Category = { _id: string; title_en: string; title_ar: string; slug: string; sortOrder?: number; productSortMode?: string; parentCategoryRef?: string }
 
 const SORT_STORAGE_KEY = 'menu-product-sort'
 type ProductSortMode = 'manual' | 'name' | 'price'
@@ -302,8 +306,9 @@ export function MenuManageClient({
   const { t } = useLanguage()
   const { data } = useTenantBusiness()
   const businessType = data?.tenant?.businessType ?? ''
-  const canUseCatalog = ['grocery', 'supermarket', 'greengrocer', 'restaurant', 'cafe'].includes(businessType)
+  const canUseCatalog = ['grocery', 'supermarket', 'greengrocer', 'restaurant', 'cafe', 'retail'].includes(businessType)
   const [catalogOpen, setCatalogOpen] = useState(false)
+  const [catalogDefaultCategoryId, setCatalogDefaultCategoryId] = useState<string | undefined>(undefined)
   const [sortModes, setSortModes] = useState<Record<string, ProductSortMode>>(() => loadSortModes(slug))
   const [reorderingCategoryId, setReorderingCategoryId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -321,6 +326,7 @@ export function MenuManageClient({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
@@ -392,6 +398,8 @@ export function MenuManageClient({
     sectionGroups?: Array<{ key: string; title_en: string; title_ar: string; subCategories: Array<{ title_en: string; title_ar: string }> }>
   } | null>(null)
   const [selectedSectionKey, setSelectedSectionKey] = useState<string | null>(null)
+  const [addingSubCategoryOf, setAddingSubCategoryOf] = useState<string | null>(null)
+  const [addingSubCategoryOfSection, setAddingSubCategoryOfSection] = useState<string | null>(null)
   const [showCustomCategoryForm, setShowCustomCategoryForm] = useState(false)
   const mountedRef = useRef(false)
   const categoriesAbortRef = useRef<AbortController | null>(null)
@@ -435,20 +443,46 @@ export function MenuManageClient({
     return () => suggestionsAbortRef.current?.abort()
   }, [addingCategory, sectionSuggestions, slug])
 
-  const addCategoryFromSuggestion = async (title_en: string, title_ar: string, subcategoryRef?: string) => {
+  const findOrCreateParentForSection = useCallback(
+    async (sectionKey: string): Promise<string | null> => {
+      const group = sectionSuggestions?.sectionGroups?.find((g) => g.key === sectionKey)
+      if (!group) return null
+      const existing = categories.find((c) => c.title_en === group.title_en && !c.parentCategoryRef)
+      if (existing) return existing._id
+      const res = await api('/categories', { method: 'POST', body: JSON.stringify({ title_en: group.title_en, title_ar: group.title_ar }) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !(data as { _id?: string })._id) return null
+      const newId = (data as { _id?: string })._id ?? ''
+      const newCat: Category = {
+        _id: newId,
+        title_en: group.title_en,
+        title_ar: group.title_ar,
+        slug: (data as { slug?: string }).slug ?? group.title_en.toLowerCase().replace(/\s+/g, '-'),
+        sortOrder: (data as { sortOrder?: number }).sortOrder ?? 0,
+      }
+      setCategories((prev) => [...prev, newCat])
+      setExpandedCat(newId)
+      return newId
+    },
+    [api, categories, sectionSuggestions?.sectionGroups]
+  )
+
+  const addCategoryFromSuggestion = async (title_en: string, title_ar: string, subcategoryRef?: string, parentCategoryId?: string) => {
     if (submittingCategory) return
     setSubmittingCategory(true)
     setLoading(true)
     try {
+      let effectiveParentId = parentCategoryId
+      const group = sectionSuggestions?.sectionGroups?.find((g) => g.key === selectedSectionKey)
+      if (!effectiveParentId && selectedSectionKey && group && (title_en !== group.title_en || title_ar !== group.title_ar)) {
+        effectiveParentId = (await findOrCreateParentForSection(selectedSectionKey)) ?? undefined
+      }
       const body: Record<string, unknown> = { title_en, title_ar }
       if (subcategoryRef) body.subcategoryRef = subcategoryRef
+      if (effectiveParentId) body.parentCategoryId = effectiveParentId
       const res = await api('/categories', { method: 'POST', body: JSON.stringify(body) })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        setAddingCategory(false)
-        setShowCustomCategoryForm(false)
-        setSelectedSectionKey(null)
-        showToast('Category added.', 'تمت إضافة الفئة.', 'success')
         const slugVal = (data as { slug?: string }).slug ?? (title_en || '').toLowerCase().replace(/\s+/g, '-')
         const newCat: Category = {
           _id: (data as { _id?: string })._id ?? '',
@@ -456,9 +490,16 @@ export function MenuManageClient({
           title_ar,
           slug: slugVal,
           sortOrder: (data as { sortOrder?: number }).sortOrder ?? 0,
+          ...(effectiveParentId && { parentCategoryRef: effectiveParentId }),
         }
         setCategories((prev) => [...prev, newCat])
-        await reloadCategories()
+        setExpandedCat(newCat._id)
+        setAddingCategory(false)
+        setShowCustomCategoryForm(false)
+        setSelectedSectionKey(null)
+        setAddingSubCategoryOf(null)
+        showToast('Category added.', 'تمت إضافة الفئة.', 'success')
+        reloadCategories()
       } else {
         showToast((data as { error?: string })?.error || 'Failed to add category', 'فشل في إضافة الفئة.', 'error')
       }
@@ -477,13 +518,14 @@ export function MenuManageClient({
     if (submittingCategory) return
     setSubmittingCategory(true)
     setLoading(true)
+    let parentId = addingSubCategoryOf || undefined
+    if (!parentId && addingSubCategoryOfSection) {
+      parentId = (await findOrCreateParentForSection(addingSubCategoryOfSection)) ?? undefined
+    }
     try {
-      const res = await api('/categories', { method: 'POST', body: JSON.stringify({ title_en, title_ar }) })
+      const res = await api('/categories', { method: 'POST', body: JSON.stringify({ title_en, title_ar, parentCategoryId: parentId }) })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        setAddingCategory(false)
-        setShowCustomCategoryForm(false)
-        showToast('Category added.', 'تمت إضافة الفئة.', 'success')
         const slug = (data as { slug?: string }).slug ?? (title_en || '').toLowerCase().replace(/\s+/g, '-')
         const newCat: Category = {
           _id: (data as { _id?: string })._id ?? '',
@@ -491,9 +533,16 @@ export function MenuManageClient({
           title_ar,
           slug,
           sortOrder: (data as { sortOrder?: number }).sortOrder ?? 0,
+          ...(parentId && { parentCategoryRef: parentId }),
         }
         setCategories((prev) => [...prev, newCat])
-        await reloadCategories()
+        setExpandedCat(newCat._id)
+        setAddingCategory(false)
+        setShowCustomCategoryForm(false)
+        setAddingSubCategoryOf(null)
+        setAddingSubCategoryOfSection(null)
+        showToast('Category added.', 'تمت إضافة الفئة.', 'success')
+        reloadCategories()
       } else {
         showToast(data?.error || 'Failed to add category', 'فشل في إضافة الفئة.', 'error')
       }
@@ -562,8 +611,37 @@ export function MenuManageClient({
         const res = await api(`/products/${productModalProduct._id}`, { method: 'PATCH', body: JSON.stringify(body) })
         const patched = await res.json().catch(() => null)
         if (res.ok) {
-          await reloadProducts()
+          setProducts((prev) =>
+            prev.map((p) => {
+              if (p._id !== productModalProduct._id) return p
+              const updated: Product = {
+                ...p,
+                title_en: (body.title_en as string) ?? p.title_en,
+                title_ar: (body.title_ar as string) ?? p.title_ar,
+                description_en: (body.description_en as string | undefined) ?? p.description_en,
+                description_ar: (body.description_ar as string | undefined) ?? p.description_ar,
+                ingredients_en: (body.ingredients_en as string[] | undefined) ?? p.ingredients_en,
+                ingredients_ar: (body.ingredients_ar as string[] | undefined) ?? p.ingredients_ar,
+                price: (body.price as number) ?? p.price,
+                saleUnit: (body.saleUnit as string) ?? p.saleUnit,
+                specialPrice: (body.specialPrice as number | undefined) ?? p.specialPrice,
+                specialPriceExpires: (body.specialPriceExpires as string | undefined) ?? p.specialPriceExpires,
+                currency: (body.currency as string) ?? p.currency,
+                categoryId: (body.categoryId as string) ?? p.categoryId,
+                sortOrder: (body.sortOrder as number | undefined) ?? p.sortOrder,
+                isPopular: (body.isPopular as boolean) ?? p.isPopular,
+                isAvailable: body.isAvailable !== false,
+                dietaryTags: (body.dietaryTags as string[] | undefined) ?? p.dietaryTags,
+                addOns: (body.addOns as Product['addOns']) ?? p.addOns,
+                variants: (body.variants as Product['variants']) ?? p.variants,
+              }
+              return updated
+            })
+          )
           showToast('Product updated.', 'تم تحديث المنتج.', 'success')
+          setProductModalOpen(false)
+          setProductModalProduct(null)
+          reloadProducts()
         } else {
           const msg = res.status === 403
             ? 'Session may have expired. Please sign in again.'
@@ -599,8 +677,11 @@ export function MenuManageClient({
             variants: created.variants,
           }
           setProducts((prev) => [...prev, newProduct])
+          setExpandedCat(categoryRef)
           showToast('Product added.', 'تمت إضافة المنتج.', 'success')
-          await reloadProducts()
+          setProductModalOpen(false)
+          setProductModalProduct(null)
+          reloadProducts()
         } else if (!res.ok) {
           const msg = res.status === 403
             ? 'Session may have expired. Please sign in again.'
@@ -629,6 +710,28 @@ export function MenuManageClient({
       })
   }, [products])
 
+  const orderedCategoriesWithParent = useMemo(() => {
+    const roots = categories.filter((c) => !c.parentCategoryRef).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    const result: Array<{ category: Category; isSubCategory: boolean }> = []
+    for (const r of roots) {
+      result.push({ category: r, isSubCategory: false })
+      const children = categories
+        .filter((c) => c.parentCategoryRef === r._id)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      for (const ch of children) {
+        result.push({ category: ch, isSubCategory: true })
+      }
+    }
+    return result
+  }, [categories])
+
+  useEffect(() => {
+    if (orderedCategoriesWithParent.length > 0 && expandedCat === null) {
+      const firstRoot = orderedCategoriesWithParent.find((e) => !e.isSubCategory)
+      if (firstRoot) setExpandedCat(firstRoot.category._id)
+    }
+  }, [orderedCategoriesWithParent, expandedCat])
+
   const getSortedCategoryProducts = useCallback(
     (categoryId: string, mode: ProductSortMode): Product[] => {
       const list = getCategoryProducts(categoryId)
@@ -649,21 +752,66 @@ export function MenuManageClient({
     [getCategoryProducts]
   )
 
+  const reparentCategory = useCallback(
+    async (categoryId: string, newParentId: string) => {
+      const moved = categories.find((c) => c._id === categoryId)
+      const newParent = categories.find((c) => c._id === newParentId)
+      if (!moved || !newParent || newParent.parentCategoryRef) return
+      const siblings = categories.filter((c) => c.parentCategoryRef === newParentId)
+      const newSortOrder = siblings.length > 0 ? Math.max(...siblings.map((c) => c.sortOrder ?? 0)) + SORT_ORDER_GAP : 0
+      setCategories((prev) =>
+        prev.map((c) =>
+          c._id === categoryId ? { ...c, parentCategoryRef: newParentId, sortOrder: newSortOrder } : c
+        )
+      )
+      setExpandedCat(newParentId)
+      try {
+        await api(`/categories/${categoryId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ parentCategoryId: newParentId, sortOrder: newSortOrder }),
+        })
+        showToast(t('Sub-category moved.', 'تم نقل الفئة الفرعية.'), '', 'success')
+      } catch {
+        showToast(t('Failed to move sub-category', 'فشل نقل الفئة الفرعية'), '', 'error')
+        reloadCategories()
+      }
+    },
+    [categories, api, showToast, reloadCategories, t]
+  )
+
   const reorderCategories = useCallback(async (fromIndex: number, toIndex: number) => {
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || toIndex >= categories.length) return
-    const next = [...categories]
+    const ordered = orderedCategoriesWithParent
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || toIndex >= ordered.length) return
+    const fromEntry = ordered[fromIndex]
+    const toEntry = ordered[toIndex]
+    const fromCat = fromEntry.category
+    const toCat = toEntry.category
+    const isReparenting =
+      fromEntry.isSubCategory &&
+      (toEntry.isSubCategory ? toCat.parentCategoryRef : toCat._id) !== fromCat.parentCategoryRef
+    const newParentId = toEntry.isSubCategory ? (toCat.parentCategoryRef as string) : toCat._id
+
+    if (isReparenting && newParentId && newParentId !== fromCat.parentCategoryRef) {
+      await reparentCategory(fromCat._id, newParentId)
+      return
+    }
+
+    const next = [...ordered]
     const [removed] = next.splice(fromIndex, 1)
     next.splice(toIndex, 0, removed)
-    const withNewOrder = next.map((cat, index) => ({ ...cat, sortOrder: index }))
-    setCategories(withNewOrder)
+    const updates = next.map((item, index) => ({ ...item.category, sortOrder: index }))
+    setCategories((prev) => {
+      const byId = new Map(prev.map((c) => [c._id, c]))
+      return updates.map((u) => ({ ...(byId.get(u._id) ?? u), sortOrder: u.sortOrder }))
+    })
     try {
-      await Promise.all(withNewOrder.map((cat) => api(`/categories/${cat._id}`, { method: 'PATCH', body: JSON.stringify({ sortOrder: cat.sortOrder }) })))
-      showToast('Category order updated.', 'تم تحديث ترتيب الفئات.', 'success')
+      await Promise.all(updates.map((cat) => api(`/categories/${cat._id}`, { method: 'PATCH', body: JSON.stringify({ sortOrder: cat.sortOrder }) })))
+      showToast(t('Category order updated.', 'تم تحديث ترتيب الفئات.'), '', 'success')
     } catch {
-      showToast('Failed to save category order', 'فشل حفظ ترتيب الفئات', 'error')
+      showToast(t('Failed to save category order', 'فشل حفظ ترتيب الفئات'), '', 'error')
       reloadCategories()
     }
-  }, [categories, api, showToast, reloadCategories])
+  }, [orderedCategoriesWithParent, categories, api, showToast, reloadCategories, reparentCategory, t])
 
   const reorderCategoryProducts = useCallback(async (categoryId: string, fromIndex: number, toIndex: number) => {
     if (reorderingCategoryId) return
@@ -784,14 +932,14 @@ export function MenuManageClient({
           insertAfterProductId = targetProductId
         } else if (overStr.startsWith('cat-')) {
           const catIndex = parseInt(overStr.replace(/^cat-/, ''), 10)
-          const targetCat = categories[catIndex]
-          if (!targetCat) return
-          targetCategoryId = targetCat._id
+          const entry = orderedCategoriesWithParent[catIndex]
+          if (!entry) return
+          targetCategoryId = entry.category._id
         } else return
         moveProductToCategory(productId, targetCategoryId, insertAfterProductId)
       }
     },
-    [reorderCategories, products, moveProductToCategory]
+    [reorderCategories, products, moveProductToCategory, orderedCategoriesWithParent]
   )
 
   const openAddProduct = (categoryId: string) => {
@@ -811,9 +959,11 @@ export function MenuManageClient({
       const res = await api(`/categories/${id}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
+        setCategories((prev) => prev.filter((c) => c._id !== id))
+        setProducts((prev) => prev.filter((p) => p.categoryId !== id))
         showToast(t('Category deleted.', 'تم حذف الفئة.'), undefined, 'success')
-        await reloadCategories()
-        await reloadProducts()
+        reloadCategories()
+        reloadProducts()
       } else {
         showToast(data?.error || t('Could not delete category.', 'تعذر حذف الفئة.'), undefined, 'error')
       }
@@ -828,8 +978,9 @@ export function MenuManageClient({
       const res = await api(`/products/${id}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
+        setProducts((prev) => prev.filter((p) => p._id !== id))
         showToast(t('Product deleted.', 'تم حذف المنتج.'), undefined, 'success')
-        await reloadProducts()
+        reloadProducts()
       } else {
         showToast(data?.error || t('Could not delete product.', 'تعذر حذف المنتج.'), undefined, 'error')
       }
@@ -874,7 +1025,6 @@ export function MenuManageClient({
         showToast(msg, 'تعذر نسخ المنتج.', 'error')
         return
       }
-      await reloadProducts()
       const createdProduct: Product = {
         _id: (created as { _id: string })._id,
         title_en: (created as { title_en?: string }).title_en ?? product.title_en,
@@ -902,8 +1052,10 @@ export function MenuManageClient({
           additionalImages: (created as { additionalImages: unknown[] }).additionalImages,
         }),
       }
+      setProducts((prev) => [...prev, createdProduct])
       showToast('Product duplicated. You can edit the copy below.', 'تم نسخ المنتج. يمكنك تعديل النسخة أدناه.', 'success')
       openEditProduct(createdProduct)
+      reloadProducts()
     } finally {
       setLoading(false)
     }
@@ -984,8 +1136,10 @@ export function MenuManageClient({
       <div className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="font-semibold text-white">Categories</h2>
-            <p className="text-sm text-slate-400">Add categories (e.g. Starters, Mains). Drag categories to reorder. Drag products to reorder within a category or move between categories.</p>
+            <h2 className="font-semibold text-white">{t('Categories', 'الفئات')}</h2>
+            <p className="text-sm text-slate-400">
+              {t('Drag categories to reorder or move sub-categories between main categories. Drag products to reorder or move between categories. Expand a category to access its products.', 'اسحب الفئات لإعادة الترتيب أو نقل الفئات الفرعية بين الفئات الرئيسية. اسحب المنتجات لإعادة الترتيب أو نقلها بين الفئات. وسّع الفئة للوصول إلى منتجاتها.')}
+            </p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -1006,7 +1160,7 @@ export function MenuManageClient({
                 variant="outline"
                 size="sm"
                 className="border-amber-500/50 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:border-amber-500/70"
-                onClick={() => setCatalogOpen(true)}
+                onClick={() => { setCatalogDefaultCategoryId(undefined); setCatalogOpen(true) }}
               >
                 <Package className="mr-2 size-4" />
                 {t('Add from catalog', 'إضافة من الكتالوج')}
@@ -1015,33 +1169,42 @@ export function MenuManageClient({
           </div>
         </div>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={categories.map((_, i) => `cat-${i}`)} strategy={verticalListSortingStrategy}>
+          <SortableContext items={orderedCategoriesWithParent.map((_, i) => `cat-${i}`)} strategy={verticalListSortingStrategy}>
             <ul className="mt-4 space-y-2">
-              {categories.map((c, catIndex) => (
+              {orderedCategoriesWithParent.map(({ category: c, isSubCategory }, catIndex) => (
                 <SortableItem key={`cat-${c._id}-${catIndex}`} id={`cat-${catIndex}`} className="rounded-lg border border-slate-700/50 bg-slate-800/30">
                   {({ attributes, listeners }) => (
                     <>
                       <div
-                        className="flex cursor-pointer items-center justify-between px-4 py-3"
+                        className={cn(
+                          "flex cursor-pointer items-center justify-between py-3",
+                          isSubCategory ? "pl-8 pr-4 border-l-2 border-amber-500/30" : "px-4"
+                        )}
                         onClick={() => setExpandedCat(expandedCat === c._id ? null : c._id)}
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <button
                             type="button"
-                            className="touch-none select-none flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg border border-slate-600/80 bg-slate-700/50 p-2 text-slate-400 hover:bg-slate-700 hover:text-slate-200 cursor-grab active:cursor-grabbing"
-                            title="Drag to reorder category"
+                            className="touch-none select-none flex min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-slate-500/60 bg-slate-700/60 p-2.5 text-slate-400 hover:border-amber-500/50 hover:bg-slate-700 hover:text-amber-400 cursor-grab active:cursor-grabbing transition-colors"
+                            title={t("Drag to reorder or move category", "اسحب لإعادة الترتيب أو نقل الفئة")}
                             onClick={(e) => e.stopPropagation()}
                             {...attributes}
                             {...listeners}
                           >
-                            <GripVertical className="size-4" />
+                            <GripVertical className="size-5" />
                           </button>
                           {expandedCat === c._id ? <ChevronDown className="size-4 shrink-0" /> : <ChevronRight className="size-4 shrink-0" />}
                           <span className="font-medium truncate">{c.title_en}</span>
                           <span className="text-slate-500 shrink-0">/ {c.title_ar}</span>
+                          {isSubCategory && <span className="text-xs text-slate-500">({t("sub", "فرعي")})</span>}
                         </div>
                         <div className="flex gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteConfirm({ type: 'category', id: c._id, nameEn: c.title_en, nameAr: c.title_ar })} disabled={loading} aria-label={t('Delete category', 'حذف الفئة')}>
+                          {expandedCat === c._id && (
+                            <Button type="button" variant="ghost" size="sm" className="text-amber-400 hover:text-amber-300" onClick={() => { setAddingCategory(true); setAddingSubCategoryOf(c._id); setShowCustomCategoryForm(false); setSelectedSectionKey(null) }} disabled={loading}>
+                              + {t("Sub-category", "فئة فرعية")}
+                            </Button>
+                          )}
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteConfirm({ type: "category", id: c._id, nameEn: c.title_en, nameAr: c.title_ar })} disabled={loading} aria-label={t("Delete category", "حذف الفئة")}>
                             <Trash2 className="size-4 text-red-400" />
                           </Button>
                         </div>
@@ -1081,6 +1244,7 @@ export function MenuManageClient({
                                     onDuplicate={() => handleDuplicateProduct(p)}
                                     onDelete={() => setDeleteConfirm({ type: 'product', id: p._id, nameEn: p.title_en, nameAr: p.title_ar })}
                                     onMove={(targetId) => moveProductToCategory(p._id, targetId)}
+                                    dragTitle={t('Drag to reorder or move to another category', 'اسحب لإعادة الترتيب أو نقل المنتج')}
                                   />
                                 ))}
                               </SortableContext>
@@ -1100,9 +1264,16 @@ export function MenuManageClient({
                               ))
                             )}
                           </DroppableProductList>
-                          <Button type="button" size="sm" className="mt-2 border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white" onClick={() => openAddProduct(c._id)}>
-                            <Plus className="mr-1 size-3.5" /> Add product
-                          </Button>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Button type="button" size="sm" className="border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white" onClick={() => openAddProduct(c._id)}>
+                              <Plus className="mr-1 size-3.5" /> Add product
+                            </Button>
+                            {canUseCatalog && (
+                              <Button type="button" size="sm" variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20" onClick={() => { setCatalogDefaultCategoryId(c._id); setCatalogOpen(true) }}>
+                                <Package className="mr-1 size-3.5" /> {t('From catalog', 'من الكتالوج')}
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       )}
                     </>
@@ -1116,36 +1287,107 @@ export function MenuManageClient({
           <div className="mt-4 space-y-3">
             {!showCustomCategoryForm ? (
               <>
-                <p className="text-xs text-slate-400">Pick a section. Suggested items match your business type.</p>
-                <div className="space-y-4">
-                  {sectionSuggestions && (sectionSuggestions.sectionGroups?.length ?? 0) > 0 ? (
-                    selectedSectionKey ? (
+                {addingSubCategoryOf ? (
+                  (() => {
+                    const parentCat = categories.find((c) => c._id === addingSubCategoryOf)
+                    const norm = (s: string) => (s ?? '').toLowerCase().trim().replace(/\s*&\s*/g, ' and ')
+                    const matchingGroup = sectionSuggestions?.sectionGroups?.find(
+                      (g) => parentCat && norm(g.title_en) === norm(parentCat.title_en)
+                    )
+                    return (
+                      <div className="space-y-4">
+                        <p className="text-xs text-amber-200/90">
+                          {t('Add sub-category under', 'إضافة فئة فرعية تحت')}: <strong>{parentCat?.title_en ?? parentCat?.title_ar ?? ''}</strong>
+                        </p>
+                        {matchingGroup && matchingGroup.subCategories?.length > 0 ? (
+                          <>
+                            <p className="text-xs text-slate-400">{t('Suggested for this category', 'مقترحة لهذه الفئة')}:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {matchingGroup.subCategories.map((s, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => addCategoryFromSuggestion(s.title_en, s.title_ar, undefined, addingSubCategoryOf)}
+                                  disabled={submittingCategory}
+                                  className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100 transition-colors hover:border-amber-500/60 hover:bg-amber-500/20 disabled:opacity-50"
+                                >
+                                  {s.title_en} {s.title_ar ? `/ ${s.title_ar}` : ''}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-xs text-slate-500">{t('No predefined sub-categories for this category. Use Custom below.', 'لا توجد فئات فرعية محددة مسبقاً. استخدم مخصص أدناه.')}</p>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowCustomCategoryForm(true)}
+                            className="rounded-lg border border-dashed border-slate-500 px-3 py-2 text-sm text-slate-400 transition-colors hover:border-slate-400 hover:text-slate-300"
+                          >
+                            + {t('Custom sub-category', 'فئة فرعية مخصصة')}
+                          </button>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => { setAddingCategory(false); setAddingSubCategoryOf(null) }} disabled={submittingCategory}>
+                            {t('Cancel', 'إلغاء')}
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })()
+                ) : sectionSuggestions && (sectionSuggestions.sectionGroups?.length ?? 0) > 0 ? (
+                  <>
+                    <p className="text-xs text-slate-400">{t('Pick a section. Suggested items match your business type.', 'اختر قسم. العناصر المقترحة تطابق نوع عملك.')}</p>
+                    <div className="space-y-4">
+                      {selectedSectionKey ? (
                       <div>
                         <button
                           type="button"
-                          onClick={() => setSelectedSectionKey(null)}
+                          onClick={() => { setSelectedSectionKey(null); setAddingSubCategoryOfSection(null) }}
                           className="mb-3 flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-300"
                         >
                           <ChevronRight className="size-3.5 rotate-180" /> Back
                         </button>
-                        <p className="mb-2 text-xs font-medium text-amber-200/90">
-                          {sectionSuggestions.sectionGroups?.find((g) => g.key === selectedSectionKey)?.title_en} / {sectionSuggestions.sectionGroups?.find((g) => g.key === selectedSectionKey)?.title_ar}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {sectionSuggestions.sectionGroups
-                            ?.find((g) => g.key === selectedSectionKey)
-                            ?.subCategories.map((s, i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                onClick={() => addCategoryFromSuggestion(s.title_en, s.title_ar)}
-                                disabled={submittingCategory}
-                                className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100 transition-colors hover:border-amber-500/60 hover:bg-amber-500/20 disabled:opacity-50"
-                              >
-                                {s.title_en} / {s.title_ar}
-                              </button>
-                            ))}
-                        </div>
+                        {(() => {
+                          const group = sectionSuggestions.sectionGroups?.find((g) => g.key === selectedSectionKey)
+                          return (
+                            <>
+                              <p className="mb-2 text-xs font-medium text-amber-200/90">
+                                {group?.title_en} / {group?.title_ar}
+                              </p>
+                              <div className="mb-3 flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => addCategoryFromSuggestion(group!.title_en, group!.title_ar)}
+                                  disabled={submittingCategory}
+                                  className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100 transition-colors hover:border-emerald-500/60 hover:bg-emerald-500/20 disabled:opacity-50"
+                                >
+                                  + {t('Add as main category', 'إضافة كفئة رئيسية')}: {group?.title_en}
+                                </button>
+                              </div>
+                              <p className="mb-2 text-xs text-slate-400">{t('Or add sub-categories', 'أو أضف فئات فرعية')}:</p>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => { setShowCustomCategoryForm(true); setAddingSubCategoryOfSection(selectedSectionKey) }}
+                                  className="rounded-lg border border-dashed border-slate-500 px-3 py-2 text-sm text-slate-400 transition-colors hover:border-slate-400 hover:text-slate-300"
+                                >
+                                  + {t('Custom sub-category', 'فئة فرعية مخصصة')}
+                                </button>
+                                {group?.subCategories.map((s, i) => (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => addCategoryFromSuggestion(s.title_en, s.title_ar)}
+                                    disabled={submittingCategory}
+                                    className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100 transition-colors hover:border-amber-500/60 hover:bg-amber-500/20 disabled:opacity-50"
+                                  >
+                                    {s.title_en} / {s.title_ar}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )
+                        })()}
                       </div>
                     ) : (
                       <div>
@@ -1164,8 +1406,10 @@ export function MenuManageClient({
                           ))}
                         </div>
                       </div>
-                    )
-                  ) : (
+                    )}
+                  </div>
+                </>
+              ) : (
                     <>
                       {sectionSuggestions && sectionSuggestions.subcategories.length > 0 && (
                         <div>
@@ -1175,7 +1419,7 @@ export function MenuManageClient({
                               <button
                                 key={s._id}
                                 type="button"
-                                onClick={() => addCategoryFromSuggestion(s.title_en, s.title_ar, s._id)}
+                                onClick={() => addCategoryFromSuggestion(s.title_en, s.title_ar, s._id, addingSubCategoryOf ?? undefined)}
                                 disabled={submittingCategory}
                                 className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100 transition-colors hover:border-amber-500/60 hover:bg-amber-500/20 disabled:opacity-50"
                               >
@@ -1193,7 +1437,7 @@ export function MenuManageClient({
                               <button
                                 key={i}
                                 type="button"
-                                onClick={() => addCategoryFromSuggestion(s.title_en, s.title_ar)}
+                                onClick={() => addCategoryFromSuggestion(s.title_en, s.title_ar, undefined, addingSubCategoryOf ?? undefined)}
                                 disabled={submittingCategory}
                                 className="rounded-lg border border-slate-600 bg-slate-800/50 px-3 py-2 text-sm text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-700/50 disabled:opacity-50"
                               >
@@ -1205,26 +1449,33 @@ export function MenuManageClient({
                       )}
                     </>
                   )}
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { setShowCustomCategoryForm(true); setSelectedSectionKey(null) }}
-                      className="rounded-lg border border-dashed border-slate-500 px-3 py-2 text-sm text-slate-400 transition-colors hover:border-slate-400 hover:text-slate-300"
-                    >
-                      + Custom
-                    </button>
-                  </div>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <button
+                    type="button"
+                    onClick={() => { setShowCustomCategoryForm(true); setSelectedSectionKey(null); setAddingSubCategoryOf(null); setAddingSubCategoryOfSection(null) }}
+                    className="rounded-lg border border-dashed border-slate-500 px-3 py-2 text-sm text-slate-400 transition-colors hover:border-slate-400 hover:text-slate-300"
+                  >
+                    + {t('Custom', 'مخصص')}
+                  </button>
                 </div>
-                <Button type="button" variant="ghost" size="sm" onClick={() => { setAddingCategory(false); setSelectedSectionKey(null) }} disabled={submittingCategory}>Cancel</Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => { setAddingCategory(false); setSelectedSectionKey(null); setAddingSubCategoryOf(null); setAddingSubCategoryOfSection(null) }} disabled={submittingCategory}>Cancel</Button>
               </>
             ) : (
               <form onSubmit={handleAddCategory} className="flex flex-wrap gap-2">
+                {(addingSubCategoryOf || addingSubCategoryOfSection) && (
+                  <p className="w-full text-xs text-amber-200/90">
+                    {t('Adding sub-category under', 'إضافة فئة فرعية تحت')}:{' '}
+                    {addingSubCategoryOf
+                      ? categories.find((c) => c._id === addingSubCategoryOf)?.title_en ?? ''
+                      : sectionSuggestions?.sectionGroups?.find((g) => g.key === addingSubCategoryOfSection)?.title_en ?? ''}
+                  </p>
+                )}
                 <Input name="title_en" placeholder="Category name (EN)" className="bg-slate-800 border-slate-600" required />
                 <Input name="title_ar" placeholder="Category name (AR)" className="bg-slate-800 border-slate-600" required />
                 <Button type="submit" size="sm" disabled={loading || submittingCategory}>
                   {submittingCategory ? 'Adding…' : 'Add'}
                 </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setShowCustomCategoryForm(false)} disabled={submittingCategory}>Back</Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => { setShowCustomCategoryForm(false); setAddingSubCategoryOf(null); setAddingSubCategoryOfSection(null) }} disabled={submittingCategory}>Back</Button>
                 <Button type="button" variant="ghost" size="sm" onClick={() => { setAddingCategory(false); setShowCustomCategoryForm(false) }} disabled={submittingCategory}>Cancel</Button>
               </form>
             )}
@@ -1251,11 +1502,12 @@ export function MenuManageClient({
       {canUseCatalog && (
         <CatalogProductsModal
           open={catalogOpen}
-          onClose={() => setCatalogOpen(false)}
+          onClose={() => { setCatalogOpen(false); setCatalogDefaultCategoryId(undefined) }}
           categories={categories}
           slug={slug}
-          businessType={businessType}
-          onAdded={refreshMenu}
+          businessType={businessType || 'grocery'}
+          defaultCategoryId={catalogDefaultCategoryId}
+          onAdded={refreshMenuForce}
         />
       )}
     </div>

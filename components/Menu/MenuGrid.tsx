@@ -1,11 +1,32 @@
 'use client'
 
+import { useMemo } from 'react'
 import { MenuData, Product } from '@/app/types/menu'
 import { ProductCard } from './ProductCard'
 import { ProductListItem } from './ProductListItem'
 import { useLanguage } from '@/components/LanguageContext'
 import { ViewType } from './ViewSwitcher'
 import type { OrderTypeOptions, CartTenant } from '@/components/Cart/CartContext'
+
+type CategoryGroup = { root: MenuData; subs: MenuData[] }
+
+function groupCategoriesByRoot(menuData: MenuData[]): CategoryGroup[] {
+  const groups: CategoryGroup[] = []
+  for (const cat of menuData) {
+    if (!cat.parentCategoryRef) {
+      groups.push({ root: cat, subs: [] })
+    } else {
+      const last = groups[groups.length - 1]
+      if (last && last.root._id === cat.parentCategoryRef) {
+        last.subs.push(cat)
+      } else {
+        const parent = groups.find((g) => g.root._id === cat.parentCategoryRef)
+        if (parent) parent.subs.push(cat)
+      }
+    }
+  }
+  return groups
+}
 
 interface MenuGridProps {
   menuData: MenuData[]
@@ -21,6 +42,7 @@ interface MenuGridProps {
 
 export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewType = 'thumbnail', restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions, catalogHidePrices = false }: MenuGridProps) {
   const { t } = useLanguage()
+  const groups = useMemo(() => groupCategoriesByRoot(menuData), [menuData])
 
   const renderProducts = (products: Product[], prefix: string) => {
     switch (viewType) {
@@ -114,20 +136,39 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
 
   return (
     <div className="space-y-12 pb-20">
-      {menuData.map((category) => (
+      {groups.map(({ root, subs }) => (
         <section
-          key={category._id}
-          id={category._id}
+          key={root._id}
+          id={root._id}
           style={{ scrollMarginTop: `${scrollOffset + 8}px` }}
         >
           <div className="px-4 mb-6">
             <h2 className="text-2xl font-bold mb-1">
-              {t(category.title_en, category.title_ar)}
+              {t(root.title_en, root.title_ar)}
             </h2>
             <div className="h-1 w-12 bg-primary rounded-full" />
           </div>
 
-          {renderProducts(category.products, 'grid')}
+          {root.products && root.products.length > 0 && (
+            <div className="mb-8">
+              {renderProducts(root.products, 'grid')}
+            </div>
+          )}
+
+          {subs.map((sub) => (
+            <div key={sub._id} className="mb-10 last:mb-0">
+              <h3 className="text-base font-semibold text-slate-600 px-4 mb-4 border-s-2 border-slate-300 ps-4">
+                {t(sub.title_en, sub.title_ar)}
+              </h3>
+              {sub.products && sub.products.length > 0 ? (
+                renderProducts(sub.products, 'grid')
+              ) : (
+                <p className="text-sm text-slate-500 px-4 italic">
+                  {t('No products in this category yet.', 'لا توجد منتجات في هذه الفئة بعد.')}
+                </p>
+              )}
+            </div>
+          ))}
         </section>
       ))}
     </div>

@@ -68,6 +68,13 @@ export const categoryType = defineType({
       to: [{ type: 'businessSubcategory' }],
       description: 'Optional. Links this menu section to a business sub-category for better search and discovery. Set when picking from suggestions.',
     }),
+    defineField({
+      name: 'parentCategory',
+      title: 'Parent category',
+      type: 'reference',
+      to: [{ type: 'category' }],
+      description: 'Optional. When set, this category appears as a sub-category under the parent. Only one level of nesting is supported.',
+    }),
   ],
   preview: {
     select: {

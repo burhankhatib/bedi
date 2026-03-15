@@ -2,7 +2,6 @@
  * Shared logic for master catalog translation needs.
  * Used by translate-products API and master-catalog list filter.
  */
-const UNIT_TYPES = ['kg', 'piece', 'pack'] as const
 
 /** Arabic Unicode range (letters, numbers, punctuation). */
 const ARABIC_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/
@@ -40,6 +39,12 @@ const RUINED_ARABIC_PATTERNS = [
 ]
 
 /**
+ * Patterns that must match as whole words (space/start/end boundaries only).
+ * Avoids false positives: تي matches "أحمد تي" but NOT "التيراميسو" (tiramisu) or "لروتينك" (routine).
+ */
+const WORD_BOUNDARY_PATTERNS = ['تي']
+
+/**
  * Returns true if the Arabic text contains known transliteration mistakes
  * (English words written in Arabic script instead of proper Arabic).
  * E.g. "أحمد تي" has "تي" (tea) - should be "شاي أحمد".
@@ -49,9 +54,18 @@ export function hasRuinedArabic(text: string | null | undefined): boolean {
   if (s.length < 2) return false
   const normalized = s.replace(/\s+/g, ' ')
   for (const pattern of RUINED_ARABIC_PATTERNS) {
-    if (normalized.includes(pattern)) return true
+    if (WORD_BOUNDARY_PATTERNS.includes(pattern)) {
+      const re = new RegExp(`(^|\\s)${escapeRegex(pattern)}(\\s|$)`)
+      if (re.test(normalized)) return true
+    } else if (normalized.includes(pattern)) {
+      return true
+    }
   }
   return false
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**
@@ -71,6 +85,14 @@ export function hasEnglishInArabicField(text: string | null | undefined): boolea
   return hasLatin && latinCount > arabicCount
 }
 
+/**
+ * Returns true if the product needs translation. Only flags products with:
+ * 1. Missing Arabic translation (nameAr or descriptionAr)
+ * 2. English text in the Arabic fields (nameAr or descriptionAr)
+ * 3. Missing description (English and/or Arabic)
+ *
+ * Fully translated products (complete names, descriptions, proper Arabic) are NOT flagged.
+ */
 export function needsTranslation(p: {
   nameEn?: string | null
   nameAr?: string | null
@@ -78,12 +100,16 @@ export function needsTranslation(p: {
   descriptionAr?: string | null
   unitType?: string | null
 }): boolean {
-  const hasNameEn = typeof p.nameEn === 'string' && p.nameEn.trim().length > 0
   const hasNameAr = typeof p.nameAr === 'string' && p.nameAr.trim().length > 0
   const hasDescEn = typeof p.descriptionEn === 'string' && p.descriptionEn.trim().length > 0
   const hasDescAr = typeof p.descriptionAr === 'string' && p.descriptionAr.trim().length > 0
-  const nameArRuined = hasEnglishInArabicField(p.nameAr) || hasRuinedArabic(p.nameAr)
-  const descriptionArRuined = hasRuinedArabic(p.descriptionAr)
-  const hasUnit = p.unitType && UNIT_TYPES.includes(p.unitType as (typeof UNIT_TYPES)[number])
-  return !hasNameEn || !hasNameAr || !hasDescEn || !hasDescAr || !hasUnit || nameArRuined || descriptionArRuined
+  const nameArHasEnglish = hasEnglishInArabicField(p.nameAr) || hasRuinedArabic(p.nameAr)
+  const descriptionArHasEnglish = hasEnglishInArabicField(p.descriptionAr) || hasRuinedArabic(p.descriptionAr)
+  return (
+    !hasNameAr ||
+    !hasDescEn ||
+    !hasDescAr ||
+    nameArHasEnglish ||
+    descriptionArHasEnglish
+  )
 }

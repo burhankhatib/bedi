@@ -35,13 +35,29 @@ function sortProducts(products: Product[], mode: string | null | undefined): Pro
 
 /**
  * Sorts products in each category based on productSortMode.
- * Modifies the categories in place.
+ * Reorders categories for nested display: roots first, then sub-categories under each root.
+ * Modifies the categories in place for product sort; returns reordered array for nested display.
  */
-export function applyProductSortToMenuData<T extends CategoryWithProducts>(categories: T[]): T[] {
+type CategoryWithSort = CategoryWithProducts & { parentCategoryRef?: string; sortOrder?: number }
+
+export function applyProductSortToMenuData<T extends CategoryWithSort>(categories: T[]): T[] {
   for (const cat of categories) {
     if (cat.products && Array.isArray(cat.products)) {
       cat.products = sortProducts(cat.products, cat.productSortMode)
     }
+  }
+  const roots = categories.filter((c) => !c.parentCategoryRef).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+  const result: T[] = []
+  for (const r of roots) {
+    result.push(r)
+    const children = categories
+      .filter((c) => c.parentCategoryRef === r._id)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    result.push(...children)
+  }
+  if (result.length > 0) {
+    categories.length = 0
+    categories.push(...result)
   }
   return categories
 }

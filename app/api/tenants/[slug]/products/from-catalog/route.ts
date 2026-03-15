@@ -54,6 +54,9 @@ export async function POST(
     if (!categoryId || (!productId && !masterCatalogId)) {
       return NextResponse.json({ error: 'categoryId and productId or masterCatalogId required' }, { status: 400 })
     }
+    if (masterCatalogId && (priceOverride === undefined || priceOverride < 0)) {
+      return NextResponse.json({ error: 'Price is required when adding from master catalog' }, { status: 400 })
+    }
 
     const tenant = await getTenantBySlug(slug, { useCdn: false })
     const tier = tenant ? getEffectivePlanTier(tenant) : 'basic'

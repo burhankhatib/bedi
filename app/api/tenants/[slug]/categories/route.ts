@@ -18,9 +18,9 @@ export async function GET(
   const readClient = refresh ? writeClient : client
 
   const list = await readClient.fetch<
-    Array<{ _id: string; title_en: string; title_ar: string; slug: { current: string }; sortOrder?: number; productSortMode?: string }>
+    Array<{ _id: string; title_en: string; title_ar: string; slug: { current: string }; sortOrder?: number; productSortMode?: string; parentCategoryRef?: string }>
   >(
-    `*[_type == "category" && site._ref == $siteId] | order(sortOrder asc) { _id, title_en, title_ar, "slug": slug.current, sortOrder, productSortMode }`,
+    `*[_type == "category" && site._ref == $siteId] | order(sortOrder asc) { _id, title_en, title_ar, "slug": slug.current, sortOrder, productSortMode, "parentCategoryRef": parentCategory._ref }`,
     { siteId: auth.tenantId }
   )
   return NextResponse.json(list || [], {
@@ -38,12 +38,13 @@ export async function POST(
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
   const body = await req.json()
-  const { title_en, title_ar, slug: slugInput, sortOrder, subcategoryRef } = body as {
+  const { title_en, title_ar, slug: slugInput, sortOrder, subcategoryRef, parentCategoryId } = body as {
     title_en?: string
     title_ar?: string
     slug?: string
     sortOrder?: number
     subcategoryRef?: string
+    parentCategoryId?: string
   }
   if (!title_en || !title_ar) {
     return NextResponse.json({ error: 'title_en and title_ar required' }, { status: 400 })
@@ -67,6 +68,9 @@ export async function POST(
     sortOrder: sortOrder ?? 0,
     ...(subcategoryRef && typeof subcategoryRef === 'string' && subcategoryRef.trim()
       ? { subcategoryRef: { _type: 'reference', _ref: subcategoryRef.trim() } }
+      : {}),
+    ...(parentCategoryId && typeof parentCategoryId === 'string' && parentCategoryId.trim()
+      ? { parentCategory: { _type: 'reference', _ref: parentCategoryId.trim() } }
       : {}),
   })
   return NextResponse.json({ _id: doc._id, title_en, title_ar, slug: slugValue, sortOrder: doc.sortOrder })

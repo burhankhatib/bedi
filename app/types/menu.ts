@@ -13,6 +13,8 @@ export interface Category {
   sortOrder?: number
   /** How products are ordered: manual (sortOrder), name, or price. */
   productSortMode?: 'manual' | 'name' | 'price'
+  /** When set, this category is a sub-category under the parent. */
+  parentCategoryRef?: string
 }
 
 export interface ProductAddOn {

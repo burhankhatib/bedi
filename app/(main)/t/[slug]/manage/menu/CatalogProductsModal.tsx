@@ -65,6 +65,7 @@ export function CatalogProductsModal({
   slug,
   onAdded,
   businessType,
+  defaultCategoryId,
 }: {
   open: boolean
   onClose: () => void
@@ -72,6 +73,7 @@ export function CatalogProductsModal({
   slug: string
   onAdded: () => void
   businessType?: string
+  defaultCategoryId?: string
 }) {
   const { t, lang } = useLanguage()
   const { showToast } = useToast()
@@ -86,6 +88,7 @@ export function CatalogProductsModal({
   const [masterImageOptions, setMasterImageOptions] = useState<Record<string, { urls: string[]; selectedIndex: number; page: number }>>({})
   const [refreshImageId, setRefreshImageId] = useState<string | null>(null)
   const [addingMasterId, setAddingMasterId] = useState<string | null>(null)
+  const [masterProductPrices, setMasterProductPrices] = useState<Record<string, string>>({})
   const [customizing, setCustomizing] = useState<CatalogProduct | null>(null)
   const [titleEn, setTitleEn] = useState('')
   const [titleAr, setTitleAr] = useState('')
@@ -100,8 +103,14 @@ export function CatalogProductsModal({
   const menuCategoryId = selectedMenuCategoryId || categories[0]?._id || ''
 
   useEffect(() => {
-    if (!selectedMenuCategoryId && categories[0]?._id) setSelectedMenuCategoryId(categories[0]._id)
-  }, [categories, selectedMenuCategoryId])
+    if (open && categories.length > 0) {
+      const target =
+        defaultCategoryId && categories.some((c) => c._id === defaultCategoryId)
+          ? defaultCategoryId
+          : categories[0]._id
+      setSelectedMenuCategoryId(target)
+    }
+  }, [open, defaultCategoryId, categories])
 
   useEffect(() => {
     if (open && slug) {
@@ -283,7 +292,9 @@ export function CatalogProductsModal({
   }
 
   const handleQuickAddMaster = async (item: MasterCatalogProduct) => {
-    if (!menuCategoryId || !item._id || addingMasterId) return
+    const priceStr = masterProductPrices[item._id]?.trim()
+    const priceNum = priceStr != null ? parseFloat(priceStr) : NaN
+    if (!menuCategoryId || !item._id || addingMasterId || priceStr === '' || !Number.isFinite(priceNum) || priceNum < 0) return
     const opts = masterImageOptions[item._id]
     const hasStoredImage = !!item.image?.asset?._ref
     const selectedUrl = !hasStoredImage && opts?.urls?.length ? opts.urls[opts.selectedIndex ?? 0] : undefined
@@ -299,6 +310,7 @@ export function CatalogProductsModal({
           title_en: item.nameEn,
           title_ar: item.nameAr,
           saleUnit: item.unitType || 'piece',
+          price: priceNum,
           unsplashImageUrl: selectedUrl || undefined,
         }),
       })
@@ -521,15 +533,33 @@ export function CatalogProductsModal({
                                 {t('Added', 'تمت الإضافة')}
                               </span>
                             ) : (
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => handleQuickAddMaster(item)}
-                                disabled={isAdding || !menuCategoryId}
-                                className="h-7 w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs"
-                              >
-                                {isAdding ? <Loader2 className="size-3.5 animate-spin" /> : t('Quick Add', 'إضافة سريعة')}
-                              </Button>
+                              <>
+                                <label className="sr-only">{t('Price', 'السعر')}</label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  placeholder={t('Price', 'السعر')}
+                                  value={masterProductPrices[item._id] ?? ''}
+                                  onChange={(e) => setMasterProductPrices((p) => ({ ...p, [item._id]: e.target.value }))}
+                                  className="h-7 text-xs bg-slate-700 border-slate-600 text-white placeholder:text-slate-500"
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => handleQuickAddMaster(item)}
+                                  disabled={
+                                    isAdding ||
+                                    !menuCategoryId ||
+                                    !(masterProductPrices[item._id]?.trim()) ||
+                                    !Number.isFinite(parseFloat(masterProductPrices[item._id]?.trim() ?? '')) ||
+                                    parseFloat(masterProductPrices[item._id]?.trim() ?? '') < 0
+                                  }
+                                  className="h-7 w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs"
+                                >
+                                  {isAdding ? <Loader2 className="size-3.5 animate-spin" /> : t('Quick Add', 'إضافة سريعة')}
+                                </Button>
+                              </>
                             )}
                           </div>
                         </div>
