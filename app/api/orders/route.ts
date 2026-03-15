@@ -6,6 +6,7 @@ import { getTenantIdBySlug, getTenantBySlug } from '@/lib/tenant'
 import { toEnglishDigits } from '@/lib/phone'
 import { isVerifiedPhoneForUser } from '@/lib/order-auth'
 import { NotificationService } from '@/lib/notifications/NotificationService'
+import { getShopperFeeByItemCount } from '@/lib/shopper-fee'
 
 function isTenantDeactivated(tenant: { deactivated?: boolean; deactivateUntil?: string | null }): boolean {
   if (!tenant?.deactivated) return false
@@ -41,13 +42,10 @@ export async function POST(request: NextRequest) {
       deliveryLng,
       deliveryFee,
       items,
-      subtotal,
-      totalAmount,
       currency,
       tenantSlug,
       scheduledFor,
       requiresPersonalShopper,
-      shopperFee,
     } = body
 
     const customerPhone = customerPhoneRaw != null ? toEnglishDigits(String(customerPhoneRaw)) : ''
@@ -124,7 +122,15 @@ export async function POST(request: NextRequest) {
     const orderNumber = `ORD-${Date.now()}`
 
     // Prepare order items for Sanity
-    const orderItems = items.map((item: any) => ({
+    const orderItems = items.map((item: {
+      productId?: string
+      productName?: string
+      quantity?: number
+      price?: number
+      total?: number
+      notes?: string
+      addOns?: string
+    }) => ({
       _type: 'orderItem',
       _key: Math.random().toString(36).substring(7),
       product: item.productId ? {
@@ -135,9 +141,13 @@ export async function POST(request: NextRequest) {
       quantity: item.quantity,
       price: item.price,
       total: item.total,
+      isPicked: true,
       notes: item.notes || '',
       addOns: item.addOns || '',
     }))
+
+    const computedSubtotal = orderItems.reduce((sum: number, item: { total?: number }) => sum + (item.total ?? 0), 0)
+    const totalItemCount = orderItems.reduce((sum: number, item: { quantity?: number }) => sum + Math.max(0, Number(item.quantity) || 0), 0)
 
     // Resolve site (tenant) for this order; every order must belong to one business.
     let siteRef: { _type: 'reference'; _ref: string } | undefined
@@ -197,7 +207,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create order document
-    const orderDoc: any = {
+    const orderDoc: Record<string, unknown> = {
       _type: 'order',
       ...(siteRef && { site: siteRef }),
       orderNumber,
@@ -205,8 +215,8 @@ export async function POST(request: NextRequest) {
       status: 'new',
       customerName,
       items: orderItems,
-      subtotal,
-      totalAmount,
+      subtotal: computedSubtotal,
+      totalAmount: computedSubtotal,
       currency: currency || 'ILS',
       createdAt: new Date().toISOString(),
     }
@@ -230,11 +240,14 @@ export async function POST(request: NextRequest) {
     } else if (orderType === 'delivery') {
       orderDoc.customerPhone = customerPhone
       orderDoc.deliveryAddress = deliveryAddress
-      orderDoc.deliveryFee = deliveryFee || 0
-      if (requiresPersonalShopper === true && typeof shopperFee === 'number' && shopperFee > 0) {
+      const safeDeliveryFee = typeof deliveryFee === 'number' && Number.isFinite(deliveryFee) ? Math.max(0, deliveryFee) : 0
+      orderDoc.deliveryFee = safeDeliveryFee
+      const shopperFee = requiresPersonalShopper === true ? getShopperFeeByItemCount(totalItemCount) : 0
+      if (requiresPersonalShopper === true) {
         orderDoc.requiresPersonalShopper = true
         orderDoc.shopperFee = shopperFee
       }
+      orderDoc.totalAmount = computedSubtotal + safeDeliveryFee + shopperFee
       if (typeof deliveryLat === 'number' && Number.isFinite(deliveryLat) && typeof deliveryLng === 'number' && Number.isFinite(deliveryLng)) {
         orderDoc.deliveryLat = deliveryLat
         orderDoc.deliveryLng = deliveryLng
@@ -251,7 +264,7 @@ export async function POST(request: NextRequest) {
     })
     // receive-in-person: no extra fields
     
-    const result = await writeClient.create(orderDoc)
+    const result = await writeClient.create(orderDoc as { _type: string } & Record<string, unknown>) as unknown as { _id: string; orderNumber: string; orderType?: string; status?: string }
 
     const trackingToken = crypto.randomUUID().replace(/-/g, '')
     await writeClient.patch(result._id).set({ trackingToken }).commit()

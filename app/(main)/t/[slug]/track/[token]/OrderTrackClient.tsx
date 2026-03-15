@@ -61,7 +61,8 @@ type TrackData = {
     tableNumber?: string
     deliveryAddress?: string
     deliveryFee?: number
-    items?: Array<{ productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string }>
+    shopperFee?: number
+    items?: Array<{ productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
     subtotal?: number
     totalAmount?: number
     currency?: string
@@ -87,6 +88,20 @@ type TrackData = {
     scheduleEditHistory?: Array<{
       previousScheduledFor: string
       changedAt: string
+    }>
+    customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
+    customerItemChangeRequestedAt?: string | null
+    customerItemChangeResolvedAt?: string | null
+    customerItemChangeResponseNote?: string | null
+    customerItemChangePreviousSubtotal?: number | null
+    customerItemChangePreviousTotalAmount?: number | null
+    customerItemChangeSummary?: Array<{
+      type?: 'removed' | 'replaced' | 'edited' | 'not_picked'
+      fromName?: string
+      toName?: string
+      fromQuantity?: number
+      toQuantity?: number
+      note?: string
     }>
   }
   restaurant: { name_en?: string; name_ar?: string; whatsapp?: string } | null
@@ -1121,6 +1136,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   const [splitPeople, setSplitPeople] = useState(1)
   const [restaurantOpen, setRestaurantOpen] = useState(false)
   const [driverOpen, setDriverOpen] = useState(false)
+  const [changeResponseSending, setChangeResponseSending] = useState(false)
 
   const fetchTrack = useCallback(async (isRefetch = false) => {
     if (!slug || !token?.trim()) return
@@ -1244,6 +1260,42 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
     setSelectedTipAmount(amount)
     if (tipEnabled) {
       saveTip(amount)
+    }
+  }
+
+  const respondToItemChanges = async (action: 'approve' | 'contact_request') => {
+    if (!token || changeResponseSending) return
+    setChangeResponseSending(true)
+    try {
+      const res = await fetch(`/api/tenants/${slug}/track/${encodeURIComponent(token)}/item-changes`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          note: action === 'contact_request'
+            ? t('Please contact me for alternatives before finalizing.', 'يرجى التواصل معي لبدائل قبل اعتماد التغييرات.')
+            : undefined,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      showToast(
+        action === 'approve'
+          ? t('Changes confirmed. Thank you!', 'تم تأكيد التغييرات. شكراً!')
+          : t('Driver notified. They will contact you shortly.', 'تم إشعار السائق. سيتواصل معك قريباً.'),
+        action === 'approve'
+          ? t('Changes confirmed. Thank you!', 'تم تأكيد التغييرات. شكراً!')
+          : t('Driver notified. They will contact you shortly.', 'تم إشعار السائق. سيتواصل معك قريباً.'),
+        'success'
+      )
+      fetchTrack(true)
+    } catch {
+      showToast(
+        t('Could not submit your response. Please try again.', 'تعذر إرسال ردك. حاول مرة أخرى.'),
+        t('Could not submit your response. Please try again.', 'تعذر إرسال ردك. حاول مرة أخرى.'),
+        'error'
+      )
+    } finally {
+      setChangeResponseSending(false)
     }
   }
 
@@ -1428,6 +1480,10 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
     return lang === 'ar' ? statusCfg.labelAr : statusCfg.labelEn
   })()
   const deliveryFee = data.order.deliveryFee ?? 0
+  const shopperFee = data.order.shopperFee ?? 0
+  const hasPendingItemChangeConfirmation = data.order.customerItemChangeStatus === 'pending'
+  const pickedItemsCount = (data.order.items ?? []).filter((item) => item.isPicked !== false).length
+  const notPickedItemsCount = (data.order.items ?? []).filter((item) => item.isPicked === false).length
 
   const hasPendingTipConfirmation =
     isDelivery &&
@@ -1491,6 +1547,93 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         onConfirmTipIncludedInTotal={confirmTipIncludedInTotal}
         tipSending={tipSending}
       />
+
+      {isDelivery && (
+        <div className="mt-5 px-4">
+          <div className="rounded-3xl border border-indigo-200/70 bg-gradient-to-b from-indigo-50 to-white shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-indigo-100/80">
+              <h2 className="font-bold text-indigo-900 flex items-center gap-2">
+                <Package className="h-5 w-5 text-indigo-500" />
+                {t('Personal shopper updates', 'تحديثات المتسوق الشخصي')}
+              </h2>
+              <p className="text-xs text-indigo-700 mt-1">
+                {t('If an item is unavailable, your driver may send replacements for approval.', 'إذا كان صنف غير متوفر، قد يرسل السائق بدائل للموافقة.')}
+              </p>
+            </div>
+
+            <div className="px-5 py-4 space-y-3">
+              {hasPendingItemChangeConfirmation && (
+                <>
+                  <div className="rounded-2xl border border-amber-300 bg-amber-50 px-3.5 py-3">
+                    <p className="text-sm font-bold text-amber-800">
+                      {t('Action needed: confirm item changes', 'إجراء مطلوب: تأكيد تغييرات الأصناف')}
+                    </p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      {t('Your order total changed based on updated available items.', 'تم تعديل إجمالي الطلب بناءً على الأصناف المتوفرة.')}
+                    </p>
+                  </div>
+
+                  {(data.order.customerItemChangeSummary ?? []).length > 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3.5 space-y-2">
+                      {(data.order.customerItemChangeSummary ?? []).map((change, idx) => (
+                        <div key={`${change.type}-${idx}`} className="text-sm text-slate-700">
+                          <p className="font-semibold">
+                            {change.type === 'removed' && t('Removed', 'تمت الإزالة')}
+                            {change.type === 'replaced' && t('Replaced', 'تم الاستبدال')}
+                            {change.type === 'edited' && t('Updated', 'تم التحديث')}
+                            {change.type === 'not_picked' && t('Not picked', 'لم يتم التقاطه')}
+                            {': '}
+                            {change.fromName || t('Item', 'صنف')}
+                            {change.toName ? ` → ${change.toName}` : ''}
+                          </p>
+                          {(change.note || '').trim() && <p className="text-xs text-slate-500 mt-0.5">📝 {change.note}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm">
+                    <div className="flex justify-between">
+                      <span>{t('Previous total', 'الإجمالي السابق')}</span>
+                      <span className="font-semibold">{(data.order.customerItemChangePreviousTotalAmount ?? totalAmount).toFixed(2)} {formatCurrency(currency)}</span>
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span>{t('New total', 'الإجمالي الجديد')}</span>
+                      <span className="font-bold text-indigo-700">{totalAmount.toFixed(2)} {formatCurrency(currency)}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2">
+                    <Button
+                      onClick={() => respondToItemChanges('approve')}
+                      disabled={changeResponseSending}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                    >
+                      ✅ {changeResponseSending ? t('Sending...', 'جارٍ الإرسال...') : t('Confirm changes', 'تأكيد التغييرات')}
+                    </Button>
+                    <Button
+                      onClick={() => respondToItemChanges('contact_request')}
+                      disabled={changeResponseSending}
+                      variant="outline"
+                      className="w-full bg-white text-slate-900 border-slate-300 hover:bg-slate-50 font-semibold"
+                    >
+                      💬 {t('Contact driver for alternatives', 'التواصل مع السائق لبدائل')}
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {!hasPendingItemChangeConfirmation && data.order.customerItemChangeStatus && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-800">
+                  {data.order.customerItemChangeStatus === 'approved'
+                    ? t('You approved the latest item changes.', 'تمت موافقتك على آخر تغييرات الأصناف.')
+                    : t('You requested contact with the driver.', 'لقد طلبت التواصل مع السائق.')}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Dine-in: table number badge */}
       {isDineIn && tableNumber && !isTerminal && (
@@ -1738,17 +1881,31 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
               <UtensilsCrossed className="h-5 w-5 text-slate-400" />
               {t('Order details', 'تفاصيل الطلب')}
             </h2>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                ✅ {t('Picked', 'تم التقاطه')}: {pickedItemsCount}
+              </span>
+              <span className="rounded-full bg-rose-50 border border-rose-200 px-2.5 py-1 text-[11px] font-bold text-rose-700">
+                ❌ {t('Not picked', 'غير ملتقط')}: {notPickedItemsCount}
+              </span>
+            </div>
           </div>
           <ul className="divide-y divide-slate-100/80 px-2">
             {(data.order.items ?? []).map((item, i) => (
               <li key={i} className="flex justify-between gap-4 px-3 py-4 text-sm">
                 <div className="min-w-0">
-                  <p className="font-semibold text-slate-800 truncate">{item.productName}</p>
+                  <p className={`font-semibold truncate ${item.isPicked === false ? 'text-rose-600 line-through' : 'text-slate-800'}`}>{item.productName}</p>
+                  {item.isPicked === false && (
+                    <p className="text-xs text-rose-600 mt-1">
+                      ❌ {t('Not picked from store (not included in total)', 'غير متوفر ولم يتم التقاطه (غير محسوب في الإجمالي)')}
+                      {item.notPickedReason ? ` — ${item.notPickedReason}` : ''}
+                    </p>
+                  )}
                   {(item.notes || item.addOns) && (
                     <p className="text-xs text-slate-500 mt-1 truncate">{[item.notes, item.addOns].filter(Boolean).join(' · ')}</p>
                   )}
                 </div>
-                <span className="shrink-0 text-slate-600 font-medium bg-slate-50 px-2 py-1 rounded-lg self-start">
+                <span className={`shrink-0 font-medium px-2 py-1 rounded-lg self-start ${item.isPicked === false ? 'text-slate-500 bg-slate-100 line-through' : 'text-slate-600 bg-slate-50'}`}>
                   {item.quantity} × {item.price?.toFixed(2)} {formatCurrency(data.order.currency)}
                 </span>
               </li>
@@ -1763,6 +1920,16 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
               <div className="flex justify-between text-slate-600 text-sm">
                 <span>{t('Delivery', 'التوصيل')}</span>
                 <span className="font-medium">{deliveryFee.toFixed(2)} {formatCurrency(data.order.currency)}</span>
+              </div>
+            )}
+            {isDelivery && data.order.shopperFee !== undefined && (
+              <div className="flex justify-between text-slate-600 text-sm">
+                <span>{t('Personal shopper', 'المتسوق الشخصي')}</span>
+                <span className="font-medium">
+                  {shopperFee > 0
+                    ? `${shopperFee.toFixed(2)} ${formatCurrency(data.order.currency)}`
+                    : t('FREE', 'مجاناً')}
+                </span>
               </div>
             )}
             {tipEnabled && tipAmount > 0 && (

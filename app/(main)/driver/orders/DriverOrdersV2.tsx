@@ -73,7 +73,9 @@ type DriverOrder = {
   tipRemovedByDriver?: boolean
   driverArrivedAt?: string
   requiresPersonalShopper?: boolean
-  items?: Array<{ productName?: string; quantity?: number; notes?: string; addOns?: string }>
+  shopperFee?: number
+  items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
+  customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
 }
 
 /* ─── Constants & Helpers ───────────────────────────────────────────── */
@@ -196,6 +198,11 @@ function DriverOrdersV2Content() {
   const [removeTipConfirmOpen, setRemoveTipConfirmOpen] = useState(false)
   const [removingTip, setRemovingTip] = useState(false)
   const countdownBoxRef = useRef<HTMLDivElement>(null)
+  const [detailsOrderId, setDetailsOrderId] = useState<string | null>(null)
+  const [savingItemsOrderId, setSavingItemsOrderId] = useState<string | null>(null)
+  const [editingItemsByOrder, setEditingItemsByOrder] = useState<Record<string, Array<{ productName?: string; quantity?: number; notes?: string; addOns?: string; price?: number; _key?: string; productId?: string; isPicked?: boolean; notPickedReason?: string }>>>({})
+  const [replacementProductsByOrder, setReplacementProductsByOrder] = useState<Record<string, Array<{ _id: string; title_en: string; title_ar: string; price: number; currency: string }>>>({})
+  const [replacementSelectionByOrder, setReplacementSelectionByOrder] = useState<Record<string, Record<number, string>>>({})
 
   const [driverLat, setDriverLat] = useState<number | null>(null)
   const [driverLng, setDriverLng] = useState<number | null>(null)
@@ -670,8 +677,8 @@ function DriverOrdersV2Content() {
       )
       pushDriverLocation()
       fetchOrders()
-    } catch (e: any) {
-      const msg = e?.message || ''
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : ''
       if (msg.includes('Too far')) {
         showToast(
           t('Too far from customer. Get closer first.', 'بعيد عن العميل. اقترب أكثر أولاً.'),
@@ -718,6 +725,184 @@ function DriverOrdersV2Content() {
     }
   }
 
+  const loadReplacementProducts = async (orderId: string) => {
+    if (replacementProductsByOrder[orderId]) return
+    try {
+      const res = await fetch(`/api/driver/orders/${orderId}/replacement-products`, { cache: 'no-store' })
+      if (!res.ok) return
+      const data = await res.json()
+      setReplacementProductsByOrder((prev) => ({ ...prev, [orderId]: Array.isArray(data.products) ? data.products : [] }))
+    } catch {
+      // keep silent; details editor still supports remove/qty edits
+    }
+  }
+
+  const openOrderDetails = (order: DriverOrder) => {
+    const isSame = detailsOrderId === order.orderId
+    if (isSame) {
+      setDetailsOrderId(null)
+      return
+    }
+    setDetailsOrderId(order.orderId)
+    setEditingItemsByOrder((prev) => ({
+      ...prev,
+      [order.orderId]: (order.items || []).map((item, idx) => ({
+        _key: `driver-${order.orderId}-${idx}`,
+        productId: item.productId,
+        productName: item.productName || '',
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        notes: item.notes || '',
+        addOns: item.addOns || '',
+        isPicked: item.isPicked !== false,
+        notPickedReason: item.notPickedReason || '',
+        price: Math.max(
+          0,
+          typeof item.price === 'number'
+            ? item.price
+            : (Number(item.total) || 0) / Math.max(1, Number(item.quantity) || 1)
+        ),
+      })),
+    }))
+    void loadReplacementProducts(order.orderId)
+  }
+
+  const togglePickedItem = (orderId: string, index: number) => {
+    setEditingItemsByOrder((prev) => ({
+      ...prev,
+      [orderId]: (prev[orderId] || []).map((item, idx) => {
+        if (idx !== index) return item
+        const isPicked = item.isPicked === false
+        return {
+          ...item,
+          isPicked,
+          notPickedReason: isPicked ? '' : (item.notPickedReason || t('Unavailable at store', 'غير متوفر في المتجر')),
+        }
+      }),
+    }))
+  }
+
+  const removeEditingItem = (orderId: string, index: number) => {
+    setEditingItemsByOrder((prev) => ({
+      ...prev,
+      [orderId]: (prev[orderId] || []).filter((_, idx) => idx !== index),
+    }))
+  }
+
+  const updateEditingItemQuantity = (orderId: string, index: number, delta: number) => {
+    setEditingItemsByOrder((prev) => ({
+      ...prev,
+      [orderId]: (prev[orderId] || []).map((item, idx) => {
+        if (idx !== index) return item
+        const nextQty = Math.max(1, (item.quantity || 1) + delta)
+        return { ...item, quantity: nextQty }
+      }),
+    }))
+  }
+
+  const replaceEditingItem = (orderId: string, index: number) => {
+    const productId = replacementSelectionByOrder[orderId]?.[index]
+    if (!productId) return
+    const product = replacementProductsByOrder[orderId]?.find((p) => p._id === productId)
+    if (!product) return
+    setEditingItemsByOrder((prev) => ({
+      ...prev,
+      [orderId]: (prev[orderId] || []).map((item, idx) => {
+        if (idx !== index) return item
+        return {
+          ...item,
+          productId: product._id,
+          productName: lang === 'ar' ? product.title_ar : product.title_en,
+          price: product.price,
+          isPicked: true,
+          notPickedReason: '',
+          notes: item.notes || '',
+        }
+      }),
+    }))
+  }
+
+  const saveDriverItemChanges = async (order: DriverOrder) => {
+    const edited = editingItemsByOrder[order.orderId] || []
+    if (!edited.length) {
+      showToast(t('Order must contain at least one item.', 'يجب أن يحتوي الطلب على صنف واحد على الأقل.'), t('Order must contain at least one item.', 'يجب أن يحتوي الطلب على صنف واحد على الأقل.'), 'error')
+      return
+    }
+
+    const original = order.items || []
+    const changeSummary: Array<{ type: 'removed' | 'replaced' | 'edited' | 'not_picked'; fromName?: string; toName?: string; fromQuantity?: number; toQuantity?: number; note?: string }> = []
+    const maxLen = Math.max(original.length, edited.length)
+    for (let i = 0; i < maxLen; i++) {
+      const from = original[i]
+      const to = edited[i]
+      if (from && !to) {
+        changeSummary.push({ type: 'removed', fromName: from.productName, fromQuantity: from.quantity })
+      } else if (!from && to) {
+        changeSummary.push({ type: 'edited', toName: to.productName, toQuantity: to.quantity, note: t('Added replacement item', 'تمت إضافة صنف بديل') })
+      } else if (from && to) {
+        const becameNotPicked = from.isPicked !== false && to.isPicked === false
+        if (becameNotPicked) {
+          changeSummary.push({
+            type: 'not_picked',
+            fromName: from.productName,
+            fromQuantity: from.quantity,
+            note: to.notPickedReason || t('Not available at store', 'غير متوفر في المتجر'),
+          })
+          continue
+        }
+        const nameChanged = (from.productName || '').trim() !== (to.productName || '').trim()
+        const qtyChanged = (from.quantity || 1) !== (to.quantity || 1)
+        if (nameChanged || qtyChanged) {
+          changeSummary.push({
+            type: nameChanged ? 'replaced' : 'edited',
+            fromName: from.productName,
+            toName: to.productName,
+            fromQuantity: from.quantity,
+            toQuantity: to.quantity,
+          })
+        }
+      }
+    }
+
+    setSavingItemsOrderId(order.orderId)
+    try {
+      const res = await fetch(`/api/driver/orders/${order.orderId}/items`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: edited.map((item) => ({
+            _key: item._key,
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            price: Math.max(0, Number(item.price) || 0),
+            total: Math.max(0, Number(item.price) || 0) * Math.max(1, Number(item.quantity) || 1),
+            isPicked: item.isPicked !== false,
+            notPickedReason: item.notPickedReason || '',
+            notes: item.notes || '',
+            addOns: item.addOns || '',
+          })),
+          changeSummary,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      showToast(
+        t('Items updated. Customer was notified to confirm changes.', 'تم تحديث الأصناف. تم إشعار العميل لتأكيد التغييرات.'),
+        t('Items updated. Customer was notified to confirm changes.', 'تم تحديث الأصناف. تم إشعار العميل لتأكيد التغييرات.'),
+        'success'
+      )
+      setDetailsOrderId(null)
+      fetchOrders()
+    } catch {
+      showToast(
+        t(`Could not save changes.`, `تعذر حفظ التغييرات.`),
+        t(`Could not save changes.`, `تعذر حفظ التغييرات.`),
+        'error'
+      )
+    } finally {
+      setSavingItemsOrderId(null)
+    }
+  }
+
   /* ── registration banner ───────────────────────────── */
   const justRegistered = searchParams.get('registered') === '1'
   const [dismissedRegistered, setDismissedRegistered] = useState(false)
@@ -742,6 +927,139 @@ function DriverOrdersV2Content() {
     }
     setPullDistance(0)
     setStartY(null)
+  }
+
+  const renderOrderDetailsPanel = (order: DriverOrder) => {
+    if (detailsOrderId !== order.orderId) return null
+    const editedItems = editingItemsByOrder[order.orderId] || []
+    const replacementOptions = replacementProductsByOrder[order.orderId] || []
+    const pickedCount = editedItems.filter((item) => item.isPicked !== false).length
+    const notPickedCount = editedItems.length - pickedCount
+    return (
+      <div className="rounded-2xl border border-amber-500/40 bg-slate-900/70 p-3.5 mb-4 space-y-3">
+        <p className="text-xs text-amber-300 font-semibold">
+          {t('Mark picked items, remove unavailable ones, or replace from same business.', 'حدّد الأصناف الملتقطة، احذف غير المتوفر، أو استبدل من نفس المتجر.')}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
+            ✅ {t('Picked', 'تم التقاطه')}: {pickedCount}
+          </span>
+          <span className="rounded-full bg-rose-500/15 border border-rose-500/30 px-2.5 py-1 text-[11px] font-bold text-rose-300">
+            ❌ {t('Not picked', 'غير ملتقط')}: {notPickedCount}
+          </span>
+        </div>
+        {editedItems.map((item, idx) => {
+          const picked = item.isPicked !== false
+          return (
+            <div key={`${order.orderId}-item-${idx}`} className="rounded-xl border border-slate-700/70 bg-slate-800/70 p-3">
+              <div className="flex items-start gap-2">
+                <button
+                  type="button"
+                  onClick={() => togglePickedItem(order.orderId, idx)}
+                  className={`mt-0.5 h-5 w-5 rounded border-2 flex items-center justify-center text-xs font-black ${picked ? 'bg-emerald-500 border-emerald-400 text-slate-950' : 'border-amber-300/70 text-amber-300'}`}
+                  aria-label={t('Toggle picked', 'تبديل الالتقاط')}
+                >
+                  {picked ? '✓' : ''}
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-sm font-semibold ${picked ? 'text-emerald-400' : 'text-rose-300 line-through'}`}>
+                    {(item.productName || t('Item', 'صنف'))}
+                  </p>
+                  {!picked && (
+                    <p className="text-[11px] text-rose-300/90 mt-0.5">
+                      {t('Not picked from store', 'لم يتم التقاطه من المتجر')}
+                    </p>
+                  )}
+                  {item.notes && <p className="text-xs text-slate-400 mt-0.5">📝 {item.notes}</p>}
+                  {item.addOns && <p className="text-xs text-slate-500 mt-0.5">+ {item.addOns}</p>}
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateEditingItemQuantity(order.orderId, idx, -1)}
+                      className="h-7 w-7 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-700"
+                    >
+                      -
+                    </button>
+                    <span className="text-xs font-bold min-w-[2rem] text-center">{item.quantity ?? 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => updateEditingItemQuantity(order.orderId, idx, 1)}
+                      className="h-7 w-7 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-700"
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeEditingItem(order.orderId, idx)}
+                      className="ml-auto rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-xs font-semibold text-rose-300 hover:bg-rose-500/20"
+                    >
+                      🗑️ {t('Remove', 'حذف')}
+                    </button>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <select
+                      value={replacementSelectionByOrder[order.orderId]?.[idx] || ''}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setReplacementSelectionByOrder((prev) => ({
+                          ...prev,
+                          [order.orderId]: {
+                            ...(prev[order.orderId] || {}),
+                            [idx]: value,
+                          },
+                        }))
+                      }}
+                      className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
+                    >
+                      <option value="">{t('Replace with item from this business', 'استبدال بصنف من نفس المتجر')}</option>
+                      {replacementOptions.map((p) => (
+                        <option key={p._id} value={p._id}>
+                          {(lang === 'ar' ? p.title_ar : p.title_en)} - {p.price.toFixed(2)} {fmtCurrency(p.currency)}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => replaceEditingItem(order.orderId, idx)}
+                      disabled={!replacementSelectionByOrder[order.orderId]?.[idx]}
+                      className="rounded-lg border border-indigo-500/40 bg-indigo-500/20 px-2.5 py-1.5 text-xs font-semibold text-indigo-200 disabled:opacity-40"
+                    >
+                      🔁 {t('Replace', 'استبدال')}
+                    </button>
+                  </div>
+                  {!picked && (
+                    <input
+                      value={item.notPickedReason || ''}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setEditingItemsByOrder((prev) => ({
+                          ...prev,
+                          [order.orderId]: (prev[order.orderId] || []).map((row, rowIdx) =>
+                            rowIdx === idx ? { ...row, notPickedReason: value } : row
+                          ),
+                        }))
+                      }}
+                      placeholder={t('Reason (optional)', 'السبب (اختياري)')}
+                      className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => saveDriverItemChanges(order)}
+          disabled={savingItemsOrderId === order.orderId}
+          className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 min-h-[48px] disabled:opacity-60"
+        >
+          {savingItemsOrderId === order.orderId
+            ? t('Saving...', 'جارٍ الحفظ...')
+            : t('Send changes to customer for confirmation', 'إرسال التغييرات للعميل للتأكيد')}
+        </button>
+      </div>
+    )
   }
 
   /* ═══════════════════════════════════════════════════════════════════ */
@@ -991,6 +1309,20 @@ function DriverOrdersV2Content() {
               </div>
             )}
 
+            {activeOrder.customerItemChangeStatus && (
+              <div className={`rounded-2xl border p-3 mb-4 text-sm ${
+                activeOrder.customerItemChangeStatus === 'pending'
+                  ? 'border-amber-500/40 bg-amber-950/20 text-amber-200'
+                  : activeOrder.customerItemChangeStatus === 'approved'
+                    ? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-200'
+                    : 'border-sky-500/40 bg-sky-950/20 text-sky-200'
+              }`}>
+                {activeOrder.customerItemChangeStatus === 'pending' && t('Waiting for customer confirmation on latest item changes.', 'بانتظار تأكيد العميل على آخر تغييرات الأصناف.')}
+                {activeOrder.customerItemChangeStatus === 'approved' && t('Customer approved the latest item changes.', 'العميل وافق على آخر تغييرات الأصناف.')}
+                {activeOrder.customerItemChangeStatus === 'contact_requested' && t('Customer requested contact for alternatives.', 'العميل طلب التواصل بخصوص البدائل.')}
+              </div>
+            )}
+
             {/* ── Phase B: At Business ─────────────────── */}
             {isAtBusiness && !needsReconfirm(activeOrder) && (
               <>
@@ -1010,23 +1342,50 @@ function DriverOrdersV2Content() {
                   )}
                 </div>
 
+                {activeOrder.requiresPersonalShopper && (
+                  <button
+                    type="button"
+                    onClick={() => openOrderDetails(activeOrder)}
+                    className="w-full mb-4 rounded-2xl bg-amber-500 text-slate-950 hover:bg-amber-400 font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md shadow-amber-500/20"
+                  >
+                    📋 {t('Order Details', 'تفاصيل الطلب')} / {t('Personal Shopper List', 'قائمة المتسوق الشخصي')}
+                  </button>
+                )}
+                {renderOrderDetailsPanel(activeOrder)}
+
                 {/* Items checklist for Personal Shopper orders */}
                 {activeOrder.requiresPersonalShopper && activeOrder.items && activeOrder.items.length > 0 && (
                   <div className="rounded-3xl border-2 border-amber-500/40 bg-amber-950/30 p-4 mb-4">
                     <p className="text-amber-200 font-bold text-sm mb-3 flex items-center gap-2">
                       🛒 {t('Collect these items', 'اجمع هذه الأغراض')}
                     </p>
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
+                        ✅ {t('Picked', 'تم التقاطه')}: {activeOrder.items.filter((item) => item.isPicked !== false).length}
+                      </span>
+                      <span className="rounded-full bg-rose-500/15 border border-rose-500/30 px-2.5 py-1 text-[11px] font-bold text-rose-300">
+                        ❌ {t('Not picked', 'غير ملتقط')}: {activeOrder.items.filter((item) => item.isPicked === false).length}
+                      </span>
+                    </div>
                     <ul className="space-y-2">
                       {activeOrder.items.map((item, idx) => (
                         <li
                           key={idx}
-                          className="flex items-start gap-2 text-slate-200 text-sm font-medium border-b border-amber-700/30 pb-2 last:border-0 last:pb-0"
+                          className={`flex items-start gap-2 text-sm font-medium border-b border-amber-700/30 pb-2 last:border-0 last:pb-0 ${item.isPicked === false ? 'text-rose-300' : 'text-slate-200'}`}
                         >
                           <span className="shrink-0 w-5 h-5 rounded border-2 border-amber-400/60 flex items-center justify-center text-amber-400 text-xs font-black">
                             {item.quantity ?? 1}
                           </span>
                           <span className="flex-1">
-                            {item.productName || t('Item', 'صنف')}
+                            <span className={item.isPicked === false ? 'line-through' : ''}>
+                              {item.productName || t('Item', 'صنف')}
+                            </span>
+                            {item.isPicked === false && (
+                              <span className="text-rose-300 block text-xs mt-0.5">
+                                ❌ {t('Not picked from store', 'لم يتم التقاطه من المتجر')}
+                                {item.notPickedReason ? ` — ${item.notPickedReason}` : ''}
+                              </span>
+                            )}
                             {item.notes && (
                               <span className="text-amber-300/90 block text-xs mt-0.5">📝 {item.notes}</span>
                             )}
@@ -1582,23 +1941,50 @@ function DriverOrdersV2Content() {
                     )}
                   </div>
 
+                  {o.requiresPersonalShopper && (
+                    <button
+                      type="button"
+                      onClick={() => openOrderDetails(o)}
+                      className="w-full mb-4 rounded-2xl bg-amber-500 text-slate-950 hover:bg-amber-400 font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md shadow-amber-500/20"
+                    >
+                      📋 {t('Order Details', 'تفاصيل الطلب')} / {t('Personal Shopper List', 'قائمة المتسوق الشخصي')}
+                    </button>
+                  )}
+                  {renderOrderDetailsPanel(o)}
+
                   {/* ── Items checklist (Personal Shopper) ─────────────────── */}
                   {o.requiresPersonalShopper && o.items && o.items.length > 0 && (
                     <div className="rounded-3xl border-2 border-amber-500/40 bg-amber-950/30 p-4 mb-4">
                       <p className="text-amber-200 font-bold text-sm mb-3 flex items-center gap-2">
                         🛒 {t('Collect these items', 'اجمع هذه الأغراض')}
                       </p>
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
+                          ✅ {t('Picked', 'تم التقاطه')}: {o.items.filter((item) => item.isPicked !== false).length}
+                        </span>
+                        <span className="rounded-full bg-rose-500/15 border border-rose-500/30 px-2.5 py-1 text-[11px] font-bold text-rose-300">
+                          ❌ {t('Not picked', 'غير ملتقط')}: {o.items.filter((item) => item.isPicked === false).length}
+                        </span>
+                      </div>
                       <ul className="space-y-2">
                         {o.items.map((item, idx) => (
                           <li
                             key={idx}
-                            className="flex items-start gap-2 text-slate-200 text-sm font-medium border-b border-amber-700/30 pb-2 last:border-0 last:pb-0"
+                            className={`flex items-start gap-2 text-sm font-medium border-b border-amber-700/30 pb-2 last:border-0 last:pb-0 ${item.isPicked === false ? 'text-rose-300' : 'text-slate-200'}`}
                           >
                             <span className="shrink-0 w-5 h-5 rounded border-2 border-amber-400/60 flex items-center justify-center text-amber-400 text-xs font-black">
                               {item.quantity ?? 1}
                             </span>
                             <span className="flex-1">
-                              {item.productName || t('Item', 'صنف')}
+                              <span className={item.isPicked === false ? 'line-through' : ''}>
+                                {item.productName || t('Item', 'صنف')}
+                              </span>
+                              {item.isPicked === false && (
+                                <span className="text-rose-300 block text-xs mt-0.5">
+                                  ❌ {t('Not picked from store', 'لم يتم التقاطه من المتجر')}
+                                  {item.notPickedReason ? ` — ${item.notPickedReason}` : ''}
+                                </span>
+                              )}
                               {item.notes && (
                                 <span className="text-amber-300/90 block text-xs mt-0.5">📝 {item.notes}</span>
                               )}
@@ -1633,6 +2019,14 @@ function DriverOrdersV2Content() {
                         </p>
                       </div>
                     </div>
+                    {o.requiresPersonalShopper && (
+                      <div className="rounded-2xl bg-fuchsia-500/10 border border-fuchsia-500/20 p-3.5 flex items-center justify-between">
+                        <span className="text-fuchsia-200/85 text-xs font-semibold">🛍️ {t('Personal shopper fee', 'رسوم المتسوق الشخصي')}</span>
+                        <span className="font-black text-fuchsia-300 text-lg">
+                          {(o.shopperFee ?? 0) > 0 ? `${(o.shopperFee ?? 0).toFixed(2)} ${fmtCurrency(o.currency)}` : t('FREE', 'مجاناً')}
+                        </span>
+                      </div>
+                    )}
                     {/* Driver Fee + Total from Customer */}
                     <div className="grid grid-cols-12 gap-3">
                       <div className="col-span-6 rounded-2xl bg-sky-500/10 border border-sky-500/20 p-3.5 flex flex-col gap-1">

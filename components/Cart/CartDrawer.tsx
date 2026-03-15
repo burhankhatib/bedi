@@ -18,6 +18,7 @@ import { formatCurrency } from '@/lib/currency'
 import { getSaleUnitLabel } from '@/lib/sale-units'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { getVariantOptionModifier } from '@/lib/cart-price'
+import { getShopperFeeByItemCount, SHOPPER_FEE_TIERS } from '@/lib/shopper-fee'
 import { UnifiedOrderDialog } from './UnifiedOrderDialog'
 import { OrderType } from './CartContext'
 import type { ProductAddOn } from '@/app/types/menu'
@@ -229,7 +230,7 @@ export function CartDrawer() {
 
     const header = `🍽️ طلب\n${'='.repeat(20)}\n${customerInfo}\n`
     const body = orderLines.join('\n')
-    const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper ? (cartTenant.shopperFee ?? 10) : 0
+    const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper ? getShopperFeeByItemCount(totalItems) : 0
     const finalTotal = orderType === 'delivery' ? totalPrice + deliveryFee + shopperFee : totalPrice
     const total = `\n${'='.repeat(20)}\nالمجموع: ${finalTotal.toFixed(2)} ${formatCurrency(items[0]?.currency)}`
 
@@ -334,9 +335,9 @@ export function CartDrawer() {
       })
 
       const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper
-        ? (cartTenant.shopperFee ?? 10)
+        ? getShopperFeeByItemCount(totalItems)
         : 0
-      const orderPayload: any = {
+      const orderPayload: Record<string, unknown> = {
         orderType,
         customerName,
         items: orderItems,
@@ -449,7 +450,7 @@ export function CartDrawer() {
     setIsOpen(open)
   }
 
-  const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper ? (cartTenant.shopperFee ?? 10) : 0
+  const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper ? getShopperFeeByItemCount(totalItems) : 0
   const finalTotal = orderType === 'delivery' ? totalPrice + deliveryFee + shopperFee : totalPrice
 
   return (
@@ -714,7 +715,7 @@ export function CartDrawer() {
                       )}
 
                       {/* Show subtotal, delivery fee, and shopper fee for delivery orders */}
-                      {orderType === 'delivery' && (deliveryFee > 0 || (cartTenant?.requiresPersonalShopper && (cartTenant.shopperFee ?? 10) > 0)) && (
+                      {orderType === 'delivery' && (deliveryFee > 0 || cartTenant?.requiresPersonalShopper) && (
                         <div className="space-y-1 text-sm">
                           <div className="flex justify-between items-center">
                             <span className="text-slate-600">{t('Subtotal', 'المجموع الفرعي')}:</span>
@@ -730,16 +731,28 @@ export function CartDrawer() {
                               </span>
                             </div>
                           )}
-                          {cartTenant?.requiresPersonalShopper && (cartTenant.shopperFee ?? 10) > 0 && (
-                            <div className="flex justify-between items-center">
-                              <span className="text-slate-600 flex items-center gap-1.5">
-                                <span aria-hidden>🛒</span>
-                                {t('Time-saving service', 'خدمة توفير وقتك')}
-                              </span>
-                              <span className="font-bold">
-                                {(cartTenant.shopperFee ?? 10).toFixed(2)} {formatCurrency(items[0]?.currency)}
-                              </span>
-                            </div>
+                          {cartTenant?.requiresPersonalShopper && (
+                            <>
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-600 flex items-center gap-1.5">
+                                  <span aria-hidden>🛍️</span>
+                                  {t('Personal shopper fee', 'رسوم المتسوق الشخصي')}
+                                </span>
+                                <span className="font-bold">
+                                  {getShopperFeeByItemCount(totalItems).toFixed(2)} {formatCurrency(items[0]?.currency)}
+                                </span>
+                              </div>
+                              <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-2.5 text-xs text-emerald-900">
+                                <p className="font-semibold mb-1">{t('Fee tiers', 'شرائح الرسوم')}</p>
+                                <div className="space-y-0.5">
+                                  {SHOPPER_FEE_TIERS.map((tier) => (
+                                    <p key={`${tier.minItems}-${tier.maxItems ?? 'plus'}`}>
+                                      {(lang === 'ar' ? tier.labelAr : tier.labelEn)}: {tier.fee === 0 ? t('FREE', 'مجاناً') : `${tier.fee} ${formatCurrency(items[0]?.currency)}`}
+                                    </p>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
                           )}
                         </div>
                       )}

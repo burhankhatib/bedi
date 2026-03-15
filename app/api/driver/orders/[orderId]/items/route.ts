@@ -1,0 +1,169 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
+import { client } from '@/sanity/lib/client'
+import { token } from '@/sanity/lib/token'
+import { pusherServer } from '@/lib/pusher'
+import { getShopperFeeByItemCount } from '@/lib/shopper-fee'
+import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
+
+const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
+
+type IncomingOrderItem = {
+  _key?: string
+  productId?: string
+  productName?: string
+  quantity?: number
+  price?: number
+  total?: number
+  notes?: string
+  addOns?: string
+  isPicked?: boolean
+  notPickedReason?: string
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ orderId: string }> }
+) {
+  const { userId } = await auth()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
+
+  const { orderId } = await params
+  let body: {
+    items?: IncomingOrderItem[]
+    changeSummary?: Array<{
+      type?: 'removed' | 'replaced' | 'edited' | 'not_picked'
+      fromName?: string
+      toName?: string
+      fromQuantity?: number
+      toQuantity?: number
+      note?: string
+    }>
+  }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
+  }
+
+  if (!Array.isArray(body.items) || body.items.length === 0) {
+    return NextResponse.json({ error: 'At least one item is required' }, { status: 400 })
+  }
+
+  const driver = await client.fetch<{ _id: string } | null>(
+    `*[_type == "driver" && clerkUserId == $userId][0]{ _id }`,
+    { userId }
+  )
+  if (!driver) return NextResponse.json({ error: 'Driver profile not found' }, { status: 404 })
+
+  const order = await client.fetch<{
+    _id: string
+    assignedDriverRef?: string
+    siteRef?: string
+    orderType?: string
+    deliveryFee?: number
+    requiresPersonalShopper?: boolean
+    subtotal?: number
+    totalAmount?: number
+    status?: string
+  } | null>(
+    `*[_type == "order" && _id == $orderId][0]{
+      _id,
+      "assignedDriverRef": assignedDriver._ref,
+      "siteRef": site._ref,
+      orderType,
+      deliveryFee,
+      requiresPersonalShopper,
+      subtotal,
+      totalAmount,
+      status
+    }`,
+    { orderId }
+  )
+  if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+  if (order.assignedDriverRef !== driver._id) return NextResponse.json({ error: 'Order is not assigned to you' }, { status: 403 })
+  if (order.orderType !== 'delivery') return NextResponse.json({ error: 'Only delivery orders can be updated' }, { status: 400 })
+  if (!order.siteRef) return NextResponse.json({ error: 'Order business is missing' }, { status: 400 })
+
+  const productIds = [
+    ...new Set(
+      body.items
+        .map((item) => (typeof item.productId === 'string' ? item.productId.trim() : ''))
+        .filter(Boolean)
+    ),
+  ]
+  if (productIds.length > 0) {
+    const validIds = await client.fetch<string[]>(
+      `*[_type == "product" && site._ref == $siteId && _id in $productIds]._id`,
+      { siteId: order.siteRef, productIds }
+    )
+    const validSet = new Set(validIds)
+    const invalid = productIds.filter((id) => !validSet.has(id))
+    if (invalid.length > 0) {
+      return NextResponse.json({ error: 'Replacement items must be from the same business' }, { status: 400 })
+    }
+  }
+
+  const normalizedItems = body.items.map((item, index) => {
+    const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1))
+    const price = Math.max(0, Number(item.price) || 0)
+    return {
+      _type: 'orderItem',
+      _key: item._key && item._key.trim() ? item._key : `driver-item-${Date.now()}-${index}`,
+      product: item.productId ? { _type: 'reference', _ref: item.productId } : undefined,
+      productName: (item.productName || '').trim() || 'Item',
+      quantity,
+      price,
+      total: Number.isFinite(item.total as number) ? Math.max(0, Number(item.total)) : quantity * price,
+      isPicked: item.isPicked !== false,
+      notPickedReason: (item.notPickedReason || '').trim() || undefined,
+      notes: (item.notes || '').trim(),
+      addOns: (item.addOns || '').trim(),
+    }
+  })
+
+  const subtotal = normalizedItems.reduce((sum, item) => sum + (item.isPicked !== false ? (item.total || 0) : 0), 0)
+  const deliveryFee = typeof order.deliveryFee === 'number' ? Math.max(0, order.deliveryFee) : 0
+  const itemCount = normalizedItems.reduce((sum, item) => sum + (item.isPicked !== false ? (item.quantity || 0) : 0), 0)
+  const shopperFee = order.requiresPersonalShopper ? getShopperFeeByItemCount(itemCount) : 0
+  const totalAmount = subtotal + deliveryFee + shopperFee
+  const now = new Date().toISOString()
+
+  await writeClient
+    .patch(orderId)
+    .set({
+      items: normalizedItems,
+      subtotal,
+      shopperFee,
+      totalAmount,
+      itemsUpdatedAt: now,
+      customerItemChangeStatus: 'pending',
+      customerItemChangeRequestedAt: now,
+      customerItemChangeResolvedAt: null,
+      customerItemChangeResponseNote: null,
+      customerItemChangePreviousSubtotal: order.subtotal ?? 0,
+      customerItemChangePreviousTotalAmount: order.totalAmount ?? 0,
+      customerItemChangeSummary: Array.isArray(body.changeSummary) ? body.changeSummary : [],
+    })
+    .commit()
+
+  pusherServer
+    .trigger(`order-${orderId}`, 'order-update', { type: 'items-changed-by-driver', orderId })
+    .catch(() => {})
+  pusherServer
+    .trigger('driver-global', 'order-update', { type: 'items-changed-by-driver', orderId })
+    .catch(() => {})
+
+  sendCustomerOrderStatusPush({ orderId, newStatus: 'items_changed' }).catch((e) => {
+    console.warn('[customer-order-push] items_changed', e)
+  })
+
+  return NextResponse.json({
+    success: true,
+    orderId,
+    subtotal,
+    shopperFee,
+    totalAmount,
+  })
+}

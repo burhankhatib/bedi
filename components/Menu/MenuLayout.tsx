@@ -39,6 +39,7 @@ import { UserButtonWithSignOutUrl } from '@/components/Auth/UserButtonWithSignOu
 import { CustomerSidebarActions } from '@/components/saas/CustomerSidebarActions'
 import { PWAInstallIcon } from '@/components/pwa/PWAInstallIcon'
 import { getCustomerPWAConfig } from '@/lib/pwa/configs'
+import { SHOPPER_FEE_TIERS } from '@/lib/shopper-fee'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from '@/components/ui/sheet'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -646,12 +647,15 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
             <div>
               <p className="text-base font-bold text-slate-800 leading-snug">
                 {t(
-                  `This store supports Personal Shopping: our driver will collect your items carefully for an additional ${initialData.shopperFee ?? 10} ILS.`,
-                  `هذا المتجر يدعم خدمة التسوق الشخصي: سيقوم السائق بجمع الأغراض لك بعناية مقابل ${initialData.shopperFee ?? 10} شيكل إضافية.`
+                  'This store supports Personal Shopping: the fee depends on how many items you order.',
+                  'هذا المتجر يدعم خدمة المتسوق الشخصي: الرسوم تعتمد على عدد الأصناف المطلوبة.'
                 )}
               </p>
               <p className="mt-1 text-sm text-slate-600">
                 {t('Time-saving service — you order, we shop.', 'خدمة توفير وقتك — أنت تطلب، نحن نتسوق.')}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {SHOPPER_FEE_TIERS.map((tier) => `${lang === 'ar' ? tier.labelAr : tier.labelEn}: ${tier.fee === 0 ? t('FREE', 'مجاناً') : `${tier.fee} ₪`}`).join(' • ')}
               </p>
             </div>
           </div>

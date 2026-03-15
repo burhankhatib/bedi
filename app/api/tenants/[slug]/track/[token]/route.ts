@@ -32,7 +32,8 @@ export async function GET(
     customerPhone?: string
     deliveryAddress?: string
     deliveryFee?: number
-    items?: Array<{ productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string }>
+    shopperFee?: number
+    items?: Array<{ productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
     subtotal?: number
     totalAmount?: number
     currency?: string
@@ -61,6 +62,20 @@ export async function GET(
     }>
     site?: { _ref?: string }
     assignedDriver?: { _ref?: string } | null
+    customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
+    customerItemChangeRequestedAt?: string | null
+    customerItemChangeResolvedAt?: string | null
+    customerItemChangeResponseNote?: string | null
+    customerItemChangePreviousSubtotal?: number
+    customerItemChangePreviousTotalAmount?: number
+    customerItemChangeSummary?: Array<{
+      type?: 'removed' | 'replaced' | 'edited' | 'not_picked'
+      fromName?: string
+      toName?: string
+      fromQuantity?: number
+      toQuantity?: number
+      note?: string
+    }>
   } | null>(
     `*[_type == "order" && site._ref == $tenantId && trackingToken == $trackingToken][0]{
       _id,
@@ -72,6 +87,7 @@ export async function GET(
       customerPhone,
       deliveryAddress,
       deliveryFee,
+      shopperFee,
       items,
       subtotal,
       totalAmount,
@@ -96,6 +112,13 @@ export async function GET(
       estimatedDeliveryMinutes,
       scheduledFor,
       scheduleEditHistory,
+      customerItemChangeStatus,
+      customerItemChangeRequestedAt,
+      customerItemChangeResolvedAt,
+      customerItemChangeResponseNote,
+      customerItemChangePreviousSubtotal,
+      customerItemChangePreviousTotalAmount,
+      customerItemChangeSummary,
       "site": site,
       "assignedDriver": assignedDriver
     }`,
@@ -140,6 +163,7 @@ export async function GET(
       customerPhone: order.customerPhone,
       deliveryAddress: order.deliveryAddress,
       deliveryFee: order.deliveryFee,
+      shopperFee: order.shopperFee,
       items: order.items,
       subtotal: order.subtotal,
       totalAmount: order.totalAmount,
@@ -164,6 +188,13 @@ export async function GET(
       estimatedDeliveryMinutes: order.estimatedDeliveryMinutes ?? null,
       scheduledFor: order.scheduledFor ?? null,
       scheduleEditHistory: order.scheduleEditHistory ?? [],
+      customerItemChangeStatus: order.customerItemChangeStatus ?? null,
+      customerItemChangeRequestedAt: order.customerItemChangeRequestedAt ?? null,
+      customerItemChangeResolvedAt: order.customerItemChangeResolvedAt ?? null,
+      customerItemChangeResponseNote: order.customerItemChangeResponseNote ?? null,
+      customerItemChangePreviousSubtotal: order.customerItemChangePreviousSubtotal ?? null,
+      customerItemChangePreviousTotalAmount: order.customerItemChangePreviousTotalAmount ?? null,
+      customerItemChangeSummary: order.customerItemChangeSummary ?? [],
     },
     restaurant: restaurantInfo
       ? {

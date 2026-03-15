@@ -48,7 +48,9 @@ type DriverOrderView = {
   tipRemovedByDriver?: boolean
   driverArrivedAt?: string
   requiresPersonalShopper?: boolean
-  items?: Array<{ productName?: string; quantity?: number; notes?: string }>
+  shopperFee?: number
+  items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
+  customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
 }
 
 export async function GET() {
@@ -108,7 +110,8 @@ export async function GET() {
       driverArrivedAt?: string
       requiresPersonalShopper?: boolean
       shopperFee?: number
-      items?: Array<{ productName?: string; quantity?: number; notes?: string }>
+      items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
+      customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
       deliveryArea?: { name_en?: string; name_ar?: string } | null
     }>
   >(
@@ -142,7 +145,8 @@ export async function GET() {
       driverArrivedAt,
       requiresPersonalShopper,
       shopperFee,
-      "items": items[]{ productName, quantity, notes, addOns },
+      customerItemChangeStatus,
+      "items": items[]{ "productId": product._ref, productName, quantity, price, total, notes, addOns, isPicked, notPickedReason },
       "assignedDriverRef": assignedDriver._ref,
       "siteRef": site._ref,
       "declinedByDriverRefs": declinedByDriverIds[]._ref,
@@ -211,6 +215,7 @@ export async function GET() {
   const toView = (o: (typeof ordersWithSite)[0]): DriverOrderView => {
     const total = o.totalAmount ?? 0
     const fee = o.deliveryFee ?? 0
+    const shopperFee = o.shopperFee ?? 0
     const site = siteMap.get(o.siteRef ?? '')
     const areaName = o.deliveryArea?.name_en || o.deliveryArea?.name_ar || ''
     const areaNameAr = o.deliveryArea?.name_ar || ''
@@ -235,7 +240,7 @@ export async function GET() {
       deliveryLng: o.deliveryLng,
       deliveryFee: fee,
       totalAmount: total,
-      amountToPayTenant: Math.max(0, total - fee),
+      amountToPayTenant: Math.max(0, total - fee - shopperFee),
       currency: o.currency ?? 'ILS',
       status: o.status,
       deliveryRequestedAt: o.deliveryRequestedAt,
@@ -251,7 +256,9 @@ export async function GET() {
       tipRemovedByDriver: o.tipRemovedByDriver,
       driverArrivedAt: o.driverArrivedAt,
       requiresPersonalShopper: o.requiresPersonalShopper,
+      shopperFee: o.shopperFee,
       items: o.items,
+      customerItemChangeStatus: o.customerItemChangeStatus ?? null,
     }
   }
 

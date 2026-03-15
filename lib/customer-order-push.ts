@@ -20,6 +20,7 @@ const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
   driver_on_the_way: { en: 'Driver on the way to the store', ar: 'السائق في الطريق إلى المتجر' },
   'out-for-delivery': { en: 'Driver on the way to you', ar: 'السائق في الطريق إليك' },
   'driver-arrived': { en: 'Driver has arrived!', ar: 'السائق وصل!' },
+  items_changed: { en: 'Order items updated — review required', ar: 'تم تحديث عناصر الطلب — يلزم المراجعة' },
   completed: { en: 'Completed', ar: 'مكتمل' },
   served: { en: 'Served', ar: 'تم التقديم' },
   cancelled: { en: 'Cancelled', ar: 'ملغى' },
