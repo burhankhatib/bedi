@@ -287,6 +287,12 @@ export default function AdminCatalogPage() {
   const [translating, setTranslating] = useState(false)
   const [backgroundTranslating, setBackgroundTranslating] = useState(false)
   const [backgroundStats, setBackgroundStats] = useState({ done: 0, translated: 0, failed: 0, remaining: 0 })
+  const [translationStats, setTranslationStats] = useState<{
+    total: number
+    needingWork: number
+    translated: number
+  } | null>(null)
+  const [translationStatsLoading, setTranslationStatsLoading] = useState(false)
   const backgroundCancelledRef = useRef(false)
   const [translateProgress, setTranslateProgress] = useState<
     Array<{ _id: string; index: number; total: number; nameEn?: string; nameAr?: string; ok?: boolean; error?: string; updated?: string[]; translatedNameEn?: string; translatedNameAr?: string }>
@@ -360,9 +366,32 @@ export default function AdminCatalogPage() {
     }
   }, [searchFilter, categoryFilter, needsTranslationFilter])
 
+  const fetchTranslationStats = useCallback(async () => {
+    setTranslationStatsLoading(true)
+    try {
+      const res = await fetch('/api/admin/master-catalog/translation-stats', { cache: 'no-store' })
+      if (res.ok) {
+        const data = await res.json()
+        setTranslationStats({
+          total: data.total ?? 0,
+          needingWork: data.needingWork ?? 0,
+          translated: data.translated ?? 0,
+        })
+      }
+    } catch {
+      setTranslationStats(null)
+    } finally {
+      setTranslationStatsLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchProducts(0)
   }, [fetchProducts])
+
+  useEffect(() => {
+    fetchTranslationStats()
+  }, [fetchTranslationStats])
 
   const loadMore = useCallback(() => {
     if (!loadingMore && hasMore) fetchProducts(products.length)
@@ -547,7 +576,10 @@ export default function AdminCatalogPage() {
                   remaining: data.remaining,
                   dryRun: false,
                 })
-                if ((data.translated ?? 0) > 0) fetchProducts()
+                if ((data.translated ?? 0) > 0) {
+                fetchProducts()
+                fetchTranslationStats()
+              }
               }
             } catch {
               /* skip malformed lines */
@@ -568,7 +600,10 @@ export default function AdminCatalogPage() {
           errorSamples: data.errorSamples,
           dryRun: data.dryRun,
         })
-        if (data.ok && !dryRun && (data.translated ?? 0) > 0) fetchProducts()
+        if (data.ok && !dryRun && (data.translated ?? 0) > 0) {
+        fetchProducts()
+        fetchTranslationStats()
+      }
       }
     } catch {
       setTranslateResult({ ok: false, message: 'Request failed' })
@@ -749,6 +784,7 @@ export default function AdminCatalogPage() {
     }
 
     setBackgroundTranslating(false)
+    fetchTranslationStats()
     setTranslateResult({
       ok: totalFailed === 0,
       message:
@@ -763,7 +799,10 @@ export default function AdminCatalogPage() {
       failed: totalFailed,
       remaining,
     })
-    if (totalTranslated > 0) fetchProducts()
+    if (totalTranslated > 0) {
+      fetchProducts()
+      fetchTranslationStats()
+    }
   }
 
   const handleStopBackgroundTranslate = () => {
@@ -1206,6 +1245,33 @@ export default function AdminCatalogPage() {
             </Button>
           </div>
         )}
+        {/* Always-visible translation metrics */}
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="flex flex-col rounded-lg bg-slate-800/60 px-4 py-3 border border-slate-700/60">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Total</span>
+            <span className="text-lg font-semibold text-slate-200">
+              {translationStatsLoading ? '—' : (translationStats?.total ?? '—')}
+            </span>
+          </div>
+          <div className="flex flex-col rounded-lg bg-slate-800/60 px-4 py-3 border border-slate-700/60">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Translated</span>
+            <span className="text-lg font-semibold text-emerald-400">
+              {translationStatsLoading ? '—' : (translationStats?.translated ?? '—')}
+            </span>
+          </div>
+          <div className="flex flex-col rounded-lg bg-slate-800/60 px-4 py-3 border border-slate-700/60">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Remaining</span>
+            <span className="text-lg font-semibold text-amber-400">
+              {translationStatsLoading ? '—' : (translationStats?.needingWork ?? '—')}
+            </span>
+          </div>
+          <div className="flex flex-col rounded-lg bg-slate-800/60 px-4 py-3 border border-slate-700/60">
+            <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Last run: Skipped / Failed</span>
+            <span className="text-lg font-semibold text-slate-300">
+              {translateResult ? `${translateResult.skipped ?? 0} / ${translateResult.failed ?? 0}` : '—'}
+            </span>
+          </div>
+        </div>
         <div className="flex flex-wrap gap-3">
           <Button
             onClick={() => handleBackgroundTranslate()}
@@ -1285,26 +1351,6 @@ export default function AdminCatalogPage() {
               {translateResult.ok && <CheckCircle className="size-5 shrink-0 text-emerald-400" />}
               <span className={translateResult.ok ? 'text-emerald-400' : 'text-slate-200'}>{translateResult.message}</span>
             </div>
-            {!translateResult.dryRun && translateResult.totalNeedingWork != null && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="flex flex-col rounded-lg bg-slate-800/60 px-4 py-3 border border-slate-700/60">
-                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Translated</span>
-                  <span className="text-lg font-semibold text-emerald-400">{translateResult.translated ?? 0}</span>
-                </div>
-                <div className="flex flex-col rounded-lg bg-slate-800/60 px-4 py-3 border border-slate-700/60">
-                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Skipped</span>
-                  <span className="text-lg font-semibold text-slate-300">{translateResult.skipped ?? 0}</span>
-                </div>
-                <div className="flex flex-col rounded-lg bg-slate-800/60 px-4 py-3 border border-slate-700/60">
-                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Failed</span>
-                  <span className="text-lg font-semibold text-red-400">{translateResult.failed ?? 0}</span>
-                </div>
-                <div className="flex flex-col rounded-lg bg-slate-800/60 px-4 py-3 border border-slate-700/60">
-                  <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Remaining</span>
-                  <span className="text-lg font-semibold text-amber-400">{translateResult.remaining ?? translateResult.totalNeedingWork}</span>
-                </div>
-              </div>
-            )}
             {translateResult.dryRun && (
               <p className="text-sm text-slate-400">
                 Would process {translateResult.processed ?? 0} of {translateResult.totalNeedingWork ?? 0} products needing work.

@@ -18,7 +18,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: '/',
     name: 'Bedi Delivery',
     short_name: 'Bedi Delivery',
-    description: 'Order from your favorite restaurants and stores. Get order updates and offers.',
+    description: 'Order from restaurants and supermarkets. Palestine & Israel. مطاعم، سوبرماركت، توصيل.',
     start_url: '/',
     scope: '/',
     display: 'standalone',

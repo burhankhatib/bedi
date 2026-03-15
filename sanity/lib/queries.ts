@@ -307,3 +307,9 @@ export const TENANTS_FOR_STAFF_QUERY = defineQuery(`*[_type == "tenant" && _id i
   "name_en": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_en,
   "name_ar": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_ar
 }`)
+
+/** All public tenant slugs for sitemap. Excludes blocked, deactivated, and expired tenants. */
+export const SITEMAP_TENANTS_QUERY = defineQuery(`*[_type == "tenant" && defined(slug.current) && !blockedBySuperAdmin && !deactivated && (
+  (subscriptionExpiresAt != null && subscriptionExpiresAt > now()) ||
+  (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now()))
+)] | order(createdAt desc) { "slug": slug.current, _updatedAt }`)

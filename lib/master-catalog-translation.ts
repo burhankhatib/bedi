@@ -48,16 +48,25 @@ const WORD_BOUNDARY_PATTERNS = ['تي', 'سوب']
  * Returns true if the Arabic text contains known transliteration mistakes
  * (English words written in Arabic script instead of proper Arabic).
  * E.g. "أحمد تي" has "تي" (tea) - should be "شاي أحمد".
+ * Accepts product-name exceptions: "تشيز" (cheese) when English name contains "cheese" (e.g. "Cheetos Mac'N Cheese").
  */
-export function hasRuinedArabic(text: string | null | undefined): boolean {
+export function hasRuinedArabic(
+  text: string | null | undefined,
+  contextEn?: string | null
+): boolean {
   const s = typeof text === 'string' ? text.trim() : ''
   if (s.length < 2) return false
   const normalized = s.replace(/\s+/g, ' ')
+  const enLower = (contextEn ?? '').trim().toLowerCase()
   for (const pattern of RUINED_ARABIC_PATTERNS) {
     if (WORD_BOUNDARY_PATTERNS.includes(pattern)) {
       const re = new RegExp(`(^|\\s)${escapeRegex(pattern)}(\\s|$)`)
-      if (re.test(normalized)) return true
+      if (re.test(normalized)) {
+        if (pattern === 'تشيز' && enLower.includes('cheese')) return false
+        return true
+      }
     } else if (normalized.includes(pattern)) {
+      if (pattern === 'تشيز' && enLower.includes('cheese')) return false
       return true
     }
   }
@@ -117,8 +126,8 @@ export function needsTranslation(p: {
   const hasNameAr = typeof p.nameAr === 'string' && p.nameAr.trim().length > 0
   const hasDescEn = typeof p.descriptionEn === 'string' && p.descriptionEn.trim().length > 0
   const hasDescAr = typeof p.descriptionAr === 'string' && p.descriptionAr.trim().length > 0
-  const nameArHasEnglish = hasEnglishInArabicField(p.nameAr) || hasRuinedArabic(p.nameAr)
-  const descriptionArHasEnglish = hasEnglishInArabicField(p.descriptionAr) || hasRuinedArabic(p.descriptionAr)
+  const nameArHasEnglish = hasEnglishInArabicField(p.nameAr) || hasRuinedArabic(p.nameAr, p.nameEn)
+  const descriptionArHasEnglish = hasEnglishInArabicField(p.descriptionAr) || hasRuinedArabic(p.descriptionAr, p.nameEn)
   return (
     !hasNameAr ||
     !hasDescEn ||

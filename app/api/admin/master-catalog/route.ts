@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       image?: { asset?: { _ref?: string } }
     }>
   >(
-    `*[_type == "masterCatalogProduct" ${category ? '&& category == $category' : ''}] | order(nameEn asc) {
+    `*[_type == "masterCatalogProduct" ${category ? '&& category == $category' : ''}] | order(nameEn asc) [0...10000] {
       _id, nameEn, nameAr, descriptionEn, descriptionAr, category, searchQuery, unitType,
       "image": image
     }`,

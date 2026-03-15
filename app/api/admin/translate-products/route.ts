@@ -20,7 +20,7 @@ import { needsTranslation, hasEnglishInArabicField, hasRuinedArabic } from '@/li
 
 const writeClient = clientNoCdn.withConfig({ token: token || undefined })
 
-const BATCH_DELAY_MS = 400
+const BATCH_DELAY_MS = 250
 const DEFAULT_LIMIT = 50
 
 const TranslationSchema = z.object({
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       searchQuery?: string | null
     }>
   >(
-    `*[_type == "masterCatalogProduct"] | order(nameEn asc) {
+    `*[_type == "masterCatalogProduct"] | order(nameEn asc) [0...10000] {
       _id, nameEn, nameAr, descriptionEn, descriptionAr, category, unitType, searchQuery
     }`
   )
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
     const category = p.category ?? 'grocery'
     const existingUnit = p.unitType
     const productDisplay = titleEn || titleAr || 'Unknown'
-    const arabicNeedsFix = hasEnglishInArabicField(titleAr) || hasRuinedArabic(titleAr)
+    const arabicNeedsFix = hasEnglishInArabicField(titleAr) || hasRuinedArabic(titleAr, titleEn)
 
     const prompt = `You are helping fill a product catalog for a Palestinian/Israeli food delivery platform.
 Product name(s): ${productDisplay}
@@ -168,7 +168,7 @@ Output: nameEn, nameAr, descriptionEn, descriptionAr, unitType, searchQuery.`
     const missingNameEn = !titleEn
     const missingNameAr = !titleAr || arabicNeedsFix
     const missingDescEn = !descEn
-    const descArRuined = hasRuinedArabic(descAr)
+    const descArRuined = hasRuinedArabic(descAr, titleEn)
     const missingDescAr = !descAr || descArRuined
 
     if (missingNameEn && object.nameEn) patch.nameEn = object.nameEn
