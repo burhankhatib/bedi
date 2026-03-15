@@ -128,6 +128,9 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
       label = `Driver is on the way to you${etaSuffix}`
       labelAr = `السائق في الطريق إليك${etaSuffixAr}`
     }
+  } else if (newStatus === 'items_changed') {
+    label = 'Action needed now: your order items were changed. Tap to review and confirm.'
+    labelAr = 'مطلوب إجراء الآن: تم تعديل أصناف طلبك. اضغط للمراجعة والتأكيد.'
   }
 
   const title = `${customerName}, your order at ${businessNameEn}`

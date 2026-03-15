@@ -155,7 +155,11 @@ export async function PATCH(
     .trigger('driver-global', 'order-update', { type: 'items-changed-by-driver', orderId })
     .catch(() => {})
 
-  sendCustomerOrderStatusPush({ orderId, newStatus: 'items_changed' }).catch((e) => {
+  sendCustomerOrderStatusPush({
+    orderId,
+    newStatus: 'items_changed',
+    baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+  }).catch((e) => {
     console.warn('[customer-order-push] items_changed', e)
   })
 

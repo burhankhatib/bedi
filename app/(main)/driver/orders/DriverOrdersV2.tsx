@@ -78,6 +78,15 @@ type DriverOrder = {
   customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
 }
 
+type ReplacementProduct = {
+  _id: string
+  title_en: string
+  title_ar: string
+  price: number
+  currency: string
+  imageUrl?: string
+}
+
 /* ─── Constants & Helpers ───────────────────────────────────────────── */
 
 const NEW_ORDER_SOUND = '/sounds/1.wav'
@@ -201,8 +210,11 @@ function DriverOrdersV2Content() {
   const [detailsOrderId, setDetailsOrderId] = useState<string | null>(null)
   const [savingItemsOrderId, setSavingItemsOrderId] = useState<string | null>(null)
   const [editingItemsByOrder, setEditingItemsByOrder] = useState<Record<string, Array<{ productName?: string; quantity?: number; notes?: string; addOns?: string; price?: number; _key?: string; productId?: string; isPicked?: boolean; notPickedReason?: string }>>>({})
-  const [replacementProductsByOrder, setReplacementProductsByOrder] = useState<Record<string, Array<{ _id: string; title_en: string; title_ar: string; price: number; currency: string }>>>({})
+  const [replacementProductsByOrder, setReplacementProductsByOrder] = useState<Record<string, Record<number, ReplacementProduct[]>>>({})
   const [replacementSelectionByOrder, setReplacementSelectionByOrder] = useState<Record<string, Record<number, string>>>({})
+  const [replacementSearchByOrder, setReplacementSearchByOrder] = useState<Record<string, Record<number, string>>>({})
+  const [replacementLoadingByOrder, setReplacementLoadingByOrder] = useState<Record<string, Record<number, boolean>>>({})
+  const [pendingPickupManualConfirmOrderId, setPendingPickupManualConfirmOrderId] = useState<string | null>(null)
 
   const [driverLat, setDriverLat] = useState<number | null>(null)
   const [driverLng, setDriverLng] = useState<number | null>(null)
@@ -548,9 +560,13 @@ function DriverOrdersV2Content() {
     }
   }
 
-  const pickUp = async (orderId: string) => {
+  const pickUp = async (orderId: string, manualCustomerChangeConfirm = false): Promise<boolean> => {
     const order = myDeliveries.find((x) => x.orderId === orderId)
-    if (!order) return
+    if (!order) return false
+    if (order.customerItemChangeStatus === 'pending' && !manualCustomerChangeConfirm) {
+      setPendingPickupManualConfirmOrderId(orderId)
+      return false
+    }
     setActionId(orderId)
     pickedUpAtRef.current = Date.now()
     setMyDeliveries((prev) =>
@@ -563,19 +579,33 @@ function DriverOrdersV2Content() {
     try {
       const res = await fetch(`/api/driver/orders/${orderId}/pick-up`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manualCustomerChangeConfirm }),
       })
+      if (res.status === 409) {
+        const data = await res.json().catch(() => null)
+        if (data?.requiresManualCustomerChangeConfirm) {
+          setPendingPickupManualConfirmOrderId(orderId)
+          setMyDeliveries((prev) =>
+            prev.map((x) => (x.orderId === orderId ? order : x)),
+          )
+          return false
+        }
+      }
       if (!res.ok) throw new Error('Failed')
       showToast(
         t('Order picked up.', 'تم استلام الطلب.'),
         t('Order picked up.', 'تم استلام الطلب.'),
         'success',
       )
+      setPendingPickupManualConfirmOrderId(null)
       pushDriverLocation()
       setActiveMapOrderId(orderId)
       setMapState('maximized')
       // Delayed refetch — give Sanity time to propagate the write before
       // we replace the optimistic state with server data.
       setTimeout(() => fetchOrders(), 3000)
+      return true
     } catch {
       setMyDeliveries((prev) =>
         prev.map((x) => (x.orderId === orderId ? order : x)),
@@ -585,9 +615,15 @@ function DriverOrdersV2Content() {
         t('Failed to mark as picked up.', 'فشل تسجيل الاستلام.'),
         'error',
       )
+      return false
     } finally {
       setActionId(null)
     }
+  }
+
+  const confirmPendingPickupManually = async () => {
+    if (!pendingPickupManualConfirmOrderId) return
+    await pickUp(pendingPickupManualConfirmOrderId, true)
   }
 
   const complete = async (orderId: string) => {
@@ -725,15 +761,46 @@ function DriverOrdersV2Content() {
     }
   }
 
-  const loadReplacementProducts = async (orderId: string) => {
-    if (replacementProductsByOrder[orderId]) return
+  const loadReplacementProducts = async (
+    orderId: string,
+    itemIndex: number,
+    sourceProductId?: string,
+    query?: string
+  ) => {
+    if (!sourceProductId) return
+    const search = (query || '').trim()
+    setReplacementLoadingByOrder((prev) => ({
+      ...prev,
+      [orderId]: {
+        ...(prev[orderId] || {}),
+        [itemIndex]: true,
+      },
+    }))
     try {
-      const res = await fetch(`/api/driver/orders/${orderId}/replacement-products`, { cache: 'no-store' })
+      const params = new URLSearchParams({
+        sourceProductId,
+        ...(search ? { q: search } : {}),
+      })
+      const res = await fetch(`/api/driver/orders/${orderId}/replacement-products?${params.toString()}`, { cache: 'no-store' })
       if (!res.ok) return
       const data = await res.json()
-      setReplacementProductsByOrder((prev) => ({ ...prev, [orderId]: Array.isArray(data.products) ? data.products : [] }))
+      setReplacementProductsByOrder((prev) => ({
+        ...prev,
+        [orderId]: {
+          ...(prev[orderId] || {}),
+          [itemIndex]: Array.isArray(data.products) ? data.products : [],
+        },
+      }))
     } catch {
       // keep silent; details editor still supports remove/qty edits
+    } finally {
+      setReplacementLoadingByOrder((prev) => ({
+        ...prev,
+        [orderId]: {
+          ...(prev[orderId] || {}),
+          [itemIndex]: false,
+        },
+      }))
     }
   }
 
@@ -763,7 +830,11 @@ function DriverOrdersV2Content() {
         ),
       })),
     }))
-    void loadReplacementProducts(order.orderId)
+    ;(order.items || []).forEach((item, idx) => {
+      if (item.productId) {
+        void loadReplacementProducts(order.orderId, idx, item.productId)
+      }
+    })
   }
 
   const togglePickedItem = (orderId: string, index: number) => {
@@ -802,7 +873,7 @@ function DriverOrdersV2Content() {
   const replaceEditingItem = (orderId: string, index: number) => {
     const productId = replacementSelectionByOrder[orderId]?.[index]
     if (!productId) return
-    const product = replacementProductsByOrder[orderId]?.find((p) => p._id === productId)
+    const product = replacementProductsByOrder[orderId]?.[index]?.find((p) => p._id === productId)
     if (!product) return
     setEditingItemsByOrder((prev) => ({
       ...prev,
@@ -932,7 +1003,6 @@ function DriverOrdersV2Content() {
   const renderOrderDetailsPanel = (order: DriverOrder) => {
     if (detailsOrderId !== order.orderId) return null
     const editedItems = editingItemsByOrder[order.orderId] || []
-    const replacementOptions = replacementProductsByOrder[order.orderId] || []
     const pickedCount = editedItems.filter((item) => item.isPicked !== false).length
     const notPickedCount = editedItems.length - pickedCount
     return (
@@ -950,6 +1020,9 @@ function DriverOrdersV2Content() {
         </div>
         {editedItems.map((item, idx) => {
           const picked = item.isPicked !== false
+          const replacementOptions = replacementProductsByOrder[order.orderId]?.[idx] || []
+          const replacementQuery = replacementSearchByOrder[order.orderId]?.[idx] || ''
+          const replacementLoading = replacementLoadingByOrder[order.orderId]?.[idx] === true
           return (
             <div key={`${order.orderId}-item-${idx}`} className="rounded-xl border border-slate-700/70 bg-slate-800/70 p-3">
               <div className="flex items-start gap-2">
@@ -996,35 +1069,107 @@ function DriverOrdersV2Content() {
                       🗑️ {t('Remove', 'حذف')}
                     </button>
                   </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <select
-                      value={replacementSelectionByOrder[order.orderId]?.[idx] || ''}
-                      onChange={(e) => {
-                        const value = e.target.value
-                        setReplacementSelectionByOrder((prev) => ({
-                          ...prev,
-                          [order.orderId]: {
-                            ...(prev[order.orderId] || {}),
-                            [idx]: value,
-                          },
-                        }))
-                      }}
-                      className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
-                    >
-                      <option value="">{t('Replace with item from this business', 'استبدال بصنف من نفس المتجر')}</option>
-                      {replacementOptions.map((p) => (
-                        <option key={p._id} value={p._id}>
-                          {(lang === 'ar' ? p.title_ar : p.title_en)} - {p.price.toFixed(2)} {fmtCurrency(p.currency)}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="mt-2 space-y-2 rounded-xl border border-indigo-500/20 bg-indigo-950/20 p-2.5">
+                    <p className="text-[11px] font-semibold text-indigo-200">
+                      {t('Find alternatives from the same category only', 'اعثر على بدائل من نفس الفئة فقط')}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={replacementQuery}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          setReplacementSearchByOrder((prev) => ({
+                            ...prev,
+                            [order.orderId]: {
+                              ...(prev[order.orderId] || {}),
+                              [idx]: value,
+                            },
+                          }))
+                        }}
+                        placeholder={t('Search alternatives (e.g. milk)', 'ابحث عن بديل (مثال: حليب)')}
+                        className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void loadReplacementProducts(order.orderId, idx, item.productId, replacementQuery)}
+                        disabled={!item.productId || replacementLoading}
+                        className="rounded-lg border border-indigo-500/40 bg-indigo-500/20 px-2.5 py-1.5 text-xs font-semibold text-indigo-200 disabled:opacity-40"
+                      >
+                        {replacementLoading ? t('Searching...', 'جارٍ البحث...') : t('Search', 'بحث')}
+                      </button>
+                    </div>
+                    {!item.productId && (
+                      <p className="text-[11px] text-amber-300">
+                        {t('Original product reference is missing. Search is unavailable for this item.', 'مرجع المنتج الأصلي غير متوفر، لا يمكن البحث لهذا الصنف.')}
+                      </p>
+                    )}
+                    {replacementOptions.length > 0 ? (
+                      <div className="space-y-2">
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-indigo-400/40 bg-indigo-500/15 px-2.5 py-1 text-[10px] font-bold text-indigo-200"
+                          title={t('All alternatives are from the same category as the original item', 'جميع البدائل من نفس فئة الصنف الأصلي')}
+                        >
+                          ✓ {t('Same category only', 'نفس الفئة فقط')}
+                        </span>
+                        <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1">
+                        {replacementOptions.map((p) => {
+                          const selected = replacementSelectionByOrder[order.orderId]?.[idx] === p._id
+                          return (
+                            <button
+                              key={p._id}
+                              type="button"
+                              onClick={() => {
+                                setReplacementSelectionByOrder((prev) => ({
+                                  ...prev,
+                                  [order.orderId]: {
+                                    ...(prev[order.orderId] || {}),
+                                    [idx]: p._id,
+                                  },
+                                }))
+                              }}
+                              className={`w-full rounded-lg border px-2 py-1.5 text-left transition-colors ${selected ? 'border-emerald-400 bg-emerald-500/15' : 'border-slate-700 bg-slate-900/70 hover:bg-slate-800'}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                {p.imageUrl ? (
+                                  <img
+                                    src={p.imageUrl}
+                                    alt={lang === 'ar' ? p.title_ar : p.title_en}
+                                    className="h-10 w-10 rounded-md object-cover border border-slate-700"
+                                  />
+                                ) : (
+                                  <div className="h-10 w-10 rounded-md border border-slate-700 bg-slate-800 flex items-center justify-center text-[10px] text-slate-400">
+                                    {t('No image', 'بدون صورة')}
+                                  </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-xs font-semibold text-slate-100">
+                                    {lang === 'ar' ? p.title_ar : p.title_en}
+                                  </p>
+                                  <p className="text-[11px] text-emerald-300 font-bold">
+                                    {p.price.toFixed(2)} {fmtCurrency(p.currency)}
+                                  </p>
+                                </div>
+                                {selected && <span className="text-[11px] font-bold text-emerald-300">{t('Selected', 'تم الاختيار')}</span>}
+                              </div>
+                            </button>
+                          )
+                        })}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400">
+                        {replacementLoading
+                          ? t('Searching alternatives...', 'جارٍ البحث عن البدائل...')
+                          : t('No alternatives found in the same category.', 'لا توجد بدائل ضمن نفس الفئة.')}
+                      </p>
+                    )}
                     <button
                       type="button"
                       onClick={() => replaceEditingItem(order.orderId, idx)}
                       disabled={!replacementSelectionByOrder[order.orderId]?.[idx]}
-                      className="rounded-lg border border-indigo-500/40 bg-indigo-500/20 px-2.5 py-1.5 text-xs font-semibold text-indigo-200 disabled:opacity-40"
+                      className="w-full rounded-lg border border-indigo-500/40 bg-indigo-500/20 px-2.5 py-2 text-xs font-semibold text-indigo-200 disabled:opacity-40"
                     >
-                      🔁 {t('Replace', 'استبدال')}
+                      🔁 {t('Use selected alternative', 'استخدم البديل المختار')}
                     </button>
                   </div>
                   {!picked && (
@@ -1492,6 +1637,56 @@ function DriverOrdersV2Content() {
                     </div>
                   )}
                 </div>
+
+                <AnimatePresence>
+                  {pendingPickupManualConfirmOrderId === activeOrder.orderId && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+                      onClick={() => setPendingPickupManualConfirmOrderId(null)}
+                    >
+                      <motion.div
+                        initial={{ scale: 0.95, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.95, opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 350, damping: 26 }}
+                        className="relative w-full max-w-sm rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl p-5"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <h3 className="text-white text-base font-black mb-2">
+                          {t('Confirm customer agreement', 'تأكيد موافقة العميل')}
+                        </h3>
+                        <p className="text-sm text-slate-300 mb-4 leading-relaxed">
+                          {t(
+                            'Customer has not confirmed item changes in-app yet. Confirm only if you already agreed with the customer by phone.',
+                            'العميل لم يؤكد تغييرات الأصناف داخل التطبيق بعد. أكّد فقط إذا تم الاتفاق مع العميل عبر الهاتف.'
+                          )}
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPendingPickupManualConfirmOrderId(null)}
+                            className="flex-1 rounded-xl border border-slate-600 bg-slate-800 text-slate-100 font-bold py-2.5"
+                          >
+                            {t('Cancel', 'إلغاء')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void confirmPendingPickupManually()}
+                            disabled={actionId === activeOrder.orderId}
+                            className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 disabled:opacity-60"
+                          >
+                            {actionId === activeOrder.orderId
+                              ? t('Confirming...', 'جارٍ التأكيد...')
+                              : t('Yes, customer agreed', 'نعم، العميل موافق')}
+                          </button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 <SlideToPickUp
                   orderId={activeOrder.orderId}

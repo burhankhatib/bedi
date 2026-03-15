@@ -7,7 +7,7 @@ import { useLanguage } from '@/components/LanguageContext'
 
 type Props = {
   orderId: string
-  onPickUp: (orderId: string) => Promise<void>
+  onPickUp: (orderId: string) => Promise<boolean>
   disabled?: boolean
 }
 
@@ -43,10 +43,20 @@ export function SlideToPickUp({ orderId, onPickUp, disabled }: Props) {
     if (current >= maxDrag * THRESHOLD) {
       setIsPickingUp(true)
       onPickUp(orderId)
-        .then(() => setIsDone(true))
-        .catch(() => {})
+        .then((ok) => {
+          if (ok) {
+            setIsDone(true)
+            return
+          }
+          x.set(0)
+        })
+        .catch(() => {
+          x.set(0)
+        })
         .finally(() => setIsPickingUp(false))
+      return
     }
+    x.set(0)
   }
 
   return (

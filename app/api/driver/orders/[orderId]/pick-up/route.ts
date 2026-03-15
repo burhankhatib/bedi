@@ -64,10 +64,18 @@ export async function POST(
     { userId }
   )
   if (!driver) return NextResponse.json({ error: 'Driver profile not found' }, { status: 404 })
+  let body: { manualCustomerChangeConfirm?: boolean } = {}
+  try {
+    body = (await req.json()) as { manualCustomerChangeConfirm?: boolean }
+  } catch {
+    // Keep backward compatibility for clients that send no body.
+  }
+
   const order = await client.fetch<{
     _id: string
     assignedDriverRef?: string
     status: string
+    customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
     deliveryJourneyLog?: any[]
     deliveryLat?: number
     deliveryLng?: number
@@ -77,6 +85,7 @@ export async function POST(
       _id,
       "assignedDriverRef": assignedDriver._ref,
       status,
+      customerItemChangeStatus,
       deliveryJourneyLog,
       deliveryLat,
       deliveryLng,
@@ -86,6 +95,15 @@ export async function POST(
   )
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
   if (order.assignedDriverRef !== driver._id) return NextResponse.json({ error: 'Order is not assigned to you' }, { status: 403 })
+  if (order.customerItemChangeStatus === 'pending' && body.manualCustomerChangeConfirm !== true) {
+    return NextResponse.json(
+      {
+        error: 'customer_confirmation_pending',
+        requiresManualCustomerChangeConfirm: true,
+      },
+      { status: 409 }
+    )
+  }
   
   const newLogEntry = {
     _key: crypto.randomUUID().replace(/-/g, ''),
