@@ -306,7 +306,7 @@ export function MenuManageClient({
   const { t } = useLanguage()
   const { data } = useTenantBusiness()
   const businessType = data?.tenant?.businessType ?? ''
-  const canUseCatalog = ['grocery', 'supermarket', 'greengrocer', 'restaurant', 'cafe', 'retail'].includes(businessType)
+  const canUseCatalog = true
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [catalogDefaultCategoryId, setCatalogDefaultCategoryId] = useState<string | undefined>(undefined)
   const [sortModes, setSortModes] = useState<Record<string, ProductSortMode>>(() => loadSortModes(slug))
@@ -499,7 +499,7 @@ export function MenuManageClient({
         setSelectedSectionKey(null)
         setAddingSubCategoryOf(null)
         showToast('Category added.', 'تمت إضافة الفئة.', 'success')
-        reloadCategories()
+        reloadCategories(true)
       } else {
         showToast((data as { error?: string })?.error || 'Failed to add category', 'فشل في إضافة الفئة.', 'error')
       }
@@ -542,7 +542,7 @@ export function MenuManageClient({
         setAddingSubCategoryOf(null)
         setAddingSubCategoryOfSection(null)
         showToast('Category added.', 'تمت إضافة الفئة.', 'success')
-        reloadCategories()
+        reloadCategories(true)
       } else {
         showToast(data?.error || 'Failed to add category', 'فشل في إضافة الفئة.', 'error')
       }
@@ -641,7 +641,7 @@ export function MenuManageClient({
           showToast('Product updated.', 'تم تحديث المنتج.', 'success')
           setProductModalOpen(false)
           setProductModalProduct(null)
-          reloadProducts()
+          reloadProducts(true)
         } else {
           const msg = res.status === 403
             ? 'Session may have expired. Please sign in again.'
@@ -681,7 +681,7 @@ export function MenuManageClient({
           showToast('Product added.', 'تمت إضافة المنتج.', 'success')
           setProductModalOpen(false)
           setProductModalProduct(null)
-          reloadProducts()
+          reloadProducts(true)
         } else if (!res.ok) {
           const msg = res.status === 403
             ? 'Session may have expired. Please sign in again.'
@@ -773,7 +773,7 @@ export function MenuManageClient({
         showToast(t('Sub-category moved.', 'تم نقل الفئة الفرعية.'), '', 'success')
       } catch {
         showToast(t('Failed to move sub-category', 'فشل نقل الفئة الفرعية'), '', 'error')
-        reloadCategories()
+        reloadCategories(true)
       }
     },
     [categories, api, showToast, reloadCategories, t]
@@ -809,7 +809,7 @@ export function MenuManageClient({
       showToast(t('Category order updated.', 'تم تحديث ترتيب الفئات.'), '', 'success')
     } catch {
       showToast(t('Failed to save category order', 'فشل حفظ ترتيب الفئات'), '', 'error')
-      reloadCategories()
+      reloadCategories(true)
     }
   }, [orderedCategoriesWithParent, categories, api, showToast, reloadCategories, reparentCategory, t])
 
@@ -839,11 +839,11 @@ export function MenuManageClient({
         showToast('Order updated.', 'تم تحديث الترتيب.', 'success')
       } else {
         showToast('Failed to save order', 'فشل حفظ الترتيب', 'error')
-        reloadProducts()
+        reloadProducts(true)
       }
     } catch {
       showToast('Failed to save order', 'فشل حفظ الترتيب', 'error')
-      reloadProducts()
+      reloadProducts(true)
     } finally {
       setReorderingCategoryId(null)
     }
@@ -894,11 +894,11 @@ export function MenuManageClient({
           showToast('Product moved.', 'تم نقل المنتج.', 'success')
         } else {
           showToast('Failed to move product', 'فشل نقل المنتج', 'error')
-          reloadProducts()
+          reloadProducts(true)
         }
       } catch {
         showToast('Failed to move product', 'فشل نقل المنتج', 'error')
-        reloadProducts()
+        reloadProducts(true)
       } finally {
         setReorderingCategoryId(null)
       }
@@ -962,8 +962,8 @@ export function MenuManageClient({
         setCategories((prev) => prev.filter((c) => c._id !== id))
         setProducts((prev) => prev.filter((p) => p.categoryId !== id))
         showToast(t('Category deleted.', 'تم حذف الفئة.'), undefined, 'success')
-        reloadCategories()
-        reloadProducts()
+        reloadCategories(true)
+        reloadProducts(true)
       } else {
         showToast(data?.error || t('Could not delete category.', 'تعذر حذف الفئة.'), undefined, 'error')
       }
@@ -980,7 +980,7 @@ export function MenuManageClient({
       if (res.ok) {
         setProducts((prev) => prev.filter((p) => p._id !== id))
         showToast(t('Product deleted.', 'تم حذف المنتج.'), undefined, 'success')
-        reloadProducts()
+        reloadProducts(true)
       } else {
         showToast(data?.error || t('Could not delete product.', 'تعذر حذف المنتج.'), undefined, 'error')
       }
@@ -1008,7 +1008,7 @@ export function MenuManageClient({
       await api(`/categories/${categoryId}`, { method: 'PATCH', body: JSON.stringify({ productSortMode: mode }) })
     } catch {
       showToast('Failed to save sort preference', 'فشل حفظ تفضيل الترتيب', 'error')
-      reloadCategories()
+      reloadCategories(true)
     }
   }, [slug, api, showToast, reloadCategories])
 
@@ -1055,7 +1055,7 @@ export function MenuManageClient({
       setProducts((prev) => [...prev, createdProduct])
       showToast('Product duplicated. You can edit the copy below.', 'تم نسخ المنتج. يمكنك تعديل النسخة أدناه.', 'success')
       openEditProduct(createdProduct)
-      reloadProducts()
+      reloadProducts(true)
     } finally {
       setLoading(false)
     }
@@ -1264,16 +1264,16 @@ export function MenuManageClient({
                               ))
                             )}
                           </DroppableProductList>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <Button type="button" size="sm" className="border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white" onClick={() => openAddProduct(c._id)}>
-                              <Plus className="mr-1 size-3.5" /> Add product
-                            </Button>
-                            {canUseCatalog && (
-                              <Button type="button" size="sm" variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20" onClick={() => { setCatalogDefaultCategoryId(c._id); setCatalogOpen(true) }}>
-                                <Package className="mr-1 size-3.5" /> {t('From catalog', 'من الكتالوج')}
+                          {((isSubCategory) || !categories.some((cat) => cat.parentCategoryRef === c._id)) && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Button type="button" size="sm" className="border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white" onClick={() => openAddProduct(c._id)}>
+                                <Plus className="mr-1 size-3.5" /> Add product
                               </Button>
-                            )}
-                          </div>
+                              <Button type="button" size="sm" variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20" onClick={() => { setCatalogDefaultCategoryId(c._id); setCatalogOpen(true) }}>
+                                <Package className="mr-1 size-3.5" /> {t('Global Catalog', 'الكتالوج العالمي')}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </>
