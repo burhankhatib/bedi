@@ -17,8 +17,8 @@ export async function POST(
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
   const { orderId } = await params
 
-  const driver = await client.fetch<{ _id: string } | null>(
-    `*[_type == "driver" && clerkUserId == $userId][0]{ _id }`,
+  const driver = await client.fetch<{ _id: string; isOnline?: boolean } | null>(
+    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, isOnline }`,
     { userId }
   )
   if (!driver) return NextResponse.json({ error: 'Driver not found' }, { status: 404 })
@@ -43,11 +43,21 @@ export async function POST(
     return NextResponse.json({ error: 'Order does not need confirmation' }, { status: 400 })
   }
 
+  const now = new Date().toISOString()
+
   await writeClient
     .patch(orderId)
-    .set({ driverAcceptedAt: new Date().toISOString() })
+    .set({ driverAcceptedAt: now })
     .unset(['manualAssignmentAt'])
     .commit()
+
+  // If driver was offline, auto-turn them online (they accepted a delivery so they're clearly available)
+  if (driver.isOnline !== true) {
+    await writeClient
+      .patch(driver._id)
+      .set({ isOnline: true, onlineSince: now, lastSeenAt: now })
+      .commit()
+  }
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL
 

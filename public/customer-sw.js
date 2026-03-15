@@ -74,18 +74,27 @@ self.addEventListener('push', function (event) {
 
 self.addEventListener('notificationclick', function (event) {
   event.notification.close()
-  const url = event.notification.data?.url || self.location.origin + '/'
-  const fullUrl = url.startsWith('http') ? url : self.location.origin + (url.startsWith('/') ? url : '/' + url)
+  var url = event.notification.data?.url || self.location.origin + '/'
+  var fullUrl = url.startsWith('http') ? url : self.location.origin + (url.startsWith('/') ? url : '/' + url)
+  var targetPath = fullUrl.replace(self.location.origin, '').split('?')[0].split('#')[0]
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      for (let i = 0; i < clientList.length; i++) {
-        const c = clientList[i]
+      var focused = null
+      for (var i = 0; i < clientList.length; i++) {
+        var c = clientList[i]
         if (c.url && c.url.indexOf(self.location.origin) !== -1 && 'focus' in c) {
-          const needsNav = c.url !== fullUrl && 'navigate' in c && typeof c.navigate === 'function'
-          if (needsNav) {
-            return c.navigate(fullUrl).then(function () { return c.focus() }).catch(function () { return c.focus() })
+          var visible = c.visibilityState === 'visible' || (typeof c.focused !== 'undefined' && c.focused)
+          if (visible) {
+            focused = c
+            break
           }
-          return c.focus()
+        }
+      }
+      if (focused) {
+        var clientPath = focused.url.replace(self.location.origin, '').split('?')[0].split('#')[0]
+        if (clientPath === targetPath) return focused.focus()
+        if ('navigate' in focused && typeof focused.navigate === 'function') {
+          return focused.navigate(fullUrl).then(function () { return focused.focus() }).catch(function () { return focused.focus() })
         }
       }
       if (self.clients.openWindow) return self.clients.openWindow(fullUrl)

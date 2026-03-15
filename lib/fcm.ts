@@ -84,6 +84,8 @@ export type FcmPayload = {
   data?: Record<string, string>
   /** When true, uses critical/interruption-level for urgent delivery (e.g. driver arrived) */
   critical?: boolean
+  /** When true, send data-only (no notification block) so the service worker fully controls display and click. Use for customer PWA to fix Android tap-to-open. */
+  dataOnly?: boolean
 }
 
 /**
@@ -92,6 +94,14 @@ export type FcmPayload = {
  * as HIGH PRIORITY: Android high/max, iOS time-sensitive, web high urgency — so
  * Business and Driver get new-order alerts immediately (same behaviour as Driver).
  */
+function buildFullUrl(url: string): string {
+  if (url.startsWith('http')) return url
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')
+  if (!base) return url
+  const seg = url.startsWith('/') ? url : `/${url}`
+  return `${base}${seg}`
+}
+
 export async function sendFCMToTokenDetailed(
   token: string,
   payload: FcmPayload
@@ -99,9 +109,10 @@ export async function sendFCMToTokenDetailed(
   const msg = getAdminMessaging()
   if (!msg) return { ok: false, permanent: false, reason: 'fcm_not_configured' }
   const url = payload.url ?? '/driver/orders'
+  const fullUrl = buildFullUrl(url)
   const title = payload.title || 'Notification'
   const body = (payload.body ?? '').replace(/"/g, "'")
-  const data: Record<string, string> = { title, body, url }
+  const data: Record<string, string> = { title, body, url: fullUrl }
   if (payload.dir) data.dir = payload.dir
   if (payload.icon) data.icon = payload.icon
   if (payload.data && typeof payload.data === 'object') {
@@ -110,17 +121,21 @@ export async function sendFCMToTokenDetailed(
     }
   }
   const isCritical = payload.critical === true
+  const dataOnly = payload.dataOnly === true
   const apnsInterruption = isCritical ? ('critical' as const) : ('time-sensitive' as const)
   const androidChannel = isCritical ? 'driver_arrived_channel' : 'high_importance_channel'
   try {
-    const message = {
+    const message: Record<string, unknown> = {
       token,
       data,
-      notification: {
-        title,
-        body,
+      webpush: {
+        fcmOptions: { link: fullUrl },
+        headers: { Urgency: 'high' },
       },
-      android: {
+    }
+    if (!dataOnly) {
+      message.notification = { title, body }
+      message.android = {
         priority: 'high' as const,
         notification: {
           title,
@@ -132,12 +147,9 @@ export async function sendFCMToTokenDetailed(
           defaultVibrateTimings: true,
           visibility: 'public' as const,
         },
-      },
-      apns: {
-        headers: {
-          'apns-priority': '10',
-          'apns-push-type': 'alert',
-        },
+      }
+      message.apns = {
+        headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
         payload: {
           aps: {
             alert: { title, body },
@@ -145,15 +157,7 @@ export async function sendFCMToTokenDetailed(
             'interruption-level': apnsInterruption,
           },
         },
-      },
-      webpush: {
-        fcmOptions: {
-          link: url.startsWith('http') ? url : undefined,
-        },
-        headers: {
-          Urgency: 'high',
-        },
-      },
+      }
     }
     await msg.send(message)
     return { ok: true, permanent: false }

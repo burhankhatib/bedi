@@ -168,6 +168,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
     ...(baseData && { data: baseData }),
     ...(isDriverArrived && { driverArrived: '1' as const }),
     ...(isDriverArrived && { critical: true }),
+    dataOnly: true, // Ensures SW handles display+click; fixes Android tap-to-open track page
   }
   const payloadAr = {
     title: finalTitleAr,
@@ -176,6 +177,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
     ...(baseData && { data: baseData }),
     ...(isDriverArrived && { driverArrived: '1' as const }),
     ...(isDriverArrived && { critical: true }),
+    dataOnly: true,
   }
   const useAr = true
   const finalPayload = useAr ? payloadAr : payload
