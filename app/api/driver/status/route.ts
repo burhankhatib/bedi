@@ -4,11 +4,18 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
-import { getAutoOfflinePushAr } from '@/lib/driver-push-messages'
+import { getAutoOfflinePushAr, getMorningEncouragementPushAr } from '@/lib/driver-push-messages'
+import { getActiveSubscriptionsForUser } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
 const AUTO_OFFLINE_AFTER_MS = 8 * 60 * 60 * 1000 // 8 hours
+
+/** Palestine timezone: morning = 5am–11am local (UTC+2 or +3). Use UTC hour 2–8 as approx. */
+function isMorningHours(): boolean {
+  const hour = new Date().getUTCHours()
+  return hour >= 2 && hour < 9
+}
 
 /** PATCH driver online status. Updates isOnline, lastSeenAt, onlineSince. Cannot go offline while has active deliveries. */
 export async function PATCH(req: NextRequest) {
@@ -23,8 +30,19 @@ export async function PATCH(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
   const body = await req.json().catch(() => ({}))
   const wantOffline = body && body.isOnline === false
-  const driver = await client.fetch<{ _id: string; isVerifiedByAdmin?: boolean; fcmToken?: string; pushSubscription?: { endpoint?: string } } | null>(
-    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, isVerifiedByAdmin, fcmToken, "pushSubscription": pushSubscription }`,
+  const driver = await client.fetch<{
+    _id: string
+    isVerifiedByAdmin?: boolean
+    fcmToken?: string
+    pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
+    nickname?: string
+    clerkUserId?: string
+    lastMorningEncouragementDate?: string
+  } | null>(
+    `*[_type == "driver" && clerkUserId == $userId][0]{
+      _id, isVerifiedByAdmin, fcmToken, "pushSubscription": pushSubscription,
+      nickname, clerkUserId, lastMorningEncouragementDate
+    }`,
     { userId }
   )
   if (!driver) return NextResponse.json({ error: 'Driver profile not found' }, { status: 404 })
@@ -64,6 +82,54 @@ export async function PATCH(req: NextRequest) {
   const p = writeClient.patch(driver._id).set(patch)
   if (!isOnline) p.unset(['onlineSince'])
   await p.commit()
+
+  if (isOnline && isMorningHours()) {
+    const today = new Date().toISOString().slice(0, 10)
+    if (driver.lastMorningEncouragementDate !== today) {
+      const msg = getMorningEncouragementPushAr(driver.nickname)
+      const payload = { title: msg.title, body: msg.body, url: '/driver/orders', dir: 'rtl' as const }
+      let sent = false
+      if (driver.clerkUserId) {
+        const subs = await getActiveSubscriptionsForUser({ clerkUserId: driver.clerkUserId, roleContext: 'driver' })
+        for (const sub of subs) {
+          for (const dev of sub?.devices ?? []) {
+            if (dev?.fcmToken && isFCMConfigured() && (await sendFCMToToken(dev.fcmToken, payload))) {
+              sent = true
+              break
+            }
+            if (
+              dev?.webPush?.endpoint &&
+              dev.webPush.p256dh &&
+              dev.webPush.auth &&
+              isPushConfigured() &&
+              (await sendPushNotification(
+                { endpoint: dev.webPush.endpoint, keys: { p256dh: dev.webPush.p256dh, auth: dev.webPush.auth } },
+                payload
+              ))
+            ) {
+              sent = true
+              break
+            }
+          }
+          if (sent) break
+        }
+      }
+      if (!sent && driver.fcmToken && isFCMConfigured()) {
+        sent = await sendFCMToToken(driver.fcmToken, payload)
+      }
+      if (!sent && driver.pushSubscription?.endpoint && driver.pushSubscription?.p256dh && driver.pushSubscription?.auth && isPushConfigured()) {
+        await sendPushNotification(
+          {
+            endpoint: driver.pushSubscription.endpoint,
+            keys: { p256dh: driver.pushSubscription.p256dh, auth: driver.pushSubscription.auth },
+          },
+          payload
+        )
+      }
+      await writeClient.patch(driver._id).set({ lastMorningEncouragementDate: today }).commit()
+    }
+  }
+
   return NextResponse.json({
     isOnline,
     lastSeenAt: now,
@@ -112,7 +178,7 @@ export async function GET() {
       .commit()
 
     const { title, body } = getAutoOfflinePushAr(driver.nickname)
-    const payload = { title, body, url: '/driver' }
+    const payload = { title, body, url: '/driver/orders' }
     let sent = false
     if (driver.fcmToken && isFCMConfigured()) {
       sent = await sendFCMToToken(driver.fcmToken, payload)

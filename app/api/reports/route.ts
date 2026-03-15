@@ -6,6 +6,7 @@ import { checkTenantAuth } from '@/lib/tenant-auth'
 import { getTenantIdBySlug } from '@/lib/tenant'
 import { getCategories } from '@/lib/report-categories'
 import { sendReportEmail } from '@/lib/report-email'
+import { sendAdminNotification } from '@/lib/admin-push'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -162,6 +163,13 @@ export async function POST(req: NextRequest) {
       reporterInfo,
       reportedInfo,
     })
+    const reporterLabel = { business: 'Business', driver: 'Driver', customer: 'Customer' }[reporterType]
+    const reportedLabel = { business: 'Restaurant', driver: 'Driver', customer: 'Customer' }[reportedType]
+    await sendAdminNotification(
+      `New ${reporterLabel} → ${reportedLabel} Report`,
+      `${reporterInfo ?? reporterType} reported ${reportedInfo ?? reportedType}. ${categoryOption.labelEn}${order.orderNumber ? ` — Order #${order.orderNumber}` : ''}`,
+      '/admin/reports'
+    )
     return NextResponse.json({ ok: true, id: created._id }, { status: 201 })
   } catch (e) {
     console.error('[reports] Create failed:', e)

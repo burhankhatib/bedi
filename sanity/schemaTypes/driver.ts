@@ -236,6 +236,14 @@ export const driverType = defineType({
       description: 'Tracks when the last "go online" FCM reminder was sent. Used to throttle reminders to once per 4 hours.',
     }),
     defineField({
+      name: 'lastMorningEncouragementDate',
+      title: 'Last morning encouragement date',
+      type: 'string',
+      readOnly: true,
+      hidden: true,
+      description: 'YYYY-MM-DD. Tracks when we last sent the daily encouraging morning message (when driver goes online in the morning).',
+    }),
+    defineField({
       name: 'blockedBySuperAdmin',
       title: 'Blocked by Super Admin',
       type: 'boolean',

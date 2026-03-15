@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
 
@@ -15,10 +16,33 @@ const ALLOWED_TAGS = [
 ]
 const ALLOWED_ATTR = ['href', 'target', 'rel']
 
-function sanitizeMarkdownSync(md: string): string {
+/** Rewrite href for in-app: pathname only. Fixes AI-generated absolute URLs. Returns { path, inApp }. */
+function rewriteHrefForInApp(href: string, origin?: string): { path: string; inApp: boolean } {
+  if (!href?.trim()) return { path: '#', inApp: false }
+  const h = href.trim()
+  if (h.startsWith('/') && !h.startsWith('//')) return { path: h, inApp: true }
+  if (h.startsWith('#')) return { path: h, inApp: false }
+  try {
+    const u = new URL(h, origin || 'https://bedi.delivery')
+    const sameOrigin = !origin || u.origin === origin
+    if (sameOrigin) return { path: u.pathname + (u.hash || ''), inApp: true }
+    return { path: h, inApp: false }
+  } catch {
+    return { path: h, inApp: false }
+  }
+}
+
+function sanitizeMarkdownSync(md: string, origin?: string): string {
   if (typeof window === 'undefined' || !md?.trim()) return ''
   const html = marked.parse(md.trim(), { async: false }) as string
-  return DOMPurify.sanitize(html, { ALLOWED_TAGS, ALLOWED_ATTR })
+  let out = DOMPurify.sanitize(html, { ALLOWED_TAGS, ALLOWED_ATTR })
+  if (out.includes('href=')) {
+    out = out.replace(/href="([^"]+)"/g, (_, href) => {
+      const { path, inApp } = rewriteHrefForInApp(href, origin)
+      return inApp ? `href="${path}" data-inapp-link="1"` : `href="${path}"`
+    })
+  }
+  return out
 }
 
 interface SanitizedMarkdownProps {
@@ -27,13 +51,26 @@ interface SanitizedMarkdownProps {
   dir?: 'ltr' | 'rtl'
 }
 
-/** Renders markdown as sanitized HTML with prose styling. */
+/** Renders markdown as sanitized HTML with prose styling. Links stay in-app via client-side navigation. */
 export function SanitizedMarkdown({ content, className, dir }: SanitizedMarkdownProps) {
   const [html, setHtml] = useState('')
+  const router = useRouter()
 
   useEffect(() => {
-    setHtml(sanitizeMarkdownSync(content))
+    const origin = typeof window !== 'undefined' ? window.location.origin : undefined
+    setHtml(sanitizeMarkdownSync(content, origin))
   }, [content])
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      const a = (e.target as HTMLElement).closest('a[data-inapp-link="1"]')
+      if (a?.getAttribute('href')?.startsWith('/')) {
+        e.preventDefault()
+        router.push(a.getAttribute('href')!)
+      }
+    },
+    [router]
+  )
 
   if (!html) return <span className="whitespace-pre-wrap">{content}</span>
 
@@ -41,6 +78,7 @@ export function SanitizedMarkdown({ content, className, dir }: SanitizedMarkdown
     <div
       className={className}
       dir={dir}
+      onClick={handleClick}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )

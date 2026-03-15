@@ -49,7 +49,7 @@ export async function GET(req: Request) {
       autoOfflinedCount += 1
 
       const { title, body } = getAutoOfflinePushAr(driver.nickname)
-      const payload = { title, body, url: '/driver' }
+      const payload = { title, body, url: '/driver/orders' }
       let sent = false
       if (driver.fcmToken && isFCMConfigured()) {
         sent = await sendFCMToToken(driver.fcmToken, payload)

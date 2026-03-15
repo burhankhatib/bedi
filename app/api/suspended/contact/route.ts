@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
+import { sendAdminNotification } from '@/lib/admin-push'
 
 const RESEND_API = 'https://api.resend.com/emails'
 const TO_EMAIL = 'burhank@gmail.com'
@@ -46,6 +47,12 @@ export async function POST(req: NextRequest) {
     if (!doc?._id) {
       return NextResponse.json({ error: 'Failed to save message' }, { status: 500 })
     }
+    const typeLabel = { business: 'Business', driver: 'Driver', customer: 'Customer' }[type]
+    await sendAdminNotification(
+      `Suspended ${typeLabel} Contact`,
+      `${name || email} (${email}) sent a message about their suspended account.`,
+      '/admin/reports'
+    )
   } catch (e) {
     console.error('[suspended-contact] Sanity create failed:', e)
     return NextResponse.json({ error: 'Failed to save message' }, { status: 500 })

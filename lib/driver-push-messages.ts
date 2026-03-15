@@ -51,3 +51,12 @@ export function getAdminVerifiedPushAr(nick: string | undefined | null): { title
     body: 'تم توثيق حسابك! يمكنك الآن الدخول كـ "متصل" لاستقبال الطلبات.',
   }
 }
+
+/** Daily encouraging morning message when driver goes online (once per day, morning hours only). */
+export function getMorningEncouragementPushAr(nick: string | undefined | null): { title: string; body: string } {
+  const name = nickname(nick)
+  return {
+    title: `صباح الخير ${name}! ☀️`,
+    body: 'يوم جديد، فرص جديدة. ادخل متصل واستقبل طلبات التوصيل. بالتوفيق!',
+  }
+}

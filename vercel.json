@@ -17,6 +17,10 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/cron/daily-morning-message",
+      "schedule": "0 7 * * *"
+    },
+    {
       "path": "/api/cron/unaccepted-orders-whatsapp",
       "schedule": "* * * * *"
     },

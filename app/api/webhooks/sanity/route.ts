@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
             await writeClient.patch(_id).set({ welcomeFcmSent: true }).commit()
 
             const pushData = getAdminVerifiedPushAr(fullDriver.nickname)
-            const payload = { title: pushData.title, body: pushData.body, url: '/driver' }
+            const payload = { title: pushData.title, body: pushData.body, url: '/driver/orders' }
             let sent = false
 
             if (fullDriver.fcmToken && isFCMConfigured()) {

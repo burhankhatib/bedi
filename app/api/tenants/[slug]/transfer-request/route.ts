@@ -4,6 +4,7 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 import { getEmailForUser } from '@/lib/getClerkEmail'
+import { sendAdminNotification } from '@/lib/admin-push'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -81,6 +82,16 @@ export async function POST(
     status: 'pending',
     createdAt: new Date().toISOString(),
   })
+
+  const tenantName = await writeClient.fetch<{ name?: string } | null>(
+    `*[_type == "tenant" && _id == $id][0]{ name }`,
+    { id: authResult.tenantId }
+  )
+  await sendAdminNotification(
+    'New Transfer Request',
+    `${tenantName?.name ?? 'Business'} requested ownership transfer to ${newOwnerEmail}.`,
+    '/admin/transfers'
+  )
 
   return NextResponse.json({
     ok: true,
