@@ -163,5 +163,6 @@ export interface InitialData {
   deliveryFeeMin?: number
   deliveryFeeMax?: number
   requiresPersonalShopper?: boolean
+  supportsDriverPickup?: boolean
   shopperFee?: number
 }

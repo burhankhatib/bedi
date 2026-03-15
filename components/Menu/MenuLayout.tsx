@@ -636,7 +636,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
       )}
 
       {/* Personal Shopper info banner — store supports driver collecting items (e.g. supermarkets) */}
-      {initialData.requiresPersonalShopper && (
+      {(initialData.requiresPersonalShopper || initialData.supportsDriverPickup) && (
         <div
           className="w-full border-b border-sky-200 bg-gradient-to-r from-sky-50 to-amber-50/80 px-4 py-4"
           role="status"
@@ -722,6 +722,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   deliveryFeeMin: initialData.deliveryFeeMin,
                   deliveryFeeMax: initialData.deliveryFeeMax,
                   requiresPersonalShopper: initialData.requiresPersonalShopper,
+                  supportsDriverPickup: initialData.supportsDriverPickup,
                   shopperFee: initialData.shopperFee
                 } : undefined}
                 orderTypeOptions={orderTypeOptions}
@@ -762,6 +763,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   deliveryFeeMin: initialData.deliveryFeeMin,
                   deliveryFeeMax: initialData.deliveryFeeMax,
                   requiresPersonalShopper: initialData.requiresPersonalShopper,
+                  supportsDriverPickup: initialData.supportsDriverPickup,
                   shopperFee: initialData.shopperFee
                 } : undefined}
             orderTypeOptions={orderTypeOptions}
@@ -795,6 +797,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   deliveryFeeMin: initialData.deliveryFeeMin,
                   deliveryFeeMax: initialData.deliveryFeeMax,
                   requiresPersonalShopper: initialData.requiresPersonalShopper,
+                  supportsDriverPickup: initialData.supportsDriverPickup,
                   shopperFee: initialData.shopperFee
                 } : undefined}
         orderTypeOptions={orderTypeOptions}

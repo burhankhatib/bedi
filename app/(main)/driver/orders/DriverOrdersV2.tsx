@@ -1590,6 +1590,56 @@ function DriverOrdersV2Content() {
                   </div>
                 )}
 
+                {/* Financial summary: Pay to Business, Delivery Fee, Save Time fee, Total */}
+                <div className="rounded-3xl border border-slate-700/60 bg-slate-800/30 p-4 mb-4 space-y-3">
+                  <div className="rounded-2xl bg-amber-500/10 border border-amber-500/30 p-4 flex items-center gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-400">
+                      <Wallet className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-amber-200/80 text-sm font-medium">
+                        {t('You need to pay', 'المبلغ المطلوب دفعه')}
+                      </p>
+                      <p className="font-black text-amber-400 text-lg">
+                        {activeOrder.amountToPayTenant.toFixed(2)}{' '}
+                        {fmtCurrency(activeOrder.currency)}{' '}
+                        <span className="text-amber-200/60 text-base font-medium mx-1">
+                          {t('to', 'إلى')}
+                        </span>{' '}
+                        {activeOrder.businessName}
+                      </p>
+                    </div>
+                  </div>
+                  {(activeOrder.requiresPersonalShopper || (activeOrder.shopperFee ?? 0) > 0) && (
+                    <div className="rounded-2xl bg-fuchsia-500/10 border border-fuchsia-500/20 p-3.5 flex items-center justify-between">
+                      <span className="text-fuchsia-200/85 text-xs font-semibold">🛍️ {t('Save Time fee', 'رسوم توفير الوقت')}</span>
+                      <span className="font-black text-fuchsia-300 text-lg">
+                        {(activeOrder.shopperFee ?? 0) > 0 ? `${(activeOrder.shopperFee ?? 0).toFixed(2)} ${fmtCurrency(activeOrder.currency)}` : t('FREE', 'مجاناً')}
+                      </span>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl bg-sky-500/10 border border-sky-500/20 p-3.5 flex flex-col gap-1">
+                      <span className="text-sky-200/80 text-xs font-semibold flex items-center gap-1.5">
+                        <Truck className="h-3.5 w-3.5 text-sky-400" />
+                        {t('Delivery fee', 'سعر التوصيل')}
+                      </span>
+                      <span className="font-black text-sky-400 text-lg">
+                        {activeOrder.deliveryFee.toFixed(2)} {fmtCurrency(activeOrder.currency)}
+                      </span>
+                    </div>
+                    <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-3.5 flex flex-col gap-1">
+                      <span className="text-emerald-200/80 text-xs font-semibold flex items-center gap-1.5">
+                        <Receipt className="h-3.5 w-3.5 text-emerald-400" />
+                        {t('Total from', 'المجموع من')} {activeOrder.customerName?.trim().split(/\s+/)[0] || t('client', 'العميل')}
+                      </span>
+                      <span className="font-black text-emerald-400 text-lg">
+                        {activeOrder.totalAmount.toFixed(2)} {fmtCurrency(activeOrder.currency)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Business contact (collapsible) + Order Details shortcut */}
                 <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 overflow-hidden mb-4">
                   <div className="flex items-center gap-2 px-4 py-3">
@@ -2250,9 +2300,9 @@ function DriverOrdersV2Content() {
                         </p>
                       </div>
                     </div>
-                    {o.requiresPersonalShopper && (
+                    {(o.requiresPersonalShopper || (o.shopperFee ?? 0) > 0) && (
                       <div className="rounded-2xl bg-fuchsia-500/10 border border-fuchsia-500/20 p-3.5 flex items-center justify-between">
-                        <span className="text-fuchsia-200/85 text-xs font-semibold">🛍️ {t('Personal shopper fee', 'رسوم المتسوق الشخصي')}</span>
+                        <span className="text-fuchsia-200/85 text-xs font-semibold">🛍️ {t('Save Time fee', 'رسوم توفير الوقت')}</span>
                         <span className="font-black text-fuchsia-300 text-lg">
                           {(o.shopperFee ?? 0) > 0 ? `${(o.shopperFee ?? 0).toFixed(2)} ${fmtCurrency(o.currency)}` : t('FREE', 'مجاناً')}
                         </span>

@@ -66,6 +66,7 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       siteRef?: string
       totalAmount?: number
       deliveryFee?: number
+      shopperFee?: number
       currency?: string
       declinedByDriverRefs?: string[]
     } | null>(
@@ -73,6 +74,7 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
         "siteRef": site._ref,
         totalAmount,
         deliveryFee,
+        shopperFee,
         currency,
         "declinedByDriverRefs": declinedByDriverIds[]._ref
       }`,
@@ -101,8 +103,12 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
 
     const currency = order?.currency?.trim() || '₪'
     const total = typeof order?.totalAmount === 'number' ? order.totalAmount.toFixed(2) : '0.00'
-    const fee = typeof order?.deliveryFee === 'number' ? order.deliveryFee.toFixed(2) : '0.00'
-    const bodyAr = `${businessName} - عليك دفع ${total} ${currency} - التوصيل ${fee} ${currency} (حسب المسافة)`
+    const deliveryFee = typeof order?.deliveryFee === 'number' ? order.deliveryFee.toFixed(2) : '0.00'
+    const shopperFee = typeof order?.shopperFee === 'number' ? order.shopperFee.toFixed(2) : '0.00'
+    const hasShopperFee = (order?.shopperFee ?? 0) > 0
+    const bodyAr = hasShopperFee
+      ? `${businessName} - المجموع ${total} ${currency} · التوصيل ${deliveryFee} ${currency} · رسوم توفير الوقت ${shopperFee} ${currency}`
+      : `${businessName} - عليك دفع ${total} ${currency} · التوصيل ${deliveryFee} ${currency} (حسب المسافة)`
     const titleAr = 'طلب توصيل جديد'
     const payload = {
       title: RTL_MARK + titleAr,

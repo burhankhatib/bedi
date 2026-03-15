@@ -248,7 +248,7 @@ export async function POST(request: NextRequest) {
       orderDoc.deliveryAddress = deliveryAddress
       const safeDeliveryFee = typeof deliveryFee === 'number' && Number.isFinite(deliveryFee) ? Math.max(0, deliveryFee) : 0
       orderDoc.deliveryFee = safeDeliveryFee
-      const tenantRequiresPersonalShopper = targetTenant?.requiresPersonalShopper === true || requiresPersonalShopper === true
+      const tenantRequiresPersonalShopper = targetTenant?.requiresPersonalShopper === true || targetTenant?.supportsDriverPickup === true || requiresPersonalShopper === true
       const shopperFee = tenantRequiresPersonalShopper ? getShopperFeeByItemCount(totalItemCount) : 0
       if (tenantRequiresPersonalShopper) {
         orderDoc.requiresPersonalShopper = true

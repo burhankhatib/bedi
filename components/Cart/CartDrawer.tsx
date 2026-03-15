@@ -230,7 +230,7 @@ export function CartDrawer() {
 
     const header = `🍽️ طلب\n${'='.repeat(20)}\n${customerInfo}\n`
     const body = orderLines.join('\n')
-    const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper ? getShopperFeeByItemCount(totalItems) : 0
+    const shopperFee = orderType === 'delivery' && (cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) ? getShopperFeeByItemCount(totalItems) : 0
     const finalTotal = orderType === 'delivery' ? totalPrice + deliveryFee + shopperFee : totalPrice
     const total = `\n${'='.repeat(20)}\nالمجموع: ${finalTotal.toFixed(2)} ${formatCurrency(items[0]?.currency)}`
 
@@ -334,7 +334,7 @@ export function CartDrawer() {
         }
       })
 
-      const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper
+      const shopperFee = orderType === 'delivery' && (cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup)
         ? getShopperFeeByItemCount(totalItems)
         : 0
       const orderPayload: Record<string, unknown> = {
@@ -450,7 +450,7 @@ export function CartDrawer() {
     setIsOpen(open)
   }
 
-  const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper ? getShopperFeeByItemCount(totalItems) : 0
+  const shopperFee = orderType === 'delivery' && (cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) ? getShopperFeeByItemCount(totalItems) : 0
   const finalTotal = orderType === 'delivery' ? totalPrice + deliveryFee + shopperFee : totalPrice
 
   return (
@@ -715,7 +715,7 @@ export function CartDrawer() {
                       )}
 
                       {/* Show subtotal, delivery fee, and shopper fee for delivery orders */}
-                      {orderType === 'delivery' && (deliveryFee > 0 || cartTenant?.requiresPersonalShopper) && (
+                      {orderType === 'delivery' && (deliveryFee > 0 || cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
                         <div className="space-y-1 text-sm">
                           <div className="flex justify-between items-center">
                             <span className="text-slate-600">{t('Subtotal', 'المجموع الفرعي')}:</span>
@@ -731,7 +731,7 @@ export function CartDrawer() {
                               </span>
                             </div>
                           )}
-                          {cartTenant?.requiresPersonalShopper && (
+                          {(cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
                             <div className="rounded-xl border border-amber-200/60 bg-amber-50/70 p-2.5 space-y-1">
                               <div className="flex justify-between items-start gap-2">
                                 <span className="text-slate-700 flex items-center gap-1.5 font-semibold">

@@ -735,7 +735,7 @@ export function UnifiedOrderDialog({
                   </div>
                 )}
 
-                {cartTenant?.requiresPersonalShopper && items.length > 0 && (
+                {((cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && items.length > 0) && (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-4">
                     {(() => {
                       const fee = getShopperFeeByItemCount(totalItems)

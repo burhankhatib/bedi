@@ -343,7 +343,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         }
       })
 
-      const shopperFee = orderType === 'delivery' && cartTenant?.requiresPersonalShopper
+      const shopperFee = orderType === 'delivery' && (cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup)
         ? getShopperFeeByItemCount(totalItems)
         : 0
       const finalTotal = orderType === 'delivery'
@@ -745,7 +745,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                   </div>
 
                   {/* Show delivery details for delivery orders */}
-                  {orderType === 'delivery' && (deliveryFee > 0 || cartTenant?.requiresPersonalShopper) && (
+                  {orderType === 'delivery' && (deliveryFee > 0 || cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
                     <div className="space-y-2 text-sm px-1">
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500">{t('Subtotal', 'المجموع الفرعي')}</span>
@@ -761,7 +761,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                           </span>
                         </div>
                       )}
-                      {cartTenant?.requiresPersonalShopper && (
+                      {(cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
                         <div className="rounded-xl border border-amber-200/60 bg-amber-50/70 p-2.5 space-y-1">
                           <div className="flex justify-between items-start gap-2">
                             <span className="text-slate-700 flex items-center gap-1.5 font-semibold">
@@ -792,7 +792,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                     <span className="font-black text-slate-400 text-sm uppercase tracking-widest">{t('Total', 'المجموع')}</span>
                     <span className="font-black text-2xl">
                       {(orderType === 'delivery'
-                        ? totalPrice + deliveryFee + (cartTenant?.requiresPersonalShopper ? getShopperFeeByItemCount(totalItems) : 0)
+                        ? totalPrice + deliveryFee + ((cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) ? getShopperFeeByItemCount(totalItems) : 0)
                         : totalPrice
                       ).toFixed(2)} {formatCurrency(items[0]?.currency)}
                     </span>

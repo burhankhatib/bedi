@@ -35,8 +35,15 @@ export async function PATCH(
   if (!check.ok) return NextResponse.json({ error: 'Forbidden' }, { status: check.status })
 
   const writeClient = client.withConfig({ token, useCdn: false })
-  const orderBefore = await writeClient.fetch<{ orderNumber?: string; status?: string } | null>(
-    `*[_type == "order" && _id == $orderId][0]{ orderNumber, status }`,
+  const orderBefore = await writeClient.fetch<{
+    orderNumber?: string
+    status?: string
+    totalAmount?: number
+    deliveryFee?: number
+    shopperFee?: number
+    currency?: string
+  } | null>(
+    `*[_type == "order" && _id == $orderId][0]{ orderNumber, status, totalAmount, deliveryFee, shopperFee, currency }`,
     { orderId }
   )
   if (!orderBefore) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
@@ -67,9 +74,17 @@ export async function PATCH(
         `*[_type == "driver" && _id == $driverId][0]{ fcmToken, "pushSubscription": pushSubscription }`,
         { driverId }
       )
+      const currency = orderBefore.currency?.trim() || '₪'
+      const total = typeof orderBefore.totalAmount === 'number' ? orderBefore.totalAmount.toFixed(2) : '0.00'
+      const deliveryFee = typeof orderBefore.deliveryFee === 'number' ? orderBefore.deliveryFee.toFixed(2) : '0.00'
+      const shopperFee = typeof orderBefore.shopperFee === 'number' ? orderBefore.shopperFee.toFixed(2) : '0.00'
+      const hasShopperFee = (orderBefore.shopperFee ?? 0) > 0
+      const bodyAr = hasShopperFee
+        ? `طلب #${orderNumber} — المجموع ${total} ${currency} · التوصيل ${deliveryFee} ${currency} · رسوم توفير الوقت ${shopperFee} ${currency}`
+        : `طلب #${orderNumber} — المجموع ${total} ${currency} · التوصيل ${deliveryFee} ${currency}`
       const payload = {
         title: 'تم تعيينك لتوصيل طلب',
-        body: `طلب رقم #${orderNumber} — افتح التطبيق لعرض التفاصيل.`,
+        body: `\u200F${bodyAr} — افتح التطبيق للتفاصيل.`,
         url: '/driver/orders',
         dir: 'rtl' as const,
       }

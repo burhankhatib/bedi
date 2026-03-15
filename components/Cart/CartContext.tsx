@@ -27,6 +27,7 @@ export interface CartTenant {
   deliveryFeeMin?: number
   deliveryFeeMax?: number
   requiresPersonalShopper?: boolean
+  supportsDriverPickup?: boolean
   shopperFee?: number
 }
 

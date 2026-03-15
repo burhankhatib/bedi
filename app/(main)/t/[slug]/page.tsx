@@ -150,6 +150,7 @@ export default async function TenantMenuPage({
     deliveryFeeMin: tenant.deliveryFeeMin,
     deliveryFeeMax: tenant.deliveryFeeMax,
     requiresPersonalShopper: tenant.requiresPersonalShopper ?? false,
+    supportsDriverPickup: tenant.supportsDriverPickup ?? false,
     shopperFee: tenant.shopperFee ?? 10,
   }
 
