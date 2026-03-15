@@ -59,7 +59,6 @@ export const tenantStaffType = defineType({
           { title: 'Business profile', value: 'settings_business' },
           { title: 'Menu', value: 'settings_menu' },
           { title: 'Tables', value: 'settings_tables' },
-          { title: 'Delivery areas', value: 'settings_areas' },
           { title: 'Drivers', value: 'settings_drivers' },
           { title: 'Analytics', value: 'analytics' },
           { title: 'Transfer ownership', value: 'transfer' },

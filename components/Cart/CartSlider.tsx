@@ -272,10 +272,9 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     setIsReady(true)
   }
 
-  const handleDeliverySubmit = (name: string, phone: string, areaId: string, address: string, fee: number, scheduleStr?: string) => {
+  const handleDeliverySubmit = (name: string, phone: string, address: string, fee: number, scheduleStr?: string) => {
     setCustomerName(name)
     setCustomerPhone(phone)
-    setDeliveryAreaId(areaId)
     setDeliveryAddress(address)
     setDeliveryFee(fee)
     setScheduledFor(scheduleStr)
@@ -368,7 +367,6 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         orderPayload.customerPhone = customerPhone
       } else if (orderType === 'delivery') {
         orderPayload.customerPhone = customerPhone
-        orderPayload.deliveryAreaId = deliveryAreaId
         orderPayload.deliveryAddress = deliveryAddress
         orderPayload.deliveryFee = deliveryFee
         if (shopperFee > 0) {

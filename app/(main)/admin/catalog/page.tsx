@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Loader2, Package, CheckCircle, Plus, Upload, Link2, Pencil, Languages, Copy, Trash2, Merge } from 'lucide-react'
+import { Loader2, Package, CheckCircle, Plus, Upload, Link2, Pencil, Languages, Copy, Trash2, Merge, Zap } from 'lucide-react'
 import { compressImageForUpload } from '@/lib/compress-image'
 
 const CATEGORIES = [
@@ -233,6 +233,9 @@ export default function AdminCatalogPage() {
 
   // AI Translate & Fill
   const [translating, setTranslating] = useState(false)
+  const [backgroundTranslating, setBackgroundTranslating] = useState(false)
+  const [backgroundStats, setBackgroundStats] = useState({ done: 0, translated: 0, failed: 0, remaining: 0 })
+  const backgroundCancelledRef = useRef(false)
   const [translateProgress, setTranslateProgress] = useState<
     Array<{ _id: string; index: number; total: number; nameEn?: string; nameAr?: string; ok?: boolean; error?: string; updated?: string[]; translatedNameEn?: string; translatedNameAr?: string }>
   >([])
@@ -507,6 +510,141 @@ export default function AdminCatalogPage() {
     }
   }
 
+  const BATCH_SIZE = 100
+  const BATCH_DELAY_MS = 2000
+
+  const handleBackgroundTranslate = async () => {
+    if (backgroundTranslating || translating) return
+    setBackgroundTranslating(true)
+    backgroundCancelledRef.current = false
+    setBackgroundStats({ done: 0, translated: 0, failed: 0, remaining: 0 })
+    setTranslateResult(null)
+    setTranslateProgress([])
+
+    const runBatch = async (): Promise<{ remaining: number; translated: number; failed: number; processed: number } | null> => {
+      if (backgroundCancelledRef.current) return null
+      const res = await fetch('/api/admin/translate-products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: BATCH_SIZE, dryRun: false, stream: true }),
+      })
+      if (!res.ok || !res.body) return null
+      const contentType = res.headers.get('content-type') ?? ''
+      if (!contentType.includes('x-ndjson')) {
+        const data = await res.json().catch(() => ({}))
+        return {
+          remaining: data.remaining ?? 0,
+          translated: data.translated ?? 0,
+          failed: data.failed ?? 0,
+          processed: data.processed ?? 0,
+        }
+      }
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let lastDone: { remaining: number; translated: number; failed: number; processed: number } | null = null
+      while (true) {
+        if (backgroundCancelledRef.current) break
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const data = JSON.parse(line) as {
+              type?: string
+              index?: number
+              total?: number
+              processed?: number
+              _id?: string
+              nameEn?: string
+              nameAr?: string
+              ok?: boolean
+              error?: string
+              updated?: string[]
+              translatedNameEn?: string
+              translatedNameAr?: string
+              totalNeedingWork?: number
+              translated?: number
+              skipped?: number
+              failed?: number
+              remaining?: number
+            }
+            if (data.type === 'product' && data._id) {
+              setTranslateProgress((prev) => [
+                ...prev.filter((p) => p._id !== data._id),
+                {
+                  _id: data._id ?? '',
+                  index: data.index ?? 0,
+                  total: data.total ?? 0,
+                  nameEn: data.nameEn,
+                  nameAr: data.nameAr,
+                  ok: data.ok,
+                  error: data.error,
+                  updated: data.updated as string[] | undefined,
+                  translatedNameEn: data.translatedNameEn,
+                  translatedNameAr: data.translatedNameAr,
+                },
+              ])
+            } else if (data.type === 'done') {
+              lastDone = {
+                remaining: data.remaining ?? 0,
+                translated: data.translated ?? 0,
+                failed: data.failed ?? 0,
+                processed: data.processed ?? data.total ?? 0,
+              }
+            }
+          } catch {
+            /* skip */
+          }
+        }
+      }
+      return lastDone
+    }
+
+    let totalDone = 0
+    let totalTranslated = 0
+    let totalFailed = 0
+    let remaining = 1
+
+    while (remaining > 0 && !backgroundCancelledRef.current) {
+      const result = await runBatch()
+      if (!result || backgroundCancelledRef.current) break
+      totalDone += result.processed
+      totalTranslated += result.translated
+      totalFailed += result.failed
+      remaining = result.remaining
+      setBackgroundStats({ done: totalDone, translated: totalTranslated, failed: totalFailed, remaining })
+      if (remaining > 0) {
+        setTranslateProgress([])
+        await new Promise((r) => setTimeout(r, BATCH_DELAY_MS))
+      }
+    }
+
+    setBackgroundTranslating(false)
+    setTranslateResult({
+      ok: totalFailed === 0,
+      message:
+        remaining === 0
+          ? `Background complete: ${totalTranslated} translated, ${totalDone} processed.`
+          : backgroundCancelledRef.current
+            ? `Stopped: ${totalTranslated} translated so far. ${remaining} remaining.`
+            : `Finished: ${totalTranslated} translated, ${totalFailed} failed. ${remaining} remaining.`,
+      totalNeedingWork: totalDone + remaining,
+      processed: totalDone,
+      translated: totalTranslated,
+      failed: totalFailed,
+      remaining,
+    })
+    if (totalTranslated > 0) fetchProducts()
+  }
+
+  const handleStopBackgroundTranslate = () => {
+    backgroundCancelledRef.current = true
+  }
+
   const handleFindDuplicates = async () => {
     setDuplicateResult(null)
     setDuplicateGroups([])
@@ -644,6 +782,32 @@ export default function AdminCatalogPage() {
 
   return (
     <div>
+      {backgroundTranslating && (
+        <div className="sticky top-0 z-50 mb-4 flex items-center justify-between gap-4 rounded-xl border border-emerald-500/50 bg-emerald-950/90 px-4 py-3 shadow-lg backdrop-blur-sm">
+          <div className="flex items-center gap-4">
+            <Loader2 className="size-5 animate-spin text-emerald-400 shrink-0" />
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              <span className="text-emerald-200">
+                Translated: <strong className="text-emerald-400">{backgroundStats.translated}</strong>
+              </span>
+              <span className="text-slate-400">
+                Done: {backgroundStats.done} · Remaining: {backgroundStats.remaining}
+              </span>
+              {backgroundStats.failed > 0 && (
+                <span className="text-red-400">Failed: {backgroundStats.failed}</span>
+              )}
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleStopBackgroundTranslate}
+            className="border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/20 hover:text-white"
+          >
+            Stop
+          </Button>
+        </div>
+      )}
       <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">Product Catalog</h1>
       <p className="mt-1 text-sm text-slate-400 sm:text-base">
         Palestinian market product catalog for grocery, supermarket, and greengrocer tenants. Seed categories and products so markets can add them to their menus.
@@ -913,26 +1077,34 @@ export default function AdminCatalogPage() {
           <div>
             <h2 className="font-semibold text-white">AI Translate & Fill</h2>
             <p className="text-sm text-slate-400">
-              Uses OpenAI to translate titles/descriptions (EN↔AR), including Hebrew to English/Arabic. Generates missing descriptions from product names and Palestinian/Israeli market knowledge. Processes 50 products per run to ensure stability; run multiple times to finish.
+              Uses OpenAI to translate titles/descriptions (EN↔AR), including Hebrew to English/Arabic. Generates missing descriptions from product names and Levantine Arabic. Run a batch of 50, or translate all in background (processes 100 per batch until done—you can keep using the page).
             </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
           <Button
+            onClick={() => handleBackgroundTranslate()}
+            disabled={translating || backgroundTranslating}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white"
+          >
+            {backgroundTranslating ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Zap className="mr-2 size-4" />}
+            {backgroundTranslating ? 'Translating…' : 'Translate all (background)'}
+          </Button>
+          <Button
             onClick={() => handleTranslate(false)}
-            disabled={translating}
+            disabled={translating || backgroundTranslating}
             className="bg-sky-600 hover:bg-sky-500 text-white"
           >
             {translating ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Languages className="mr-2 size-4" />}
-            {translating ? 'Translating…' : 'Translate & Fill (50)'}
+            {translating ? 'Translating…' : 'Translate batch (50)'}
           </Button>
           <Button
             variant="outline"
             onClick={() => handleTranslate(true)}
-            disabled={translating}
+            disabled={translating || backgroundTranslating}
             className="border-slate-600 text-slate-300 hover:bg-slate-800"
           >
-            {translating ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+            {translating || backgroundTranslating ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
             Dry run (preview)
           </Button>
           <Button
@@ -945,7 +1117,7 @@ export default function AdminCatalogPage() {
             {findingDuplicates ? 'Finding…' : 'Find Duplicates'}
           </Button>
         </div>
-        {translating && translateProgress.length > 0 && (
+        {(translating || backgroundTranslating) && translateProgress.length > 0 && (
           <div className="mt-4 max-h-64 overflow-y-auto rounded-lg border border-slate-700 bg-slate-900/80 p-3 space-y-2">
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Translating…</p>
             {[...translateProgress].sort((a, b) => a.index - b.index).map((p) => (

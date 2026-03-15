@@ -83,14 +83,6 @@ export const orderType = defineType({
       description: 'Required for dine-in and receive-in-person (tenant may contact customer). Also used for delivery.',
     }),
     defineField({
-      name: 'deliveryArea',
-      title: 'Delivery Area',
-      type: 'reference',
-      to: [{ type: 'area' }],
-      description: 'Selected delivery area',
-      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
-    }),
-    defineField({
       name: 'deliveryAddress',
       title: 'Delivery Address Details',
       type: 'text',

@@ -4,7 +4,7 @@ import { categoryType } from './category'
 import { productType } from './product'
 import { restaurantInfoType } from './restaurantInfo'
 import { aboutUsType } from './aboutUs'
-import { areaType } from './area'
+import { platformAreaType } from './platformArea'
 import { driverType } from './driver'
 import { tenantDriverType } from './tenantDriver'
 import { platformUserType } from './platformUser'
@@ -24,11 +24,12 @@ import { userPushSubscriptionType } from './userPushSubscription'
 import { tableServiceRequestType } from './tableServiceRequest'
 import { otpVerificationType } from './otpVerification'
 import { broadcastHistoryType } from './broadcastHistory'
+import { whatsappMessageType } from './whatsappMessage'
 import { bopProcessedPaymentType } from './bopProcessedPayment'
 import { catalogCategoryType } from './catalogCategory'
 import { catalogProductType } from './catalogProduct'
 import { masterCatalogProductType } from '../../schemas/masterCatalog'
 
 export const schema: { types: SchemaTypeDefinition[] } = {
-  types: [tenantType, categoryType, catalogCategoryType, catalogProductType, masterCatalogProductType, productType, restaurantInfoType, aboutUsType, areaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType, broadcastHistoryType, bopProcessedPaymentType],
+  types: [tenantType, categoryType, catalogCategoryType, catalogProductType, masterCatalogProductType, productType, restaurantInfoType, aboutUsType, platformAreaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType, broadcastHistoryType, whatsappMessageType, bopProcessedPaymentType],
 }

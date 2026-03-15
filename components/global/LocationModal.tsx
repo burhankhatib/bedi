@@ -22,6 +22,7 @@ export function LocationModal() {
     setOpenLocationModal,
     setLocation,
     availableCities,
+    polygons,
     city: selectedCity,
   } = useLocation()
 
@@ -53,7 +54,7 @@ export function LocationModal() {
           const { latitude, longitude } = position.coords
 
           // 1) Try instant polygon-based geofencing first (accurate & offline)
-          const geofenceCity = getCityFromCoordinates(longitude, latitude)
+          const geofenceCity = getCityFromCoordinates(longitude, latitude, polygons ?? undefined)
           if (geofenceCity) {
             const match = availableCities.find(c => c.toLowerCase() === geofenceCity.toLowerCase())
             if (match) {

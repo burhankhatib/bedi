@@ -197,16 +197,7 @@ export async function getTenantByPayPalSubscriptionId(
   return t ?? null
 }
 
-/** Number of active delivery areas for this tenant (for catalog vs order mode). Uses no-CDN when fresh data needed. */
-export async function getDeliveryAreasCount(
-  siteId: string,
-  options?: { useCdn?: boolean }
-): Promise<number> {
-  if (!siteId) return 0
-  const c = options?.useCdn === false ? clientNoCdn : client
-  const list = await c.fetch<{ _id: string }[]>(
-    `*[_type == "area" && site._ref == $siteId && isActive == true]{ _id }`,
-    { siteId }
-  )
-  return Array.isArray(list) ? list.length : 0
+/** @deprecated Tenant delivery areas removed; delivery uses distance-based pricing. Always returns 0. */
+export async function getDeliveryAreasCount(_siteId: string): Promise<number> {
+  return 0
 }

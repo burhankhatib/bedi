@@ -24,7 +24,6 @@ export async function DELETE(
     // Fetch all document IDs that reference this tenant (children first, then tenant)
     const [
       restaurantInfoIds,
-      areaIds,
       categoryIds,
       productIds,
       tenantDriverIds,
@@ -36,7 +35,6 @@ export async function DELETE(
       tableServiceRequestIds,
     ] = await Promise.all([
       client.fetch<string[]>(`*[_type == "restaurantInfo" && site._ref == $siteId]._id`, { siteId }),
-      client.fetch<string[]>(`*[_type == "area" && site._ref == $siteId]._id`, { siteId }),
       client.fetch<string[]>(`*[_type == "category" && site._ref == $siteId]._id`, { siteId }),
       client.fetch<string[]>(`*[_type == "product" && site._ref == $siteId]._id`, { siteId }),
       client.fetch<string[]>(`*[_type == "tenantDriver" && site._ref == $siteId]._id`, { siteId }),
@@ -50,7 +48,6 @@ export async function DELETE(
 
     const idsToDelete = [
       ...(restaurantInfoIds ?? []),
-      ...(areaIds ?? []),
       ...(categoryIds ?? []),
       ...(productIds ?? []),
       ...(tenantDriverIds ?? []),

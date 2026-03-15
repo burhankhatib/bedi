@@ -1,8 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Megaphone, Loader2, Info, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Megaphone, Loader2, Info, CheckCircle2, XCircle, Clock, MessageSquare, Send, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+
+type WhatsAppMessage = {
+  _id: string
+  participantPhone: string
+  direction: 'in' | 'out'
+  text?: string
+  messageType?: string
+  createdAt?: string
+}
+
+type Conversation = {
+  participantPhone: string
+  lastMessageAt?: string
+  lastMessagePreview: string
+  messageCount: number
+  messages: WhatsAppMessage[]
+}
 
 type BroadcastHistory = {
   _id: string
@@ -43,6 +60,65 @@ export function AdminBroadcastClient() {
 
   // Expand state
   const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  // Inbox
+  const [activeTab, setActiveTab] = useState<'broadcast' | 'inbox'>('broadcast')
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [inboxLoading, setInboxLoading] = useState(false)
+  const [selectedConv, setSelectedConv] = useState<Conversation | null>(null)
+  const [replyText, setReplyText] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
+  const [replyError, setReplyError] = useState<string | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const fetchInbox = () => {
+    setInboxLoading(true)
+    fetch('/api/admin/whatsapp/inbox', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : { conversations: [] }))
+      .then((data) => {
+        setConversations(data.conversations ?? [])
+        const sel = selectedConv
+          ? (data.conversations ?? []).find((c: Conversation) => c.participantPhone === selectedConv.participantPhone)
+          : null
+        if (sel) setSelectedConv(sel)
+      })
+      .catch(() => setConversations([]))
+      .finally(() => setInboxLoading(false))
+  }
+
+  const handleSendReply = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedConv || !replyText.trim()) return
+    setSendingReply(true)
+    setReplyError(null)
+    try {
+      const res = await fetch('/api/admin/whatsapp/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ to: selectedConv.participantPhone, text: replyText.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        setReplyText('')
+        fetchInbox()
+      } else {
+        setReplyError(data.error ?? 'Failed to send')
+      }
+    } catch {
+      setReplyError('Failed to send')
+    } finally {
+      setSendingReply(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'inbox') fetchInbox()
+  }, [activeTab])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [selectedConv?.messages])
 
   const fetchHistory = () => {
     setLoadingHistory(true)
@@ -160,7 +236,158 @@ export function AdminBroadcastClient() {
   })
 
   return (
-    <div className="mt-6 rounded-2xl border border-slate-800/60 bg-slate-900/40 p-6">
+    <div className="mt-6">
+      {/* Tab bar */}
+      <div className="flex gap-2 mb-6">
+        <button
+          type="button"
+          onClick={() => setActiveTab('broadcast')}
+          className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === 'broadcast'
+              ? 'border-amber-500/60 bg-amber-500/20 text-amber-300'
+              : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
+          }`}
+        >
+          <Megaphone className="size-4" />
+          Broadcast
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('inbox')}
+          className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === 'inbox'
+              ? 'border-amber-500/60 bg-amber-500/20 text-amber-300'
+              : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
+          }`}
+        >
+          <MessageSquare className="size-4" />
+          Inbox
+        </button>
+      </div>
+
+      {activeTab === 'inbox' ? (
+        /* Inbox chat layout */
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/40 overflow-hidden" style={{ minHeight: 520 }}>
+          <div className="flex h-[520px]">
+            {/* Conversation list */}
+            <div className="w-72 shrink-0 border-r border-slate-700/60 flex flex-col bg-slate-900/60">
+              <div className="p-4 border-b border-slate-700/60 flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-white">Conversations</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Messages received on your WhatsApp Business number</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fetchInbox()}
+                  disabled={inboxLoading}
+                  className="p-2 rounded-lg border border-slate-600 text-slate-400 hover:bg-slate-800/60 hover:text-white transition-colors"
+                  title="Refresh"
+                >
+                  <RefreshCw className={`size-4 ${inboxLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {inboxLoading ? (
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="size-6 animate-spin text-slate-400" />
+                  </div>
+                ) : conversations.length === 0 ? (
+                  <p className="p-4 text-sm text-slate-500">No conversations yet. Messages will appear here when users message your WhatsApp Business number.</p>
+                ) : (
+                  <div className="divide-y divide-slate-700/40">
+                    {conversations.map((c) => (
+                      <button
+                        key={c.participantPhone}
+                        type="button"
+                        onClick={() => { setSelectedConv(c); setReplyError(null) }}
+                        className={`w-full text-left px-4 py-3 hover:bg-slate-800/60 transition-colors ${
+                          selectedConv?.participantPhone === c.participantPhone
+                            ? 'bg-amber-500/10 border-l-2 border-amber-500 -ml-px pl-[15px]'
+                            : ''
+                        }`}
+                      >
+                        <div className="font-medium text-white truncate" dir="ltr">+{c.participantPhone}</div>
+                        <p className="text-xs text-slate-400 truncate mt-0.5">{c.lastMessagePreview || 'No messages'}</p>
+                        {c.lastMessageAt && (
+                          <p className="text-xs text-slate-500 mt-1">
+                            {new Date(c.lastMessageAt).toLocaleString()}
+                          </p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Chat area */}
+            <div className="flex-1 flex flex-col min-w-0">
+              {selectedConv ? (
+                <>
+                  <div className="p-4 border-b border-slate-700/60 bg-slate-800/30">
+                    <h3 className="font-medium text-white" dir="ltr">+{selectedConv.participantPhone}</h3>
+                    <p className="text-xs text-slate-400">{selectedConv.messageCount} messages</p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {selectedConv.messages.map((m) => (
+                      <div
+                        key={m._id}
+                        className={`flex ${m.direction === 'out' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                            m.direction === 'out'
+                              ? 'bg-amber-600/80 text-slate-950 rounded-br-md'
+                              : 'bg-slate-700/80 text-white rounded-bl-md'
+                          }`}
+                        >
+                          <p className="text-sm whitespace-pre-wrap break-words" dir="auto">{m.text || '[Media]'}</p>
+                          <p className={`text-[10px] mt-1 ${m.direction === 'out' ? 'text-slate-700' : 'text-slate-400'}`}>
+                            {m.createdAt ? new Date(m.createdAt).toLocaleTimeString() : ''}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+                  <form onSubmit={handleSendReply} className="p-4 border-t border-slate-700/60 bg-slate-900/60">
+                    {replyError && (
+                      <p className="text-sm text-red-400 mb-2">{replyError}</p>
+                    )}
+                    <p className="text-xs text-slate-500 mb-2">Replies work within 24h of the user&apos;s last message. Outside that window, use a pre-approved template.</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder="Type your reply..."
+                        className="flex-1 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2.5 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                        dir="auto"
+                      />
+                      <Button
+                        type="submit"
+                        disabled={!replyText.trim() || sendingReply}
+                        className="bg-amber-600 text-slate-950 hover:bg-amber-500 shrink-0"
+                      >
+                        {sendingReply ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                      </Button>
+                    </div>
+                  </form>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-slate-500">
+                  <div className="text-center">
+                    <MessageSquare className="size-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">Select a conversation to view messages and reply</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Broadcast tab */
+        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/40 p-6">
       <form onSubmit={handleSend} className="space-y-6 max-w-2xl">
         
         {/* Target Audience */}
@@ -518,6 +745,8 @@ export function AdminBroadcastClient() {
           </div>
         )}
       </div>
+        </div>
+      )}
     </div>
   )
 }

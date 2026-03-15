@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { getCityFromCoordinates } from '@/lib/geofencing'
+import type { Polygon } from '@/lib/geofencing'
 import { GEO_CITY_ALIASES } from '@/lib/registration-translations'
 
 const STORAGE_CITY = 'home_city'
@@ -33,6 +34,8 @@ type LocationContextValue = LocationState & {
   openLocationModal: boolean
   setOpenLocationModal: (open: boolean) => void
   availableCities: string[]
+  /** Platform polygons for geofencing (from Sanity). Used by LocationModal. */
+  polygons: Polygon[] | null
   /** Status of auto-detection; used by LocationGate to show the right screen. */
   locationStatus: LocationStatus
   /** When out_of_service, the detected city name for the apology message. */
@@ -65,11 +68,27 @@ async function fetchCities(): Promise<string[]> {
   }
 }
 
+/** GeoJSON feature from API. */
+type PolygonFeature = {
+  properties: { name: string }
+  geometry: { coordinates: [number, number][][] }
+}
+
+function featuresToPolygons(features: PolygonFeature[]): Polygon[] {
+  return features
+    .filter((f) => f?.geometry?.coordinates?.[0]?.length >= 3)
+    .map((f) => ({
+      name: f.properties?.name ?? 'Unknown',
+      coordinates: f.geometry.coordinates[0].map(([lng, lat]) => [lng, lat] as [number, number]),
+    }))
+}
+
 export function LocationProvider({ children }: { children: ReactNode }) {
   const [city, setCity] = useState<string | null>(null)
   const [isChosen, setIsChosen] = useState(false)
   const [openLocationModal, setOpenLocationModal] = useState(false)
   const [availableCities, setAvailableCities] = useState<string[]>([])
+  const [polygons, setPolygons] = useState<Polygon[] | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const [citiesLoaded, setCitiesLoaded] = useState(false)
   const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle')
@@ -77,9 +96,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [autoDetectTrigger, setAutoDetectTrigger] = useState(0)
   const hasTriedAutoDetect = useRef(false)
   const availableCitiesRef = useRef<string[]>([])
+  const polygonsRef = useRef<Polygon[] | null>(null)
 
-  // Keep ref in sync so async callbacks always read the latest value
+  // Keep refs in sync so async callbacks always read the latest value
   availableCitiesRef.current = availableCities
+  polygonsRef.current = polygons
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -103,6 +124,17 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       setAvailableCities(c)
       setCitiesLoaded(true)
     })
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/geofencing/polygons')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.features?.length) {
+          setPolygons(featuresToPolygons(data.features))
+        }
+      })
+      .catch(() => {})
   }, [])
 
   const setLocation = useCallback((c: string) => {
@@ -132,7 +164,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const resolveCoordinates = useCallback(async (latitude: number, longitude: number) => {
     const cities = availableCitiesRef.current
 
-    const geofenceCity = getCityFromCoordinates(longitude, latitude)
+    const polys = polygonsRef.current
+    const geofenceCity = getCityFromCoordinates(longitude, latitude, polys ?? undefined)
     if (geofenceCity) {
       const match = cities.find((c) => c.toLowerCase() === geofenceCity.toLowerCase())
       if (match) {
@@ -276,6 +309,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     openLocationModal,
     setOpenLocationModal,
     availableCities,
+    polygons,
     locationStatus,
     detectedCityName,
     retryAutoDetect,

@@ -103,33 +103,31 @@ export const tenantType = defineType({
       type: 'string',
       options: {
         list: [
-          { title: 'Manual Areas (Default)', value: 'areas' },
           { title: 'Distance-based (Automatic)', value: 'distance' },
         ],
       },
-      initialValue: 'areas',
-      description: 'How delivery fees are calculated. If Distance-based, it uses business and customer coordinates.',
+      initialValue: 'distance',
+      readOnly: true,
+      hidden: true,
+      description: 'Delivery fees use distance-based pricing.',
     }),
     defineField({
       name: 'deliveryFeeMin',
       title: 'Minimum Delivery Fee',
       type: 'number',
       description: 'Minimum fee for distance-based delivery (e.g. 10).',
-      hidden: ({ parent }) => parent?.deliveryPricingMode !== 'distance',
     }),
     defineField({
       name: 'deliveryFeeMax',
       title: 'Maximum Delivery Fee',
       type: 'number',
       description: 'Maximum fee for distance-based delivery (e.g. 25).',
-      hidden: ({ parent }) => parent?.deliveryPricingMode !== 'distance',
     }),
     defineField({
       name: 'deliveryMaxDistanceKm',
       title: 'Maximum Distance (km) for Fee Scaling',
       type: 'number',
       description: 'Distance at which the fee reaches the maximum (e.g. 15).',
-      hidden: ({ parent }) => parent?.deliveryPricingMode !== 'distance',
     }),
     defineField({
       name: 'clerkUserId',

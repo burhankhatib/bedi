@@ -448,13 +448,19 @@ export function isPointInPolygon(point: [number, number], polygon: [number, numb
  * Determines which defined city polygon the given coordinates reside in.
  * @param lon Longitude
  * @param lat Latitude
+ * @param polygons Optional. When provided, use these instead of CITY_POLYGONS (e.g. from Sanity).
  * @returns The matched city name (e.g. 'Bethany') or null if outside all defined polygons.
  */
-export function getCityFromCoordinates(lon: number, lat: number): string | null {
-  for (const city of CITY_POLYGONS) {
+export function getCityFromCoordinates(
+  lon: number,
+  lat: number,
+  polygons?: Polygon[]
+): string | null {
+  const source = polygons ?? CITY_POLYGONS
+  for (const city of source) {
     if (isPointInPolygon([lon, lat], city.coordinates)) {
-      return city.name;
+      return city.name
     }
   }
-  return null;
+  return null
 }

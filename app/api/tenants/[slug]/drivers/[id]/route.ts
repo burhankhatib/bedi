@@ -35,11 +35,6 @@ export async function PATCH(
     const patch: Record<string, unknown> = {}
     if (body.customName !== undefined) patch.customName = body.customName ? String(body.customName).trim() : undefined
     if (body.isActive !== undefined) patch.isActive = Boolean(body.isActive)
-    if (body.deliveryAreaIds !== undefined) {
-      patch.deliveryAreas = Array.isArray(body.deliveryAreaIds)
-        ? body.deliveryAreaIds.map((refId: string) => ({ _type: 'reference', _ref: refId }))
-        : []
-    }
     if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
     await writeClient.patch(id).set(patch).commit()
     return NextResponse.json({ ok: true })
@@ -49,11 +44,6 @@ export async function PATCH(
   if (body.phoneNumber != null) patch.phoneNumber = toEnglishDigits(String(body.phoneNumber)).replace(/\s/g, '')
   if (body.vehicleType !== undefined) patch.vehicleType = body.vehicleType ? String(body.vehicleType) : undefined
   if (body.isActive !== undefined) patch.isActive = Boolean(body.isActive)
-  if (body.deliveryAreaIds !== undefined) {
-    patch.deliveryAreas = Array.isArray(body.deliveryAreaIds)
-      ? body.deliveryAreaIds.map((refId: string) => ({ _type: 'reference', _ref: refId }))
-      : []
-  }
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
   await writeClient.patch(id).set(patch).commit()
   return NextResponse.json({ ok: true })

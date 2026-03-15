@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
-import { getTenantBySlug, getDeliveryAreasCount } from '@/lib/tenant'
+import { getTenantBySlug } from '@/lib/tenant'
 import { getSupportsDineIn } from '@/lib/constants'
 import { client } from '@/sanity/lib/client'
 import { MENU_QUERY_TENANT } from '@/sanity/lib/queries'
@@ -125,10 +125,9 @@ export default async function TenantMenuPage({
 
   const tenant = tenantFromSlug
   const isManuallyClosed = isTenantDeactivated(tenant)
-  const deliveryAreasCount = await getDeliveryAreasCount(siteId)
   const supportsDelivery = tenant.supportsDelivery !== false
   const deliveryPricingMode = tenant.deliveryPricingMode || 'distance'
-  const hasDelivery = supportsDelivery && (deliveryAreasCount > 0 || deliveryPricingMode === 'distance')
+  const hasDelivery = supportsDelivery && deliveryPricingMode === 'distance'
   const businessType = tenantFromSlug.businessType ?? ''
   const supportsDineInByType = getSupportsDineIn(businessType)
   const supportsDineIn = supportsDineInByType && (tenant.supportsDineIn ?? true)

@@ -35,13 +35,6 @@ export const tenantDriverType = defineType({
       type: 'boolean',
       initialValue: true,
     }),
-    defineField({
-      name: 'deliveryAreas',
-      title: 'Delivery areas (for this tenant)',
-      type: 'array',
-      of: [{ type: 'reference', to: [{ type: 'area' }] }],
-      description: 'Areas this driver can deliver to for your business',
-    }),
   ],
   preview: {
     select: {

@@ -16,6 +16,7 @@
     "import:baladi:url": "PLAYWRIGHT_BROWSERS_PATH=0 BALADI_HEADLESS=false tsx scripts/import-baladi.ts --interactive-auth",
     "import:baladi:cat": "PLAYWRIGHT_BROWSERS_PATH=0 BALADI_HEADLESS=false tsx scripts/import-baladi.ts --interactive-auth",
     "seed:subcategories": "tsx scripts/seed-business-subcategories.ts",
+    "seed:platform-areas": "tsx scripts/seed-platform-areas.ts",
     "import:talabat": "PLAYWRIGHT_BROWSERS_PATH=0 tsx scripts/import-talabat.ts",
     "import:talabat:url": "PLAYWRIGHT_BROWSERS_PATH=0 TALABAT_HEADLESS=false tsx scripts/import-talabat.ts --interactive-auth",
     "deploy": "clear && npm run build && git add . && (git commit -m \"deploy\" || true) && git push origin main && vercel --prod"
@@ -28,6 +29,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@geoman-io/leaflet-geoman-free": "^2.19.2",
     "@prelude.so/js-sdk": "^0.4.0",
     "@prelude.so/sdk": "^0.10.0",
     "@radix-ui/react-dialog": "^1.1.15",

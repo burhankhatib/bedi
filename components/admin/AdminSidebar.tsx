@@ -11,7 +11,7 @@ const nav = [
   { href: '/admin/reports', label: 'Reports', icon: FileWarning },
   { href: '/admin/businesses', label: 'Businesses', icon: Building2 },
   { href: '/admin/catalog', label: 'Product Catalog', icon: Package },
-  { href: '/admin/areas', label: 'Delivery Areas', icon: MapPin },
+  { href: '/admin/areas', label: 'Platform Areas', icon: MapPin },
   { href: '/admin/transfers', label: 'Transfers', icon: ArrowRightLeft },
   { href: '/admin/drivers', label: 'Drivers', icon: Truck },
   { href: '/admin/customers', label: 'Customers', icon: Users },

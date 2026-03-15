@@ -7,8 +7,6 @@ const SECTION_ORDER: { path: string; permission: keyof typeof PATH_PERMISSION }[
   { path: '/business', permission: 'business' },
   { path: '/menu', permission: 'menu' },
   { path: '/tables', permission: 'tables' },
-  // { path: '/areas', permission: 'areas' },   // Hidden: auto distance-based delivery pricing
-  // { path: '/drivers', permission: 'drivers' }, // Hidden: drivers managed centrally
   { path: '/staff', permission: 'staff' },
   { path: '/analytics', permission: 'analytics' },
   { path: '/history', permission: 'history' },

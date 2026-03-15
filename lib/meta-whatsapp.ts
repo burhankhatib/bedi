@@ -101,6 +101,56 @@ export async function sendWhatsAppTemplateMessage(
 }
 
 /**
+ * Send a free-form text message via Meta WhatsApp Cloud API.
+ * Only works within the 24-hour conversation window after the user's last message.
+ * Outside that window, use sendWhatsAppTemplateMessage.
+ */
+export async function sendWhatsAppTextMessage(phone: string, text: string) {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+
+  if (!phoneNumberId || !accessToken) {
+    return { success: false, error: 'API credentials missing in environment variables' }
+  }
+
+  const to = normalizePhoneForWhatsApp(phone)
+  if (!to) {
+    return { success: false, error: 'Invalid phone number provided' }
+  }
+
+  const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`
+  const payload = {
+    messaging_product: 'whatsapp',
+    to,
+    type: 'text',
+    text: { body: text },
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    })
+
+    if (!res.ok) {
+      const errorData = await res.json()
+      console.error('[Meta WhatsApp Text] API error:', JSON.stringify(errorData, null, 2))
+      return { success: false, error: errorData }
+    }
+
+    const data = (await res.json()) as { messages?: Array<{ id: string }> }
+    return { success: true, messageId: data.messages?.[0]?.id }
+  } catch (error) {
+    console.error('[Meta WhatsApp Text] Exception:', error)
+    return { success: false, error }
+  }
+}
+
+/**
  * Send an Authentication OTP via Meta WhatsApp Cloud API.
  * 
  * @param phone The recipient's phone number

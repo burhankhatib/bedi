@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
-import { AdminAreasClient } from './AdminAreasClient'
+import { AreasMap } from './AreasMap'
 
 export default async function AdminAreasPage() {
   const { userId, sessionClaims } = await auth()
@@ -13,11 +13,20 @@ export default async function AdminAreasPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">Delivery Areas</h1>
+      <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">Platform Service Areas</h1>
       <p className="mt-1 text-sm text-slate-400 sm:text-base">
-        Edit area names (EN/AR) to fix typos. Filter by city or business. Duplicate areas for the same business are prevented when tenants add areas.
+        Platform city boundaries for geofencing. Edit polygons in-dashboard and save to Sanity.
       </p>
-      <AdminAreasClient />
+
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-white">Platform cities (service areas)</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Click a city, use the Edit tool to drag vertices, then Save. Data is stored in Sanity.
+        </p>
+        <div className="mt-4">
+          <AreasMap />
+        </div>
+      </div>
     </div>
   )
 }

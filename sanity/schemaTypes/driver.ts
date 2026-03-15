@@ -140,13 +140,6 @@ export const driverType = defineType({
       validation: (Rule) => Rule.required().custom((v) => (v === true ? true : 'You must acknowledge the rules to register.')),
     }),
     defineField({
-      name: 'deliveryAreas',
-      title: 'Delivery Areas',
-      type: 'array',
-      of: [{ type: 'reference', to: [{ type: 'area' }] }],
-      description: 'Areas this driver can deliver to',
-    }),
-    defineField({
       name: 'notes',
       title: 'Notes',
       type: 'text',
@@ -295,17 +288,16 @@ export const driverType = defineType({
       vehicleType: 'vehicleType',
       country: 'country',
       city: 'city',
-      firstAreaName: 'deliveryAreas.0.name_en',
       picture: 'picture',
     },
     prepare(selection) {
-      const { name, phoneNumber, vehicleType, country, city, firstAreaName, picture } = selection ?? {}
+      const { name, phoneNumber, vehicleType, country, city, picture } = selection ?? {}
       const driverName = typeof name === 'string' ? name : 'Unnamed'
       const vehicleLabel = typeof vehicleType === 'string'
         ? vehicleType.charAt(0).toUpperCase() + vehicleType.slice(1)
         : '—'
       const mobileLine = [typeof phoneNumber === 'string' ? phoneNumber : '—', vehicleLabel].join(' › ')
-      const locationParts = [country, city, firstAreaName].map((s) => (typeof s === 'string' ? s : '—'))
+      const locationParts = [country, city].map((s) => (typeof s === 'string' ? s : '—'))
       const locationLine = locationParts.join(' › ')
       const result = {
         title: driverName,

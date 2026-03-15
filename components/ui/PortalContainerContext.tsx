@@ -20,8 +20,8 @@ export function PortalContainerProvider({ children }: { children: ReactNode }) {
   }, [])
   return (
     <PortalContainerContext.Provider value={container}>
-      {/* Stable div in layout — portals render here during manage section navigation */}
-      <div ref={refCallback} data-portal-container className="relative z-0" />
+      {/* Stable div in layout — portals render here during manage section navigation. High z-index so dialogs appear above maps, fixed layers, etc. */}
+      <div ref={refCallback} data-portal-container className="relative z-[9999]" />
       {children}
     </PortalContainerContext.Provider>
   )

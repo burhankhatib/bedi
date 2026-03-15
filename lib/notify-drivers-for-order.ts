@@ -66,8 +66,6 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       totalAmount?: number
       deliveryFee?: number
       currency?: string
-      deliveryAreaNameAr?: string
-      deliveryAreaNameEn?: string
       declinedByDriverRefs?: string[]
     } | null>(
       `*[_type == "order" && _id == $orderId][0]{
@@ -75,8 +73,6 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
         totalAmount,
         deliveryFee,
         currency,
-        "deliveryAreaNameAr": deliveryArea->name_ar,
-        "deliveryAreaNameEn": deliveryArea->name_en,
         "declinedByDriverRefs": declinedByDriverIds[]._ref
       }`,
       { orderId }
@@ -105,12 +101,7 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
     const currency = order?.currency?.trim() || '₪'
     const total = typeof order?.totalAmount === 'number' ? order.totalAmount.toFixed(2) : '0.00'
     const fee = typeof order?.deliveryFee === 'number' ? order.deliveryFee.toFixed(2) : '0.00'
-    const areaName = (order?.deliveryAreaNameAr && String(order.deliveryAreaNameAr).trim()) ||
-      (order?.deliveryAreaNameEn && String(order.deliveryAreaNameEn).trim()) ||
-      ''
-    const bodyAr = areaName
-      ? `${businessName} - عليك دفع ${total} ${currency} - التوصيل ${fee} ${currency} (${areaName})`
-      : `${businessName} - عليك دفع ${total} ${currency} - التوصيل ${fee} ${currency} (حسب المسافة)`
+    const bodyAr = `${businessName} - عليك دفع ${total} ${currency} - التوصيل ${fee} ${currency} (حسب المسافة)`
     const titleAr = 'طلب توصيل جديد'
     const payload = {
       title: RTL_MARK + titleAr,

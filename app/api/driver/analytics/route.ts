@@ -23,7 +23,6 @@ export async function GET(req: NextRequest) {
       tipAmount?: number
       currency?: string
       completedAt?: string
-      deliveryAreaRef?: string
       siteRef?: string
     }>
   >(
@@ -34,24 +33,16 @@ export async function GET(req: NextRequest) {
       tipAmount,
       currency,
       completedAt,
-      "deliveryAreaRef": deliveryArea._ref,
       "siteRef": site._ref
     }`,
     { driverId }
   )
 
-  const areaIds = [...new Set((raw ?? []).map((o) => o.deliveryAreaRef).filter(Boolean))] as string[]
   const siteIds = [...new Set((raw ?? []).map((o) => o.siteRef).filter(Boolean))] as string[]
 
-  const [areas, sites] = await Promise.all([
-    areaIds.length
-      ? client.fetch<Array<{ _id: string; name_en?: string }>>(
-          `*[_type == "area" && _id in $areaIds]{ _id, name_en }`,
-          { areaIds }
-        )
-      : Promise.resolve([]),
-    siteIds.length
-      ? client.fetch<
+  const sites =
+    siteIds.length > 0
+      ? await client.fetch<
           Array<{
             _id: string
             name?: string
@@ -65,10 +56,8 @@ export async function GET(req: NextRequest) {
           }`,
           { siteIds }
         )
-      : Promise.resolve([]),
-  ])
+      : []
 
-  const areaMap = new Map(areas.map((a) => [a._id, a.name_en || a._id]))
   const siteMap = new Map(sites.map((s) => [s._id, s.restaurantName || s.name || 'Business']))
 
   const orders = (raw ?? []).map((o) => ({
@@ -78,7 +67,7 @@ export async function GET(req: NextRequest) {
     tipAmount: o.tipAmount ?? 0,
     currency: o.currency ?? 'ILS',
     completedAt: o.completedAt ?? o._id,
-    areaName: o.deliveryAreaRef ? areaMap.get(o.deliveryAreaRef) ?? '—' : '—',
+    areaName: '—',
     businessName: o.siteRef ? siteMap.get(o.siteRef) ?? '—' : '—',
   }))
 

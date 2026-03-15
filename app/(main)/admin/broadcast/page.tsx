@@ -13,9 +13,10 @@ export default async function AdminBroadcastPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">WhatsApp Broadcast</h1>
+      <h1 className="text-xl font-bold sm:text-2xl md:text-3xl">WhatsApp Broadcast & Inbox</h1>
       <p className="mt-1 text-sm text-slate-400 sm:text-base">
-        Send mass WhatsApp messages to your users using the "broadcast_message" Meta template.
+        Send mass WhatsApp messages (Broadcast) or view and reply to incoming messages (Inbox). Configure the webhook at{' '}
+        <code className="rounded bg-slate-800 px-1 py-0.5 text-amber-400/90">/api/webhooks/whatsapp</code> in Meta Developer Console.
       </p>
       <AdminBroadcastClient />
     </div>
