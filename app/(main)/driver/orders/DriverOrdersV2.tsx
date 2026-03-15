@@ -1342,13 +1342,25 @@ function DriverOrdersV2Content() {
                   )}
                 </div>
 
-                {activeOrder.requiresPersonalShopper && (
+                {(activeOrder.items?.length ?? 0) > 0 && (
                   <button
                     type="button"
                     onClick={() => openOrderDetails(activeOrder)}
-                    className="w-full mb-4 rounded-2xl bg-amber-500 text-slate-950 hover:bg-amber-400 font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md shadow-amber-500/20"
+                    className={`w-full mb-4 rounded-2xl font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md flex items-center justify-center gap-2 ${
+                      detailsOrderId === activeOrder.orderId
+                        ? 'bg-amber-400 text-slate-950 border-2 border-amber-300'
+                        : 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-amber-500/20'
+                    }`}
                   >
-                    📋 {t('Order Details', 'تفاصيل الطلب')} / {t('Personal Shopper List', 'قائمة المتسوق الشخصي')}
+                    <Receipt className="h-5 w-5 shrink-0" />
+                    {detailsOrderId === activeOrder.orderId
+                      ? t('Hide order details', 'إخفاء تفاصيل الطلب')
+                      : t('Order Details', 'تفاصيل الطلب')}
+                    {activeOrder.requiresPersonalShopper && (
+                      <span className="text-slate-700/80 text-xs font-semibold">
+                        ({t('Personal Shopper', 'متسوق شخصي')})
+                      </span>
+                    )}
                   </button>
                 )}
                 {renderOrderDetailsPanel(activeOrder)}
@@ -1433,19 +1445,31 @@ function DriverOrdersV2Content() {
                   </div>
                 )}
 
-                {/* Business contact (collapsible) */}
+                {/* Business contact (collapsible) + Order Details shortcut */}
                 <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 overflow-hidden mb-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowBizContact((p) => !p)}
-                    className="w-full flex items-center justify-between px-4 py-3 focus:outline-none"
-                  >
-                    <span className="flex items-center gap-2 text-sm font-bold text-slate-300">
-                      <Store className="h-4 w-4 text-amber-400" />
-                      {activeOrder.businessName}
-                    </span>
-                    <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${showBizContact ? 'rotate-180' : ''}`} />
-                  </button>
+                  <div className="flex items-center gap-2 px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowBizContact((p) => !p)}
+                      className="flex-1 flex items-center justify-between min-w-0 focus:outline-none"
+                    >
+                      <span className="flex items-center gap-2 text-sm font-bold text-slate-300 truncate">
+                        <Store className="h-4 w-4 text-amber-400 shrink-0" />
+                        {activeOrder.businessName}
+                      </span>
+                      <ChevronDown className={`h-4 w-4 text-slate-500 shrink-0 transition-transform duration-200 ${showBizContact ? 'rotate-180' : ''}`} />
+                    </button>
+                    {(activeOrder.items?.length ?? 0) > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => openOrderDetails(activeOrder)}
+                        className="shrink-0 rounded-xl bg-amber-500/90 hover:bg-amber-500 text-slate-950 font-bold px-3 py-2 text-xs flex items-center gap-1.5"
+                      >
+                        <Receipt className="h-4 w-4" />
+                        {t('Order Details', 'تفاصيل الطلب')}
+                      </button>
+                    )}
+                  </div>
                   {showBizContact && activeOrder.businessWhatsapp && (
                     <div className="px-4 pb-3 flex flex-wrap items-center gap-2">
                       <a
@@ -1941,13 +1965,25 @@ function DriverOrdersV2Content() {
                     )}
                   </div>
 
-                  {o.requiresPersonalShopper && (
+                  {(o.items?.length ?? 0) > 0 && (
                     <button
                       type="button"
                       onClick={() => openOrderDetails(o)}
-                      className="w-full mb-4 rounded-2xl bg-amber-500 text-slate-950 hover:bg-amber-400 font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md shadow-amber-500/20"
+                      className={`w-full mb-4 rounded-2xl font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md flex items-center justify-center gap-2 ${
+                        detailsOrderId === o.orderId
+                          ? 'bg-amber-400 text-slate-950 border-2 border-amber-300'
+                          : 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-amber-500/20'
+                      }`}
                     >
-                      📋 {t('Order Details', 'تفاصيل الطلب')} / {t('Personal Shopper List', 'قائمة المتسوق الشخصي')}
+                      <Receipt className="h-5 w-5 shrink-0" />
+                      {detailsOrderId === o.orderId
+                        ? t('Hide order details', 'إخفاء تفاصيل الطلب')
+                        : t('Order Details', 'تفاصيل الطلب')}
+                      {o.requiresPersonalShopper && (
+                        <span className="text-slate-700/80 text-xs font-semibold">
+                          ({t('Personal Shopper', 'متسوق شخصي')})
+                        </span>
+                      )}
                     </button>
                   )}
                   {renderOrderDetailsPanel(o)}
@@ -2070,6 +2106,16 @@ function DriverOrdersV2Content() {
                           {o.businessName}
                         </p>
                       </div>
+                      {(o.items?.length ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => openOrderDetails(o)}
+                          className="shrink-0 rounded-xl bg-amber-500/90 hover:bg-amber-500 text-slate-950 font-bold px-3 py-2 text-xs flex items-center gap-1.5"
+                        >
+                          <Receipt className="h-4 w-4" />
+                          {t('Order Details', 'تفاصيل الطلب')}
+                        </button>
+                      )}
                     </div>
                     <p className="text-slate-300 text-[15px] leading-relaxed ml-[52px] rtl:mr-[52px] rtl:ml-0">
                       {lang === 'ar' && (o.businessAddressAr || '').trim()
