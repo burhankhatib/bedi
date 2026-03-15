@@ -60,6 +60,7 @@ export interface Order {
   completedAt?: string
   cancelledAt?: string
   driverCancelledAt?: string
+  driverDeclinedAssignmentAt?: string
   scheduleEditHistory?: Array<{
     _key?: string
     previousScheduledFor: string

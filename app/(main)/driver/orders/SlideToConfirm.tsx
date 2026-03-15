@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useLayoutEffect } from 'react'
+import { useRef, useState, useLayoutEffect, useEffect } from 'react'
 import { motion, useMotionValue, useTransform } from 'framer-motion'
 import { Check, X } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
@@ -46,7 +46,13 @@ export function SlideToConfirm({ orderId, variant, onConfirm, disabled }: Props)
   const [maxDrag, setMaxDrag] = useState(200)
   const [isBusy, setIsBusy] = useState(false)
   const [isDone, setIsDone] = useState(false)
+  const mountedRef = useRef(true)
   const x = useMotionValue(0)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
   const label = variant === 'accept' ? t('Slide to accept', 'اسحب لقبول') : t('Slide to decline', 'اسحب للرفض')
   const doneLabel = variant === 'accept' ? t('Accepted', 'تم القبول') : t('Declined', 'تم الرفض')
   const { trackClass, thumbClass, fillClass, Icon } = styleConfig[variant]
@@ -68,9 +74,9 @@ export function SlideToConfirm({ orderId, variant, onConfirm, disabled }: Props)
     if (x.get() >= maxDrag * THRESHOLD) {
       setIsBusy(true)
       onConfirm(orderId)
-        .then(() => setIsDone(true))
+        .then(() => { if (mountedRef.current) setIsDone(true) })
         .catch(() => {})
-        .finally(() => setIsBusy(false))
+        .finally(() => { if (mountedRef.current) setIsBusy(false) })
     }
   }
 

@@ -90,6 +90,7 @@ interface Order {
   completedAt?: string
   cancelledAt?: string
   driverCancelledAt?: string
+  driverDeclinedAssignmentAt?: string
   scheduleEditHistory?: Array<{
     _key?: string
     previousScheduledFor: string
@@ -1555,6 +1556,17 @@ Please deliver this order to the customer.
                       <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-amber-50 shadow-sm border border-amber-100 flex flex-col">
                         <p className="text-xs font-bold text-amber-800">{t('Driver cancelled delivery', 'السائق ألغى التوصيل')}</p>
                         <p className="text-xs text-amber-600 mt-1">{fmt(localOrder.driverCancelledAt)}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Driver declined manual assignment */}
+                  {localOrder.driverDeclinedAssignmentAt && (
+                    <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                      <div className="flex items-center justify-center w-4 h-4 rounded-full border-2 border-slate-300 bg-slate-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10" />
+                      <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-slate-50 shadow-sm border border-slate-200 flex flex-col">
+                        <p className="text-xs font-bold text-slate-800">{t('Driver declined assignment', 'السائق رفض التعيين')}</p>
+                        <p className="text-xs text-slate-600 mt-1">{fmt(localOrder.driverDeclinedAssignmentAt)}</p>
                       </div>
                     </div>
                   )}

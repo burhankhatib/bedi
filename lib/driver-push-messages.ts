@@ -60,3 +60,14 @@ export function getMorningEncouragementPushAr(nick: string | undefined | null): 
     body: 'يوم جديد، فرص جديدة. ادخل متصل واستقبل طلبات التوصيل. بالتوفيق!',
   }
 }
+
+/** When business manually assigns an order to the driver (including re-assignment after driver declined). */
+export function getManualAssignmentPushAr(
+  _nick: string | undefined | null,
+  orderNumber: string
+): { title: string; body: string } {
+  return {
+    title: 'طلب توصيل جديد لك! 📦',
+    body: `المتجر عيّنك لتوصيل طلب #${orderNumber}. افتح التطبيق لتأكيد أو رفض الطلب.`,
+  }
+}

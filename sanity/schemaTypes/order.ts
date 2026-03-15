@@ -374,6 +374,13 @@ export const orderType = defineType({
       description: 'When the driver accepted or was assigned the order',
     }),
     defineField({
+      name: 'manualAssignmentAt',
+      title: 'Manual Assignment At',
+      type: 'datetime',
+      description: 'When business manually assigned this driver. Driver must confirm or decline in-app.',
+      hidden: ({ parent }) => parent?.orderType !== 'delivery',
+    }),
+    defineField({
       name: 'driverPickedUpAt',
       title: 'Driver Picked Up At',
       type: 'datetime',
@@ -413,6 +420,13 @@ export const orderType = defineType({
       to: [{ type: 'driver' }],
       description: 'Driver who cancelled the delivery (for history tracking)',
       hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
+      name: 'driverDeclinedAssignmentAt',
+      title: 'Driver Declined Assignment At',
+      type: 'datetime',
+      description: 'When a driver declined a manual assignment. Order goes back to pool; business is notified.',
+      hidden: ({ parent }) => parent?.orderType !== 'delivery',
     }),
     defineField({
       name: 'notes',

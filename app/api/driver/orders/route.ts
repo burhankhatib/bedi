@@ -51,6 +51,8 @@ type DriverOrderView = {
   shopperFee?: number
   items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
   customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
+  /** True when business manually assigned and driver has not confirmed yet. */
+  needsConfirmation?: boolean
 }
 
 export async function GET() {
@@ -111,9 +113,11 @@ export async function GET() {
       requiresPersonalShopper?: boolean
       shopperFee?: number
       items?: Array<{ productId?: string; productName?: string; productImage?: unknown; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
-      customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
-      deliveryArea?: { name_en?: string; name_ar?: string } | null
-    }>
+  customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
+  deliveryArea?: { name_en?: string; name_ar?: string } | null
+  driverAcceptedAt?: string
+  manualAssignmentAt?: string
+}>
   >(
     `*[_type == "order" && orderType == "delivery" && status != "cancelled" && status != "refunded" && (
       (defined(deliveryRequestedAt) && deliveryRequestedAt != null && !defined(assignedDriver)) ||
@@ -150,7 +154,9 @@ export async function GET() {
       "assignedDriverRef": assignedDriver._ref,
       "siteRef": site._ref,
       "declinedByDriverRefs": declinedByDriverIds[]._ref,
-      "deliveryArea": deliveryArea->{ name_en, name_ar }
+      "deliveryArea": deliveryArea->{ name_en, name_ar },
+      driverAcceptedAt,
+      manualAssignmentAt
     }`,
     { driverId }
   )
@@ -219,6 +225,7 @@ export async function GET() {
     const site = siteMap.get(o.siteRef ?? '')
     const areaName = o.deliveryArea?.name_en || o.deliveryArea?.name_ar || ''
     const areaNameAr = o.deliveryArea?.name_ar || ''
+    const needsConfirmation = !!(o.manualAssignmentAt && !o.driverAcceptedAt)
     return {
       orderId: o._id,
       orderNumber: o.orderNumber,
@@ -270,6 +277,7 @@ export async function GET() {
         return { ...rest, imageUrl } as { productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }
       }),
       customerItemChangeStatus: o.customerItemChangeStatus ?? null,
+      needsConfirmation,
     }
   }
 

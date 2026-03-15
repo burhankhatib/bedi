@@ -6,6 +6,7 @@ import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
 import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
+import { getManualAssignmentPushAr } from '@/lib/driver-push-messages'
 
 async function checkOrderOwnership(slug: string, orderId: string) {
   const auth = await checkTenantAuth(slug)
@@ -57,34 +58,28 @@ export async function PATCH(
     .set({
       assignedDriver: { _type: 'reference', _ref: driverId },
       status: 'waiting_for_delivery',
-      driverAcceptedAt: new Date().toISOString(),
+      manualAssignmentAt: new Date().toISOString(),
     })
-    .unset(['deliveryRequestedAt', 'declinedByDriverIds'])
+    .unset(['deliveryRequestedAt', 'declinedByDriverIds', 'driverAcceptedAt'])
     .commit()
 
-  // Notify the assigned driver via FCM or Web Push (they must receive a push when assigned)
+  // Notify the assigned driver via FCM or Web Push — friendly Arabic, ask them to open app to confirm or decline
   const pushReady = isFCMConfigured() || isPushConfigured()
   if (pushReady) {
     try {
       type DriverRow = {
         fcmToken?: string
+        nickname?: string
         pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
       }
       const driver = await writeClient.fetch<DriverRow | null>(
-        `*[_type == "driver" && _id == $driverId][0]{ fcmToken, "pushSubscription": pushSubscription }`,
+        `*[_type == "driver" && _id == $driverId][0]{ fcmToken, nickname, "pushSubscription": pushSubscription }`,
         { driverId }
       )
-      const currency = orderBefore.currency?.trim() || '₪'
-      const total = typeof orderBefore.totalAmount === 'number' ? orderBefore.totalAmount.toFixed(2) : '0.00'
-      const deliveryFee = typeof orderBefore.deliveryFee === 'number' ? orderBefore.deliveryFee.toFixed(2) : '0.00'
-      const shopperFee = typeof orderBefore.shopperFee === 'number' ? orderBefore.shopperFee.toFixed(2) : '0.00'
-      const hasShopperFee = (orderBefore.shopperFee ?? 0) > 0
-      const bodyAr = hasShopperFee
-        ? `طلب #${orderNumber} — المجموع ${total} ${currency} · التوصيل ${deliveryFee} ${currency} · رسوم توفير الوقت ${shopperFee} ${currency}`
-        : `طلب #${orderNumber} — المجموع ${total} ${currency} · التوصيل ${deliveryFee} ${currency}`
+      const { title, body } = getManualAssignmentPushAr(driver?.nickname, orderNumber)
       const payload = {
-        title: 'تم تعيينك لتوصيل طلب',
-        body: `\u200F${bodyAr} — افتح التطبيق للتفاصيل.`,
+        title,
+        body,
         url: '/driver/orders',
         dir: 'rtl' as const,
       }

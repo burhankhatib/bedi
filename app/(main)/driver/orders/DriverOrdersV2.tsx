@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { Suspense, useState, useEffect, useCallback, useRef, useMemo, startTransition } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -76,6 +76,8 @@ type DriverOrder = {
   shopperFee?: number
   items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
   customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
+  /** True when business manually assigned and driver has not confirmed yet. */
+  needsConfirmation?: boolean
 }
 
 type ReplacementProduct = {
@@ -501,16 +503,72 @@ function DriverOrdersV2Content() {
     }
   }
 
+  const confirmManualAssignment = async (orderId: string) => {
+    setActionId(orderId)
+    try {
+      const res = await fetch(`/api/driver/orders/${orderId}/confirm-assignment`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed')
+      showToast(
+        t('Order confirmed. Head to the business.', 'تم التأكيد. توجّه إلى المتجر.'),
+        t('Order confirmed. Head to the business.', 'تم التأكيد. توجّه إلى المتجر.'),
+        'success',
+      )
+      fetchOrders()
+    } catch {
+      showToast(
+        t('Failed to confirm. Try again.', 'فشل التأكيد. حاول مرة أخرى.'),
+        t('Failed to confirm. Try again.', 'فشل التأكيد. حاول مرة أخرى.'),
+        'error',
+      )
+    } finally {
+      setActionId(null)
+    }
+  }
+
+  const declineManualAssignment = async (orderId: string) => {
+    setActionId(orderId)
+    try {
+      const res = await fetch(`/api/driver/orders/${orderId}/decline-assignment`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed')
+      showToast(
+        t('Order declined. It has been sent back to available drivers.', 'تم رفض الطلب. أُعيد إلى السائقين المتاحين.'),
+        t('Order declined. It has been sent back to available drivers.', 'تم رفض الطلب. أُعيد إلى السائقين المتاحين.'),
+        'success',
+      )
+      setMyDeliveries((prev) => prev.filter((o) => o.orderId !== orderId))
+      fetchOrders()
+    } catch {
+      showToast(
+        t('Failed to decline. Try again.', 'فشل الرفض. حاول مرة أخرى.'),
+        t('Failed to decline. Try again.', 'فشل الرفض. حاول مرة أخرى.'),
+        'error',
+      )
+    } finally {
+      setActionId(null)
+    }
+  }
+
   const decline = async (orderId: string) => {
     const order = pending.find((x) => x.orderId === orderId)
+    if (!order) return
     setActionId(orderId)
-    declinedOrderIdsRef.current.add(orderId)
-    setPending((prev) => prev.filter((x) => x.orderId !== orderId))
     try {
       await fetch(`/api/driver/orders/${orderId}/decline`, { method: 'POST' })
+      declinedOrderIdsRef.current.add(orderId)
+      startTransition(() => {
+        setPending((prev) => prev.filter((x) => x.orderId !== orderId))
+      })
+      showToast(
+        t('Order declined. Go to History to undo if needed.', 'تم رفض الطلب. اذهب للسجل لإلغاء الرفض إن لزم.'),
+        t('Order declined. Go to History to undo if needed.', 'تم رفض الطلب. اذهب للسجل لإلغاء الرفض إن لزم.'),
+        'success',
+      )
     } catch {
-      declinedOrderIdsRef.current.delete(orderId)
-      if (order) setPending((prev) => [order, ...prev])
+      showToast(
+        t('Failed to decline. Try again.', 'فشل الرفض. حاول مرة أخرى.'),
+        t('Failed to decline. Try again.', 'فشل الرفض. حاول مرة أخرى.'),
+        'error',
+      )
     } finally {
       setActionId(null)
     }
@@ -1469,6 +1527,51 @@ function DriverOrdersV2Content() {
         <p className="text-slate-400 text-base">
           {t('Loading\u2026', 'جاري التحميل...')}
         </p>
+      ) : hasActiveDelivery && activeOrder?.needsConfirmation ? (
+        /* ══════════════════════════════════════════════════ */
+        /*  MANUAL ASSIGNMENT CONFIRMATION MODAL             */
+        /* ══════════════════════════════════════════════════ */
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="rounded-3xl border-2 border-amber-600/60 bg-amber-950/30 p-5 sm:p-6 shadow-xl"
+        >
+          <div className="text-center mb-6">
+            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/30 border-2 border-amber-500/50 mb-4">
+              <Package className="h-8 w-8 text-amber-300" />
+            </div>
+            <h2 className="text-xl font-black text-white mb-2">
+              {t('Order assigned to you', 'تم تعيين طلب لك')}
+            </h2>
+            <p className="text-slate-300 text-sm mb-1">
+              {t('The business assigned you to deliver this order. Confirm to accept or decline.', 'المتجر عيّنك لتوصيل هذا الطلب. أكّد لقبوله أو ارفض.')}
+            </p>
+            <p className="font-mono text-lg font-bold text-emerald-400">
+              #{formatDriverOrderNumber(activeOrder.orderNumber)}
+            </p>
+            <p className="text-slate-400 text-sm mt-1">
+              {activeOrder.businessName} · {activeOrder.totalAmount.toFixed(2)} {activeOrder.currency}
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => declineManualAssignment(activeOrder.orderId)}
+              disabled={actionId === activeOrder.orderId}
+              className="flex-1 rounded-2xl border-2 border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-4 disabled:opacity-60 transition-colors"
+            >
+              {actionId === activeOrder.orderId ? t('Wait...', 'انتظر...') : t('Decline', 'رفض')}
+            </button>
+            <button
+              type="button"
+              onClick={() => confirmManualAssignment(activeOrder.orderId)}
+              disabled={actionId === activeOrder.orderId}
+              className="flex-1 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-4 disabled:opacity-60 transition-colors"
+            >
+              {actionId === activeOrder.orderId ? t('Wait...', 'انتظر...') : t('Confirm', 'تأكيد')}
+            </button>
+          </div>
+        </motion.div>
       ) : hasActiveDelivery && activeOrder ? (
         /* ══════════════════════════════════════════════════ */
         /*  ACTIVE DELIVERY CARD                             */

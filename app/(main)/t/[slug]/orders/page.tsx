@@ -86,7 +86,7 @@ export default async function TenantOrdersPage({
         deliveryArea->{_id, name_en, name_ar}, deliveryAddress, deliveryFee,
         assignedDriver->{_id, name, nickname, phoneNumber, deliveryAreas[]->{_id, name_en, name_ar}},
         items, subtotal, totalAmount, currency,
-        createdAt, preparedAt, driverAcceptedAt, driverPickedUpAt, completedAt, cancelledAt, driverCancelledAt,
+        createdAt, preparedAt, driverAcceptedAt, driverPickedUpAt, completedAt, cancelledAt, driverCancelledAt, driverDeclinedAssignmentAt,
         customerRequestType, customerRequestPaymentMethod, customerRequestedAt, customerRequestAcknowledgedAt,
         tipPercent, tipAmount, tipSentToDriver, tipIncludedInTotal, tipRemovedByDriver, driverArrivedAt
       }`, { siteId }),
