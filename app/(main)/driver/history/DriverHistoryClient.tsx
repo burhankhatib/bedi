@@ -29,6 +29,7 @@ type HistoryOrder = {
   currency: string
   status: string
   completedAt?: string
+  driverCancelledAt?: string
   createdAt?: string
 }
 
@@ -128,18 +129,23 @@ export function DriverHistoryClient() {
                   className={`shrink-0 px-2.5 py-1 rounded-lg text-xs font-semibold ${
                     o.status === 'completed'
                       ? 'bg-green-500/20 text-green-400'
-                      : o.status === 'cancelled'
-                        ? 'bg-red-500/20 text-red-400'
+                      : o.status === 'cancelled' || o.status === 'driver_cancelled'
+                        ? 'bg-amber-500/20 text-amber-400'
                         : 'bg-slate-600/50 text-slate-400'
                   }`}
                 >
                   {o.status === 'completed'
                     ? t('Completed', 'مكتمل')
-                    : o.status === 'cancelled'
+                    : o.status === 'cancelled' || o.status === 'driver_cancelled'
                       ? t('Cancelled', 'ملغي')
                       : o.status}
                 </span>
               </div>
+              {(o.status === 'driver_cancelled' && o.driverCancelledAt) && (
+                <p className="text-amber-400/90 text-sm mt-1">
+                  {t('Cancelled at', 'تم الإلغاء في')}: {new Date(o.driverCancelledAt).toLocaleString()}
+                </p>
+              )}
               <p className="text-slate-400 text-sm mt-2">
                 {t('Total', 'المجموع')} {o.totalAmount.toFixed(2)} {o.currency}
                 {o.deliveryFee > 0 && (

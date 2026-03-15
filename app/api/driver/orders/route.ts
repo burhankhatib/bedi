@@ -49,7 +49,7 @@ type DriverOrderView = {
   driverArrivedAt?: string
   requiresPersonalShopper?: boolean
   shopperFee?: number
-  items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
+  items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
   customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
 }
 
@@ -110,7 +110,7 @@ export async function GET() {
       driverArrivedAt?: string
       requiresPersonalShopper?: boolean
       shopperFee?: number
-      items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
+      items?: Array<{ productId?: string; productName?: string; productImage?: unknown; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
       customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
       deliveryArea?: { name_en?: string; name_ar?: string } | null
     }>
@@ -146,7 +146,7 @@ export async function GET() {
       requiresPersonalShopper,
       shopperFee,
       customerItemChangeStatus,
-      "items": items[]{ "productId": product._ref, productName, quantity, price, total, notes, addOns, isPicked, notPickedReason },
+      "items": items[]{ "productId": product._ref, productName, "productImage": product->image, quantity, price, total, notes, addOns, isPicked, notPickedReason },
       "assignedDriverRef": assignedDriver._ref,
       "siteRef": site._ref,
       "declinedByDriverRefs": declinedByDriverIds[]._ref,
@@ -257,7 +257,18 @@ export async function GET() {
       driverArrivedAt: o.driverArrivedAt,
       requiresPersonalShopper: o.requiresPersonalShopper,
       shopperFee: o.shopperFee,
-      items: o.items,
+      items: (o.items ?? []).map((it) => {
+        const { productImage, ...rest } = it
+        let imageUrl = ''
+        if (productImage) {
+          try {
+            imageUrl = urlFor(productImage).width(200).height(200).fit('crop').url()
+          } catch {
+            imageUrl = ''
+          }
+        }
+        return { ...rest, imageUrl } as { productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }
+      }),
       customerItemChangeStatus: o.customerItemChangeStatus ?? null,
     }
   }

@@ -407,6 +407,14 @@ export const orderType = defineType({
       hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
     }),
     defineField({
+      name: 'cancelledByDriver',
+      title: 'Cancelled By Driver',
+      type: 'reference',
+      to: [{ type: 'driver' }],
+      description: 'Driver who cancelled the delivery (for history tracking)',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
       name: 'notes',
       title: 'Internal Notes',
       type: 'text',

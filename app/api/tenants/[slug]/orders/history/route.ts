@@ -31,6 +31,8 @@ const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc
   driverAcceptedAt,
   driverPickedUpAt,
   completedAt,
+  cancelledAt,
+  driverCancelledAt,
   tipPercent,
   tipAmount,
   tipSentToDriver,

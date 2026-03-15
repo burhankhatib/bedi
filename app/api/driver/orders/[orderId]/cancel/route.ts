@@ -35,6 +35,7 @@ export async function POST(
       status: 'preparing',
       deliveryRequestedAt: now,
       driverCancelledAt: now,
+      cancelledByDriver: { _type: 'reference', _ref: driver._id },
     })
     .unset(['assignedDriver'])
     .commit()

@@ -28,6 +28,7 @@ const STATUS_CONFIG: Record<string, { label: string; labelAr: string; icon: type
   completed: { label: 'Completed', labelAr: 'مكتمل', icon: CheckCircle2, color: 'bg-green-500' },
   cancelled: { label: 'Cancelled', labelAr: 'ملغي', icon: XCircle, color: 'bg-red-500' },
   refunded: { label: 'Refunded', labelAr: 'مسترد', icon: XCircle, color: 'bg-amber-600' },
+  driver_cancelled: { label: 'Driver cancelled delivery', labelAr: 'السائق ألغى التوصيل', icon: XCircle, color: 'bg-amber-500' },
 }
 
 export function HistoryOrdersClient({ slug }: { slug: string }) {
@@ -64,12 +65,16 @@ export function HistoryOrdersClient({ slug }: { slug: string }) {
     fetchHistory()
   }, [fetchHistory])
 
-  const statusConfig = (status: string) =>
-    STATUS_CONFIG[status] ?? { label: status, labelAr: status, icon: Package, color: 'bg-slate-500' }
+  const statusConfig = (order: Order) => {
+    if (order.orderType === 'delivery' && order.driverCancelledAt) {
+      return STATUS_CONFIG['driver_cancelled'] ?? STATUS_CONFIG[order.status] ?? { label: order.status, labelAr: order.status, icon: Package, color: 'bg-slate-500' }
+    }
+    return STATUS_CONFIG[order.status] ?? { label: order.status, labelAr: order.status, icon: Package, color: 'bg-slate-500' }
+  }
 
   const historyItems = useMemo(() => {
     const items: HistoryItem[] = [
-      ...orders.map(o => ({ type: 'order' as const, data: o, sortDate: o.completedAt || o.createdAt })),
+      ...orders.map(o => ({ type: 'order' as const, data: o, sortDate: o.completedAt || o.driverCancelledAt || o.cancelledAt || o.createdAt })),
       ...tableRequests.map(r => ({ type: 'tableRequest' as const, data: r, sortDate: r.acknowledgedAt || r.createdAt }))
     ]
     return items.sort((a, b) => new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime())
@@ -140,7 +145,7 @@ export function HistoryOrdersClient({ slug }: { slug: string }) {
             }
 
             const order = item.data
-            const config = statusConfig(order.status)
+            const config = statusConfig(order)
             const StatusIcon = config.icon
             const orderTime = new Date(order.createdAt).toLocaleString()
 

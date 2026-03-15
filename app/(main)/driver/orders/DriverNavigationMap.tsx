@@ -222,9 +222,8 @@ interface DriverNavigationMapProps {
   orderId?: string
 }
 
-const TOP_BAR_HEIGHT = 88
-/** Used for map centering: leave room for top bar + countdown/tip bar + safe area (iOS/Android). */
-const TOP_HEADER_OFFSET_PX = 170
+/** Top bar is now a flex child above the map (no overlay), so map viewport starts at 0. */
+const TOP_HEADER_OFFSET_PX = 0
 const BOTTOM_BAR_HEIGHT = 80
 
 export default function DriverNavigationMap({
@@ -388,18 +387,29 @@ export default function DriverNavigationMap({
 
   const center: [number, number] = [driverLat, driverLng]
 
+  // Top bar as flex child (not overlay) so map does not extend underneath — prevents Leaflet from capturing touches on buttons
+  const headerStyle = {
+    paddingTop: 'max(14px, calc(env(safe-area-inset-top, 0px) + 10px))',
+    paddingBottom: '14px',
+  }
+  const handleMinimize = (e: React.PointerEvent | React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onMinimize()
+  }
+  const handleClose = (e: React.PointerEvent | React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onClose()
+  }
+
   return (
     <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col">
-      {/* ── Top Bar + Floating Info Bar (stacked so countdown/tip is never hidden) ─── */}
-      <div className="absolute top-0 left-0 right-0 z-[9999] flex flex-col">
-        {/* Top bar — height varies with safe-area-inset-top on iOS/Android */}
+      {/* ── Top Bar (flex child, map starts below — ensures buttons always receive touches) ─── */}
+      <div className="shrink-0 flex flex-col bg-slate-900">
         <div
-          className="bg-slate-900/95 backdrop-blur-xl border-b border-slate-800/60 px-4 flex items-center justify-between shrink-0"
-          style={{
-            paddingTop:
-              'max(14px, calc(env(safe-area-inset-top, 0px) + 10px))',
-            paddingBottom: '14px',
-          }}
+          className="bg-slate-900/95 backdrop-blur-xl border-b border-slate-800/60 px-4 flex items-center justify-between"
+          style={headerStyle}
         >
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 shrink-0">
@@ -432,20 +442,24 @@ export default function DriverNavigationMap({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={onMinimize}
-            className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white active:scale-95 transition-all"
+            onClick={handleMinimize}
+            onPointerDown={handleMinimize}
+            className="min-w-[48px] min-h-[48px] w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-100 hover:bg-slate-700 active:scale-95 transition-all touch-manipulation"
             title={t('Minimize', 'تصغير')}
+            type="button"
           >
-            <Minimize2 className="w-4.5 h-4.5" />
+            <Minimize2 className="w-5 h-5" />
           </button>
           <button
-            onClick={onClose}
-            className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white active:scale-95 transition-all"
+            onClick={handleClose}
+            onPointerDown={handleClose}
+            className="min-w-[48px] min-h-[48px] w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-100 hover:bg-slate-700 active:scale-95 transition-all touch-manipulation"
             title={t('Close', 'إغلاق')}
+            type="button"
           >
-            <X className="w-4.5 h-4.5" />
+            <X className="w-5 h-5" />
           </button>
         </div>
         </div>
@@ -534,7 +548,7 @@ export default function DriverNavigationMap({
       </div>
 
       {/* ── Map ────────────────────────────────────────── */}
-      <div className="flex-1 relative w-full h-full">
+      <div className="flex-1 min-h-0 relative w-full">
         <MapContainer
           center={center}
           zoom={16}
@@ -604,22 +618,26 @@ export default function DriverNavigationMap({
           </button>
         )}
 
-        {/* Fail-safe controls: keep close/minimize always reachable even if top bar overlaps */}
-        <div className="absolute left-4 bottom-28 z-[600] flex items-center gap-2">
+        {/* Fail-safe controls: same handlers, pointer-events priority for map overlay */}
+        <div className="absolute left-4 bottom-28 z-[600] flex items-center gap-2 pointer-events-auto">
           <button
-            onClick={onMinimize}
-            className="h-10 rounded-full px-3 bg-slate-900/90 backdrop-blur-md border border-slate-700/60 text-slate-100 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-transform"
+            onClick={handleMinimize}
+            onPointerDown={handleMinimize}
+            className="min-w-[48px] min-h-[48px] px-4 rounded-2xl bg-slate-900/95 backdrop-blur-md border-2 border-slate-600 text-slate-100 text-sm font-bold flex items-center gap-2 active:scale-95 transition-all touch-manipulation"
             title={t('Minimize', 'تصغير')}
+            type="button"
           >
-            <Minimize2 className="w-3.5 h-3.5" />
+            <Minimize2 className="w-5 h-5" />
             {t('Min', 'تصغير')}
           </button>
           <button
-            onClick={onClose}
-            className="h-10 rounded-full px-3 bg-slate-900/90 backdrop-blur-md border border-slate-700/60 text-slate-100 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-transform"
+            onClick={handleClose}
+            onPointerDown={handleClose}
+            className="min-w-[48px] min-h-[48px] px-4 rounded-2xl bg-slate-900/95 backdrop-blur-md border-2 border-slate-600 text-slate-100 text-sm font-bold flex items-center gap-2 active:scale-95 transition-all touch-manipulation"
             title={t('Close', 'إغلاق')}
+            type="button"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-5 h-5" />
             {t('Close', 'إغلاق')}
           </button>
         </div>

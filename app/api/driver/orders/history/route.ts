@@ -37,11 +37,12 @@ export async function GET(req: NextRequest) {
       currency?: string
       status: string
       completedAt?: string
+      driverCancelledAt?: string
       createdAt?: string
       siteRef?: string
     }>
   >(
-    `*[_type == "order" && orderType == "delivery" && assignedDriver._ref == $driverId] | order(completedAt desc, createdAt desc) {
+    `*[_type == "order" && orderType == "delivery" && (assignedDriver._ref == $driverId || cancelledByDriver._ref == $driverId)] | order(coalesce(completedAt, driverCancelledAt) desc, createdAt desc) {
       _id,
       orderNumber,
       customerName,
@@ -57,6 +58,7 @@ export async function GET(req: NextRequest) {
       currency,
       status,
       completedAt,
+      driverCancelledAt,
       createdAt,
       "siteRef": site._ref
     }`,
@@ -101,6 +103,7 @@ export async function GET(req: NextRequest) {
 
   let orders = (ordersRaw ?? []).map((o) => {
     const site = siteMap.get(o.siteRef ?? '')
+    const isDriverCancelled = !!o.driverCancelledAt
     return {
       orderId: o._id,
       orderNumber: o.orderNumber ?? '',
@@ -120,8 +123,9 @@ export async function GET(req: NextRequest) {
       tipPercent: o.tipPercent ?? 0,
       amountToPayTenant: Math.max(0, (o.totalAmount ?? 0) - (o.deliveryFee ?? 0) - (o.shopperFee ?? 0)),
       currency: o.currency ?? 'ILS',
-      status: o.status,
+      status: isDriverCancelled ? 'driver_cancelled' : o.status,
       completedAt: o.completedAt,
+      driverCancelledAt: o.driverCancelledAt,
       createdAt: o.createdAt,
     }
   })

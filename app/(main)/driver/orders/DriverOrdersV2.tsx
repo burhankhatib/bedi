@@ -74,7 +74,7 @@ type DriverOrder = {
   driverArrivedAt?: string
   requiresPersonalShopper?: boolean
   shopperFee?: number
-  items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
+  items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
   customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
 }
 
@@ -209,7 +209,7 @@ function DriverOrdersV2Content() {
   const countdownBoxRef = useRef<HTMLDivElement>(null)
   const [detailsOrderId, setDetailsOrderId] = useState<string | null>(null)
   const [savingItemsOrderId, setSavingItemsOrderId] = useState<string | null>(null)
-  const [editingItemsByOrder, setEditingItemsByOrder] = useState<Record<string, Array<{ productName?: string; quantity?: number; notes?: string; addOns?: string; price?: number; _key?: string; productId?: string; isPicked?: boolean; notPickedReason?: string }>>>({})
+  const [editingItemsByOrder, setEditingItemsByOrder] = useState<Record<string, Array<{ productName?: string; quantity?: number; notes?: string; addOns?: string; price?: number; _key?: string; productId?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>>>({})
   const [replacementProductsByOrder, setReplacementProductsByOrder] = useState<Record<string, Record<number, ReplacementProduct[]>>>({})
   const [replacementSelectionByOrder, setReplacementSelectionByOrder] = useState<Record<string, Record<number, string>>>({})
   const [replacementSearchByOrder, setReplacementSearchByOrder] = useState<Record<string, Record<number, string>>>({})
@@ -218,6 +218,7 @@ function DriverOrdersV2Content() {
   const [additionalProductSelectionByOrder, setAdditionalProductSelectionByOrder] = useState<Record<string, string>>({})
   const [additionalProductSearchByOrder, setAdditionalProductSearchByOrder] = useState<Record<string, string>>({})
   const [additionalProductLoadingByOrder, setAdditionalProductLoadingByOrder] = useState<Record<string, boolean>>({})
+  const [expandedDetailsByOrder, setExpandedDetailsByOrder] = useState<Record<string, Set<number>>>({})
   const [pendingPickupManualConfirmOrderId, setPendingPickupManualConfirmOrderId] = useState<string | null>(null)
 
   const [driverLat, setDriverLat] = useState<number | null>(null)
@@ -853,28 +854,39 @@ function DriverOrdersV2Content() {
             ? item.price
             : (Number(item.total) || 0) / Math.max(1, Number(item.quantity) || 1)
         ),
+        imageUrl: (item as { imageUrl?: string }).imageUrl || '',
       })),
     }))
-    ;(order.items || []).forEach((item, idx) => {
-      if (item.productId) {
-        void loadReplacementProducts(order.orderId, idx, item.productId)
-      }
-    })
     void loadAdditionalProducts(order.orderId, additionalProductSearchByOrder[order.orderId] || '')
   }
 
   const togglePickedItem = (orderId: string, index: number) => {
+    const items = editingItemsByOrder[orderId] || []
+    const item = items[index]
+    const nextPicked = item?.isPicked === false
     setEditingItemsByOrder((prev) => ({
       ...prev,
-      [orderId]: (prev[orderId] || []).map((item, idx) => {
-        if (idx !== index) return item
-        const isPicked = item.isPicked === false
+      [orderId]: (prev[orderId] || []).map((it, idx) => {
+        if (idx !== index) return it
         return {
-          ...item,
-          isPicked,
-          notPickedReason: isPicked ? '' : (item.notPickedReason || t('Unavailable at store', 'غير متوفر في المتجر')),
+          ...it,
+          isPicked: nextPicked,
+          notPickedReason: nextPicked ? '' : (it.notPickedReason || t('Unavailable at store', 'غير متوفر في المتجر')),
         }
       }),
+    }))
+    if (!nextPicked && item?.productId) {
+      void loadReplacementProducts(orderId, index, item.productId, '')
+    }
+  }
+
+  const removeDriverAddedItem = (orderId: string, index: number) => {
+    const items = editingItemsByOrder[orderId] || []
+    const item = items[index]
+    if (!item || !String(item._key || '').startsWith('driver-added-')) return
+    setEditingItemsByOrder((prev) => ({
+      ...prev,
+      [orderId]: (prev[orderId] || []).filter((_, idx) => idx !== index),
     }))
   }
 
@@ -906,6 +918,7 @@ function DriverOrdersV2Content() {
           isPicked: true,
           notPickedReason: '',
           notes: item.notes || '',
+          imageUrl: product.imageUrl || '',
         }
       }),
     }))
@@ -930,6 +943,7 @@ function DriverOrdersV2Content() {
           price: product.price,
           isPicked: true,
           notPickedReason: '',
+          imageUrl: product.imageUrl || '',
         },
       ],
     }))
@@ -1044,214 +1058,200 @@ function DriverOrdersV2Content() {
     setStartY(null)
   }
 
+  const toggleExpandedDetails = (orderId: string, idx: number) => {
+    setExpandedDetailsByOrder((prev) => {
+      const set = new Set(prev[orderId] || [])
+      if (set.has(idx)) set.delete(idx)
+      else set.add(idx)
+      return { ...prev, [orderId]: set }
+    })
+  }
+
   const renderOrderDetailsPanel = (order: DriverOrder) => {
     if (detailsOrderId !== order.orderId) return null
     const editedItems = editingItemsByOrder[order.orderId] || []
     const pickedCount = editedItems.filter((item) => item.isPicked !== false).length
     const notPickedCount = editedItems.length - pickedCount
     return (
-      <div className="rounded-2xl border border-amber-500/40 bg-slate-900/70 p-3.5 mb-4 space-y-3">
-        <p className="text-xs text-amber-300 font-semibold">
-          {t('Mark picked/not picked, adjust quantity, or replace from same business. Original items cannot be deleted.', 'حدّد ملتقط/غير ملتقط، عدّل الكمية، أو استبدل من نفس المتجر. لا يمكن حذف الأصناف الأصلية.')}
+      <div className="rounded-2xl border border-amber-500/40 bg-slate-900/70 p-4 mb-4 space-y-4">
+        <p className="text-sm text-amber-200 font-medium">
+          {t('Mark picked/not picked. Uncheck unavailable items to see similar alternatives.', 'حدّد ملتقط/غير ملتقط. ألغِ تحديد الصنف غير المتوفر لرؤية بدائل مشابهة.')}
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
+          <span className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-3 py-1.5 text-sm font-bold text-emerald-300">
             ✅ {t('Picked', 'تم التقاطه')}: {pickedCount}
           </span>
-          <span className="rounded-full bg-rose-500/15 border border-rose-500/30 px-2.5 py-1 text-[11px] font-bold text-rose-300">
+          <span className="rounded-full bg-rose-500/20 border border-rose-500/40 px-3 py-1.5 text-sm font-bold text-rose-300">
             ❌ {t('Not picked', 'غير ملتقط')}: {notPickedCount}
           </span>
         </div>
         {editedItems.map((item, idx) => {
           const picked = item.isPicked !== false
+          const isDriverAdded = String(item._key || '').startsWith('driver-added-')
           const replacementOptions = replacementProductsByOrder[order.orderId]?.[idx] || []
           const replacementQuery = replacementSearchByOrder[order.orderId]?.[idx] || ''
           const replacementLoading = replacementLoadingByOrder[order.orderId]?.[idx] === true
+          const hasDetails = !!(item.notes || item.addOns || (!picked && item.notPickedReason))
+          const isDetailsExpanded = (expandedDetailsByOrder[order.orderId] || new Set()).has(idx)
           return (
-            <div key={`${order.orderId}-item-${idx}`} className="rounded-xl border border-slate-700/70 bg-slate-800/70 p-3">
-              <div className="flex items-start gap-2">
-                <button
-                  type="button"
-                  onClick={() => togglePickedItem(order.orderId, idx)}
-                  className={`mt-0.5 h-5 w-5 rounded border-2 flex items-center justify-center text-xs font-black ${picked ? 'bg-emerald-500 border-emerald-400 text-slate-950' : 'border-amber-300/70 text-amber-300'}`}
-                  aria-label={t('Toggle picked', 'تبديل الالتقاط')}
-                >
-                  {picked ? '✓' : ''}
-                </button>
-                <div className="min-w-0 flex-1">
-                  <p className={`text-sm font-semibold ${picked ? 'text-emerald-400' : 'text-rose-300 line-through'}`}>
+            <div key={`${order.orderId}-item-${idx}`} className="rounded-2xl border border-slate-600/60 bg-slate-800/80 overflow-hidden">
+              <div className="flex gap-4 p-4">
+                {/* Product image — M3 72dp */}
+                <div className="shrink-0 w-[72px] h-[72px] rounded-2xl overflow-hidden bg-slate-700/50 border border-slate-600/50">
+                  {item.imageUrl ? (
+                    <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-500">
+                      <Package className="w-8 h-8" />
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 flex flex-col gap-2">
+                  <p className={`text-base font-bold leading-snug ${picked ? 'text-slate-100' : 'text-rose-300 line-through'}`}>
                     {(item.productName || t('Item', 'صنف'))}
                   </p>
-                  {!picked && (
-                    <p className="text-[11px] text-rose-300/90 mt-0.5">
-                      {t('Not picked from store', 'لم يتم التقاطه من المتجر')}
-                    </p>
-                  )}
-                  {item.notes && <p className="text-xs text-slate-400 mt-0.5">📝 {item.notes}</p>}
-                  {item.addOns && <p className="text-xs text-slate-500 mt-0.5">+ {item.addOns}</p>}
-                  <div className="mt-2 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => updateEditingItemQuantity(order.orderId, idx, -1)}
-                      className="h-7 w-7 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-700"
-                    >
-                      -
-                    </button>
-                    <span className="text-xs font-bold min-w-[2rem] text-center">{item.quantity ?? 1}</span>
-                    <button
-                      type="button"
-                      onClick={() => updateEditingItemQuantity(order.orderId, idx, 1)}
-                      className="h-7 w-7 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-700"
-                    >
-                      +
-                    </button>
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg font-black text-emerald-400">
+                      {(item.price ?? 0) * (item.quantity ?? 1)} {fmtCurrency('ILS')}
+                    </span>
+                    <span className="text-slate-500 text-sm">× {item.quantity ?? 1}</span>
                   </div>
-                  <div className="mt-2 space-y-2 rounded-xl border border-indigo-500/20 bg-indigo-950/20 p-2.5">
-                    <p className="text-[11px] font-semibold text-indigo-200">
-                      {t('Find alternatives from the same category only', 'اعثر على بدائل من نفس الفئة فقط')}
-                    </p>
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => togglePickedItem(order.orderId, idx)}
+                      className={`min-w-[44px] min-h-[44px] rounded-xl border-2 flex items-center justify-center text-sm font-bold transition-all ${picked ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-rose-500/20 border-rose-500/50 text-rose-400'}`}
+                      aria-label={t('Toggle picked', 'تبديل الالتقاط')}
+                    >
+                      {picked ? '✓' : '✗'}
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => updateEditingItemQuantity(order.orderId, idx, -1)} className="min-w-[44px] min-h-[44px] rounded-xl border border-slate-600 bg-slate-700/50 text-white font-bold text-lg">−</button>
+                      <span className="min-w-[2.5rem] text-center text-base font-bold">{item.quantity ?? 1}</span>
+                      <button type="button" onClick={() => updateEditingItemQuantity(order.orderId, idx, 1)} className="min-w-[44px] min-h-[44px] rounded-xl border border-slate-600 bg-slate-700/50 text-white font-bold text-lg">+</button>
+                    </div>
+                    {isDriverAdded && (
+                      <button
+                        type="button"
+                        onClick={() => removeDriverAddedItem(order.orderId, idx)}
+                        className="min-h-[44px] px-4 rounded-xl border border-rose-500/50 bg-rose-500/20 text-rose-400 font-bold text-sm"
+                      >
+                        🗑️ {t('Remove', 'حذف')}
+                      </button>
+                    )}
+                  </div>
+                  {hasDetails && (
+                    <button
+                      type="button"
+                      onClick={() => toggleExpandedDetails(order.orderId, idx)}
+                      className="flex items-center gap-2 text-slate-400 hover:text-slate-200 text-sm font-medium"
+                    >
+                      <ChevronDown className={`w-4 h-4 transition-transform ${isDetailsExpanded ? 'rotate-180' : ''}`} />
+                      {isDetailsExpanded ? t('Hide details', 'إخفاء التفاصيل') : t('Show details', 'عرض التفاصيل')}
+                    </button>
+                  )}
+                  {isDetailsExpanded && hasDetails && (
+                    <div className="space-y-1.5 pt-2 border-t border-slate-600/50">
+                      {item.notes && <p className="text-sm text-slate-400">📝 {item.notes}</p>}
+                      {item.addOns && <p className="text-sm text-slate-500">+ {item.addOns}</p>}
+                      {!picked && item.notPickedReason && <p className="text-sm text-rose-400/90">{item.notPickedReason}</p>}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* Replacement section — only when unchecked */}
+              {!picked && (
+                <div className="border-t border-slate-600/50 p-4 bg-slate-900/50 space-y-4">
+                  <p className="text-sm font-bold text-indigo-200">
+                    {t('Similar products from same category', 'أصناف مشابهة من نفس الفئة')}
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex gap-2">
                       <input
                         value={replacementQuery}
-                        onChange={(e) => {
-                          const value = e.target.value
-                          setReplacementSearchByOrder((prev) => ({
-                            ...prev,
-                            [order.orderId]: {
-                              ...(prev[order.orderId] || {}),
-                              [idx]: value,
-                            },
-                          }))
-                        }}
-                        placeholder={t('Search alternatives (e.g. milk)', 'ابحث عن بديل (مثال: حليب)')}
-                        className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
+                        onChange={(e) => setReplacementSearchByOrder((prev) => ({ ...prev, [order.orderId]: { ...(prev[order.orderId] || {}), [idx]: e.target.value } }))}
+                        placeholder={t('Search (e.g. milk)', 'ابحث (مثال: حليب)')}
+                        className="flex-1 min-h-[48px] rounded-2xl border-2 border-slate-600 bg-slate-900 px-4 text-base text-slate-100 placeholder:text-slate-500"
                       />
                       <button
                         type="button"
-                        onClick={() => void loadReplacementProducts(order.orderId, idx, item.productId, replacementQuery)}
+                        onClick={() => void loadReplacementProducts(order.orderId, idx, item.productId || '', replacementQuery)}
                         disabled={!item.productId || replacementLoading}
-                        className="rounded-lg border border-indigo-500/40 bg-indigo-500/20 px-2.5 py-1.5 text-xs font-semibold text-indigo-200 disabled:opacity-40"
+                        className="min-h-[48px] min-w-[120px] rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-base disabled:opacity-50"
                       >
-                        {replacementLoading ? t('Searching...', 'جارٍ البحث...') : t('Search', 'بحث')}
+                        {replacementLoading ? t('Searching...', 'جاري...') : t('Search', 'بحث')}
                       </button>
                     </div>
-                    {!item.productId && (
-                      <p className="text-[11px] text-amber-300">
-                        {t('Original product reference is missing. Search is unavailable for this item.', 'مرجع المنتج الأصلي غير متوفر، لا يمكن البحث لهذا الصنف.')}
-                      </p>
-                    )}
                     {replacementOptions.length > 0 ? (
-                      <div className="space-y-2">
-                        <span
-                          className="inline-flex items-center gap-1 rounded-full border border-indigo-400/40 bg-indigo-500/15 px-2.5 py-1 text-[10px] font-bold text-indigo-200"
-                          title={t('All alternatives are from the same category as the original item', 'جميع البدائل من نفس فئة الصنف الأصلي')}
-                        >
-                          ✓ {t('Same category only', 'نفس الفئة فقط')}
-                        </span>
-                        <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1">
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
                         {replacementOptions.map((p) => {
                           const selected = replacementSelectionByOrder[order.orderId]?.[idx] === p._id
                           return (
                             <button
                               key={p._id}
                               type="button"
-                              onClick={() => {
-                                setReplacementSelectionByOrder((prev) => ({
-                                  ...prev,
-                                  [order.orderId]: {
-                                    ...(prev[order.orderId] || {}),
-                                    [idx]: p._id,
-                                  },
-                                }))
-                              }}
-                              className={`w-full rounded-lg border px-2 py-1.5 text-left transition-colors ${selected ? 'border-emerald-400 bg-emerald-500/15' : 'border-slate-700 bg-slate-900/70 hover:bg-slate-800'}`}
+                              onClick={() => setReplacementSelectionByOrder((prev) => ({ ...prev, [order.orderId]: { ...(prev[order.orderId] || {}), [idx]: p._id } }))}
+                              className={`w-full flex items-center gap-4 p-3 rounded-2xl border-2 text-left transition-colors ${selected ? 'border-emerald-500 bg-emerald-500/20' : 'border-slate-600 bg-slate-800/80 hover:bg-slate-700/80'}`}
                             >
-                              <div className="flex items-center gap-2">
-                                {p.imageUrl ? (
-                                  <img
-                                    src={p.imageUrl}
-                                    alt={lang === 'ar' ? p.title_ar : p.title_en}
-                                    className="h-10 w-10 rounded-md object-cover border border-slate-700"
-                                  />
-                                ) : (
-                                  <div className="h-10 w-10 rounded-md border border-slate-700 bg-slate-800 flex items-center justify-center text-[10px] text-slate-400">
-                                    {t('No image', 'بدون صورة')}
-                                  </div>
-                                )}
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-xs font-semibold text-slate-100">
-                                    {lang === 'ar' ? p.title_ar : p.title_en}
-                                  </p>
-                                  <p className="text-[11px] text-emerald-300 font-bold">
-                                    {p.price.toFixed(2)} {fmtCurrency(p.currency)}
-                                  </p>
-                                </div>
-                                {selected && <span className="text-[11px] font-bold text-emerald-300">{t('Selected', 'تم الاختيار')}</span>}
+                              <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-slate-700">
+                                {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-500"><Package className="w-6 h-6" /></div>}
                               </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-slate-100 truncate">{lang === 'ar' ? p.title_ar : p.title_en}</p>
+                                <p className="text-emerald-400 font-bold">{p.price.toFixed(2)} {fmtCurrency(p.currency)}</p>
+                              </div>
+                              {selected && <span className="text-emerald-400 font-bold shrink-0">✓</span>}
                             </button>
                           )
                         })}
-                        </div>
                       </div>
                     ) : (
-                      <p className="text-[11px] text-slate-400">
-                        {replacementLoading
-                          ? t('Searching alternatives...', 'جارٍ البحث عن البدائل...')
-                          : t('No alternatives found in the same category.', 'لا توجد بدائل ضمن نفس الفئة.')}
+                      <p className="text-slate-400 text-sm">
+                        {replacementLoading ? t('Searching...', 'جاري البحث...') : t('No similar products found. Search above.', 'لا توجد أصناف مشابهة. ابحث أعلاه.')}
                       </p>
                     )}
                     <button
                       type="button"
                       onClick={() => replaceEditingItem(order.orderId, idx)}
                       disabled={!replacementSelectionByOrder[order.orderId]?.[idx]}
-                      className="w-full rounded-lg border border-indigo-500/40 bg-indigo-500/20 px-2.5 py-2 text-xs font-semibold text-indigo-200 disabled:opacity-40"
+                      className="w-full min-h-[48px] rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-base disabled:opacity-50"
                     >
                       🔁 {t('Use selected alternative', 'استخدم البديل المختار')}
                     </button>
                   </div>
-                  {!picked && (
-                    <input
-                      value={item.notPickedReason || ''}
-                      onChange={(e) => {
-                        const value = e.target.value
-                        setEditingItemsByOrder((prev) => ({
-                          ...prev,
-                          [order.orderId]: (prev[order.orderId] || []).map((row, rowIdx) =>
-                            rowIdx === idx ? { ...row, notPickedReason: value } : row
-                          ),
-                        }))
-                      }}
-                      placeholder={t('Reason (optional)', 'السبب (اختياري)')}
-                      className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
-                    />
-                  )}
+                  <input
+                    value={item.notPickedReason || ''}
+                    onChange={(e) => setEditingItemsByOrder((prev) => ({ ...prev, [order.orderId]: (prev[order.orderId] || []).map((row, rowIdx) => rowIdx === idx ? { ...row, notPickedReason: e.target.value } : row) }))}
+                    placeholder={t('Reason (optional)', 'السبب (اختياري)')}
+                    className="w-full min-h-[44px] rounded-2xl border-2 border-slate-600 bg-slate-900 px-4 text-base text-slate-200 placeholder:text-slate-500"
+                  />
                 </div>
-              </div>
+              )}
             </div>
           )
         })}
-        <div className="rounded-xl border border-emerald-500/25 bg-emerald-950/15 p-3 space-y-2.5">
-          <p className="text-[11px] font-semibold text-emerald-200">
-            {t('Add a missing item requested by customer', 'أضف صنفاً ناقصاً بطلب من العميل')}
+        <div className="rounded-2xl border-2 border-emerald-500/30 bg-emerald-950/20 p-4 space-y-4">
+          <p className="text-base font-bold text-emerald-200">
+            {t('Add missing item', 'إضافة صنف ناقص')}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row gap-3">
             <input
               value={additionalProductSearchByOrder[order.orderId] || ''}
               onChange={(e) => setAdditionalProductSearchByOrder((prev) => ({ ...prev, [order.orderId]: e.target.value }))}
               placeholder={t('Search business products', 'ابحث في أصناف المتجر')}
-              className="min-w-0 flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-200"
+              className="flex-1 min-h-[48px] rounded-2xl border-2 border-slate-600 bg-slate-900 px-4 text-base text-slate-100 placeholder:text-slate-500"
             />
             <button
               type="button"
               onClick={() => void loadAdditionalProducts(order.orderId, additionalProductSearchByOrder[order.orderId] || '')}
               disabled={additionalProductLoadingByOrder[order.orderId] === true}
-              className="rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-2.5 py-1.5 text-xs font-semibold text-emerald-200 disabled:opacity-40"
+              className="min-h-[48px] min-w-[120px] rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base disabled:opacity-50"
             >
-              {additionalProductLoadingByOrder[order.orderId] ? t('Searching...', 'جارٍ البحث...') : t('Search', 'بحث')}
+              {additionalProductLoadingByOrder[order.orderId] ? t('Searching...', 'جاري...') : t('Search', 'بحث')}
             </button>
           </div>
           {(additionalProductsByOrder[order.orderId] || []).length > 0 ? (
-            <div className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
+            <div className="max-h-56 space-y-2 overflow-y-auto">
               {(additionalProductsByOrder[order.orderId] || []).map((p) => {
                 const selected = additionalProductSelectionByOrder[order.orderId] === p._id
                 return (
@@ -1259,58 +1259,42 @@ function DriverOrdersV2Content() {
                     key={`add-${p._id}`}
                     type="button"
                     onClick={() => setAdditionalProductSelectionByOrder((prev) => ({ ...prev, [order.orderId]: p._id }))}
-                    className={`w-full rounded-lg border px-2 py-1.5 text-left transition-colors ${selected ? 'border-emerald-400 bg-emerald-500/15' : 'border-slate-700 bg-slate-900/70 hover:bg-slate-800'}`}
+                    className={`w-full flex items-center gap-4 p-3 rounded-2xl border-2 text-left transition-colors ${selected ? 'border-emerald-500 bg-emerald-500/20' : 'border-slate-600 bg-slate-800/80 hover:bg-slate-700/80'}`}
                   >
-                    <div className="flex items-center gap-2">
-                      {p.imageUrl ? (
-                        <img
-                          src={p.imageUrl}
-                          alt={lang === 'ar' ? p.title_ar : p.title_en}
-                          className="h-10 w-10 rounded-md object-cover border border-slate-700"
-                        />
-                      ) : (
-                        <div className="h-10 w-10 rounded-md border border-slate-700 bg-slate-800 flex items-center justify-center text-[10px] text-slate-400">
-                          {t('No image', 'بدون صورة')}
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-semibold text-slate-100">
-                          {lang === 'ar' ? p.title_ar : p.title_en}
-                        </p>
-                        <p className="text-[11px] text-emerald-300 font-bold">
-                          {p.price.toFixed(2)} {fmtCurrency(p.currency)}
-                        </p>
-                      </div>
-                      {selected && <span className="text-[11px] font-bold text-emerald-300">{t('Selected', 'تم الاختيار')}</span>}
+                    <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-slate-700">
+                      {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-500"><Package className="w-6 h-6" /></div>}
                     </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-slate-100 truncate">{lang === 'ar' ? p.title_ar : p.title_en}</p>
+                      <p className="text-emerald-400 font-bold">{p.price.toFixed(2)} {fmtCurrency(p.currency)}</p>
+                    </div>
+                    {selected && <span className="text-emerald-400 font-bold shrink-0">✓</span>}
                   </button>
                 )
               })}
             </div>
           ) : (
-            <p className="text-[11px] text-slate-400">
-              {additionalProductLoadingByOrder[order.orderId]
-                ? t('Searching products...', 'جارٍ البحث عن الأصناف...')
-                : t('No products found for this search.', 'لا توجد أصناف مطابقة لهذا البحث.')}
+            <p className="text-slate-400 text-sm">
+              {additionalProductLoadingByOrder[order.orderId] ? t('Searching...', 'جاري البحث...') : t('Search above to add.', 'ابحث أعلاه للإضافة.')}
             </p>
           )}
           <button
             type="button"
             onClick={() => addSelectedProductToOrder(order.orderId)}
             disabled={!additionalProductSelectionByOrder[order.orderId]}
-            className="w-full rounded-lg border border-emerald-500/40 bg-emerald-500/20 px-2.5 py-2 text-xs font-semibold text-emerald-200 disabled:opacity-40"
+            className="w-full min-h-[48px] rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base disabled:opacity-50"
           >
             ➕ {t('Add selected item', 'إضافة الصنف المحدد')}
           </button>
-          <p className="text-[10px] text-slate-400">
-            {t('Any added/edited items are sent to customer for approval before pickup confirmation.', 'أي أصناف مضافة أو معدلة تُرسل للعميل للموافقة قبل تأكيد الاستلام.')}
+          <p className="text-xs text-slate-400">
+            {t('Customer must approve changes.', 'العميل يجب أن يوافق على التغييرات.')}
           </p>
         </div>
         <button
           type="button"
           onClick={() => saveDriverItemChanges(order)}
           disabled={savingItemsOrderId === order.orderId}
-          className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 min-h-[48px] disabled:opacity-60"
+          className="w-full min-h-[52px] rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base disabled:opacity-60"
         >
           {savingItemsOrderId === order.orderId
             ? t('Saving...', 'جارٍ الحفظ...')
