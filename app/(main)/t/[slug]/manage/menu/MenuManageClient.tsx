@@ -385,7 +385,13 @@ export function MenuManageClient({
   usePusherStream(siteId ? `tenant-${siteId}` : null, 'menu-update', refreshMenuDebounced)
 
   const [submittingCategory, setSubmittingCategory] = useState(false)
-  const [sectionSuggestions, setSectionSuggestions] = useState<{ businessType?: string; commonSections: Array<{ title_en: string; title_ar: string }>; subcategories: Array<{ _id: string; title_en: string; title_ar: string }> } | null>(null)
+  const [sectionSuggestions, setSectionSuggestions] = useState<{
+    businessType?: string
+    commonSections: Array<{ title_en: string; title_ar: string }>
+    subcategories: Array<{ _id: string; title_en: string; title_ar: string }>
+    sectionGroups?: Array<{ key: string; title_en: string; title_ar: string; subCategories: Array<{ title_en: string; title_ar: string }> }>
+  } | null>(null)
+  const [selectedSectionKey, setSelectedSectionKey] = useState<string | null>(null)
   const [showCustomCategoryForm, setShowCustomCategoryForm] = useState(false)
   const mountedRef = useRef(false)
   const categoriesAbortRef = useRef<AbortController | null>(null)
@@ -413,12 +419,17 @@ export function MenuManageClient({
         .then((r) => r.json())
         .then((d) => {
           if (!mountedRef.current || ac.signal.aborted) return
-          setSectionSuggestions({ businessType: d.businessType, commonSections: d.commonSections ?? [], subcategories: d.subcategories ?? [] })
+          setSectionSuggestions({
+            businessType: d.businessType,
+            commonSections: d.commonSections ?? [],
+            subcategories: d.subcategories ?? [],
+            sectionGroups: d.sectionGroups ?? [],
+          })
         })
         .catch((err) => {
           if (isAbortError(err)) return
           if (!mountedRef.current) return
-          setSectionSuggestions({ commonSections: [], subcategories: [] })
+          setSectionSuggestions({ commonSections: [], subcategories: [], sectionGroups: [] })
         })
     }
     return () => suggestionsAbortRef.current?.abort()
@@ -436,6 +447,7 @@ export function MenuManageClient({
       if (res.ok) {
         setAddingCategory(false)
         setShowCustomCategoryForm(false)
+        setSelectedSectionKey(null)
         showToast('Category added.', 'تمت إضافة الفئة.', 'success')
         const slugVal = (data as { slug?: string }).slug ?? (title_en || '').toLowerCase().replace(/\s+/g, '-')
         const newCat: Category = {
@@ -1106,53 +1118,104 @@ export function MenuManageClient({
               <>
                 <p className="text-xs text-slate-400">Pick a section. Suggested items match your business type.</p>
                 <div className="space-y-4">
-                  {sectionSuggestions && sectionSuggestions.subcategories.length > 0 && (
-                    <div>
-                      <p className="mb-2 text-xs font-medium text-amber-200/90">Suggested for your business</p>
-                      <div className="flex flex-wrap gap-2">
-                        {sectionSuggestions.subcategories.map((s) => (
-                          <button
-                            key={s._id}
-                            type="button"
-                            onClick={() => addCategoryFromSuggestion(s.title_en, s.title_ar, s._id)}
-                            disabled={submittingCategory}
-                            className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100 transition-colors hover:border-amber-500/60 hover:bg-amber-500/20 disabled:opacity-50"
-                          >
-                            {s.title_en} / {s.title_ar}
-                          </button>
-                        ))}
+                  {sectionSuggestions && (sectionSuggestions.sectionGroups?.length ?? 0) > 0 ? (
+                    selectedSectionKey ? (
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSectionKey(null)}
+                          className="mb-3 flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-300"
+                        >
+                          <ChevronRight className="size-3.5 rotate-180" /> Back
+                        </button>
+                        <p className="mb-2 text-xs font-medium text-amber-200/90">
+                          {sectionSuggestions.sectionGroups?.find((g) => g.key === selectedSectionKey)?.title_en} / {sectionSuggestions.sectionGroups?.find((g) => g.key === selectedSectionKey)?.title_ar}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {sectionSuggestions.sectionGroups
+                            ?.find((g) => g.key === selectedSectionKey)
+                            ?.subCategories.map((s, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => addCategoryFromSuggestion(s.title_en, s.title_ar)}
+                                disabled={submittingCategory}
+                                className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100 transition-colors hover:border-amber-500/60 hover:bg-amber-500/20 disabled:opacity-50"
+                              >
+                                {s.title_en} / {s.title_ar}
+                              </button>
+                            ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {sectionSuggestions && sectionSuggestions.commonSections.length > 0 && (
-                    <div>
-                      <p className="mb-2 text-xs font-medium text-slate-400">Other common sections</p>
-                      <div className="flex flex-wrap gap-2">
-                        {sectionSuggestions.commonSections.map((s, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => addCategoryFromSuggestion(s.title_en, s.title_ar)}
-                            disabled={submittingCategory}
-                            className="rounded-lg border border-slate-600 bg-slate-800/50 px-3 py-2 text-sm text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-700/50 disabled:opacity-50"
-                          >
-                            {s.title_en} / {s.title_ar}
-                          </button>
-                        ))}
+                    ) : (
+                      <div>
+                        <p className="mb-2 text-xs font-medium text-amber-200/90">Select a category</p>
+                        <div className="flex flex-wrap gap-2">
+                          {sectionSuggestions.sectionGroups?.map((g) => (
+                            <button
+                              key={g.key}
+                              type="button"
+                              onClick={() => setSelectedSectionKey(g.key)}
+                              disabled={submittingCategory}
+                              className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100 transition-colors hover:border-amber-500/60 hover:bg-amber-500/20 disabled:opacity-50"
+                            >
+                              {g.title_en} / {g.title_ar}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )
+                  ) : (
+                    <>
+                      {sectionSuggestions && sectionSuggestions.subcategories.length > 0 && (
+                        <div>
+                          <p className="mb-2 text-xs font-medium text-amber-200/90">Suggested for your business</p>
+                          <div className="flex flex-wrap gap-2">
+                            {sectionSuggestions.subcategories.map((s) => (
+                              <button
+                                key={s._id}
+                                type="button"
+                                onClick={() => addCategoryFromSuggestion(s.title_en, s.title_ar, s._id)}
+                                disabled={submittingCategory}
+                                className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-100 transition-colors hover:border-amber-500/60 hover:bg-amber-500/20 disabled:opacity-50"
+                              >
+                                {s.title_en} / {s.title_ar}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {sectionSuggestions && sectionSuggestions.commonSections.length > 0 && (
+                        <div>
+                          <p className="mb-2 text-xs font-medium text-slate-400">Other common sections</p>
+                          <div className="flex flex-wrap gap-2">
+                            {sectionSuggestions.commonSections.map((s, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => addCategoryFromSuggestion(s.title_en, s.title_ar)}
+                                disabled={submittingCategory}
+                                className="rounded-lg border border-slate-600 bg-slate-800/50 px-3 py-2 text-sm text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-700/50 disabled:opacity-50"
+                              >
+                                {s.title_en} / {s.title_ar}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => setShowCustomCategoryForm(true)}
+                      onClick={() => { setShowCustomCategoryForm(true); setSelectedSectionKey(null) }}
                       className="rounded-lg border border-dashed border-slate-500 px-3 py-2 text-sm text-slate-400 transition-colors hover:border-slate-400 hover:text-slate-300"
                     >
                       + Custom
                     </button>
                   </div>
                 </div>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setAddingCategory(false)} disabled={submittingCategory}>Cancel</Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => { setAddingCategory(false); setSelectedSectionKey(null) }} disabled={submittingCategory}>Cancel</Button>
               </>
             ) : (
               <form onSubmit={handleAddCategory} className="flex flex-wrap gap-2">
@@ -1167,7 +1230,7 @@ export function MenuManageClient({
             )}
           </div>
         ) : (
-          <Button type="button" size="sm" className="mt-4 bg-amber-500 text-slate-950 hover:bg-amber-400" onClick={() => { setAddingCategory(true); setShowCustomCategoryForm(false) }}>
+          <Button type="button" size="sm" className="mt-4 bg-amber-500 text-slate-950 hover:bg-amber-400" onClick={() => { setAddingCategory(true); setShowCustomCategoryForm(false); setSelectedSectionKey(null) }}>
             <Plus className="mr-1.5 size-4" /> Add category
           </Button>
         )}

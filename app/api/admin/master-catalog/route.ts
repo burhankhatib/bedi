@@ -66,7 +66,16 @@ export async function GET(req: NextRequest) {
   )
 
   const filtered = (items ?? []).filter((item) => {
-    if (needsWorkOnly && !needsTranslation(item)) return false
+    if (needsWorkOnly) {
+      const normalized = {
+        nameEn: item.nameEn ?? null,
+        nameAr: item.nameAr ?? null,
+        descriptionEn: item.descriptionEn ?? null,
+        descriptionAr: item.descriptionAr ?? null,
+        unitType: item.unitType ?? null,
+      }
+      if (!needsTranslation(normalized)) return false
+    }
     if (!q) return true
     const haystack = [item.nameEn, item.nameAr, item.descriptionEn, item.descriptionAr, item.searchQuery].filter(Boolean).join(' ').toLowerCase()
     return haystack.includes(q.toLowerCase())

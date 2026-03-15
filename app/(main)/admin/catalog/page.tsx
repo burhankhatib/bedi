@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Loader2, Package, CheckCircle, Plus, Upload, Link2, Pencil, Languages, Copy, Trash2, Merge, Zap } from 'lucide-react'
 import { compressImageForUpload } from '@/lib/compress-image'
+import { needsTranslation } from '@/lib/master-catalog-translation'
 
 const CATEGORIES = [
   { value: 'grocery', label: 'Grocery / Market' },
@@ -285,7 +286,10 @@ export default function AdminCatalogPage() {
       const params = new URLSearchParams()
       if (searchFilter.trim()) params.set('q', searchFilter.trim())
       if (categoryFilter) params.set('category', categoryFilter)
-      if (needsTranslationFilter) params.set('needsTranslation', '1')
+      if (needsTranslationFilter) {
+        params.set('needsTranslation', '1')
+        params.set('_', String(Date.now()))
+      }
       params.set('limit', String(PAGE_SIZE))
       params.set('offset', String(offset))
       const res = await fetch(`/api/admin/master-catalog?${params}`, { cache: 'no-store' })
@@ -313,11 +317,18 @@ export default function AdminCatalogPage() {
     if (!loadingMore && hasMore) fetchProducts(products.length)
   }, [fetchProducts, loadingMore, hasMore, products.length])
 
-  const handleProductSaved = useCallback((updated?: MasterCatalogItem) => {
-    if (updated) {
+  const handleProductSaved = useCallback(
+    (updated?: MasterCatalogItem) => {
+      if (!updated) return
+      if (needsTranslationFilter && !needsTranslation(updated)) {
+        setProducts((prev) => prev.filter((p) => p._id !== updated._id))
+        setTotal((t) => Math.max(0, t - 1))
+        return
+      }
       setProducts((prev) => prev.map((p) => (p._id === updated._id ? updated : p)))
-    }
-  }, [])
+    },
+    [needsTranslationFilter]
+  )
 
   const handleSeed = async () => {
     setLoading(true)
@@ -521,12 +532,14 @@ export default function AdminCatalogPage() {
     setTranslateResult(null)
     setTranslateProgress([])
 
+    let skip = 0
+
     const runBatch = async (): Promise<{ remaining: number; translated: number; failed: number; processed: number } | null> => {
       if (backgroundCancelledRef.current) return null
       const res = await fetch('/api/admin/translate-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit: BATCH_SIZE, dryRun: false, stream: true }),
+        body: JSON.stringify({ limit: BATCH_SIZE, skip, dryRun: false, stream: true }),
       })
       if (!res.ok || !res.body) return null
       const contentType = res.headers.get('content-type') ?? ''
@@ -616,6 +629,7 @@ export default function AdminCatalogPage() {
       totalTranslated += result.translated
       totalFailed += result.failed
       remaining = result.remaining
+      skip += result.processed
       setBackgroundStats({ done: totalDone, translated: totalTranslated, failed: totalFailed, remaining })
       if (remaining > 0) {
         setTranslateProgress([])
@@ -1077,7 +1091,7 @@ export default function AdminCatalogPage() {
           <div>
             <h2 className="font-semibold text-white">AI Translate & Fill</h2>
             <p className="text-sm text-slate-400">
-              Uses OpenAI to translate titles/descriptions (EN↔AR), including Hebrew to English/Arabic. Generates missing descriptions from product names and Levantine Arabic. Run a batch of 50, or translate all in background (processes 100 per batch until done—you can keep using the page).
+              Uses OpenAI to translate titles/descriptions (EN↔AR), including Hebrew to English/Arabic. Generates missing descriptions from product names and Levantine Arabic. Run a batch of 50, or translate all in background (processes 100 per batch, continues with new products until all are done—you can keep using the page).
             </p>
           </div>
         </div>
@@ -1318,28 +1332,7 @@ export default function AdminCatalogPage() {
               type="checkbox"
               checked={needsTranslationFilter}
               onChange={(e) => {
-                const next = e.target.checked
-                setNeedsTranslationFilter(next)
-                setProducts([])
-                setTotal(0)
-                setHasMore(false)
-                const params = new URLSearchParams()
-                if (searchFilter.trim()) params.set('q', searchFilter.trim())
-                if (categoryFilter) params.set('category', categoryFilter)
-                if (next) params.set('needsTranslation', '1')
-                params.set('limit', String(PAGE_SIZE))
-                params.set('offset', '0')
-                setProductsLoading(true)
-                fetch(`/api/admin/master-catalog?${params}`, { cache: 'no-store' })
-                  .then((r) => (r.ok ? r.json() : { items: [], total: 0, hasMore: false }))
-                  .then((data) => {
-                    const items = data.items ?? []
-                    setProducts(items)
-                    setTotal(data.total ?? items.length)
-                    setHasMore(data.hasMore ?? false)
-                  })
-                  .catch(() => setProducts([]))
-                  .finally(() => setProductsLoading(false))
+                setNeedsTranslationFilter(e.target.checked)
               }}
               className="rounded border-slate-600 bg-slate-800 text-sky-500 focus:ring-sky-500"
             />

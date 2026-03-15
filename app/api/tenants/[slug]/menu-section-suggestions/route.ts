@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { checkTenantAuth } from '@/lib/tenant-auth'
-import { getCommonMenuSections } from '@/lib/menu-sections'
+import { getCommonMenuSections, getHierarchicalGrocerySections } from '@/lib/menu-sections'
 
-/** GET: Suggested menu section names for this tenant. Returns common sections + subcategories matching tenant's businessType. Uses CDN (reference data changes rarely). */
+/** GET: Suggested menu section names for this tenant. Returns common sections + subcategories matching tenant's businessType. For grocery/supermarket, returns hierarchical sectionGroups (select category → then show sub-categories). */
 export const revalidate = 300
 
 export async function GET(
@@ -20,6 +20,9 @@ export async function GET(
   )
   const businessType = tenant?.businessType ?? 'restaurant'
 
+  const isGroceryType = ['grocery', 'supermarket', 'greengrocer'].includes(businessType)
+  const sectionGroups = isGroceryType ? getHierarchicalGrocerySections(businessType) : []
+
   const subcategories = await client.fetch<
     Array<{ _id: string; title_en?: string; title_ar?: string }>
   >(
@@ -30,12 +33,20 @@ export async function GET(
   const list = subcategories ?? []
   const subcatMap = new Map(list.map((s) => [(s.title_en ?? '').toLowerCase().trim(), s]))
 
-  // Business-type-specific sections; remove any that duplicate a subcategory (by title_en, case-insensitive)
+  // For grocery with hierarchical sections, commonSections is empty (use sectionGroups). Otherwise remove duplicates.
   const allSectionsForType = getCommonMenuSections(businessType)
-  const commonSections = allSectionsForType.filter((c) => !subcatMap.has((c.title_en ?? '').toLowerCase().trim()))
+  const commonSections = isGroceryType && sectionGroups.length > 0
+    ? []
+    : allSectionsForType.filter((c) => !subcatMap.has((c.title_en ?? '').toLowerCase().trim()))
 
   return NextResponse.json({
     businessType,
+    sectionGroups: sectionGroups.map((g) => ({
+      key: g.key,
+      title_en: g.title_en,
+      title_ar: g.title_ar,
+      subCategories: g.subCategories,
+    })),
     subcategories: list.map((s) => ({
       _id: s._id,
       title_en: s.title_en ?? '',

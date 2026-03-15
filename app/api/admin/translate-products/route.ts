@@ -59,13 +59,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'OPENAI_API_KEY not configured' }, { status: 500 })
   }
 
-  let body: { limit?: number; dryRun?: boolean; stream?: boolean } = {}
+  let body: { limit?: number; skip?: number; dryRun?: boolean; stream?: boolean } = {}
   try {
     body = await req.json().catch(() => ({}))
   } catch {
     /* empty body ok */
   }
-  const limit = Math.min(Math.max(1, body.limit ?? DEFAULT_LIMIT), 100)
+  const limit = Math.min(Math.max(1, body.limit ?? DEFAULT_LIMIT), 500)
+  const skip = Math.max(0, body.skip ?? 0)
   const dryRun = body.dryRun === true
   const stream = body.stream === true
 
@@ -86,8 +87,9 @@ export async function POST(req: NextRequest) {
     }`
   )
 
-  const totalNeedingWork = (products ?? []).filter(needsTranslation).length
-  const toProcess = (products ?? []).filter(needsTranslation).slice(0, limit)
+  const needingWork = (products ?? []).filter(needsTranslation)
+  const totalNeedingWork = needingWork.length
+  const toProcess = needingWork.slice(skip, skip + limit)
   const results: { _id: string; ok: boolean; error?: string; updated?: string[]; nameEn?: string; nameAr?: string }[] = []
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -227,7 +229,7 @@ Output: nameEn, nameAr, descriptionEn, descriptionAr, unitType, searchQuery.`
         const translated = streamResults.filter((r) => r.ok && r.updated?.length && !['no changes needed', 'dry run - no changes'].includes(r.updated[0]!)).length
         const skipped = streamResults.filter((r) => r.ok && r.updated?.[0] && ['no changes needed', 'dry run - no changes'].includes(r.updated[0])).length
         const failed = streamResults.filter((r) => !r.ok).length
-        const remaining = Math.max(0, totalNeedingWork - toProcess.length)
+        const remaining = Math.max(0, totalNeedingWork - skip - toProcess.length)
         const summary = JSON.stringify({
           type: 'done',
           ok: failed === 0,
@@ -270,7 +272,7 @@ Output: nameEn, nameAr, descriptionEn, descriptionAr, unitType, searchQuery.`
   const translated = results.filter((r) => r.ok && r.updated && r.updated.length > 0 && r.updated[0] !== 'no changes needed' && r.updated[0] !== 'dry run - no changes').length
   const skipped = results.filter((r) => r.ok && r.updated && (r.updated[0] === 'no changes needed' || r.updated[0] === 'dry run - no changes')).length
   const failed = results.filter((r) => !r.ok).length
-  const remaining = Math.max(0, totalNeedingWork - toProcess.length)
+  const remaining = Math.max(0, totalNeedingWork - skip - toProcess.length)
 
   const errorSamples = results.filter((r) => !r.ok && r.error).slice(0, 3).map((r) => r.error!)
 
