@@ -27,6 +27,7 @@ export const userPushSubscriptionType = defineType({
           { title: 'Customer', value: 'customer' },
           { title: 'Driver', value: 'driver' },
           { title: 'Tenant', value: 'tenant' },
+          { title: 'Admin', value: 'admin' },
         ],
       },
       validation: (Rule) => Rule.required(),

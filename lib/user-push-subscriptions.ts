@@ -2,7 +2,7 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { randomBytes } from 'crypto'
 
-export type RoleContext = 'customer' | 'driver' | 'tenant'
+export type RoleContext = 'customer' | 'driver' | 'tenant' | 'admin'
 
 export type WebPushKeys = {
   endpoint: string

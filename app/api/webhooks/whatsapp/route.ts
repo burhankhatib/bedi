@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
+import { sendAdminNotification } from '@/lib/admin-push'
 
 /**
  * Meta WhatsApp Cloud API Webhook
@@ -85,6 +86,12 @@ export async function POST(request: NextRequest) {
             messageType,
             createdAt: new Date(timestamp).toISOString(),
           })
+
+          await sendAdminNotification(
+            'New WhatsApp message',
+            `+${from}: ${text.substring(0, 80)}${text.length > 80 ? '…' : ''}`,
+            '/admin/broadcast?tab=inbox'
+          )
         }
       }
     }

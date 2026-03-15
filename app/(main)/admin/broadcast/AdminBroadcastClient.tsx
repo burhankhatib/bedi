@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Megaphone, Loader2, Info, CheckCircle2, XCircle, Clock, MessageSquare, Send, RefreshCw } from 'lucide-react'
+import { AdminWhatsAppPushBanner } from '@/components/AdminWhatsAppPushBanner'
 import { Button } from '@/components/ui/button'
 
 type WhatsAppMessage = {
@@ -267,7 +268,9 @@ export function AdminBroadcastClient() {
 
       {activeTab === 'inbox' ? (
         /* Inbox chat layout */
-        <div className="rounded-2xl border border-slate-800/60 bg-slate-900/40 overflow-hidden" style={{ minHeight: 520 }}>
+        <div className="space-y-4">
+          <AdminWhatsAppPushBanner />
+          <div className="rounded-2xl border border-slate-800/60 bg-slate-900/40 overflow-hidden" style={{ minHeight: 520 }}>
           <div className="flex h-[520px]">
             {/* Conversation list */}
             <div className="w-72 shrink-0 border-r border-slate-700/60 flex flex-col bg-slate-900/60">
@@ -383,6 +386,7 @@ export function AdminBroadcastClient() {
                 </div>
               )}
             </div>
+          </div>
           </div>
         </div>
       ) : (

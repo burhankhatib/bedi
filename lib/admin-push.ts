@@ -16,8 +16,10 @@ export async function sendAdminNotification(title: string, body: string, url: st
 
     if (!superAdminId) return false
 
-    const subs = await clientNoCdn.fetch<{ _id: string; fcmToken?: string; webPush?: any }[]>(
-      `*[_type == "userPushSubscription" && clerkUserId == $superAdminId && isActive != false]{ _id, fcmToken, "webPush": webPush }`,
+    const subs = await clientNoCdn.fetch<
+      { _id: string; fcmToken?: string; webPush?: any; devices?: Array<{ fcmToken?: string; webPush?: { endpoint?: string; p256dh?: string; auth?: string } }> }[]
+    >(
+      `*[_type == "userPushSubscription" && clerkUserId == $superAdminId && isActive != false]{ _id, fcmToken, "webPush": webPush, devices }`,
       { superAdminId }
     )
 
@@ -27,18 +29,41 @@ export async function sendAdminNotification(title: string, body: string, url: st
     let sent = false
 
     for (const sub of subs) {
-      let fcmSent = false
-      if (sub.fcmToken && isFCMConfigured()) {
-        fcmSent = await sendFCMToToken(sub.fcmToken, payload)
-        if (fcmSent) sent = true
+      const tokens: string[] = []
+      const webPushSubs: Array<{ endpoint: string; p256dh: string; auth: string }> = []
+
+      if (sub.fcmToken) tokens.push(sub.fcmToken)
+      if (sub.webPush?.endpoint && sub.webPush?.p256dh && sub.webPush?.auth) {
+        webPushSubs.push({
+          endpoint: sub.webPush.endpoint,
+          p256dh: sub.webPush.p256dh,
+          auth: sub.webPush.auth,
+        })
       }
-      
-      if (!fcmSent && sub.webPush?.endpoint && sub.webPush?.p256dh && sub.webPush?.auth && isPushConfigured()) {
-        const ok = await sendPushNotification(
-          { endpoint: sub.webPush.endpoint, keys: { p256dh: sub.webPush.p256dh, auth: sub.webPush.auth } },
-          payload
-        )
-        if (ok) sent = true
+      if (Array.isArray(sub.devices)) {
+        for (const d of sub.devices) {
+          if (d.fcmToken) tokens.push(d.fcmToken)
+          if (d.webPush?.endpoint && d.webPush?.p256dh && d.webPush?.auth) {
+            webPushSubs.push({
+              endpoint: d.webPush.endpoint,
+              p256dh: d.webPush.p256dh,
+              auth: d.webPush.auth,
+            })
+          }
+        }
+      }
+
+      for (const token of tokens) {
+        if (isFCMConfigured() && (await sendFCMToToken(token, payload))) sent = true
+      }
+      for (const wp of webPushSubs) {
+        if (isPushConfigured()) {
+          const ok = await sendPushNotification(
+            { endpoint: wp.endpoint, keys: { p256dh: wp.p256dh, auth: wp.auth } },
+            payload
+          )
+          if (ok) sent = true
+        }
       }
     }
 

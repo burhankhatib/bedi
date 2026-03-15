@@ -1,9 +1,24 @@
+import type { Metadata } from 'next'
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { AppNav } from '@/components/saas/AppNav'
 import { AdminSidebar } from '@/components/admin/AdminSidebar'
+import { MANIFEST_VERSION } from '@/lib/pwa/constants'
+
+export const metadata: Metadata = {
+  manifest: `/admin/manifest.webmanifest?v=${MANIFEST_VERSION}`,
+  icons: {
+    icon: '/adminslogo.webp',
+    apple: '/adminslogo.webp',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Bedi Admin',
+  },
+}
 
 export default async function AdminLayout({
   children,
