@@ -623,17 +623,14 @@ export default function AdminCatalogPage() {
     setTranslateResult(null)
     setTranslateProgress([])
 
-    let skip = 0
-
     const runBatch = async (
-      currentSkip: number,
       prevTotals: { done: number; translated: number; failed: number }
     ): Promise<{ remaining: number; translated: number; failed: number; processed: number } | null> => {
       if (backgroundCancelledRef.current) return null
       const res = await fetch('/api/admin/translate-products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit: BATCH_SIZE, skip: currentSkip, dryRun: false, stream: true }),
+        body: JSON.stringify({ limit: BATCH_SIZE, skip: 0, dryRun: false, stream: true }),
       })
       if (!res.ok || !res.body) return null
       const contentType = res.headers.get('content-type') ?? ''
@@ -769,13 +766,12 @@ export default function AdminCatalogPage() {
     let remaining = 1
 
     while (remaining > 0 && !backgroundCancelledRef.current) {
-      const result = await runBatch(skip, { done: totalDone, translated: totalTranslated, failed: totalFailed })
+      const result = await runBatch({ done: totalDone, translated: totalTranslated, failed: totalFailed })
       if (!result || backgroundCancelledRef.current) break
       totalDone += result.processed
       totalTranslated += result.translated
       totalFailed += result.failed
       remaining = result.remaining
-      skip += result.processed
       setBackgroundStats({ done: totalDone, translated: totalTranslated, failed: totalFailed, remaining })
       if (remaining > 0) {
         setTranslateProgress([])
@@ -1480,7 +1476,7 @@ export default function AdminCatalogPage() {
         <h2 className="font-semibold text-white mb-4">Master catalog products</h2>
         <p className="text-sm text-slate-400 mb-4">
           {needsTranslationFilter
-            ? 'Showing only products needing translation: missing Arabic name/description, English text in Arabic fields, or missing descriptions. Toggle off to see all.'
+            ? 'Showing only products missing description. Toggle off to see all.'
             : 'Edit directly below. Scroll down to load more (50 per page). Search finds any product.'}
         </p>
         <div className="flex flex-wrap gap-3 mb-4">

@@ -109,12 +109,9 @@ export function hasEnglishInArabicField(text: string | null | undefined): boolea
 }
 
 /**
- * Returns true if the product needs translation. Only flags products with:
- * 1. Missing Arabic translation (nameAr or descriptionAr)
- * 2. English text in the Arabic fields (nameAr or descriptionAr)
- * 3. Missing description (English and/or Arabic)
- *
- * Fully translated products (complete names, descriptions, proper Arabic) are NOT flagged.
+ * Returns true if the product needs translation.
+ * Simple logic: product needs translation only when Description is missing.
+ * (Descriptions were not imported by default; once a product has a description, it is considered translated.)
  */
 export function needsTranslation(p: {
   nameEn?: string | null
@@ -123,16 +120,7 @@ export function needsTranslation(p: {
   descriptionAr?: string | null
   unitType?: string | null
 }): boolean {
-  const hasNameAr = typeof p.nameAr === 'string' && p.nameAr.trim().length > 0
   const hasDescEn = typeof p.descriptionEn === 'string' && p.descriptionEn.trim().length > 0
   const hasDescAr = typeof p.descriptionAr === 'string' && p.descriptionAr.trim().length > 0
-  const nameArHasEnglish = hasEnglishInArabicField(p.nameAr) || hasRuinedArabic(p.nameAr, p.nameEn)
-  const descriptionArHasEnglish = hasEnglishInArabicField(p.descriptionAr) || hasRuinedArabic(p.descriptionAr, p.nameEn)
-  return (
-    !hasNameAr ||
-    !hasDescEn ||
-    !hasDescAr ||
-    nameArHasEnglish ||
-    descriptionArHasEnglish
-  )
+  return !hasDescEn && !hasDescAr
 }
