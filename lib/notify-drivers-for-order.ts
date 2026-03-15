@@ -125,6 +125,11 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       country?: string
       city?: string
     }
+    // Drivers with an active delivery (assigned, not completed) must NOT receive new order notifications
+    const activeDriverRows = await writeClient.fetch<Array<{ driverId: string }>>(
+      `*[_type == "order" && orderType == "delivery" && status != "cancelled" && status != "refunded" && status != "completed" && status != "served" && defined(assignedDriver)]{ "driverId": assignedDriver._ref }`
+    )
+    const busyDriverIds = new Set((activeDriverRows ?? []).map((r) => r.driverId).filter(Boolean))
     // Include clerkUserId; don't require fcmToken on driver doc — we also use central userPushSubscription
     const drivers = await writeClient.fetch<DriverRow[]>(
       `*[_type == "driver" && isOnline == true && isVerifiedByAdmin == true && (!defined(blockedBySuperAdmin) || blockedBySuperAdmin == false)]{ _id, clerkUserId, fcmToken, "pushSubscription": pushSubscription, country, city }`
@@ -160,19 +165,20 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
         const siteCityNorm = norm(site.city)
         matching = list.filter(
           (d) =>
+            !busyDriverIds.has(d._id) &&
             ((norm(d.country) === siteCountryNorm && norm(d.city) === siteCityNorm) ||
               (!d.country && !d.city)) &&
             !declinedSet.has(d._id)
         )
-        if (matching.length === 0) matching = list.filter((d) => !declinedSet.has(d._id))
+        if (matching.length === 0) matching = list.filter((d) => !busyDriverIds.has(d._id) && !declinedSet.has(d._id))
       } else {
-        matching = list.filter((d) => !declinedSet.has(d._id))
+        matching = list.filter((d) => !busyDriverIds.has(d._id) && !declinedSet.has(d._id))
         if (process.env.NODE_ENV === 'development') {
           console.warn('[request-driver] Tenant has no country/city; sending push to all', list.length, 'online drivers')
         }
       }
     } else {
-      matching = list.filter((d) => !declinedSet.has(d._id))
+      matching = list.filter((d) => !busyDriverIds.has(d._id) && !declinedSet.has(d._id))
     }
 
     const driversWithPush = matching.filter((d) => d.fcmToken || d.pushSubscription?.endpoint || (d.clerkUserId && centralByClerk.has((d.clerkUserId ?? '').trim())))

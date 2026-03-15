@@ -78,12 +78,14 @@ export async function PATCH(
         { driverId }
       )
       const orderNum = order.orderNumber || order._id.slice(-6)
+      const RTL = '\u200F'
       const payload = {
-        title: action === 'approve' ? 'Customer approved item changes' : 'Customer requested contact',
+        title: action === 'approve' ? RTL + 'وافق العميل على التغييرات' : RTL + 'العميل طلب التواصل',
         body: action === 'approve'
-          ? `Order #${orderNum}: customer accepted the updated items.`
-          : `Order #${orderNum}: customer wants to discuss alternatives.`,
+          ? RTL + `طلب #${orderNum}: العميل وافق على الأصناف المحدّثة.`
+          : RTL + `طلب #${orderNum}: العميل يريد مناقشة بدائل.`,
         url: '/driver/orders',
+        dir: 'rtl' as const,
       }
       if (driver?.fcmToken && isFCMConfigured()) {
         await sendFCMToToken(driver.fcmToken, payload)

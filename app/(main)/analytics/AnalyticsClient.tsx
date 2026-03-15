@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { TrendingUp, Package, DollarSign, Users, Star, Truck, UtensilsCrossed, Store, Calendar, Award, BarChart3 } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { formatCurrency } from '@/lib/currency'
+import { getDriverDisplayNameForBusiness } from '@/lib/driver-display'
 import { AdminProtection } from '@/components/Auth/AdminProtection'
 
 interface OrderStats {
@@ -223,7 +224,7 @@ export function AnalyticsClient({
     })
     const driverNames = new Map<string, string>()
     deliveryCompleted.forEach(o => {
-      if (o.assignedDriver) driverNames.set(o.assignedDriver._id, o.assignedDriver.name || 'Driver')
+      if (o.assignedDriver) driverNames.set(o.assignedDriver._id, getDriverDisplayNameForBusiness(o.assignedDriver) || 'Driver')
     })
     const topDriversList = Array.from(driverMap.entries())
       .map(([id, count]) => ({ driverName: driverNames.get(id) || 'Driver', completedDeliveries: count }))

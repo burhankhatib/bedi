@@ -218,6 +218,7 @@ function DriverOrdersV2Content() {
   const [additionalProductSelectionByOrder, setAdditionalProductSelectionByOrder] = useState<Record<string, string>>({})
   const [additionalProductSearchByOrder, setAdditionalProductSearchByOrder] = useState<Record<string, string>>({})
   const [additionalProductLoadingByOrder, setAdditionalProductLoadingByOrder] = useState<Record<string, boolean>>({})
+  const [customerApprovedModalDismissed, setCustomerApprovedModalDismissed] = useState<Set<string>>(new Set())
   const [expandedDetailsByOrder, setExpandedDetailsByOrder] = useState<Record<string, Set<number>>>({})
   const [pendingPickupManualConfirmOrderId, setPendingPickupManualConfirmOrderId] = useState<string | null>(null)
 
@@ -948,6 +949,8 @@ function DriverOrdersV2Content() {
       ],
     }))
     setAdditionalProductSelectionByOrder((prev) => ({ ...prev, [orderId]: '' }))
+    setAdditionalProductSearchByOrder((prev) => ({ ...prev, [orderId]: '' }))
+    setAdditionalProductsByOrder((prev) => ({ ...prev, [orderId]: [] }))
   }
 
   const saveDriverItemChanges = async (order: DriverOrder) => {
@@ -1094,7 +1097,17 @@ function DriverOrdersV2Content() {
           const hasDetails = !!(item.notes || item.addOns || (!picked && item.notPickedReason))
           const isDetailsExpanded = (expandedDetailsByOrder[order.orderId] || new Set()).has(idx)
           return (
-            <div key={`${order.orderId}-item-${idx}`} className="rounded-2xl border border-slate-600/60 bg-slate-800/80 overflow-hidden">
+            <div key={`${order.orderId}-item-${idx}`} className="rounded-2xl border border-slate-600/60 bg-slate-800/80 overflow-hidden relative">
+              {isDriverAdded && (
+                <button
+                  type="button"
+                  onClick={() => removeDriverAddedItem(order.orderId, idx)}
+                  className="absolute top-2 right-2 rtl:right-auto rtl:left-2 z-10 w-10 h-10 rounded-full bg-rose-500/80 hover:bg-rose-500 text-white flex items-center justify-center border-2 border-rose-400/50 shadow-lg"
+                  aria-label={t('Remove', 'حذف')}
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              )}
               <div className="flex gap-4 p-4">
                 {/* Product image — M3 72dp */}
                 <div className="shrink-0 w-[72px] h-[72px] rounded-2xl overflow-hidden bg-slate-700/50 border border-slate-600/50">
@@ -1130,15 +1143,6 @@ function DriverOrdersV2Content() {
                       <span className="min-w-[2.5rem] text-center text-base font-bold">{item.quantity ?? 1}</span>
                       <button type="button" onClick={() => updateEditingItemQuantity(order.orderId, idx, 1)} className="min-w-[44px] min-h-[44px] rounded-xl border border-slate-600 bg-slate-700/50 text-white font-bold text-lg">+</button>
                     </div>
-                    {isDriverAdded && (
-                      <button
-                        type="button"
-                        onClick={() => removeDriverAddedItem(order.orderId, idx)}
-                        className="min-h-[44px] px-4 rounded-xl border border-rose-500/50 bg-rose-500/20 text-rose-400 font-bold text-sm"
-                      >
-                        🗑️ {t('Remove', 'حذف')}
-                      </button>
-                    )}
                   </div>
                   {hasDetails && (
                     <button
@@ -1551,17 +1555,34 @@ function DriverOrdersV2Content() {
               </div>
             )}
 
-            {activeOrder.customerItemChangeStatus && (
+            {activeOrder.customerItemChangeStatus && activeOrder.customerItemChangeStatus !== 'approved' && (
               <div className={`rounded-2xl border p-3 mb-4 text-sm ${
                 activeOrder.customerItemChangeStatus === 'pending'
                   ? 'border-amber-500/40 bg-amber-950/20 text-amber-200'
-                  : activeOrder.customerItemChangeStatus === 'approved'
-                    ? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-200'
-                    : 'border-sky-500/40 bg-sky-950/20 text-sky-200'
+                  : 'border-sky-500/40 bg-sky-950/20 text-sky-200'
               }`}>
                 {activeOrder.customerItemChangeStatus === 'pending' && t('Waiting for customer confirmation on latest item changes.', 'بانتظار تأكيد العميل على آخر تغييرات الأصناف.')}
-                {activeOrder.customerItemChangeStatus === 'approved' && t('Customer approved the latest item changes.', 'العميل وافق على آخر تغييرات الأصناف.')}
                 {activeOrder.customerItemChangeStatus === 'contact_requested' && t('Customer requested contact for alternatives.', 'العميل طلب التواصل بخصوص البدائل.')}
+              </div>
+            )}
+            {activeOrder.customerItemChangeStatus === 'approved' && !customerApprovedModalDismissed.has(activeOrder.orderId) && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm">
+                <div className="rounded-3xl border-2 border-emerald-500/50 bg-slate-900 p-6 max-w-md w-full shadow-2xl text-center">
+                  <div className="text-4xl mb-4">✅</div>
+                  <h3 className="text-xl font-bold text-emerald-400 mb-2">
+                    {t('Customer approved the changes', 'وافق العميل على التغييرات')}
+                  </h3>
+                  <p className="text-slate-300 text-sm mb-6">
+                    {t('The customer has confirmed the item updates. You can proceed with the delivery.', 'أكّد العميل تحديثات الأصناف. يمكنك متابعة التوصيل.')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerApprovedModalDismissed((prev) => new Set(prev).add(activeOrder.orderId))}
+                    className="w-full min-h-[52px] rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base"
+                  >
+                    {t('Okay', 'موافق')}
+                  </button>
+                </div>
               </div>
             )}
 

@@ -19,6 +19,7 @@ const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc
   assignedDriver->{
     _id,
     name,
+    nickname,
     phoneNumber,
     deliveryAreas[]->{_id, name_en, name_ar}
   },

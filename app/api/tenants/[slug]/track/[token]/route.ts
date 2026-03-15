@@ -132,10 +132,14 @@ export async function GET(
   const driverRef = order.assignedDriver?._ref
   let driver: { _id: string; name: string; phoneNumber: string } | null = null
   if (driverRef) {
-    driver = await freshClient.fetch<{ _id: string; name: string; phoneNumber: string } | null>(
-      `*[_type == "driver" && _id == $driverId][0]{ _id, name, phoneNumber }`,
+    const driverDoc = await freshClient.fetch<{ _id: string; name: string; nickname?: string; phoneNumber: string } | null>(
+      `*[_type == "driver" && _id == $driverId][0]{ _id, name, nickname, phoneNumber }`,
       { driverId: driverRef }
     )
+    if (driverDoc) {
+      const displayName = (driverDoc.nickname && driverDoc.nickname.trim()) || driverDoc.name
+      driver = { _id: driverDoc._id, name: displayName, phoneNumber: driverDoc.phoneNumber }
+    }
   }
 
   const restaurantInfo = await freshClient.fetch<{

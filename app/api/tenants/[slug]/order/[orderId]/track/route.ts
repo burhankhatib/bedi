@@ -77,18 +77,21 @@ export async function GET(
   }
 
   const driverRef = order.assignedDriver?._ref
-  const { driver, restaurantInfo, tenant } = await client.fetch<{
-    driver: { _id: string; name: string; phoneNumber: string } | null
+  const { driverDoc, restaurantInfo, tenant } = await client.fetch<{
+    driverDoc: { _id: string; name: string; nickname?: string; phoneNumber: string } | null
     restaurantInfo: { name_en?: string; name_ar?: string; socials?: { whatsapp?: string } } | null
     tenant: { country?: string; city?: string } | null
   }>(
     `{
-      "driver": *[_type == "driver" && _id == $driverId][0]{ _id, name, phoneNumber },
+      "driverDoc": *[_type == "driver" && _id == $driverId][0]{ _id, name, nickname, phoneNumber },
       "restaurantInfo": *[_type == "restaurantInfo" && site._ref == $tenantId][0]{ name_en, name_ar, socials },
       "tenant": *[_type == "tenant" && _id == $tenantId][0]{ country, city }
     }`,
     { tenantId, driverId: driverRef ?? 'none' }
   )
+  const driver = driverDoc
+    ? { _id: driverDoc._id, name: (driverDoc.nickname && driverDoc.nickname.trim()) || driverDoc.name, phoneNumber: driverDoc.phoneNumber }
+    : null
 
   return NextResponse.json({
     order: {

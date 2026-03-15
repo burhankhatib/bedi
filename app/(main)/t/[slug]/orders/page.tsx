@@ -84,7 +84,7 @@ export default async function TenantOrdersPage({
       freshClient.fetch(`*[_type == "order" && ${siteFilter}] | order(createdAt desc) {
         _id, orderNumber, orderType, status, customerName, tableNumber, customerPhone,
         deliveryArea->{_id, name_en, name_ar}, deliveryAddress, deliveryFee,
-        assignedDriver->{_id, name, phoneNumber, deliveryAreas[]->{_id, name_en, name_ar}},
+        assignedDriver->{_id, name, nickname, phoneNumber, deliveryAreas[]->{_id, name_en, name_ar}},
         items, subtotal, totalAmount, currency,
         createdAt, preparedAt, driverAcceptedAt, driverPickedUpAt, completedAt, cancelledAt, driverCancelledAt,
         customerRequestType, customerRequestPaymentMethod, customerRequestedAt, customerRequestAcknowledgedAt,

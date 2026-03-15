@@ -22,16 +22,20 @@ const ALLOWED_REDIRECT_PREFIXES = [
 /**
  * Validates and returns a safe redirect path after sign-in/sign-up.
  * Returns defaultPath if redirect_url is missing, invalid, or not allowed.
+ * Preserves query string (e.g. ?ref=inviterCode) for allowed paths so driver invite links work.
  */
 export function getAllowedRedirectPath(
   redirectUrl: string | null | undefined,
   defaultPath: string = '/dashboard'
 ): string {
   if (!redirectUrl || typeof redirectUrl !== 'string') return defaultPath
-  const path = redirectUrl.trim().split('?')[0]
+  const trimmed = redirectUrl.trim()
+  const [pathPart, queryPart] = trimmed.split('?')
+  const path = pathPart || trimmed
+  const query = queryPart ? '?' + queryPart : ''
   if (!path.startsWith('/') || path.startsWith('//')) return defaultPath
   const allowed = ALLOWED_REDIRECT_PREFIXES.some((prefix) => path === prefix || path.startsWith(prefix + '/'))
-  return allowed ? path : defaultPath
+  return allowed ? path + query : defaultPath
 }
 
 /**

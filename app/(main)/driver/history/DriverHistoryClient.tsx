@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { Package, Search, Flag } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Package, Search, Flag, Undo2 } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { getCityDisplayName } from '@/lib/registration-translations'
 import { Input } from '@/components/ui/input'
@@ -31,6 +31,7 @@ type HistoryOrder = {
   completedAt?: string
   driverCancelledAt?: string
   createdAt?: string
+  canUndoDecline?: boolean
 }
 
 export function DriverHistoryClient() {
@@ -40,7 +41,44 @@ export function DriverHistoryClient() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [reportOrderId, setReportOrderId] = useState<string | null>(null)
+  const [undoLoading, setUndoLoading] = useState<string | null>(null)
   const latestRequestRef = useRef(0)
+
+  const fetchHistory = useCallback(() => {
+    const requestId = ++latestRequestRef.current
+    const ac = new AbortController()
+    setLoading(true)
+    const url = `/api/driver/orders/history${debouncedSearch ? `?q=${encodeURIComponent(debouncedSearch)}` : ''}`
+    return fetch(url, { cache: 'no-store', signal: ac.signal })
+      .then((res) => res.json())
+      .then((data) => {
+        if (latestRequestRef.current === requestId) {
+          setOrders(Array.isArray(data?.orders) ? data.orders : [])
+        }
+      })
+      .catch((err) => {
+        if ((err as Error)?.name !== 'AbortError' && latestRequestRef.current === requestId) setOrders([])
+      })
+      .finally(() => {
+        if (latestRequestRef.current === requestId) setLoading(false)
+      })
+  }, [debouncedSearch])
+
+  const handleUndoDecline = useCallback(
+    async (orderId: string) => {
+      setUndoLoading(orderId)
+      try {
+        const res = await fetch(`/api/driver/orders/${orderId}/undo-decline`, { method: 'POST' })
+        const data = await res.json()
+        if (res.ok && data.success) {
+          fetchHistory()
+        }
+      } finally {
+        setUndoLoading(null)
+      }
+    },
+    [fetchHistory]
+  )
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 300)
@@ -48,30 +86,8 @@ export function DriverHistoryClient() {
   }, [search])
 
   useEffect(() => {
-    let mounted = true
-    const requestId = ++latestRequestRef.current
-    const ac = new AbortController()
-    setLoading(true)
-    const url = `/api/driver/orders/history${debouncedSearch ? `?q=${encodeURIComponent(debouncedSearch)}` : ''}`
-    fetch(url, { cache: 'no-store', signal: ac.signal })
-      .then((res) => res.json())
-      .then((data) => {
-        if (mounted && latestRequestRef.current === requestId) {
-          setOrders(Array.isArray(data?.orders) ? data.orders : [])
-        }
-      })
-      .catch((err) => {
-        if ((err as Error)?.name === 'AbortError') return
-        if (mounted && latestRequestRef.current === requestId) setOrders([])
-      })
-      .finally(() => {
-        if (mounted && latestRequestRef.current === requestId) setLoading(false)
-      })
-    return () => {
-      mounted = false
-      ac.abort()
-    }
-  }, [debouncedSearch])
+    fetchHistory()
+  }, [fetchHistory])
 
   return (
     <div className="space-y-6">
@@ -131,14 +147,18 @@ export function DriverHistoryClient() {
                       ? 'bg-green-500/20 text-green-400'
                       : o.status === 'cancelled' || o.status === 'driver_cancelled'
                         ? 'bg-amber-500/20 text-amber-400'
-                        : 'bg-slate-600/50 text-slate-400'
+                        : o.status === 'driver_declined'
+                          ? 'bg-slate-500/30 text-slate-400'
+                          : 'bg-slate-600/50 text-slate-400'
                   }`}
                 >
                   {o.status === 'completed'
                     ? t('Completed', 'مكتمل')
                     : o.status === 'cancelled' || o.status === 'driver_cancelled'
                       ? t('Cancelled', 'ملغي')
-                      : o.status}
+                      : o.status === 'driver_declined'
+                        ? t('Declined', 'مرفوض')
+                        : o.status}
                 </span>
               </div>
               {(o.status === 'driver_cancelled' && o.driverCancelledAt) && (
@@ -158,17 +178,32 @@ export function DriverHistoryClient() {
                   <span className="text-rose-400"> · 💚 {t('Tip', 'إكرامية')}: {o.tipAmount.toFixed(2)}</span>
                 )}
               </p>
-              <div className="mt-3 pt-3 border-t border-slate-700/60">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-slate-400 hover:text-slate-300"
-                  onClick={() => setReportOrderId(o.orderId)}
-                >
-                  <Flag className="w-4 h-4 mr-1.5 rtl:ml-1.5 rtl:mr-0" />
-                  {t('Report customer', 'الإبلاغ عن العميل')}
-                </Button>
+              <div className="mt-3 pt-3 border-t border-slate-700/60 flex flex-wrap gap-2">
+                {o.canUndoDecline && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-emerald-400 border-emerald-500/50 hover:bg-emerald-500/10"
+                    onClick={() => handleUndoDecline(o.orderId)}
+                    disabled={undoLoading === o.orderId}
+                  >
+                    <Undo2 className="w-4 h-4 mr-1.5 rtl:ml-1.5 rtl:mr-0" />
+                    {undoLoading === o.orderId ? t('Wait...', 'انتظر...') : t('Undo decline', 'إلغاء الرفض')}
+                  </Button>
+                )}
+                {o.status === 'completed' && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-slate-400 hover:text-slate-300"
+                    onClick={() => setReportOrderId(o.orderId)}
+                  >
+                    <Flag className="w-4 h-4 mr-1.5 rtl:ml-1.5 rtl:mr-0" />
+                    {t('Report customer', 'الإبلاغ عن العميل')}
+                  </Button>
+                )}
               </div>
             </li>
           ))}

@@ -11,6 +11,7 @@ import { googleMapsNavigationUrl, wazeNavigationUrl } from '@/lib/maps-utils'
 import { client } from '@/sanity/lib/client'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
+import { getDriverDisplayNameForBusiness } from '@/lib/driver-display'
 import { SlideToCompleteOrder } from './SlideToCompleteOrder'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
 
@@ -27,6 +28,7 @@ interface OrderItem {
 interface Driver {
   _id: string
   name: string
+  nickname?: string
   phoneNumber: string
   vehicleType?: string
   isActive: boolean
@@ -65,6 +67,7 @@ interface Order {
   assignedDriver?: {
     _id: string
     name: string
+    nickname?: string
     phoneNumber: string
     deliveryAreas?: Array<{
       _id: string
@@ -588,6 +591,7 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
           assignedDriver: {
             _id: assignedDriver._id,
             name: assignedDriver.name,
+            nickname: assignedDriver.nickname,
             phoneNumber: assignedDriver.phoneNumber,
             deliveryAreas: assignedDriver.deliveryAreas,
           },
@@ -1504,7 +1508,7 @@ Please deliver this order to the customer.
                       <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
                         <p className="text-xs font-bold text-slate-800">{t('Driver on the way to business', 'السائق في الطريق إلى المتجر')}</p>
                         {localOrder.assignedDriver && (
-                          <p className="text-xs font-medium text-slate-700">{localOrder.assignedDriver.name} ({localOrder.assignedDriver.phoneNumber})</p>
+                          <p className="text-xs font-medium text-slate-700">{getDriverDisplayNameForBusiness(localOrder.assignedDriver)} ({localOrder.assignedDriver.phoneNumber})</p>
                         )}
                         <p className="text-xs text-slate-500 mt-1">{fmt(localOrder.driverAcceptedAt)}</p>
                       </div>
@@ -1765,7 +1769,7 @@ Please deliver this order to the customer.
                       {localOrder.assignedDriver && (
                         <div className="ml-8 rtl:mr-8 rtl:ml-0 flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200">
                           <div>
-                            <p className="font-bold text-slate-800">{localOrder.assignedDriver.name}</p>
+                            <p className="font-bold text-slate-800">{getDriverDisplayNameForBusiness(localOrder.assignedDriver)}</p>
                             <p className="text-sm text-slate-500">{localOrder.assignedDriver.phoneNumber}</p>
                           </div>
                           <div className="flex gap-2">
@@ -1827,7 +1831,7 @@ Please deliver this order to the customer.
                                   <div key={driver._id} className={`flex items-center justify-between p-3 rounded-xl border ${canServeArea ? 'border-slate-200' : 'border-orange-200 bg-orange-50'}`}>
                                     <div>
                                       <div className="flex items-center gap-2">
-                                        <p className="font-bold text-sm">{driver.name}</p>
+                                        <p className="font-bold text-sm">{getDriverDisplayNameForBusiness(driver)}</p>
                                         {driver.isOnline ? (
                                           <span className="w-2 h-2 rounded-full bg-green-500"></span>
                                         ) : (

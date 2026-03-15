@@ -5,7 +5,51 @@ import { token } from '@/sanity/lib/token'
 
 const freshClient = client.withConfig({ token: token || undefined, useCdn: false })
 
-/** GET driver order history. Optional ?q= for search (order number, customer name, phone). */
+const ORDER_FIELDS = `_id,
+  orderNumber,
+  customerName,
+  customerPhone,
+  deliveryAddress,
+  deliveryLat,
+  deliveryLng,
+  deliveryFee,
+  shopperFee,
+  totalAmount,
+  tipAmount,
+  tipPercent,
+  currency,
+  status,
+  completedAt,
+  driverCancelledAt,
+  createdAt,
+  "siteRef": site._ref,
+  "assignedDriverRef": assignedDriver._ref,
+  "declinedByDriverRefs": declinedByDriverIds[]._ref`
+
+type OrderRow = {
+  _id: string
+  orderNumber?: string
+  customerName?: string
+  customerPhone?: string
+  deliveryAddress?: string
+  deliveryLat?: number
+  deliveryLng?: number
+  deliveryFee?: number
+  shopperFee?: number
+  totalAmount?: number
+  tipAmount?: number
+  tipPercent?: number
+  currency?: string
+  status: string
+  completedAt?: string
+  driverCancelledAt?: string
+  createdAt?: string
+  siteRef?: string
+  assignedDriverRef?: string
+  declinedByDriverRefs?: string[]
+}
+
+/** GET driver order history. Optional ?q= for search (order number, customer name, phone). Includes completed, cancelled, and declined orders. */
 export async function GET(req: NextRequest) {
   const { userId } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -20,50 +64,18 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
 
-  const ordersRaw = await freshClient.fetch<
-    Array<{
-      _id: string
-      orderNumber?: string
-      customerName?: string
-      customerPhone?: string
-      deliveryAddress?: string
-      deliveryLat?: number
-      deliveryLng?: number
-      deliveryFee?: number
-      shopperFee?: number
-      totalAmount?: number
-      tipAmount?: number
-      tipPercent?: number
-      currency?: string
-      status: string
-      completedAt?: string
-      driverCancelledAt?: string
-      createdAt?: string
-      siteRef?: string
-    }>
-  >(
-    `*[_type == "order" && orderType == "delivery" && (assignedDriver._ref == $driverId || cancelledByDriver._ref == $driverId)] | order(coalesce(completedAt, driverCancelledAt) desc, createdAt desc) {
-      _id,
-      orderNumber,
-      customerName,
-      customerPhone,
-      deliveryAddress,
-      deliveryLat,
-      deliveryLng,
-      deliveryFee,
-      shopperFee,
-      totalAmount,
-      tipAmount,
-      tipPercent,
-      currency,
-      status,
-      completedAt,
-      driverCancelledAt,
-      createdAt,
-      "siteRef": site._ref
-    }`,
-    { driverId }
-  )
+  const [assignedOrCancelledRaw, declinedRaw] = await Promise.all([
+    freshClient.fetch<OrderRow[]>(
+      `*[_type == "order" && orderType == "delivery" && (assignedDriver._ref == $driverId || cancelledByDriver._ref == $driverId)] | order(coalesce(completedAt, driverCancelledAt) desc, createdAt desc) { ${ORDER_FIELDS} }`,
+      { driverId }
+    ),
+    freshClient.fetch<OrderRow[]>(
+      `*[_type == "order" && orderType == "delivery" && status != "cancelled" && status != "refunded" && status != "completed" && status != "served" && $driverId in declinedByDriverIds[]._ref] | order(deliveryRequestedAt desc, createdAt desc) { ${ORDER_FIELDS} }`,
+      { driverId }
+    ),
+  ])
+
+  const ordersRaw = [...(assignedOrCancelledRaw ?? []), ...(declinedRaw ?? [])]
 
   const siteIds = [...new Set((ordersRaw ?? []).map((o) => o.siteRef).filter(Boolean))] as string[]
   const sites =
@@ -101,9 +113,12 @@ export async function GET(req: NextRequest) {
     ])
   )
 
-  let orders = (ordersRaw ?? []).map((o) => {
+  const declinedOrderIds = new Set((declinedRaw ?? []).map((o) => o._id))
+  let orders = ordersRaw.map((o) => {
     const site = siteMap.get(o.siteRef ?? '')
     const isDriverCancelled = !!o.driverCancelledAt
+    const isDriverDeclined = declinedOrderIds.has(o._id)
+    const canUndoDecline = isDriverDeclined && !o.assignedDriverRef
     return {
       orderId: o._id,
       orderNumber: o.orderNumber ?? '',
@@ -123,11 +138,17 @@ export async function GET(req: NextRequest) {
       tipPercent: o.tipPercent ?? 0,
       amountToPayTenant: Math.max(0, (o.totalAmount ?? 0) - (o.deliveryFee ?? 0) - (o.shopperFee ?? 0)),
       currency: o.currency ?? 'ILS',
-      status: isDriverCancelled ? 'driver_cancelled' : o.status,
+      status: isDriverCancelled ? 'driver_cancelled' : isDriverDeclined ? 'driver_declined' : o.status,
       completedAt: o.completedAt,
       driverCancelledAt: o.driverCancelledAt,
       createdAt: o.createdAt,
+      canUndoDecline,
     }
+  })
+  orders = orders.sort((a, b) => {
+    const dateA = a.completedAt || a.driverCancelledAt || a.createdAt || ''
+    const dateB = b.completedAt || b.driverCancelledAt || b.createdAt || ''
+    return new Date(dateB).getTime() - new Date(dateA).getTime()
   })
 
   if (q) {

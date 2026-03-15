@@ -29,10 +29,13 @@ export default function VerifyPhoneClient() {
   const [strategy, setStrategy] = useState<VerificationStrategy>('meta_whatsapp')
 
   // Normalize returnTo: If driver, redirect to profile to avoid React Error #310 from orders page hydration.
+  // Preserve query params (e.g. ?ref=inviterCode for driver invites).
   const rawReturnTo = searchParams.get('returnTo') || '/'
-  const normalizedReturnTo = rawReturnTo === '/driver' || rawReturnTo.startsWith('/driver/') 
-    ? '/driver/profile' 
-    : rawReturnTo
+  const [pathPart, queryPart] = rawReturnTo.split('?')
+  const path = pathPart || '/'
+  const query = queryPart ? '?' + queryPart : ''
+  const normalizedReturnTo =
+    path === '/driver' || path.startsWith('/driver/') ? '/driver/profile' + query : rawReturnTo
 
   const intentChange = searchParams.get('intent') === 'change'
 

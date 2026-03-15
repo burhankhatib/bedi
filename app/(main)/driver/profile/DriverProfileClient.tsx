@@ -247,10 +247,12 @@ export function DriverProfileClient() {
               : digits.startsWith('0') && digits.length >= 10
                 ? '+972' + digits.slice(1)
                 : countryCode + digits.replace(/^0+/, '')
-          const params = new URLSearchParams({
-            returnTo: isNewRegistration ? '/driver/orders?registered=1' : '/driver/profile',
-            phone: e164.startsWith('+') ? e164 : '+' + e164,
-          })
+          const refCode = searchParams?.get('ref')
+          const returnToBase = isNewRegistration ? '/driver/orders?registered=1' : '/driver/profile'
+          const returnTo = refCode
+            ? returnToBase + (returnToBase.includes('?') ? '&' : '?') + 'ref=' + encodeURIComponent(refCode)
+            : returnToBase
+          const params = new URLSearchParams({ returnTo, phone: e164.startsWith('+') ? e164 : '+' + e164 })
           params.set('countryCode', countryCode)
           window.location.href = `/verify-phone?${params.toString()}`
         } else {
@@ -331,10 +333,13 @@ export function DriverProfileClient() {
         </div>
         <div>
           <label className="mb-2 block text-sm font-medium text-slate-400">{t('Preferred nickname', 'اللقب المفضل')}</label>
+          <p className="mb-2 text-sm text-slate-400/90">
+            {t('This is the name customers will see when their delivery is on the way.', 'هذا هو الاسم الذي يراه العملاء أثناء توصيل طلباتهم.')}
+          </p>
           <Input
             value={form.nickname}
             onChange={(e) => setForm((f) => ({ ...f, nickname: e.target.value }))}
-            placeholder={t('How you want to be shown (e.g. on orders)', 'كيف تريد أن يظهر اسمك (مثلاً على الطلبات)')}
+            placeholder={t('e.g. برهوم', 'مثلاً: برهوم')}
             className="min-h-[48px] bg-slate-800 border-slate-600 text-base text-white"
           />
         </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Package, Search, ChefHat, Clock, CheckCircle2, XCircle, Truck, UtensilsCrossed, Store, HandHelping } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
+import { getDriverDisplayNameForBusiness } from '@/lib/driver-display'
 import { Input } from '@/components/ui/input'
 import { OrderDetailsModal } from '@/components/Orders/OrderDetailsModal'
 import type { Order } from '@/app/(main)/orders/OrdersClient'
@@ -176,7 +177,7 @@ export function HistoryOrdersClient({ slug }: { slug: string }) {
                       <p className="text-sm text-slate-400">{order.customerPhone}</p>
                     )}
                     {order.assignedDriver && (
-                      <p className="text-sm text-amber-400 font-medium">{order.assignedDriver.name}</p>
+                      <p className="text-sm text-amber-400 font-medium">{getDriverDisplayNameForBusiness(order.assignedDriver)}</p>
                     )}
                   </>
                 )}

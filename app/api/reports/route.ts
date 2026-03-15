@@ -5,6 +5,7 @@ import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 import { getTenantIdBySlug } from '@/lib/tenant'
 import { getCategories } from '@/lib/report-categories'
+import { getDriverDisplayNameForBusiness } from '@/lib/driver-display'
 import { sendReportEmail } from '@/lib/report-email'
 import { sendAdminNotification } from '@/lib/admin-push'
 
@@ -98,10 +99,10 @@ export async function POST(req: NextRequest) {
     if (!orderId) return NextResponse.json({ error: 'Driver report requires orderId' }, { status: 400 })
     const { userId } = await auth()
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    const driver = await writeClient.fetch(`*[_type == "driver" && clerkUserId == $userId][0]{ _id, name }`, { userId }) as { _id: string; name?: string } | null
+    const driver = await writeClient.fetch(`*[_type == "driver" && clerkUserId == $userId][0]{ _id, name, nickname }`, { userId }) as { _id: string; name?: string; nickname?: string } | null
     if (!driver) return NextResponse.json({ error: 'Driver not found' }, { status: 403 })
     reporterDriverId = driver._id
-    reporterInfo = driver.name ?? driver._id
+    reporterInfo = getDriverDisplayNameForBusiness(driver) || driver._id
     order = await writeClient.fetch<
       { _id: string; orderNumber?: string; site?: { _ref?: string }; assignedDriver?: { _ref?: string }; customerName?: string; customerPhone?: string } | null
     >(
@@ -131,8 +132,8 @@ export async function POST(req: NextRequest) {
     }
     if (reportedType === 'driver' && order.assignedDriver?._ref) {
       reportedDriverId = order.assignedDriver._ref
-      const driver = await writeClient.fetch(`*[_type == "driver" && _id == $id][0]{ name }`, { id: reportedDriverId }) as { name?: string } | null
-      reportedInfo = driver?.name ?? reportedDriverId
+      const driver = await writeClient.fetch(`*[_type == "driver" && _id == $id][0]{ name, nickname }`, { id: reportedDriverId }) as { name?: string; nickname?: string } | null
+      reportedInfo = (driver && getDriverDisplayNameForBusiness(driver)) || reportedDriverId
     }
   }
 

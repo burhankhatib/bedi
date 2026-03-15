@@ -8,6 +8,7 @@ import { AdminProtection } from '@/components/Auth/AdminProtection'
 import { OrderDetailsModal } from '@/components/Orders/OrderDetailsModal'
 import { OrderNotifications } from '@/components/Orders/OrderNotifications'
 import { Input } from '@/components/ui/input'
+import { getDriverDisplayNameForBusiness } from '@/lib/driver-display'
 import { motion, AnimatePresence } from 'framer-motion'
 
 export interface OrderItem {
@@ -38,6 +39,7 @@ export interface Order {
   assignedDriver?: {
     _id: string
     name: string
+    nickname?: string
     phoneNumber: string
     deliveryAreas?: Array<{
       _id: string
@@ -881,7 +883,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 text-xs font-bold transition-colors"
                                 >
                                   <Truck className="w-3.5 h-3.5" />
-                                  {order.assignedDriver.name.split(' ')[0]}
+                                  {getDriverDisplayNameForBusiness(order.assignedDriver).split(' ')[0]}
                                   <ChevronDown className="w-3 h-3 opacity-70" />
                                 </button>
                               ) : (
@@ -943,7 +945,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                                                 className={`w-full text-left rtl:text-right px-4 py-3 border-b border-slate-50 hover:bg-slate-50 flex items-center justify-between ${!canServe ? 'opacity-50 grayscale' : ''}`}
                                               >
                                                 <div>
-                                                  <p className="text-sm font-bold text-slate-800">{driver.name}</p>
+                                                  <p className="text-sm font-bold text-slate-800">{getDriverDisplayNameForBusiness(driver)}</p>
                                                   <div className="flex items-center gap-2 mt-0.5">
                                                     <span className={`w-2 h-2 rounded-full ${driver.isOnline ? 'bg-green-500' : 'bg-slate-300'}`} />
                                                     <span className="text-xs text-slate-500">{driver.isOnline ? 'Online' : 'Offline'}</span>
@@ -1074,7 +1076,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                                       className="flex items-center gap-1.5 px-3 py-2 w-full justify-center rounded-lg bg-orange-100 text-orange-700 hover:bg-orange-200 text-sm font-bold transition-colors"
                                     >
                                       <Truck className="w-4 h-4" />
-                                      {order.assignedDriver.name}
+                                      {getDriverDisplayNameForBusiness(order.assignedDriver)}
                                       <ChevronDown className="w-4 h-4 opacity-70 ml-1" />
                                     </button>
                                   ) : (
@@ -1134,7 +1136,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                                                       className={`w-full text-left rtl:text-right px-4 py-3 border-b border-slate-50 hover:bg-slate-50 flex items-center justify-between ${!canServe ? 'opacity-50 grayscale' : ''}`}
                                                     >
                                                       <div>
-                                                        <p className="text-sm font-bold text-slate-800">{driver.name}</p>
+                                                        <p className="text-sm font-bold text-slate-800">{getDriverDisplayNameForBusiness(driver)}</p>
                                                         <div className="flex items-center gap-2 mt-0.5">
                                                           <span className={`w-2 h-2 rounded-full ${driver.isOnline ? 'bg-green-500' : 'bg-slate-300'}`} />
                                                           <span className="text-xs text-slate-500">{driver.isOnline ? 'Online' : 'Offline'}</span>
@@ -1332,7 +1334,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-orange-600">
                     <Truck className="h-8 w-8" />
                   </div>
-                  <h3 className="mb-1 text-2xl font-black text-slate-900">{driverModalOrder.assignedDriver.name}</h3>
+                  <h3 className="mb-1 text-2xl font-black text-slate-900">{getDriverDisplayNameForBusiness(driverModalOrder.assignedDriver)}</h3>
                   {driverModalOrder.assignedDriver.phoneNumber && <p className="mb-6 text-slate-500 font-mono" dir="ltr">{driverModalOrder.assignedDriver.phoneNumber}</p>}
                   
                   <div className="flex flex-col gap-3">

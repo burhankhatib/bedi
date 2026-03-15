@@ -68,7 +68,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
       "customerRef": customer._ref,
       customerFcmToken,
       "customerPushSubscription": customerPushSubscription,
-      "assignedDriverName": assignedDriver->name,
+      "assignedDriverName": coalesce(assignedDriver->nickname, assignedDriver->name),
       totalAmount,
       tipAmount,
       currency

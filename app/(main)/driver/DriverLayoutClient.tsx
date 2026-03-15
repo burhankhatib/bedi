@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, startTransition } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useClerk } from '@clerk/nextjs'
@@ -215,10 +215,27 @@ export function DriverLayoutClient({
               
               {(hasNoProfileYet ? NAV_ITEMS.filter((i) => i.href === '/driver/profile') : NAV_ITEMS).map((item) => {
                 const isActive = pathname === item.href
-                return (
+                const isHistoryFromOrders = item.href === '/driver/history' && pathname === '/driver/orders'
+                return isHistoryFromOrders ? (
+                  <button
+                    key={item.href}
+                    type="button"
+                    className="flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-colors w-full text-left text-slate-300 hover:bg-slate-800/80 hover:text-white"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      startTransition(() => {
+                        router.push(item.href)
+                      })
+                    }}
+                  >
+                    <item.icon className="size-6 text-slate-400" />
+                    <span className="font-medium text-[15px]">{navLabel(item)}</span>
+                  </button>
+                ) : (
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch={item.href === '/driver/history' ? false : undefined}
                     className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-colors ${
                       isActive 
                         ? 'bg-emerald-500/10 text-emerald-400' 
