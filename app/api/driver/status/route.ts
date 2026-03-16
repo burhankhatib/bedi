@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
   const body = await req.json().catch(() => ({}))
   const wantOffline = body && body.isOnline === false
-  const driver = await client.fetch<{
+  const driver = await writeClient.fetch<{
     _id: string
     isVerifiedByAdmin?: boolean
     fcmToken?: string
@@ -84,54 +84,11 @@ export async function PATCH(req: NextRequest) {
   if (!isOnline) p.unset(['onlineSince'])
   await p.commit()
 
-  if (isOnline && isMorningHours()) {
-    const today = new Date().toISOString().slice(0, 10)
-    if (driver.lastMorningEncouragementDate !== today) {
-      const msg = getMorningEncouragementPushAr(driver.nickname)
-      const payload = { title: msg.title, body: msg.body, url: '/driver/orders', dir: 'rtl' as const }
-      let sent = false
-      if (driver.clerkUserId) {
-        const subs = await getActiveSubscriptionsForUser({ clerkUserId: driver.clerkUserId, roleContext: 'driver' })
-        for (const sub of subs) {
-          for (const dev of sub?.devices ?? []) {
-            if (dev?.fcmToken && isFCMConfigured() && (await sendFCMToToken(dev.fcmToken, payload))) {
-              sent = true
-              break
-            }
-            if (
-              dev?.webPush?.endpoint &&
-              dev.webPush.p256dh &&
-              dev.webPush.auth &&
-              isPushConfigured() &&
-              (await sendPushNotification(
-                { endpoint: dev.webPush.endpoint, keys: { p256dh: dev.webPush.p256dh, auth: dev.webPush.auth } },
-                payload
-              ))
-            ) {
-              sent = true
-              break
-            }
-          }
-          if (sent) break
-        }
-      }
-      if (!sent && driver.fcmToken && isFCMConfigured()) {
-        sent = await sendFCMToToken(driver.fcmToken, payload)
-      }
-      if (!sent && driver.pushSubscription?.endpoint && driver.pushSubscription?.p256dh && driver.pushSubscription?.auth && isPushConfigured()) {
-        await sendPushNotification(
-          {
-            endpoint: driver.pushSubscription.endpoint,
-            keys: { p256dh: driver.pushSubscription.p256dh, auth: driver.pushSubscription.auth },
-          },
-          payload
-        )
-      }
-      await writeClient.patch(driver._id).set({ lastMorningEncouragementDate: today }).commit()
-    }
-  } else if (isOnline) {
-    // Non-morning: send humor "you're connected" to confirm push works
-    const msg = getRandomConnectionMessage()
+  if (isOnline) {
+    const msg =
+      isMorningHours() && driver.lastMorningEncouragementDate !== new Date().toISOString().slice(0, 10)
+        ? getMorningEncouragementPushAr(driver.nickname)
+        : getRandomConnectionMessage()
     const payload = { title: msg.title, body: msg.body, url: '/driver/orders', dir: 'rtl' as const }
     let sent = false
     if (driver.clerkUserId) {
@@ -176,6 +133,10 @@ export async function PATCH(req: NextRequest) {
         },
         payload
       )
+    }
+    if (isMorningHours()) {
+      const today = new Date().toISOString().slice(0, 10)
+      await writeClient.patch(driver._id).set({ lastMorningEncouragementDate: today }).commit()
     }
   }
 

@@ -259,7 +259,8 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
         const { token, error: fcmError } = await getFCMToken(reg)
         if (token) {
           const apiUrl = `/api/tenants/${slug}/push-subscription`
-          const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string } } = { fcmToken: token }
+          const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string }; forceConfirmation?: boolean } = { fcmToken: token }
+          if (!silent) payload.forceConfirmation = true
           if (VAPID_PUBLIC) {
             try {
               const sub = await reg.pushManager.subscribe({
@@ -304,17 +305,19 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
             })
             const p256 = new Uint8Array(sub.getKey('p256dh')!)
             const auth = new Uint8Array(sub.getKey('auth')!)
+            const webPushBody: Record<string, unknown> = {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
+                auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
+              },
+            }
+            if (!silent) webPushBody.forceConfirmation = true
             const res = await fetch(`/api/tenants/${slug}/push-subscription`, {
               method: 'POST',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                endpoint: sub.endpoint,
-                keys: {
-                  p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
-                  auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
-                },
-              }),
+              body: JSON.stringify(webPushBody),
             })
             if (res.ok) {
               setStoredPushOk(PUSH_CONTEXT_KEYS.tenant(slug))
@@ -339,17 +342,19 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
       })
       const p256 = new Uint8Array(sub.getKey('p256dh')!)
       const auth = new Uint8Array(sub.getKey('auth')!)
+      const webPushBody: Record<string, unknown> = {
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
+          auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
+        },
+      }
+      if (!silent) webPushBody.forceConfirmation = true
       const res = await fetch(`/api/tenants/${slug}/push-subscription`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          endpoint: sub.endpoint,
-          keys: {
-            p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
-            auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
-          },
-        }),
+        body: JSON.stringify(webPushBody),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))

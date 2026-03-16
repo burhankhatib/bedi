@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
       `*[_type == "customerPushSubscription" && fcmToken == $fcmToken][0]{ _id }`,
       { fcmToken }
     )
+    let wasNewToken = false
     if (existing) {
       await writeClient.patch(existing._id).set({ createdAt: new Date().toISOString() }).commit()
       console.info('[customer-push-subscription] refreshed legacy token record', { source, tenantSlug, isIOS, standalone })
@@ -67,6 +68,7 @@ export async function POST(req: NextRequest) {
         createdAt: new Date().toISOString(),
       })
       console.info('[customer-push-subscription] created legacy token record', { source, tenantSlug, isIOS, standalone })
+      wasNewToken = true
     }
 
     if (userId) {
@@ -76,6 +78,7 @@ export async function POST(req: NextRequest) {
         fcmToken,
         deviceInfo: req.headers.get('user-agent') ?? undefined,
       })
+      if (result?.created) wasNewToken = true
       console.info('[customer-push-subscription] central upsert', {
         userId,
         created: result?.created ?? false,
@@ -86,7 +89,9 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    await sendConnectionConfirmationFcm(fcmToken).catch(() => {})
+    if (wasNewToken) {
+      await sendConnectionConfirmationFcm(fcmToken).catch(() => {})
+    }
 
     return NextResponse.json({ success: true, linkedUser: Boolean(userId) })
   } catch (e) {

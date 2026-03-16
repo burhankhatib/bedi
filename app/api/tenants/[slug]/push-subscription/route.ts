@@ -6,6 +6,7 @@ import { getEmailForUser } from '@/lib/getClerkEmail'
 import { auth } from '@clerk/nextjs/server'
 import { requirePermission, ORDERS_PERMISSION } from '@/lib/staff-permissions'
 import { upsertUserPushSubscription, checkDeviceToken } from '@/lib/user-push-subscriptions'
+import { sendConnectionConfirmationFcm } from '@/lib/send-connection-confirmation'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -131,6 +132,7 @@ export async function POST(
   const keys = body?.keys && typeof body.keys === 'object' ? body.keys : null
   const p256dh = keys?.p256dh && typeof keys.p256dh === 'string' ? keys.p256dh : null
   const authKey = keys?.auth && typeof keys.auth === 'string' ? keys.auth : null
+  const forceConfirmation = body?.forceConfirmation === true || body?.source === 'manual-refresh'
 
   const hasWebPush = !!(endpoint && p256dh && authKey)
   if (!fcmToken && !hasWebPush) {
@@ -143,6 +145,24 @@ export async function POST(
   // Resolve ALL authorized businesses for this user (owner/co-owner/staff) so one enable covers all.
   const authorizedSiteIds = await resolveAuthorizedTenantSiteIds(userId, emailLower)
   const siteIds = [...new Set([authResult.tenantId, ...authorizedSiteIds].filter(Boolean))]
+
+  let hadTokenBefore = false
+  if (fcmToken) {
+    if (authResult.isOwner) {
+      const t = await writeClient.fetch<{ fcmToken?: string; fcmTokens?: string[] } | null>(
+        `*[_type == "tenant" && _id == $tenantId][0]{ fcmToken, fcmTokens }`,
+        { tenantId: authResult.tenantId }
+      )
+      hadTokenBefore = (t?.fcmTokens ?? []).includes(fcmToken) || (t?.fcmToken?.trim() === fcmToken)
+    } else {
+      const s = await writeClient.fetch<{ fcmTokens?: string[] } | null>(
+        `*[_type == "tenantStaff" && site._ref == $tenantId && (clerkUserId == $userId || (defined(email) && lower(email) == $emailLower))][0]{ fcmTokens }`,
+        { tenantId: authResult.tenantId, userId, emailLower }
+      )
+      hadTokenBefore = (s?.fcmTokens ?? []).includes(fcmToken)
+    }
+  }
+  const shouldSendConfirmation = forceConfirmation || !hadTokenBefore
 
   // ── 1. Save to central userPushSubscription table (primary, same as Customer) ──
   await upsertUserPushSubscription({
@@ -172,6 +192,12 @@ export async function POST(
       }
       await patch.commit().catch((e) => console.warn('[push-subscription] legacy tenant patch failed', e))
     }
+    if (shouldSendConfirmation && (fcmToken || hasWebPush)) {
+      await sendConnectionConfirmationFcm(fcmToken ?? null, {
+        url: `/t/${slug}/orders`,
+        webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : undefined,
+      }).catch(() => {})
+    }
     return NextResponse.json({ success: true, siteCount: siteIds.length })
   }
 
@@ -200,6 +226,13 @@ export async function POST(
       patch.set({ pushSubscription: { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } })
     }
     await patch.commit().catch((e) => console.warn('[push-subscription] legacy staff patch failed', e))
+  }
+
+  if (shouldSendConfirmation && (fcmToken || hasWebPush)) {
+    await sendConnectionConfirmationFcm(fcmToken ?? null, {
+      url: `/t/${slug}/orders`,
+      webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : undefined,
+    }).catch(() => {})
   }
 
   return NextResponse.json({ success: true, siteCount: siteIds.length })

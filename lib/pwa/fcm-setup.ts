@@ -88,15 +88,26 @@ export function useFCMSetup(
     }
   }, [config, registration, os])
 
-  // Auto-sync if permission is already granted (e.g. returning user)
+  // Auto-sync if permission is already granted (e.g. returning user).
+  // Throttled to once per 24h to avoid POST on every page load/refresh (which would trigger FCM spam).
+  const AUTO_SYNC_THROTTLE_MS = 24 * 60 * 60 * 1000
+  const AUTO_SYNC_KEY = `bedi-fcm-autosync-${config.role}-${config.slug || 'default'}`
+
   useEffect(() => {
     if (autoSyncedRef.current) return
     if (!registration || !config.fcmEndpoint) return
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    if (typeof window === 'undefined' || typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    try {
+      const last = Number(localStorage.getItem(AUTO_SYNC_KEY) || '0')
+      if (Number.isFinite(last) && Date.now() - last < AUTO_SYNC_THROTTLE_MS) return
+    } catch {
+      // storage can throw in private mode
+    }
     autoSyncedRef.current = true
-    // Fire and forget
-    void requestPush()
-  }, [registration, config.fcmEndpoint, requestPush])
+    void requestPush().then((ok) => {
+      if (ok) try { localStorage.setItem(AUTO_SYNC_KEY, String(Date.now())) } catch { /* ignore */ }
+    })
+  }, [registration, config.fcmEndpoint, config.role, config.slug, requestPush])
 
   return { permission, loading, requestPush }
 }

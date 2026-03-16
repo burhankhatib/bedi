@@ -233,7 +233,8 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     }
   }, [hasPush])
 
-  const subscribe = useCallback(async (): Promise<boolean> => {
+  const subscribe = useCallback(async (opts?: { isRefresh?: boolean }): Promise<boolean> => {
+    const isRefresh = opts?.isRefresh === true
     if (typeof window === 'undefined') return false
     // On iOS, Web Push only works when the app is opened from Home Screen (PWA), not in Safari tab.
     if (isIOS() && !isStandalone()) {
@@ -271,7 +272,8 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
       if (useFCM) {
         const { token, error: fcmError } = await getFCMToken(registration)
         if (token) {
-          const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string } } = { fcmToken: token }
+          const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string }; forceConfirmation?: boolean } = { fcmToken: token }
+          if (isRefresh) payload.forceConfirmation = true
           if (VAPID_PUBLIC) {
             try {
               const sub = await registration.pushManager.subscribe({
@@ -306,7 +308,9 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
           }
           setStoredPushOk(PUSH_CONTEXT_KEYS.driver())
           setHasPush(true)
-          showToast('Push notifications enabled. You will get new order alerts.', 'تم تفعيل الإشعارات. ستستقبل تنبيهات الطلبات الجديدة.', 'success')
+          if (!isRefresh) {
+            showToast('Push notifications enabled. You will get new order alerts.', 'تم تفعيل الإشعارات. ستستقبل تنبيهات الطلبات الجديدة.', 'success')
+          }
           return true
         }
         if (VAPID_PUBLIC) {
@@ -317,17 +321,19 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
             })
             const p256 = new Uint8Array(sub.getKey('p256dh')!)
             const auth = new Uint8Array(sub.getKey('auth')!)
+            const webPushBody: Record<string, unknown> = {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
+                auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
+              },
+            }
+            if (isRefresh) webPushBody.forceConfirmation = true
             const res = await fetch('/api/driver/push-subscription', {
               method: 'POST',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                endpoint: sub.endpoint,
-                keys: {
-                  p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
-                  auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
-                },
-              }),
+              body: JSON.stringify(webPushBody),
             })
             if (res.status === 404) {
               showToast('Complete your profile first to get notifications.', 'أكمل ملفك الشخصي أولاً لاستقبال الإشعارات.', 'error')
@@ -337,7 +343,9 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
             if (res.ok) {
               setStoredPushOk(PUSH_CONTEXT_KEYS.driver())
               setHasPush(true)
-              showToast('Push notifications enabled. You will get new order alerts.', 'تم تفعيل الإشعارات. ستستقبل تنبيهات الطلبات الجديدة.', 'success')
+              if (!isRefresh) {
+                showToast('Push notifications enabled. You will get new order alerts.', 'تم تفعيل الإشعارات. ستستقبل تنبيهات الطلبات الجديدة.', 'success')
+              }
               return true
             }
           } catch (_) {
@@ -399,10 +407,8 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
   const refreshToken = useCallback(async (): Promise<boolean> => {
     clearStoredPushOk(PUSH_CONTEXT_KEYS.driver())
     setHasPush(false)
-    const ok = await subscribe()
-    if (ok) {
-      showToast('تم تحديث الإشعارات بنجاح.', undefined, 'success')
-    } else {
+    const ok = await subscribe({ isRefresh: true })
+    if (!ok) {
       showToast('تعذّر تحديث الإشعارات. حاول مرة أخرى.', undefined, 'error')
     }
     return ok

@@ -173,15 +173,26 @@ export function PWAInstall() {
     return ok
   }, [showToast, syncCustomerPushSubscription, t])
 
+  // Throttle: only auto-sync push once per 24h to avoid FCM spam on every navigation
+  const ORDER_FLOW_PUSH_THROTTLE_MS = 24 * 60 * 60 * 1000
+  const ORDER_FLOW_PUSH_KEY = 'bedi-order-flow-push-last'
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (!('Notification' in window)) return
     if (!inOrderFlow) return
     if (Notification.permission !== 'granted') return
+    try {
+      const last = Number(localStorage.getItem(ORDER_FLOW_PUSH_KEY) || '0')
+      if (Number.isFinite(last) && Date.now() - last < ORDER_FLOW_PUSH_THROTTLE_MS) return
+    } catch {
+      /* ignore */
+    }
     const key = `${pathname}|${isStandalone ? 'standalone' : 'browser'}|${isIOS ? 'ios' : 'other'}`
     if (lastAutoPushSyncRef.current === key) return
     lastAutoPushSyncRef.current = key
-    void syncCustomerPushSubscription({ allowPrompt: false, source: 'order-flow-auto' })
+    void syncCustomerPushSubscription({ allowPrompt: false, source: 'order-flow-auto' }).then((ok) => {
+      if (ok) try { localStorage.setItem(ORDER_FLOW_PUSH_KEY, String(Date.now())) } catch { /* ignore */ }
+    })
   }, [inOrderFlow, pathname, isStandalone, isIOS, syncCustomerPushSubscription])
 
   const getLocationDeniedInstructions = useCallback(() => {

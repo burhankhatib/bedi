@@ -34,6 +34,8 @@ export function CustomerPushHealthCheck() {
     if (Notification.permission !== 'granted') return
 
     let cancelled = false
+    const HEALTH_CHECK_POST_THROTTLE_MS = 60 * 60 * 1000 // 1h between re-register attempts
+    const HEALTH_CHECK_POST_KEY = 'bedi-customer-health-check-post-last'
     const check = async () => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
       if (typeof navigator !== 'undefined' && 'onLine' in navigator && !navigator.onLine) return
@@ -45,12 +47,19 @@ export function CustomerPushHealthCheck() {
         }).then((r) => r.json())
         if (cancelled) return
         if (health?.needsRefresh === true || health?.status === 'not_found') {
-          await fetch('/api/customer/push-subscription', {
+          try {
+            const last = Number(localStorage.getItem(HEALTH_CHECK_POST_KEY) || '0')
+            if (Number.isFinite(last) && Date.now() - last < HEALTH_CHECK_POST_THROTTLE_MS) return
+          } catch {
+            /* ignore */
+          }
+          const res = await fetch('/api/customer/push-subscription', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({ fcmToken: token, source: 'customer-health-check' }),
           })
+          if (res.ok) try { localStorage.setItem(HEALTH_CHECK_POST_KEY, String(Date.now())) } catch { /* ignore */ }
         }
       } catch {
         // ignore transient failures

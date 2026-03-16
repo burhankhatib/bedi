@@ -27,8 +27,8 @@ export async function POST(
   const tenantId = await getTenantIdBySlug(slug)
   if (!tenantId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const order = await client.fetch<{ _id: string } | null>(
-    `*[_type == "order" && site._ref == $tenantId && trackingToken == $trackingToken][0]{ _id }`,
+  const order = await client.fetch<{ _id: string; customerFcmToken?: string } | null>(
+    `*[_type == "order" && site._ref == $tenantId && trackingToken == $trackingToken][0]{ _id, customerFcmToken }`,
     { tenantId, trackingToken }
   )
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
@@ -69,6 +69,8 @@ export async function POST(
     hasWebPush,
   })
 
+  const hadSameToken = !!(fcmToken && order.customerFcmToken && order.customerFcmToken.trim() === fcmToken)
+
   if (userId) {
     const result = await upsertUserPushSubscription({
       clerkUserId: userId,
@@ -89,7 +91,7 @@ export async function POST(
     })
   }
 
-  if (fcmToken || hasWebPush) {
+  if (!hadSameToken && (fcmToken || hasWebPush)) {
     await sendConnectionConfirmationFcm(fcmToken ?? null, {
       url: `/t/${slug}/track/${trackingToken}`,
       webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : undefined,

@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
   const keys = body?.keys && typeof body.keys === 'object' ? body.keys : null
   const p256dh = keys?.p256dh && typeof keys.p256dh === 'string' ? keys.p256dh : null
   const authKey = keys?.auth && typeof keys.auth === 'string' ? keys.auth : null
+  const forceConfirmation = body?.forceConfirmation === true || body?.source === 'manual-refresh'
 
   const hasWebPush = !!(endpoint && p256dh && authKey)
   if (!fcmToken && !hasWebPush) {
@@ -69,11 +70,14 @@ export async function POST(req: NextRequest) {
     deviceInfo: req.headers.get('user-agent') ?? undefined,
   }).catch((e) => console.warn('[driver push] central upsert failed', e))
 
-  const driver = await writeClient.fetch<{ _id: string } | null>(
-    `*[_type == "driver" && clerkUserId == $userId][0]{ _id }`,
+  const driver = await writeClient.fetch<{ _id: string; fcmToken?: string } | null>(
+    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, fcmToken }`,
     { userId }
   )
   if (!driver) return NextResponse.json({ error: 'Driver profile not found' }, { status: 404 })
+
+  const hadSameToken = !!(fcmToken && driver.fcmToken && driver.fcmToken.trim() === fcmToken)
+  const shouldSendConfirmation = forceConfirmation || !hadSameToken
 
   const patch = writeClient.patch(driver._id)
   if (fcmToken) patch.set({ fcmToken })
@@ -88,11 +92,13 @@ export async function POST(req: NextRequest) {
   }
   await patch.commit()
 
-  const confirmOpts = {
-    url: '/driver/orders' as const,
-    webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : undefined,
+  if (shouldSendConfirmation && (fcmToken || hasWebPush)) {
+    const confirmOpts = {
+      url: '/driver/orders' as const,
+      webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : undefined,
+    }
+    await sendConnectionConfirmationFcm(fcmToken ?? null, confirmOpts).catch(() => {})
   }
-  await sendConnectionConfirmationFcm(fcmToken ?? null, confirmOpts).catch(() => {})
 
   return NextResponse.json({ success: true, hasFcm: !!fcmToken })
 }

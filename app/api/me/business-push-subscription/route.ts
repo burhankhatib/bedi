@@ -104,13 +104,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No businesses found', saved: 0 }, { status: 400 })
     }
 
-    // Upsert central once with all siteIds so one device subscription works across all businesses.
-    await upsertUserPushSubscription({
+    const hadToken = list.some(
+      (t) => (t.fcmTokens ?? []).includes(fcmToken) || (t.fcmToken?.trim() === fcmToken)
+    )
+
+    const result = await upsertUserPushSubscription({
       clerkUserId: userId,
       roleContext: 'tenant',
       siteIds,
       fcmToken,
-    }).catch((e) => console.warn('[business-push-subscription] central upsert failed', e))
+    }).catch((e) => {
+      console.warn('[business-push-subscription] central upsert failed', e)
+      return null
+    })
+
+    const wasNewToken = !hadToken || result?.created === true
 
     for (const t of list) {
       if (!t?._id) continue
@@ -122,7 +130,9 @@ export async function POST(req: NextRequest) {
       await patch.commit()
     }
 
-    await sendConnectionConfirmationFcm(fcmToken, { url: '/dashboard' }).catch(() => {})
+    if (wasNewToken) {
+      await sendConnectionConfirmationFcm(fcmToken, { url: '/dashboard' }).catch(() => {})
+    }
 
     return NextResponse.json({ success: true, saved: list.length })
   } catch (e) {
