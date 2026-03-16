@@ -13,6 +13,8 @@ import { CustomerWelcomePushBoot } from '@/components/customer/CustomerWelcomePu
 import { CustomerPushHealthCheck } from '@/components/customer/CustomerPushHealthCheck'
 import { AiQuestionSyncOnLogin } from '@/components/customer/AiQuestionSyncOnLogin'
 import { ChatFab } from '@/components/search/ChatFab'
+import { CustomerPullToRefresh } from './CustomerPullToRefresh'
+import { CustomerIOSPullToRefresh } from './CustomerIOSPullToRefresh'
 
 /** Paths that should always load with scroll at top (e.g. when navigating from tenant menu). */
 function useScrollToTopOnNavigate() {
@@ -37,6 +39,11 @@ function isCustomerPath(pathname: string): boolean {
   if (/^\/t\/[^/]+\/?$/.test(pathname)) return true
   if (/^\/t\/[^/]+\/track\/[^/]+$/.test(pathname)) return true
   return false
+}
+
+/** Paths that use Driver's own pull-to-refresh — skip Customer pull-to-refresh to avoid conflicts. */
+function isDriverPath(pathname: string): boolean {
+  return pathname?.startsWith?.('/driver') ?? false
 }
 
 /** Paths where the Bedi Delivery PWA (scope /) should register. Includes all customer-facing pages — single PWA for homepage, search, business menus, track. */
@@ -67,17 +74,34 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
   const canRenderCustomerShell = showNav && isChosen
 
   const isCustomerPWA = isCustomerPWAPath(pathname ?? '')
+  const path = pathname ?? ''
+  const showCustomerPullToRefresh = !isDriverPath(path)
+  const isAuthOrVerifyPath = path.startsWith('/verify-phone') || path.startsWith('/sign-in') || path.startsWith('/sign-up')
+  const showCustomerIOSPullToRefresh = !isDriverPath(path) && (isCustomerPWA || isAuthOrVerifyPath)
+
+  const pageContent = (
+    <>
+      {/* Customer PWA pull-to-refresh (force reload on hard pull) — skip on driver which has its own */}
+      {showCustomerPullToRefresh ? (
+        <CustomerPullToRefresh>{children}</CustomerPullToRefresh>
+      ) : (
+        children
+      )}
+    </>
+  )
 
   return (
     <>
+      {/* iOS PWA: pulltorefreshjs for force reload when native is disabled */}
+      {showCustomerIOSPullToRefresh && <CustomerIOSPullToRefresh />}
       {/* Bedi Delivery PWA — single app for all customer pages (homepage, search, business menus, track) */}
       {canRenderCustomerShell && isCustomerPWA && (
         <PWAManager key="pwa-customer" role="customer" variant="fixed" showPermissions hideInstall />
       )}
-      {/* When cart is open: entire page (header, store types, + buttons) goes behind cart (z-0) and is non-interactive */}
-      <div className={cn(cartOpen && 'relative z-0')}>
-        <div className={cn(canRenderCustomerShell && 'pb-24 md:pb-0', cartOpen && 'pointer-events-none')}>
-          {children}
+      {/* When cart is open: entire page goes behind cart (z-0) and is non-interactive. Only on customer paths where CartSlider is shown — avoid blocking auth/verify pages. */}
+      <div className={cn(cartOpen && canRenderCustomerShell && 'relative z-0')}>
+        <div className={cn(canRenderCustomerShell && 'pb-24 md:pb-0', cartOpen && canRenderCustomerShell && 'pointer-events-none')}>
+          {pageContent}
         </div>
         <Suspense fallback={null}>
           {canRenderCustomerShell ? <MobileBottomNav /> : null}

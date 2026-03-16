@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/components/LanguageContext'
-import { Phone, ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { Phone, ArrowLeft, CheckCircle2, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 
 type Step = 'add' | 'code' | 'done'
@@ -119,26 +119,25 @@ export default function VerifyPhoneClient() {
     }
     if (!user) return
     setLoading(true)
+    try {
+      const phoneNumber = ensureE164(raw, countryCode)
 
-    const phoneNumber = ensureE164(raw, countryCode)
-
-    // Find if phone already exists in Clerk
-    let phoneObj = user.phoneNumbers.find(p => p.phoneNumber === phoneNumber)
-    
-    if (phoneObj && phoneObj.verification?.status === 'verified') {
-      if (intentChange) {
-        setError(lang === 'ar' ? 'هذا الرقم مؤكد مسبقاً. يرجى إدخال رقم جديد لتغييره.' : 'This number is already verified. Please enter a new number to change it.')
-        setLoading(false)
+      // Find if phone already exists in Clerk
+      let phoneObj = user.phoneNumbers.find(p => p.phoneNumber === phoneNumber)
+      
+      if (phoneObj && phoneObj.verification?.status === 'verified') {
+        if (intentChange) {
+          setError(lang === 'ar' ? 'هذا الرقم مؤكد مسبقاً. يرجى إدخال رقم جديد لتغييره.' : 'This number is already verified. Please enter a new number to change it.')
+          return
+        }
+        setStep('done')
+        setTimeout(() => {
+          window.location.href = normalizedReturnTo
+        }, 1500)
         return
       }
-      setStep('done')
-      setTimeout(() => {
-        window.location.href = normalizedReturnTo
-      }, 1500)
-      return
-    }
 
-    const tryStrategy = async (currentStrategy: VerificationStrategy): Promise<boolean> => {
+      const tryStrategy = async (currentStrategy: VerificationStrategy): Promise<boolean> => {
       setStrategy(currentStrategy)
       try {
         if (currentStrategy === 'clerk') {
@@ -149,12 +148,21 @@ export default function VerifyPhoneClient() {
           setPhoneId(phoneObj.id)
         } else {
           // Best practice: collect browser signals and send dispatchId to backend for fraud context (Prelude Web SDK).
+          // Use short timeout so a hanging SDK import doesn't freeze the page.
           let dispatchId: string | undefined
           const sdkKey = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_PRELUDE_SDK_KEY : undefined
           if (sdkKey) {
             try {
-              const { dispatchSignals } = await import('@prelude.so/js-sdk/signals')
-              dispatchId = await dispatchSignals(sdkKey)
+              const timeoutMs = 3000
+              dispatchId = await Promise.race([
+                (async () => {
+                  const { dispatchSignals } = await import('@prelude.so/js-sdk/signals')
+                  return dispatchSignals(sdkKey)
+                })(),
+                new Promise<undefined>((_, reject) =>
+                  setTimeout(() => reject(new Error('Prelude SDK timeout')), timeoutMs)
+                ),
+              ])
             } catch (err) {
               console.warn('Prelude SDK dispatch failed:', err)
             }
@@ -208,12 +216,13 @@ export default function VerifyPhoneClient() {
       success = await tryStrategy('clerk')
     }
 
-    setLoading(false)
-
     if (success) {
       setStep('code')
     } else {
       setError(lang === 'ar' ? 'فشل إرسال رمز التحقق. يرجى المحاولة مرة أخرى لاحقاً.' : 'Failed to send verification code. Please try again later.')
+    }
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -394,11 +403,19 @@ export default function VerifyPhoneClient() {
           </div>
         )}
 
-        <div className="mt-6 pt-4 border-t border-slate-100">
+        <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col gap-3">
           <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900">
             <ArrowLeft className="h-4 w-4" />
             {t('Back to homepage', 'العودة للصفحة الرئيسية')}
           </Link>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700"
+          >
+            <RefreshCw className="h-4 w-4" />
+            {t('Reload page', 'إعادة تحميل الصفحة')}
+          </button>
         </div>
       </div>
     </div>
