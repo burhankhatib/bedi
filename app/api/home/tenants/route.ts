@@ -88,6 +88,7 @@ export async function GET(req: NextRequest) {
       businessLogo?: LogoSource
       restaurantLogo?: LogoSource
       categories?: Array<{ title_en?: string; title_ar?: string }>
+      businessSubcategories?: Array<{ _id: string; title_en?: string; title_ar?: string; slug?: { current?: string } }>
       popularProducts?: Array<{ title_en?: string; title_ar?: string }>
       areas?: Array<{ name_en?: string; name_ar?: string }>
     }>
@@ -104,6 +105,7 @@ export async function GET(req: NextRequest) {
       businessLogo,
       "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^._id][0].logo,
       "categories": *[_type == "category" && site._ref == ^._id] | order(sortOrder asc) { title_en, title_ar },
+      "businessSubcategories": businessSubcategories[]->{ _id, title_en, title_ar, "slug": slug.current },
       "popularProducts": *[_type == "product" && (site._ref == ^._id || !defined(site)) && isPopular == true && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt))] | order(sortOrder asc) [0...3] { title_en, title_ar },
       "areas": *[_type == "area" && site._ref == ^._id && isActive == true] | order(sortOrder asc) { name_en, name_ar }
     }`,
@@ -150,14 +152,19 @@ export async function GET(req: NextRequest) {
   }
   if (storesCount > 0) categoryCounts['stores'] = storesCount
 
-  const availableSections = new Map<string, { en: string; ar: string }>()
+  const availableSubcategories = new Map<
+    string,
+    { _id: string; en: string; ar: string }
+  >()
   for (const t of rawTenants ?? []) {
-    for (const c of t.categories ?? []) {
-      const en = (c.title_en ?? '').trim()
-      const ar = (c.title_ar ?? '').trim()
+    for (const s of t.businessSubcategories ?? []) {
+      if (!s?._id) continue
+      const en = (s.title_en ?? '').trim()
+      const ar = (s.title_ar ?? '').trim()
       if (en || ar) {
-        const key = normalizeSectionKey(en || ar)
-        if (!availableSections.has(key)) availableSections.set(key, { en, ar })
+        if (!availableSubcategories.has(s._id)) {
+          availableSubcategories.set(s._id, { _id: s._id, en, ar })
+        }
       }
     }
   }
@@ -183,8 +190,8 @@ export async function GET(req: NextRequest) {
     const slug = typeof t.slug === 'string' ? t.slug : null
     const logoSource = t.businessLogo?.asset?._ref ? t.businessLogo : t.restaurantLogo?.asset?._ref ? t.restaurantLogo : null
     const logoUrl = logoSource ? urlFor(logoSource).width(200).height(200).url() : null
-    const sections = (t.categories ?? [])
-      .map((c) => ({ en: (c?.title_en ?? '').trim(), ar: (c?.title_ar ?? '').trim() }))
+    const sections = (t.businessSubcategories ?? [])
+      .map((s) => ({ en: (s?.title_en ?? '').trim(), ar: (s?.title_ar ?? '').trim() }))
       .filter((x) => x.en || x.ar)
       .slice(0, 5)
     const popularItems = (t.popularProducts ?? [])
@@ -208,7 +215,7 @@ export async function GET(req: NextRequest) {
   return Response.json({
     tenants: result,
     meta: {
-      availableSections: Array.from(availableSections.entries()).map(([key, v]) => ({ key, ...v })),
+      availableSubcategories: Array.from(availableSubcategories.values()),
       availableAreas: availableAreasList,
       categoryCounts,
     },

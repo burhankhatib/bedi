@@ -15,7 +15,18 @@ type ImageSource = { asset?: { _ref: string } } | null | undefined
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const city = searchParams.get('city') ?? ''
-  const category = searchParams.get('category') ?? ''
+  const categoryParam = searchParams.get('category') ?? ''
+
+  // "stores" = grocery, supermarket, greengrocer, retail, pharmacy, bakery, other
+  const STORE_BUSINESS_TYPES = ['grocery', 'supermarket', 'greengrocer', 'retail', 'pharmacy', 'bakery', 'other']
+  const isStores = categoryParam === 'stores'
+  const category =
+    isStores ? '' // no single businessType; subcatFilter will use stores list
+    : categoryParam || ''
+
+  const subcatFilter = isStores
+    ? '&& businessType in $storeTypes'
+    : category ? '&& businessType == $category' : ''
 
   // Get tenant IDs in city that have businessSubcategories
   const tenants = await client.fetch<
@@ -54,9 +65,7 @@ export async function GET(req: NextRequest) {
       sortOrder?: number
     }>
   >(
-    `*[_type == "businessSubcategory" && _id in $ids ${
-      category ? '&& businessType == $category' : ''
-    }] | order(sortOrder asc, title_en asc) {
+    `*[_type == "businessSubcategory" && _id in $ids ${subcatFilter}] | order(sortOrder asc, title_en asc) {
       _id,
       "slug": slug.current,
       title_en,
@@ -65,7 +74,11 @@ export async function GET(req: NextRequest) {
       image,
       sortOrder
     }`,
-    { ids: Array.from(usedSubcategoryIds), ...(category ? { category } : {}) }
+    {
+      ids: Array.from(usedSubcategoryIds),
+      ...(category ? { category } : {}),
+      ...(isStores ? { storeTypes: STORE_BUSINESS_TYPES } : {}),
+    }
   )
 
   const result = (subcategories ?? [])

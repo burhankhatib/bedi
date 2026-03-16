@@ -8,8 +8,9 @@ import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
 import { UtensilsCrossed } from 'lucide-react'
 
-type Section = {
-  key: string
+type SubcategoryItem = {
+  _id: string
+  slug: string
   title_en: string
   title_ar: string
   tenantCount: number
@@ -19,20 +20,20 @@ type Section = {
 export function SubcategoriesSection() {
   const { city, isChosen } = useLocation()
   const { t, lang } = useLanguage()
-  const [sections, setSections] = useState<Section[]>([])
+  const [subcategories, setSubcategories] = useState<SubcategoryItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!isChosen || !city) {
-      setSections([])
+      setSubcategories([])
       setLoading(false)
       return
     }
     setLoading(true)
     const params = new URLSearchParams({ city, category: 'restaurant' })
-    fetch(`/api/home/sections?${params}`)
+    fetch(`/api/home/subcategories?${params}`)
       .then((res) => res.json())
-      .then((data) => setSections(Array.isArray(data) ? data : []))
+      .then((data) => setSubcategories(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false))
   }, [isChosen, city])
 
@@ -55,7 +56,7 @@ export function SubcategoriesSection() {
       </section>
     )
   }
-  if (sections.length === 0) return null
+  if (subcategories.length === 0) return null
 
   return (
     <section className="py-12">
@@ -64,15 +65,15 @@ export function SubcategoriesSection() {
         {t('Browse by specialty', 'تصفح حسب التخصص')}
       </h2>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-        {sections.map((s, i) => (
+        {subcategories.map((s, i) => (
           <motion.div
-            key={s.key}
+            key={s._id}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: i * 0.04 }}
           >
             <Link
-              href={`/search?section=${encodeURIComponent(s.key)}&category=restaurant`}
+              href={`/search?subcategory=${encodeURIComponent(s._id)}&category=restaurant`}
               className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-emerald-300 hover:shadow-md"
             >
               <div className="relative aspect-square overflow-hidden bg-slate-100">

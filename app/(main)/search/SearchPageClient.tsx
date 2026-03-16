@@ -13,19 +13,10 @@ import { Button } from '@/components/ui/button'
 import { Store, UtensilsCrossed, Flame, ChevronRight, Search, MapPin, Filter, LayoutGrid, List, Sparkles } from 'lucide-react'
 import { MdRestaurant } from 'react-icons/md'
 import { BUSINESS_TYPES } from '@/lib/constants'
-import { getSectionIcon } from '@/lib/section-icons'
 import { getCityDisplayName } from '@/lib/registration-translations'
 import { UniversalSearch } from '@/components/search/UniversalSearch'
 import { CategoryIconsBar } from '@/components/home/CategoryIconsBar'
 import { isLikelyQuestion } from '@/lib/ai/question-detection'
-
-type SectionWithImage = {
-  key: string
-  title_en: string
-  title_ar: string
-  tenantCount: number
-  imageUrl: string | null
-}
 
 type Localized = { en: string; ar: string }
 
@@ -42,7 +33,7 @@ type Tenant = {
 }
 
 type Meta = {
-  availableSections: Array<{ key: string; en: string; ar: string }>
+  availableSubcategories: Array<{ _id: string; en: string; ar: string }>
   availableAreas: Array<{ name_en: string; name_ar: string; key: string }>
   categoryCounts: Record<string, number>
 }
@@ -50,14 +41,14 @@ type Meta = {
 type FilterPanelContentProps = {
   meta: Meta | null
   category: string
-  section: string
+  subcategory: string
   area: string
-  setFilter: (cat?: string, sec?: string, ar?: string) => void
+  setFilter: (cat?: string, subcat?: string, ar?: string) => void
   lang: string
   t: (en: string, ar: string) => string
 }
 
-function FilterPanelContent({ meta, category, section, area, setFilter, lang, t }: FilterPanelContentProps) {
+function FilterPanelContent({ meta, category, subcategory, area, setFilter, lang, t }: FilterPanelContentProps) {
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-4">
       <div>
@@ -66,7 +57,7 @@ function FilterPanelContent({ meta, category, section, area, setFilter, lang, t 
         </p>
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => setFilter('', undefined, undefined)}
+            onClick={() => setFilter('', '', undefined)}
             className={`rounded-full px-4 py-2 text-sm font-medium transition ${
               !category ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
@@ -76,7 +67,7 @@ function FilterPanelContent({ meta, category, section, area, setFilter, lang, t 
           {/* Stores = markets, pharmacies, retail, bakery, other (excludes restaurant/cafe) */}
           {(meta?.categoryCounts?.stores ?? 0) > 0 && (
             <button
-              onClick={() => setFilter('stores', undefined, undefined)}
+              onClick={() => setFilter('stores', '', undefined)}
               className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                 category === 'stores' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
@@ -89,7 +80,7 @@ function FilterPanelContent({ meta, category, section, area, setFilter, lang, t 
           ).map((b) => (
             <button
               key={b.value}
-              onClick={() => setFilter(b.value, undefined, undefined)}
+              onClick={() => setFilter(b.value, '', undefined)}
               className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                 category === b.value ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
@@ -99,7 +90,7 @@ function FilterPanelContent({ meta, category, section, area, setFilter, lang, t 
           ))}
         </div>
       </div>
-      {meta && meta.availableSections.length > 0 && (
+      {meta && (meta.availableSubcategories?.length ?? 0) > 0 && (
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
             {t('Specialty', 'التخصص')}
@@ -108,17 +99,17 @@ function FilterPanelContent({ meta, category, section, area, setFilter, lang, t 
             <button
               onClick={() => setFilter(undefined, '', undefined)}
               className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                !section ? 'bg-brand-yellow text-brand-black shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                !subcategory ? 'bg-brand-yellow text-brand-black shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               {t('All', 'الكل')}
             </button>
-            {meta.availableSections.map((s) => (
+            {meta.availableSubcategories.map((s) => (
               <button
-                key={s.key}
-                onClick={() => setFilter(undefined, s.key, undefined)}
+                key={s._id}
+                onClick={() => setFilter(undefined, s._id, undefined)}
                 className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  section === s.key ? 'bg-brand-yellow text-brand-black shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  subcategory === s._id ? 'bg-brand-yellow text-brand-black shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
                 {lang === 'ar' ? s.ar : s.en}
@@ -175,7 +166,6 @@ const CACHE_TTL_MS = 120000
 
 const tenantsCache = new Map<string, { data: any; expires: number }>()
 const categoriesCache = new Map<string, { data: any; expires: number }>()
-const sectionsCache = new Map<string, { data: any; expires: number }>()
 
 export function SearchPageClient() {
   const { t, lang } = useLanguage()
@@ -183,14 +173,13 @@ export function SearchPageClient() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const category = searchParams.get('category') ?? ''
-  const section = searchParams.get('section') ?? ''
+  const subcategory = searchParams.get('subcategory') ?? ''
   const area = searchParams.get('area') ?? ''
   const expandFilters = searchParams.get('expand') === '1'
   const urlQuery = searchParams.get('q') ?? ''
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [meta, setMeta] = useState<Meta | null>(null)
   const [businessCategories, setBusinessCategories] = useState<BusinessCategory[]>([])
-  const [sectionsWithImages, setSectionsWithImages] = useState<SectionWithImage[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState(urlQuery)
   const [debouncedQuery, setDebouncedQuery] = useState(urlQuery)
@@ -261,7 +250,6 @@ export function SearchPageClient() {
       latestSearchRequestRef.current += 1
       setTenants([])
       setMeta(null)
-      setSectionsWithImages([])
       setSearchResults(null)
       setLoading(false)
       return
@@ -295,7 +283,7 @@ export function SearchPageClient() {
     setLoading(true)
     const params = new URLSearchParams({ city })
     if (category) params.set('category', category)
-    if (section) params.set('section', section)
+    if (subcategory) params.set('subcategory', subcategory)
     if (area) params.set('area', area)
 
     const cacheKey = params.toString()
@@ -322,7 +310,7 @@ export function SearchPageClient() {
       .catch((err) => { if (mounted && err?.name !== 'AbortError') { setTenants([]); setMeta(null) } })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false; ac.abort() }
-  }, [isChosen, city, category, section, area, debouncedQuery, lang])
+  }, [isChosen, city, category, subcategory, area, debouncedQuery, lang])
 
   useEffect(() => {
     if (!isChosen || !city) {
@@ -351,34 +339,6 @@ export function SearchPageClient() {
       .catch((err) => { if (mounted && err?.name !== 'AbortError') setBusinessCategories([]) })
     return () => { mounted = false; ac.abort() }
   }, [isChosen, city])
-
-  useEffect(() => {
-    if (!isChosen || !city || !category) {
-      setSectionsWithImages([])
-      return
-    }
-    const params = new URLSearchParams({ city, category })
-    const cacheKey = params.toString()
-    const now = Date.now()
-    const cached = sectionsCache.get(cacheKey)
-    if (cached && cached.expires > now) {
-      setSectionsWithImages(Array.isArray(cached.data) ? cached.data : [])
-      return
-    }
-
-    let mounted = true
-    const ac = new AbortController()
-    fetch(`/api/home/sections?${params}`, { signal: ac.signal })
-      .then((res) => res.json())
-      .then((data) => {
-        if (mounted) {
-          sectionsCache.set(cacheKey, { data, expires: now + CACHE_TTL_MS })
-          setSectionsWithImages(Array.isArray(data) ? data : [])
-        }
-      })
-      .catch((err) => { if (mounted && err?.name !== 'AbortError') setSectionsWithImages([]) })
-    return () => { mounted = false; ac.abort() }
-  }, [isChosen, city, category])
 
   const showSearchResults = searchQuery.trim() && debouncedQuery && (searchResults || loading)
   const displayTenants = showSearchResults ? [] : tenants
@@ -413,15 +373,15 @@ export function SearchPageClient() {
     return { businesses, products }
   }, [searchResults, sortBy, lang])
 
-  const setFilter = (cat?: string, sec?: string, ar?: string) => {
+  const setFilter = (cat?: string, subcat?: string, ar?: string) => {
     const p = new URLSearchParams(searchParams.toString())
     if (cat !== undefined) {
       if (cat) p.set('category', cat)
       else p.delete('category')
     }
-    if (sec !== undefined) {
-      if (sec) p.set('section', sec)
-      else p.delete('section')
+    if (subcat !== undefined) {
+      if (subcat) p.set('subcategory', subcat)
+      else p.delete('subcategory')
     }
     if (ar !== undefined) {
       if (ar) p.set('area', ar)
@@ -452,7 +412,7 @@ export function SearchPageClient() {
             {(category === 'restaurant' || category === 'cafe' || !category) && (
               <div className="hidden md:block">
                 <CategoryIconsBar
-                  activeSection={section}
+                  activeSubcategoryId={subcategory || undefined}
                   category={category || 'restaurant'}
                 />
               </div>
@@ -568,7 +528,7 @@ export function SearchPageClient() {
                   <FilterPanelContent
                     meta={meta}
                     category={category}
-                    section={section}
+                    subcategory={subcategory}
                     area={area}
                     setFilter={setFilter}
                     lang={lang}
@@ -583,7 +543,7 @@ export function SearchPageClient() {
                     <FilterPanelContent
                       meta={meta}
                       category={category}
-                      section={section}
+                      subcategory={subcategory}
                       area={area}
                       setFilter={setFilter}
                       lang={lang}

@@ -19,11 +19,11 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
-  const { slug } = await params
+  await params
   return {
     icons: {
-      icon: `/t/${slug}/icon/192`,
-      apple: `/t/${slug}/icon/192`,
+      icon: '/adminslogo.webp',
+      apple: '/adminslogo.webp',
     },
   }
 }
