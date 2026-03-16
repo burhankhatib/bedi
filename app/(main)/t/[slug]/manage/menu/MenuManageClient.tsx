@@ -316,6 +316,8 @@ export function MenuManageClient({
     nameEn: string
     nameAr?: string
   } | null>(null)
+  const [editingCategory, setEditingCategory] = useState<{ id: string; title_en: string; title_ar: string } | null>(null)
+  const [savingCategory, setSavingCategory] = useState(false)
 
   const api = (path: string, options?: RequestInit & { refresh?: boolean }) => {
     const { refresh, ...rest } = options ?? {}
@@ -1055,6 +1057,34 @@ export function MenuManageClient({
     }
   }
 
+  const handleSaveCategoryEdit = useCallback(
+    async (title_en: string, title_ar: string) => {
+      if (!editingCategory || !title_en.trim() || !title_ar.trim()) return
+      setSavingCategory(true)
+      try {
+        const res = await api(`/categories/${editingCategory.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ title_en: title_en.trim(), title_ar: title_ar.trim() }),
+        })
+        if (res.ok) {
+          setCategories((prev) =>
+            prev.map((c) => (c._id === editingCategory.id ? { ...c, title_en: title_en.trim(), title_ar: title_ar.trim() } : c))
+          )
+          setEditingCategory(null)
+          showToast(t('Category updated.', 'تم تحديث الفئة.'), '', 'success')
+        } else {
+          const data = await res.json().catch(() => ({}))
+          showToast((data as { error?: string })?.error || t('Failed to update category.', 'فشل في تحديث الفئة.'), '', 'error')
+        }
+      } catch {
+        showToast(t('Failed to update category.', 'فشل في تحديث الفئة.'), '', 'error')
+      } finally {
+        setSavingCategory(false)
+      }
+    },
+    [editingCategory, api, showToast, t]
+  )
+
   const setSortModeForCategory = useCallback(async (categoryId: string, mode: ProductSortMode) => {
     setSortModes((prev) => {
       const next = { ...prev, [categoryId]: mode }
@@ -1121,6 +1151,51 @@ export function MenuManageClient({
 
   return (
     <div className="mt-6 space-y-6">
+      {/* Edit category dialog */}
+      <Dialog open={!!editingCategory} onOpenChange={(open) => !open && setEditingCategory(null)}>
+        <DialogContent
+          className="border-slate-700 bg-slate-900 text-white max-w-md"
+          showCloseButton={true}
+          overlayClassName="z-[100]"
+          contentClassName="z-[100]"
+        >
+          <DialogHeader>
+            <DialogTitle className="text-lg text-white">{t('Edit category', 'تعديل الفئة')}</DialogTitle>
+            <DialogDescription className="text-slate-400 mt-1">
+              {t('Update the category name in English and Arabic.', 'حدّث اسم الفئة بالإنجليزية والعربية.')}
+            </DialogDescription>
+          </DialogHeader>
+          {editingCategory && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                const en = (e.currentTarget.elements.namedItem('edit_title_en') as HTMLInputElement)?.value ?? ''
+                const ar = (e.currentTarget.elements.namedItem('edit_title_ar') as HTMLInputElement)?.value ?? ''
+                handleSaveCategoryEdit(en, ar)
+              }}
+              className="mt-4 space-y-4"
+            >
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-400">{t('English', 'الإنجليزية')}</label>
+                <Input name="edit_title_en" defaultValue={editingCategory.title_en} className="bg-slate-800 border-slate-600 text-white" placeholder="Category name (EN)" required />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-400">{t('Arabic', 'العربية')}</label>
+                <Input name="edit_title_ar" defaultValue={editingCategory.title_ar} className="bg-slate-800 border-slate-600 text-white" placeholder="اسم الفئة (AR)" required dir="rtl" />
+              </div>
+              <DialogFooter className="gap-2 mt-5">
+                <Button type="button" variant="outline" className="border-slate-600 text-slate-200 hover:bg-slate-800" onClick={() => setEditingCategory(null)} disabled={savingCategory}>
+                  {t('Cancel', 'إلغاء')}
+                </Button>
+                <Button type="submit" className="bg-amber-500 text-slate-950 hover:bg-amber-400" disabled={savingCategory}>
+                  {savingCategory ? t('Saving…', 'جاري الحفظ…') : t('Save', 'حفظ')}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
         <DialogContent
@@ -1262,6 +1337,9 @@ export function MenuManageClient({
                               + {t("Sub-category", "فئة فرعية")}
                             </Button>
                           )}
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-amber-400" onClick={() => setEditingCategory({ id: c._id, title_en: c.title_en, title_ar: c.title_ar })} disabled={loading} aria-label={t("Edit category", "تعديل الفئة")} title={t("Edit category name", "تعديل اسم الفئة")}>
+                            <Pencil className="size-4" />
+                          </Button>
                           <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDeleteConfirm({ type: "category", id: c._id, nameEn: c.title_en, nameAr: c.title_ar })} disabled={loading} aria-label={t("Delete category", "حذف الفئة")}>
                             <Trash2 className="size-4 text-red-400" />
                           </Button>
