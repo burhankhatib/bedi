@@ -39,6 +39,7 @@ import {
   Trash2,
   ArrowRight,
   RefreshCw,
+  LayoutGrid,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -46,6 +47,7 @@ import { useToast } from '@/components/ui/ToastProvider'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
 import { CustomerTrackPushStatusCard } from '@/components/push/CustomerTrackPushStatusCard'
 import { CustomerTrackPushGate } from './CustomerTrackPushGate'
+import { BrowseMenuModal } from '@/components/Orders/BrowseMenuModal'
 
 type OrderStatus =
   | 'new'
@@ -1386,6 +1388,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   const [orderSearchLoading, setOrderSearchLoading] = useState(false)
   const [orderSelectedProductId, setOrderSelectedProductId] = useState<string | null>(null)
   const [editOrderSaving, setEditOrderSaving] = useState(false)
+  const [showBrowseMenu, setShowBrowseMenu] = useState(false)
 
   const fetchTrack = useCallback(async (isRefetch = false) => {
     if (!slug || !token?.trim()) return
@@ -1610,13 +1613,14 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
     setEditItems((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const addProductToEdit = (product: { _id: string; title_en: string; title_ar: string; price: number; currency: string; imageUrl?: string }) => {
+  const addProductToEdit = (product: { _id?: string; productId?: string; title_en: string; title_ar: string; price: number; currency: string; imageUrl?: string }) => {
+    const id = product.productId ?? product._id
     const name = lang === 'ar' ? product.title_ar : product.title_en
     setEditItems((prev) => [
       ...prev,
       {
         _key: `customer-add-${Date.now()}`,
-        productId: product._id,
+        productId: id,
         productName: name,
         quantity: 1,
         price: product.price,
@@ -2563,7 +2567,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                     >
                       <X className="w-4 h-4" />
                     </button>
-                    <p className="text-sm font-bold text-slate-800 pe-10">{t('Search store products', 'ابحث في أصناف المتجر')}</p>
+                    <p className="text-sm font-bold text-slate-800 pe-10">{t('Search or browse menu', 'ابحث أو تصفح القائمة')}</p>
                     <div className="flex gap-2">
                       <input
                         value={orderSearchQuery}
@@ -2571,6 +2575,15 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                         placeholder={t('Search', 'بحث')}
                         className="flex-1 min-h-[48px] rounded-xl border-2 border-slate-200 bg-white px-4 text-slate-900 placeholder:text-slate-400"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowBrowseMenu(true)}
+                        className="min-h-[48px] px-4 rounded-xl bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold flex items-center gap-2"
+                        title={t('Browse full menu', 'عرض القائمة كاملة')}
+                      >
+                        <LayoutGrid className="w-4 h-4" />
+                        {t('Menu', 'القائمة')}
+                      </button>
                       <button
                         type="button"
                         onClick={() => loadOrderProducts(orderSearchQuery)}
@@ -2627,6 +2640,14 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                   </div>
                 )}
               </div>
+              <BrowseMenuModal
+                open={showBrowseMenu}
+                onClose={() => setShowBrowseMenu(false)}
+                fetchUrl={slug && token ? `/api/tenants/${slug}/track/${encodeURIComponent(token)}/order-menu` : ''}
+                onSelect={(row) => addProductToEdit(row)}
+                currency={data?.order?.currency}
+                variant="customer"
+              />
               <div className="px-4 py-4 border-t border-slate-200 bg-slate-50/80 shrink-0 space-y-3">
                 <Button
                   onClick={submitEditOrder}

@@ -470,7 +470,6 @@ export function MenuManageClient({
   const addCategoryFromSuggestion = async (title_en: string, title_ar: string, subcategoryRef?: string, parentCategoryId?: string) => {
     if (submittingCategory) return
     setSubmittingCategory(true)
-    setLoading(true)
     try {
       let effectiveParentId = parentCategoryId
       const group = sectionSuggestions?.sectionGroups?.find((g) => g.key === selectedSectionKey)
@@ -480,32 +479,70 @@ export function MenuManageClient({
       const body: Record<string, unknown> = { title_en, title_ar }
       if (subcategoryRef) body.subcategoryRef = subcategoryRef
       if (effectiveParentId) body.parentCategoryId = effectiveParentId
-      const res = await api('/categories', { method: 'POST', body: JSON.stringify(body) })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) {
-        const slugVal = (data as { slug?: string }).slug ?? (title_en || '').toLowerCase().replace(/\s+/g, '-')
-        const newCat: Category = {
-          _id: (data as { _id?: string })._id ?? '',
+      const canOptimistic = !effectiveParentId || !effectiveParentId.startsWith('temp-')
+      const tempId = canOptimistic ? `temp-cat-${Date.now()}` : ''
+      const slugVal = (title_en || '').toLowerCase().replace(/\s+/g, '-')
+
+      if (canOptimistic) {
+        const optimisticCat: Category = {
+          _id: tempId,
           title_en,
           title_ar,
           slug: slugVal,
-          sortOrder: (data as { sortOrder?: number }).sortOrder ?? 0,
+          sortOrder: 0,
           ...(effectiveParentId && { parentCategoryRef: effectiveParentId }),
         }
-        setCategories((prev) => [...prev, newCat])
-        setExpandedCat(newCat._id)
+        setCategories((prev) => [...prev, optimisticCat])
+        setExpandedCat(tempId)
         setAddingCategory(false)
         setShowCustomCategoryForm(false)
         setSelectedSectionKey(null)
         setAddingSubCategoryOf(null)
         showToast('Category added.', 'تمت إضافة الفئة.', 'success')
-        reloadCategories(true)
+      }
+
+      const res = await api('/categories', { method: 'POST', body: JSON.stringify(body) })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        const realId = (data as { _id?: string })._id ?? ''
+        const realSlug = (data as { slug?: string }).slug ?? slugVal
+        if (canOptimistic) {
+          setCategories((prev) =>
+            prev.map((c) =>
+              c._id === tempId
+                ? { ...c, _id: realId, slug: realSlug, sortOrder: (data as { sortOrder?: number }).sortOrder ?? 0 }
+                : c.parentCategoryRef === tempId
+                  ? { ...c, parentCategoryRef: realId }
+                  : c
+            )
+          )
+          setProducts((prev) =>
+            prev.map((p) => (p.categoryId === tempId ? { ...p, categoryId: realId } : p))
+          )
+          setExpandedCat(realId)
+        } else {
+          const newCat: Category = {
+            _id: realId,
+            title_en,
+            title_ar,
+            slug: realSlug,
+            sortOrder: (data as { sortOrder?: number }).sortOrder ?? 0,
+            ...(effectiveParentId && { parentCategoryRef: effectiveParentId }),
+          }
+          setCategories((prev) => [...prev, newCat])
+          setExpandedCat(realId)
+          setAddingCategory(false)
+          setShowCustomCategoryForm(false)
+          setSelectedSectionKey(null)
+          setAddingSubCategoryOf(null)
+          showToast('Category added.', 'تمت إضافة الفئة.', 'success')
+        }
       } else {
+        if (canOptimistic) setCategories((prev) => prev.filter((c) => c._id !== tempId))
         showToast((data as { error?: string })?.error || 'Failed to add category', 'فشل في إضافة الفئة.', 'error')
       }
     } finally {
       setSubmittingCategory(false)
-      setLoading(false)
     }
   }
 
@@ -517,38 +554,75 @@ export function MenuManageClient({
     if (!title_en || !title_ar) return
     if (submittingCategory) return
     setSubmittingCategory(true)
-    setLoading(true)
     let parentId = addingSubCategoryOf || undefined
     if (!parentId && addingSubCategoryOfSection) {
       parentId = (await findOrCreateParentForSection(addingSubCategoryOfSection)) ?? undefined
     }
+    const canOptimistic = !parentId || !parentId.startsWith('temp-')
+    const tempId = canOptimistic ? `temp-cat-${Date.now()}` : ''
+    const slugVal = (title_en || '').toLowerCase().replace(/\s+/g, '-')
+
+    if (canOptimistic) {
+      const optimisticCat: Category = {
+        _id: tempId,
+        title_en,
+        title_ar,
+        slug: slugVal,
+        sortOrder: 0,
+        ...(parentId && { parentCategoryRef: parentId }),
+      }
+      setCategories((prev) => [...prev, optimisticCat])
+      setExpandedCat(tempId)
+      setAddingCategory(false)
+      setShowCustomCategoryForm(false)
+      setAddingSubCategoryOf(null)
+      setAddingSubCategoryOfSection(null)
+      showToast('Category added.', 'تمت إضافة الفئة.', 'success')
+    }
+
     try {
       const res = await api('/categories', { method: 'POST', body: JSON.stringify({ title_en, title_ar, parentCategoryId: parentId }) })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        const slug = (data as { slug?: string }).slug ?? (title_en || '').toLowerCase().replace(/\s+/g, '-')
-        const newCat: Category = {
-          _id: (data as { _id?: string })._id ?? '',
-          title_en,
-          title_ar,
-          slug,
-          sortOrder: (data as { sortOrder?: number }).sortOrder ?? 0,
-          ...(parentId && { parentCategoryRef: parentId }),
+        const realId = (data as { _id?: string })._id ?? ''
+        const realSlug = (data as { slug?: string }).slug ?? slugVal
+        if (canOptimistic) {
+          setCategories((prev) =>
+            prev.map((c) =>
+              c._id === tempId
+                ? { ...c, _id: realId, slug: realSlug, sortOrder: (data as { sortOrder?: number }).sortOrder ?? 0 }
+                : c.parentCategoryRef === tempId
+                  ? { ...c, parentCategoryRef: realId }
+                  : c
+            )
+          )
+          setProducts((prev) =>
+            prev.map((p) => (p.categoryId === tempId ? { ...p, categoryId: realId } : p))
+          )
+          setExpandedCat(realId)
+        } else {
+          const newCat: Category = {
+            _id: realId,
+            title_en,
+            title_ar,
+            slug: realSlug,
+            sortOrder: (data as { sortOrder?: number }).sortOrder ?? 0,
+            ...(parentId && { parentCategoryRef: parentId }),
+          }
+          setCategories((prev) => [...prev, newCat])
+          setExpandedCat(realId)
+          setAddingCategory(false)
+          setShowCustomCategoryForm(false)
+          setAddingSubCategoryOf(null)
+          setAddingSubCategoryOfSection(null)
+          showToast('Category added.', 'تمت إضافة الفئة.', 'success')
         }
-        setCategories((prev) => [...prev, newCat])
-        setExpandedCat(newCat._id)
-        setAddingCategory(false)
-        setShowCustomCategoryForm(false)
-        setAddingSubCategoryOf(null)
-        setAddingSubCategoryOfSection(null)
-        showToast('Category added.', 'تمت إضافة الفئة.', 'success')
-        reloadCategories(true)
       } else {
-        showToast(data?.error || 'Failed to add category', 'فشل في إضافة الفئة.', 'error')
+        if (canOptimistic) setCategories((prev) => prev.filter((c) => c._id !== tempId))
+        showToast((data as { error?: string })?.error || 'Failed to add category', 'فشل في إضافة الفئة.', 'error')
       }
     } finally {
       setSubmittingCategory(false)
-      setLoading(false)
     }
   }
 
@@ -604,53 +678,55 @@ export function MenuManageClient({
   }
 
   const handleSaveProduct = async (data: ProductFormData) => {
-    setSavingProduct(true)
-    try {
-      const body = buildProductBody(data)
-      if (productModalProduct?._id) {
+    const body = buildProductBody(data)
+    if (productModalProduct?._id) {
+      const updated: Product = {
+        ...productModalProduct,
+        title_en: (body.title_en as string) ?? productModalProduct.title_en,
+        title_ar: (body.title_ar as string) ?? productModalProduct.title_ar,
+        description_en: (body.description_en as string | undefined) ?? productModalProduct.description_en,
+        description_ar: (body.description_ar as string | undefined) ?? productModalProduct.description_ar,
+        ingredients_en: (body.ingredients_en as string[] | undefined) ?? productModalProduct.ingredients_en,
+        ingredients_ar: (body.ingredients_ar as string[] | undefined) ?? productModalProduct.ingredients_ar,
+        price: (body.price as number) ?? productModalProduct.price,
+        saleUnit: (body.saleUnit as string) ?? productModalProduct.saleUnit,
+        specialPrice: (body.specialPrice as number | undefined) ?? productModalProduct.specialPrice,
+        specialPriceExpires: (body.specialPriceExpires as string | undefined) ?? productModalProduct.specialPriceExpires,
+        currency: (body.currency as string) ?? productModalProduct.currency,
+        categoryId: (body.categoryId as string) ?? productModalProduct.categoryId,
+        sortOrder: (body.sortOrder as number | undefined) ?? productModalProduct.sortOrder,
+        isPopular: (body.isPopular as boolean) ?? productModalProduct.isPopular,
+        isAvailable: body.isAvailable !== false,
+        dietaryTags: (body.dietaryTags as string[] | undefined) ?? productModalProduct.dietaryTags,
+        addOns: (body.addOns as Product['addOns']) ?? productModalProduct.addOns,
+        variants: (body.variants as Product['variants']) ?? productModalProduct.variants,
+      }
+      setProducts((prev) =>
+        prev.map((p) => (p._id === productModalProduct._id ? updated : p))
+      )
+      setProductModalOpen(false)
+      setProductModalProduct(null)
+      showToast('Product updated.', 'تم تحديث المنتج.', 'success')
+      setSavingProduct(true)
+      try {
         const res = await api(`/products/${productModalProduct._id}`, { method: 'PATCH', body: JSON.stringify(body) })
         const patched = await res.json().catch(() => null)
-        if (res.ok) {
-          setProducts((prev) =>
-            prev.map((p) => {
-              if (p._id !== productModalProduct._id) return p
-              const updated: Product = {
-                ...p,
-                title_en: (body.title_en as string) ?? p.title_en,
-                title_ar: (body.title_ar as string) ?? p.title_ar,
-                description_en: (body.description_en as string | undefined) ?? p.description_en,
-                description_ar: (body.description_ar as string | undefined) ?? p.description_ar,
-                ingredients_en: (body.ingredients_en as string[] | undefined) ?? p.ingredients_en,
-                ingredients_ar: (body.ingredients_ar as string[] | undefined) ?? p.ingredients_ar,
-                price: (body.price as number) ?? p.price,
-                saleUnit: (body.saleUnit as string) ?? p.saleUnit,
-                specialPrice: (body.specialPrice as number | undefined) ?? p.specialPrice,
-                specialPriceExpires: (body.specialPriceExpires as string | undefined) ?? p.specialPriceExpires,
-                currency: (body.currency as string) ?? p.currency,
-                categoryId: (body.categoryId as string) ?? p.categoryId,
-                sortOrder: (body.sortOrder as number | undefined) ?? p.sortOrder,
-                isPopular: (body.isPopular as boolean) ?? p.isPopular,
-                isAvailable: body.isAvailable !== false,
-                dietaryTags: (body.dietaryTags as string[] | undefined) ?? p.dietaryTags,
-                addOns: (body.addOns as Product['addOns']) ?? p.addOns,
-                variants: (body.variants as Product['variants']) ?? p.variants,
-              }
-              return updated
-            })
-          )
-          showToast('Product updated.', 'تم تحديث المنتج.', 'success')
-          setProductModalOpen(false)
-          setProductModalProduct(null)
-          reloadProducts(true)
-        } else {
+        if (!res.ok) {
           const msg = res.status === 403
             ? 'Session may have expired. Please sign in again.'
             : (patched as { error?: string })?.error || 'Failed to update product'
           showToast(msg, res.status === 403 ? 'انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.' : 'فشل في تحديث المنتج.', 'error')
+          reloadProducts(true)
+          setProductModalProduct(updated)
           setProductModalOpen(true)
-          return
         }
-      } else {
+      } finally {
+        setSavingProduct(false)
+      }
+      return
+    } else {
+      setSavingProduct(true)
+      try {
         const res = await api('/products', { method: 'POST', body: JSON.stringify(body) })
         const created = await res.json().catch(() => null)
         if (res.ok && created?._id) {
@@ -681,7 +757,7 @@ export function MenuManageClient({
           showToast('Product added.', 'تمت إضافة المنتج.', 'success')
           setProductModalOpen(false)
           setProductModalProduct(null)
-          reloadProducts(true)
+          // No reload: state already updated
         } else if (!res.ok) {
           const msg = res.status === 403
             ? 'Session may have expired. Please sign in again.'
@@ -690,11 +766,11 @@ export function MenuManageClient({
           setProductModalOpen(true)
           return
         }
+      } finally {
+        setSavingProduct(false)
       }
       setProductModalOpen(false)
       setProductModalProduct(null)
-    } finally {
-      setSavingProduct(false)
     }
   }
 
@@ -773,7 +849,7 @@ export function MenuManageClient({
         showToast(t('Sub-category moved.', 'تم نقل الفئة الفرعية.'), '', 'success')
       } catch {
         showToast(t('Failed to move sub-category', 'فشل نقل الفئة الفرعية'), '', 'error')
-        reloadCategories(true)
+        reloadCategories(true) // Rollback: refetch to restore correct state
       }
     },
     [categories, api, showToast, reloadCategories, t]
@@ -809,7 +885,7 @@ export function MenuManageClient({
       showToast(t('Category order updated.', 'تم تحديث ترتيب الفئات.'), '', 'success')
     } catch {
       showToast(t('Failed to save category order', 'فشل حفظ ترتيب الفئات'), '', 'error')
-      reloadCategories(true)
+      reloadCategories(true) // Rollback on error
     }
   }, [orderedCategoriesWithParent, categories, api, showToast, reloadCategories, reparentCategory, t])
 
@@ -839,11 +915,11 @@ export function MenuManageClient({
         showToast('Order updated.', 'تم تحديث الترتيب.', 'success')
       } else {
         showToast('Failed to save order', 'فشل حفظ الترتيب', 'error')
-        reloadProducts(true)
+        reloadProducts(true) // Rollback on error
       }
     } catch {
       showToast('Failed to save order', 'فشل حفظ الترتيب', 'error')
-      reloadProducts(true)
+      reloadProducts(true) // Rollback on error
     } finally {
       setReorderingCategoryId(null)
     }
@@ -894,11 +970,11 @@ export function MenuManageClient({
           showToast('Product moved.', 'تم نقل المنتج.', 'success')
         } else {
           showToast('Failed to move product', 'فشل نقل المنتج', 'error')
-          reloadProducts(true)
+          reloadProducts(true) // Rollback on error
         }
       } catch {
         showToast('Failed to move product', 'فشل نقل المنتج', 'error')
-        reloadProducts(true)
+        reloadProducts(true) // Rollback on error
       } finally {
         setReorderingCategoryId(null)
       }
@@ -953,48 +1029,42 @@ export function MenuManageClient({
     setProductModalOpen(true)
   }
 
-  const doDeleteCategory = async (id: string) => {
-    setLoading(true)
-    try {
-      const res = await api(`/categories/${id}`, { method: 'DELETE' })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) {
-        setCategories((prev) => prev.filter((c) => c._id !== id))
-        setProducts((prev) => prev.filter((p) => p.categoryId !== id))
-        showToast(t('Category deleted.', 'تم حذف الفئة.'), undefined, 'success')
-        reloadCategories(true)
-        reloadProducts(true)
-      } else {
-        showToast(data?.error || t('Could not delete category.', 'تعذر حذف الفئة.'), undefined, 'error')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const doDeleteProduct = async (id: string) => {
-    setLoading(true)
-    try {
-      const res = await api(`/products/${id}`, { method: 'DELETE' })
-      const data = await res.json().catch(() => ({}))
-      if (res.ok) {
-        setProducts((prev) => prev.filter((p) => p._id !== id))
-        showToast(t('Product deleted.', 'تم حذف المنتج.'), undefined, 'success')
-        reloadProducts(true)
-      } else {
-        showToast(data?.error || t('Could not delete product.', 'تعذر حذف المنتج.'), undefined, 'error')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const onConfirmDelete = async () => {
     if (!deleteConfirm) return
     const { type, id } = deleteConfirm
     setDeleteConfirm(null)
-    if (type === 'category') await doDeleteCategory(id)
-    else await doDeleteProduct(id)
+    if (type === 'category') {
+      const cat = categories.find((c) => c._id === id)
+      if (!cat) return
+      setCategories((prev) => prev.filter((c) => c._id !== id))
+      setProducts((prev) => prev.filter((p) => p.categoryId !== id))
+      try {
+        const res = await api(`/categories/${id}`, { method: 'DELETE' })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error((data as { error?: string })?.error)
+        showToast(t('Category deleted.', 'تم حذف الفئة.'), undefined, 'success')
+      } catch {
+        setCategories((prev) => [...prev, cat])
+        setProducts((prev) => prev) // Products weren't actually filtered by deleted cat
+        reloadCategories(true)
+        reloadProducts(true)
+        showToast(t('Could not delete category.', 'تعذر حذف الفئة.'), undefined, 'error')
+      }
+    } else {
+      const product = products.find((p) => p._id === id)
+      if (!product) return
+      setProducts((prev) => prev.filter((p) => p._id !== id))
+      try {
+        const res = await api(`/products/${id}`, { method: 'DELETE' })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error((data as { error?: string })?.error)
+        showToast(t('Product deleted.', 'تم حذف المنتج.'), undefined, 'success')
+      } catch {
+        setProducts((prev) => [...prev, product])
+        reloadProducts(true)
+        showToast(t('Could not delete product.', 'تعذر حذف المنتج.'), undefined, 'error')
+      }
+    }
   }
 
   const setSortModeForCategory = useCallback(async (categoryId: string, mode: ProductSortMode) => {
@@ -1008,7 +1078,7 @@ export function MenuManageClient({
       await api(`/categories/${categoryId}`, { method: 'PATCH', body: JSON.stringify({ productSortMode: mode }) })
     } catch {
       showToast('Failed to save sort preference', 'فشل حفظ تفضيل الترتيب', 'error')
-      reloadCategories(true)
+      reloadCategories(true) // Rollback on error
     }
   }, [slug, api, showToast, reloadCategories])
 
@@ -1055,7 +1125,7 @@ export function MenuManageClient({
       setProducts((prev) => [...prev, createdProduct])
       showToast('Product duplicated. You can edit the copy below.', 'تم نسخ المنتج. يمكنك تعديل النسخة أدناه.', 'success')
       openEditProduct(createdProduct)
-      reloadProducts(true)
+      // No reload: state already updated
     } finally {
       setLoading(false)
     }

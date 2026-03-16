@@ -7,7 +7,9 @@ import {
   Store, MapPin, Navigation, Flag, Wallet, Receipt, Truck,
   User, Smartphone, CircleAlert, RefreshCw, ArrowDown, History,
   ChevronDown, Package, Calculator, Phone, Trash2, ShieldCheck, Heart, X,
+  LayoutGrid,
 } from 'lucide-react'
+import { SiWaze, SiGooglemaps } from 'react-icons/si'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
 import { useDriverPush } from '../DriverPushContext'
@@ -29,6 +31,7 @@ import { SlideToPickUp } from './SlideToPickUp'
 import { SlideToConfirm } from './SlideToConfirm'
 import { SlideToArrive } from './SlideToArrive'
 import { TipCelebrationModal } from './TipCelebrationModal'
+import { BrowseMenuModal } from '@/components/Orders/BrowseMenuModal'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
 import { ChangeCalculatorModal } from './ChangeCalculatorModal'
 import { DRIVER_MOTIVATIONAL_QUOTES } from './driverQuotes'
@@ -234,6 +237,8 @@ function DriverOrdersV2Content() {
     tipAmount: number
     currency: string
   } | null>(null)
+  const [browseMenuOrderId, setBrowseMenuOrderId] = useState<string | null>(null)
+  const [browseMenuReplaceIndex, setBrowseMenuReplaceIndex] = useState<number | null>(null)
 
   const [driverLat, setDriverLat] = useState<number | null>(null)
   const [driverLng, setDriverLng] = useState<number | null>(null)
@@ -522,8 +527,6 @@ function DriverOrdersV2Content() {
         'success',
       )
       pushDriverLocation()
-      setMapState('maximized')
-      setActiveMapOrderId(orderId)
     } catch {
       acceptedAtRef.current.delete(orderId)
       setPending((prev) => [order, ...prev])
@@ -699,8 +702,6 @@ function DriverOrdersV2Content() {
       )
       setPendingPickupManualConfirmOrderId(null)
       pushDriverLocation()
-      setActiveMapOrderId(orderId)
-      setMapState('maximized')
       // Delayed refetch — give Sanity time to propagate the write before
       // we replace the optimistic state with server data.
       setTimeout(() => fetchOrders(), 3000)
@@ -1078,6 +1079,49 @@ function DriverOrdersV2Content() {
     setAddProductFormOpenByOrder((prev) => ({ ...prev, [orderId]: false }))
   }
 
+  const handleBrowseMenuSelect = (orderId: string, row: { productId: string; title_en: string; title_ar: string; price: number; currency: string; imageUrl?: string }) => {
+    if (browseMenuReplaceIndex !== null) {
+      const idx = browseMenuReplaceIndex
+      setEditingItemsByOrder((prev) => ({
+        ...prev,
+        [orderId]: (prev[orderId] || []).map((item, i) => {
+          if (i !== idx) return item
+          return {
+            ...item,
+            productId: row.productId,
+            productName: lang === 'ar' ? row.title_ar : row.title_en,
+            price: row.price,
+            isPicked: true,
+            notPickedReason: '',
+            imageUrl: row.imageUrl || '',
+          }
+        }),
+      }))
+      setBrowseMenuReplaceIndex(null)
+    } else {
+      setEditingItemsByOrder((prev) => ({
+        ...prev,
+        [orderId]: [
+          ...(prev[orderId] || []),
+          {
+            _key: `driver-added-${Date.now()}`,
+            productId: row.productId,
+            productName: lang === 'ar' ? row.title_ar : row.title_en,
+            quantity: 1,
+            notes: '',
+            addOns: '',
+            price: row.price,
+            isPicked: true,
+            notPickedReason: '',
+            imageUrl: row.imageUrl || '',
+          },
+        ],
+      }))
+      setAddProductFormOpenByOrder((prev) => ({ ...prev, [orderId]: false }))
+    }
+    setBrowseMenuOrderId(null)
+  }
+
   const saveDriverItemChanges = async (order: DriverOrder) => {
     const edited = editingItemsByOrder[order.orderId] || []
     if (!edited.length) {
@@ -1295,13 +1339,22 @@ function DriverOrdersV2Content() {
                     {t('Similar products from same category', 'أصناف مشابهة من نفس الفئة')}
                   </p>
                   <div className="flex flex-col gap-3">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                       <input
                         value={replacementQuery}
                         onChange={(e) => setReplacementSearchByOrder((prev) => ({ ...prev, [order.orderId]: { ...(prev[order.orderId] || {}), [idx]: e.target.value } }))}
                         placeholder={t('Search (e.g. milk)', 'ابحث (مثال: حليب)')}
-                        className="flex-1 min-h-[48px] rounded-2xl border-2 border-slate-600 bg-slate-900 px-4 text-base text-slate-100 placeholder:text-slate-500"
+                        className="flex-1 min-w-[120px] min-h-[48px] rounded-2xl border-2 border-slate-600 bg-slate-900 px-4 text-base text-slate-100 placeholder:text-slate-500"
                       />
+                      <button
+                        type="button"
+                        onClick={() => { setBrowseMenuReplaceIndex(idx); setBrowseMenuOrderId(order.orderId); }}
+                        className="min-h-[48px] px-4 rounded-2xl bg-slate-700 hover:bg-slate-600 text-indigo-300 font-bold text-base flex items-center gap-2"
+                        title={t('Browse full menu', 'عرض القائمة كاملة')}
+                      >
+                        <LayoutGrid className="w-4 h-4" />
+                        {t('Menu', 'القائمة')}
+                      </button>
                       <button
                         type="button"
                         onClick={() => void loadReplacementProducts(order.orderId, idx, item.productId || '', replacementQuery)}
@@ -1388,6 +1441,15 @@ function DriverOrdersV2Content() {
                 placeholder={t('Search business products', 'ابحث في أصناف المتجر')}
                 className="flex-1 min-h-[48px] rounded-2xl border-2 border-slate-600 bg-slate-900 px-4 text-base text-slate-100 placeholder:text-slate-500"
               />
+              <button
+                type="button"
+                onClick={() => { setBrowseMenuReplaceIndex(null); setBrowseMenuOrderId(order.orderId); }}
+                className="min-h-[48px] px-4 rounded-2xl bg-slate-700 hover:bg-slate-600 text-emerald-300 font-bold text-base flex items-center gap-2"
+                title={t('Browse full menu', 'عرض القائمة كاملة')}
+              >
+                <LayoutGrid className="w-4 h-4" />
+                {t('Menu', 'القائمة')}
+              </button>
               <button
                 type="button"
                 onClick={() => void loadAdditionalProducts(order.orderId, additionalProductSearchByOrder[order.orderId] || '')}
@@ -1671,40 +1733,40 @@ function DriverOrdersV2Content() {
             transition={{ duration: 0.2 }}
             className="rounded-3xl border-2 border-emerald-700/80 bg-emerald-950/20 p-4 sm:p-5 shadow-sm"
           >
-            {/* Navigation Bar (Waze / Maps / Open Map) */}
+            {/* Navigation Bar: Bedi Maps (6 cols) | Waze (3) | Google Maps (3) */}
             {mapState !== 'maximized' &&
               (() => {
                 const urls = getNavUrls(activeOrder)
                 return (
-                  <div className="flex items-center gap-2 mb-4">
-                    <a
-                      href={urls.google}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-white font-bold py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all"
-                    >
-                      <Navigation className="w-4 h-4 shrink-0 text-slate-400" />
-                      Maps
-                    </a>
-                    <a
-                      href={urls.waze}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-slate-800 hover:bg-slate-700 border border-slate-700/60 text-white font-bold py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all"
-                    >
-                      <Navigation className="w-4 h-4 shrink-0 text-slate-400" />
-                      Waze
-                    </a>
+                  <div className="grid grid-cols-12 gap-2 mb-4">
                     <button
                       onClick={() => {
                         setActiveMapOrderId(activeOrder.orderId)
                         setMapState('maximized')
                       }}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all"
+                      className="col-span-6 flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all border-2 border-emerald-500/50 shadow-lg shadow-emerald-900/30"
                     >
-                      <MapPin className="w-4 h-4 shrink-0" />
-                      {t('Map', 'خريطة')}
+                      <MapPin className="w-5 h-5 shrink-0" />
+                      Bedi Maps
                     </button>
+                    <a
+                      href={urls.waze}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="col-span-3 flex items-center justify-center gap-1 rounded-2xl bg-[#33CCFF] hover:bg-[#4dd4ff] text-white font-bold py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all border border-white/20"
+                    >
+                      <SiWaze className="w-5 h-5 shrink-0" />
+                      Waze
+                    </a>
+                    <a
+                      href={urls.google}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="col-span-3 flex items-center justify-center gap-1 rounded-2xl bg-[#34A853] hover:bg-[#3db85d] text-white font-bold py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all border border-white/20"
+                    >
+                      <SiGooglemaps className="w-5 h-5 shrink-0" />
+                      Maps
+                    </a>
                   </div>
                 )
               })()}
@@ -2796,6 +2858,18 @@ function DriverOrdersV2Content() {
         orderTotal={calcOrderTotal}
         currency={calcCurrency}
       />
+
+      {/* ─── Browse Menu Modal (add/replace items) ───────── */}
+      {browseMenuOrderId && (
+        <BrowseMenuModal
+          open={!!browseMenuOrderId}
+          onClose={() => { setBrowseMenuOrderId(null); setBrowseMenuReplaceIndex(null); }}
+          fetchUrl={`/api/driver/orders/${encodeURIComponent(browseMenuOrderId)}/full-menu`}
+          onSelect={(row) => handleBrowseMenuSelect(browseMenuOrderId, row)}
+          currency={myDeliveries.find((o) => o.orderId === browseMenuOrderId)?.currency ?? 'ILS'}
+          variant="driver"
+        />
+      )}
 
       {/* ─── Tip Celebration Modal (10s auto-close) ─────── */}
       <AnimatePresence>

@@ -12,7 +12,7 @@ export function CartToast() {
   if (!toast) return null
 
   return (
-    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] pointer-events-none">
+    <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[500] pointer-events-none">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 min-w-[280px] max-w-[90vw] pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-300">
         <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">

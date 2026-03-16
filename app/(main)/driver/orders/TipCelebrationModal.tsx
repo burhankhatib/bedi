@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useLanguage } from '@/components/LanguageContext'
 import { formatCurrency } from '@/lib/currency'
 
 const TIP_CELEBRATION_DURATION_MS = 10_000
+const TIP_CELEBRATION_SECONDS = 10
 
 interface TipCelebrationModalProps {
   tipAmount: number
@@ -15,11 +16,23 @@ interface TipCelebrationModalProps {
 
 export function TipCelebrationModal({ tipAmount, currency, onClose }: TipCelebrationModalProps) {
   const { t } = useLanguage()
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  const [secondsLeft, setSecondsLeft] = useState(TIP_CELEBRATION_SECONDS)
 
   useEffect(() => {
-    const id = setTimeout(onClose, TIP_CELEBRATION_DURATION_MS)
-    return () => clearTimeout(id)
-  }, [onClose])
+    const id = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          onCloseRef.current()
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [])
 
   const fmtCurrency = formatCurrency(currency)
 
@@ -103,9 +116,24 @@ export function TipCelebrationModal({ tipAmount, currency, onClose }: TipCelebra
             {t('Thanks!', 'شكراً!')}
           </motion.button>
 
-          <p className="text-white/60 text-[10px] mt-2">
-            {t('Closes automatically in 10 seconds', 'يُغلق تلقائياً خلال 10 ثوانٍ')}
-          </p>
+          {/* Visual countdown + progress bar */}
+          <div className="mt-3 space-y-2">
+            <div className="h-1.5 w-full rounded-full bg-white/20 overflow-hidden">
+              <motion.div
+                className="h-full bg-white/70 rounded-full"
+                initial={{ width: '100%' }}
+                animate={{ width: `${(secondsLeft / TIP_CELEBRATION_SECONDS) * 100}%` }}
+                transition={{ duration: 1, ease: 'linear' }}
+              />
+            </div>
+            <p className="text-white/70 text-xs font-medium tabular-nums">
+              {t('Closes automatically in', 'يُغلق تلقائياً خلال')}{' '}
+              <span className="font-bold text-white">{secondsLeft}</span>{' '}
+              {secondsLeft === 1
+                ? t('second', 'ثانية')
+                : t('seconds', 'ثوانٍ')}
+            </p>
+          </div>
         </div>
       </motion.div>
     </motion.div>

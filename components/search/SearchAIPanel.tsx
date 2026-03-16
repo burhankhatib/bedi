@@ -6,9 +6,11 @@ import Link from 'next/link'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { UIMessage } from 'ai'
-import { Loader2, Sparkles, Store, ShoppingCart, Send, RotateCcw, X } from 'lucide-react'
+import { Loader2, Sparkles, Store, ShoppingCart, Send, RotateCcw, X, Check } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
+import { useToast } from '@/components/ui/ToastProvider'
 import { cn } from '@/lib/utils'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { SanitizedMarkdown } from '@/components/ai/SanitizedMarkdown'
@@ -79,10 +81,14 @@ export function SearchAIPanel({
   fullHeight = false,
 }: SearchAIPanelProps) {
   const { lang } = useLanguage()
-  const { addToCart } = useCart()
+  const { addToCart, cartTenant, items } = useCart()
+  const { showToast } = useToast()
   const containerRef = useRef<HTMLDivElement>(null)
   const [replyInput, setReplyInput] = useState('')
   const replyInputRef = useRef<HTMLInputElement>(null)
+  const [addingProductId, setAddingProductId] = useState<string | null>(null)
+  const [addedProductId, setAddedProductId] = useState<string | null>(null)
+  const [addingAllFromKey, setAddingAllFromKey] = useState<string | null>(null)
 
   const initialMessages = useMemo(() => loadStoredMessages(city), [city])
 
@@ -147,17 +153,35 @@ export function SearchAIPanel({
   }
 
   const handleAddToCart = async (p: ToolProduct) => {
+    setAddingProductId(p._id)
     try {
       const res = await fetch(`/api/search/product/${p._id}`)
       if (!res.ok) throw new Error('Failed to fetch product')
       const { product, tenant } = await res.json()
       if (!product || !tenant?.slug) throw new Error('Invalid product data')
+
+      const willConflict = items.length > 0 && cartTenant?.slug && tenant.slug && cartTenant.slug !== tenant.slug
       addToCart(product as Product, [], [], {
         slug: tenant.slug,
         name: tenant.name,
       })
+
+      if (willConflict) {
+        setAddingProductId(null)
+        return
+      }
+
+      setAddingProductId(null)
+      setAddedProductId(p._id)
+      setTimeout(() => setAddedProductId(null), 800)
     } catch (e) {
       console.error('Add to cart:', e)
+      setAddingProductId(null)
+      showToast(
+        t('Could not add item. Try again.', 'تعذر إضافة الصنف. حاول مرة أخرى.'),
+        t('Could not add item. Try again.', 'تعذر إضافة الصنف. حاول مرة أخرى.'),
+        'error'
+      )
     }
   }
 
@@ -284,28 +308,50 @@ export function SearchAIPanel({
                       {(hasByStore ? Object.entries(byStore) : [['_flat', products] as [string, ToolProduct[]]]).map(([storeSlug, storeProds]) => (
                         <div key={String(storeSlug)} className="space-y-2">
                           {storeProds.length > 1 && hasByStore && (
-                            <button
+                            <motion.button
                               type="button"
+                              disabled={!!addingAllFromKey}
+                              whileTap={!addingAllFromKey ? { scale: 0.95 } : undefined}
                               onClick={async () => {
-                                for (const prod of storeProds) {
-                                  try {
+                                const key = String(storeSlug)
+                                setAddingAllFromKey(key)
+                                try {
+                                  for (const prod of storeProds) {
                                     const res = await fetch(`/api/search/product/${prod._id}`)
                                     if (res.ok) {
                                       const { product, tenant } = await res.json()
                                       if (product && tenant?.slug) {
+                                        const willConflict = items.length > 0 && cartTenant?.slug && tenant.slug && cartTenant.slug !== tenant.slug
                                         addToCart(product as Product, [], [], { slug: tenant.slug, name: tenant.name })
+                                        if (willConflict) break
                                       }
                                     }
-                                  } catch (e) {
-                                    console.error('Add to cart:', e)
                                   }
+                                } catch (e) {
+                                  console.error('Add to cart:', e)
+                                  showToast(
+                                    t('Could not add items. Try again.', 'تعذر إضافة الأصناف. حاول مرة أخرى.'),
+                                    t('Could not add items. Try again.', 'تعذر إضافة الأصناف. حاول مرة أخرى.'),
+                                    'error'
+                                  )
+                                } finally {
+                                  setAddingAllFromKey(null)
                                 }
                               }}
-                              className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1"
+                              className={cn(
+                                'text-xs font-bold flex items-center gap-1 transition-opacity',
+                                addingAllFromKey === String(storeSlug)
+                                  ? 'text-amber-500 opacity-70'
+                                  : 'text-amber-600 hover:text-amber-700'
+                              )}
                             >
-                              <ShoppingCart className="size-3.5" />
-                              {t('Add all from', 'أضف الكل من')} {storeProds[0]?.businessName}
-                            </button>
+                              {addingAllFromKey === String(storeSlug) ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : (
+                                <ShoppingCart className="size-3.5" />
+                              )}
+                              {addingAllFromKey === String(storeSlug) ? t('Adding…', 'جاري الإضافة…') : `${t('Add all from', 'أضف الكل من')} ${storeProds[0]?.businessName}`}
+                            </motion.button>
                           )}
                           {storeProds.slice(0, 12).map((p) => {
                           const title = lang === 'ar' ? (p.title_ar ?? p.title_en) : (p.title_en ?? p.title_ar)
@@ -357,14 +403,27 @@ export function SearchAIPanel({
                                 >
                                   {t('View menu', 'عرض القائمة')}
                                 </Link>
-                                <button
+                                <motion.button
                                   type="button"
                                   onClick={() => handleAddToCart(p)}
-                                  className="inline-flex items-center gap-1 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg"
+                                  disabled={addingProductId === p._id}
+                                  whileTap={addingProductId !== p._id ? { scale: 0.95 } : undefined}
+                                  className={cn(
+                                    'inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors',
+                                    addedProductId === p._id
+                                      ? 'bg-emerald-500 text-white'
+                                      : 'text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-70'
+                                  )}
                                 >
-                                  <ShoppingCart className="size-3" />
-                                  {t('Add', 'أضف')}
-                                </button>
+                                  {addingProductId === p._id ? (
+                                    <Loader2 className="size-3 animate-spin" />
+                                  ) : addedProductId === p._id ? (
+                                    <Check className="size-3" />
+                                  ) : (
+                                    <ShoppingCart className="size-3" />
+                                  )}
+                                  {addingProductId === p._id ? t('Adding…', 'جاري الإضافة…') : addedProductId === p._id ? t('Added', 'تمت الإضافة') : t('Add', 'أضف')}
+                                </motion.button>
                               </div>
                             </div>
                           )
@@ -520,14 +579,27 @@ export function SearchAIPanel({
                                     >
                                       {t('View menu', 'عرض القائمة')}
                                     </Link>
-                                    <button
+                                    <motion.button
                                       type="button"
                                       onClick={() => handleAddToCart(p)}
-                                      className="inline-flex items-center gap-1 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg"
+                                      disabled={addingProductId === p._id}
+                                      whileTap={addingProductId !== p._id ? { scale: 0.95 } : undefined}
+                                      className={cn(
+                                        'inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors',
+                                        addedProductId === p._id
+                                          ? 'bg-emerald-500 text-white'
+                                          : 'text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-70'
+                                      )}
                                     >
-                                      <ShoppingCart className="size-3" />
-                                      {t('Add', 'أضف')}
-                                    </button>
+                                      {addingProductId === p._id ? (
+                                        <Loader2 className="size-3 animate-spin" />
+                                      ) : addedProductId === p._id ? (
+                                        <Check className="size-3" />
+                                      ) : (
+                                        <ShoppingCart className="size-3" />
+                                      )}
+                                      {addingProductId === p._id ? t('Adding…', 'جاري الإضافة…') : addedProductId === p._id ? t('Added', 'تمت الإضافة') : t('Add', 'أضف')}
+                                    </motion.button>
                                   </div>
                                 </div>
                               )

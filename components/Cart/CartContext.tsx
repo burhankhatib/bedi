@@ -504,8 +504,8 @@ function CartConflictModal({
     <Dialog open={true} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent
         className="max-w-md"
-        overlayClassName="z-[400]"
-        contentClassName="z-[400]"
+        overlayClassName="z-[502]"
+        contentClassName="z-[502]"
         showCloseButton={true}
       >
         <DialogHeader>

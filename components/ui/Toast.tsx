@@ -51,7 +51,7 @@ export function Toast({ message, messageAr, type = 'success', onClose }: ToastPr
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -20, scale: 0.95 }}
       transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-      className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] pointer-events-none"
+      className="fixed top-20 left-1/2 -translate-x-1/2 z-[500] pointer-events-none"
     >
       <div className={`bg-white rounded-2xl shadow-2xl border-2 ${colorScheme.border} p-4 min-w-[320px] max-w-[90vw] pointer-events-auto`}>
         <div className="flex items-start gap-3">
