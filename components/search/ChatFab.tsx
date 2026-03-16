@@ -28,6 +28,7 @@ function hasInlineSearch(pathname: string): boolean {
   if (!pathname) return false
   if (pathname === '/') return true
   if (pathname === '/search') return true
+  if (/^\/t\/[^/]+\/?$/.test(pathname)) return true
   return false
 }
 
@@ -48,7 +49,7 @@ export function ChatFab() {
       setVisible(false)
       return
     }
-    setVisible(hasStoredChat(city))
+    setVisible(true)
   }, [mounted, city, isChosen])
 
   const handleClick = () => {

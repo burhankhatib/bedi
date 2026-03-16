@@ -217,20 +217,20 @@ export function SearchAIPanel({
         </button>
       </div>
 
-      {/* Banner: Cart has items from another business — explain why Add from AI results may not work */}
+      {/* Banner: Cart has items — explain cross-store limitation. High contrast, sticky so always visible. */}
       {items.length > 0 && cartTenant && (
         <div
-          className="shrink-0 mx-4 mt-2 mb-1 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5"
-          role="status"
+          className="sticky top-0 z-10 shrink-0 mx-4 mt-2 mb-2 rounded-xl border-2 border-amber-500 bg-amber-100 px-4 py-3 shadow-sm"
+          role="alert"
         >
-          <p className="text-xs font-semibold text-amber-900">
-            {t('Your cart has items from', 'سلتك تحتوي على أصناف من')}{' '}
-            <span className="font-bold">{cartTenant.name}</span>
+          <p className="text-sm font-bold text-amber-950">
+            {t('Cart has items from', 'سلتك تحتوي على أصناف من')}{' '}
+            <span className="underline">{cartTenant.name}</span>
           </p>
-          <p className="text-[11px] text-amber-800 mt-0.5">
+          <p className="text-xs text-amber-900 mt-1">
             {t(
-              'You can only add products from this restaurant. Products from others will open a choice to replace your cart.',
-              'يمكنك إضافة أصناف من هذا المطعم فقط. أصناف من مطاعم أخرى ستفتح خيار استبدال سلتك.'
+              'Products from other restaurants show an "Add" with a warning. Tap to choose: replace cart or go back.',
+              'أصناف من مطاعم أخرى تظهر زر "أضف" مع تحذير. اضغط لاختيار: استبدال السلة أو العودة.'
             )}
           </p>
         </div>
@@ -373,6 +373,7 @@ export function SearchAIPanel({
                           )}
                           {storeProds.slice(0, 12).map((p) => {
                           const title = lang === 'ar' ? (p.title_ar ?? p.title_en) : (p.title_en ?? p.title_ar)
+                          const isDifferentStore = items.length > 0 && cartTenant?.slug && p.businessSlug && cartTenant.slug !== p.businessSlug
                           return (
                             <div
                               key={p._id}
@@ -400,7 +401,12 @@ export function SearchAIPanel({
                                   <p className="font-semibold text-slate-900 truncate">{title}</p>
                                   <p className="text-xs text-slate-500 flex items-center gap-1.5">
                                     {p.businessName}
-                                    {p.businessOpenNow && (
+                                    {isDifferentStore && (
+                                      <span className="inline-flex items-center rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                                        {t('Different store', 'متجر آخر')}
+                                      </span>
+                                    )}
+                                    {p.businessOpenNow && !isDifferentStore && (
                                       <span className="inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
                                         {t('Open', 'مفتوح')}
                                       </span>
@@ -425,12 +431,15 @@ export function SearchAIPanel({
                                   type="button"
                                   onClick={() => handleAddToCart(p)}
                                   disabled={addingProductId === p._id}
+                                  title={isDifferentStore ? t('Cart has items from another restaurant. Tap to choose: replace cart or go back.', 'سلتك تحتوي على أصناف من مطعم آخر. اضغط لاختيار: استبدال السلة أو العودة.') : undefined}
                                   whileTap={addingProductId !== p._id ? { scale: 0.95 } : undefined}
                                   className={cn(
                                     'inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors',
                                     addedProductId === p._id
                                       ? 'bg-emerald-500 text-white'
-                                      : 'text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-70'
+                                      : isDifferentStore
+                                        ? 'bg-amber-200 text-amber-950 border-2 border-amber-500 hover:bg-amber-300'
+                                        : 'text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-70'
                                   )}
                                 >
                                   {addingProductId === p._id ? (
@@ -555,6 +564,7 @@ export function SearchAIPanel({
                           <div className="grid gap-2">
                             {products.slice(0, 12).map((p) => {
                               const title = lang === 'ar' ? (p.title_ar ?? p.title_en) : (p.title_en ?? p.title_ar)
+                              const isDifferentStore = items.length > 0 && cartTenant?.slug && p.businessSlug && cartTenant.slug !== p.businessSlug
                               return (
                                 <div
                                   key={p._id}
@@ -576,7 +586,12 @@ export function SearchAIPanel({
                                       <p className="font-semibold text-slate-900 truncate">{title}</p>
                                       <p className="text-xs text-slate-500 flex items-center gap-1.5">
                                         {p.businessName}
-                                        {p.businessOpenNow && (
+                                        {isDifferentStore && (
+                                          <span className="inline-flex items-center rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                                            {t('Different store', 'متجر آخر')}
+                                          </span>
+                                        )}
+                                        {p.businessOpenNow && !isDifferentStore && (
                                           <span className="inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
                                             {t('Open', 'مفتوح')}
                                           </span>
@@ -601,12 +616,15 @@ export function SearchAIPanel({
                                       type="button"
                                       onClick={() => handleAddToCart(p)}
                                       disabled={addingProductId === p._id}
+                                      title={isDifferentStore ? t('Cart has items from another restaurant. Tap to choose: replace cart or go back.', 'سلتك تحتوي على أصناف من مطعم آخر. اضغط لاختيار: استبدال السلة أو العودة.') : undefined}
                                       whileTap={addingProductId !== p._id ? { scale: 0.95 } : undefined}
                                       className={cn(
                                         'inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors',
                                         addedProductId === p._id
                                           ? 'bg-emerald-500 text-white'
-                                          : 'text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-70'
+                                          : isDifferentStore
+                                            ? 'bg-amber-200 text-amber-950 border-2 border-amber-500 hover:bg-amber-300'
+                                            : 'text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-70'
                                       )}
                                     >
                                       {addingProductId === p._id ? (

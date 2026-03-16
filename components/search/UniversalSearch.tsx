@@ -152,10 +152,10 @@ export function UniversalSearch({
   }, [skipFetch, debouncedQuery, tenantSlug, city, isChosen, lang, isAIMode])
 
   const totalItems = (results?.businesses?.length ?? 0) + (results?.products?.length ?? 0)
-  /** Always allow opening AI chat when location is chosen (any input is treated as a question for the AI). */
-  const canShowAI = !!(city && isChosen && !tenantSlug)
+  /** Allow AI chat when location is chosen — even on tenant pages; AI searches the full city. */
+  const canShowAI = !!(city && isChosen)
   /** Can receive "open chat" event (e.g. from ChatFab) — needs location, regardless of current query. */
-  const canReceiveOpenChat = !!city && isChosen && !tenantSlug
+  const canReceiveOpenChat = !!city && isChosen
   const chatOverlayOpen = canShowAI && !!aiSubmittedQuery
   // Don't show the "Ask AI" popup when user typed a question — they just press Enter to fire AI
   const wouldShowAskAIPrompt = canShowAI && !aiSubmittedQuery && totalItems === 0
@@ -361,6 +361,12 @@ export function UniversalSearch({
             setFocusedIndex(-1)
           }}
           onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && canShowAI && query.trim() && !showDropdown) {
+              e.preventDefault()
+              handleSubmit(e as unknown as React.FormEvent)
+            }
+          }}
           className={cn(
             'w-full rounded-full bg-slate-100 py-3 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-500 focus:bg-white focus:ring-2 focus:ring-brand-yellow/50 focus:shadow-sm',
             'ps-12 pe-11',
@@ -369,28 +375,35 @@ export function UniversalSearch({
             'ps-12 pe-11'
           )}
         />
-        {(query || loading) && (
-          <div className="absolute end-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-            {loading && <Loader2 className="size-4 animate-spin text-slate-400" />}
-            {query && (
-              <button
-                type="button"
-                onClick={() => {
-                  latestRequestRef.current += 1
-                  setQuery('')
-                  setResults(null)
-                  setAiSubmittedQuery(null)
-                  setLoading(false)
-                  inputRef.current?.focus()
-                }}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200"
-                aria-label={t('Clear', 'مسح')}
-              >
-                <X className="size-4" />
-              </button>
-            )}
-          </div>
-        )}
+        <div className="absolute end-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {loading && <Loader2 className="size-4 animate-spin text-slate-400" />}
+          {query && !loading && (
+            <button
+              type="button"
+              onClick={() => {
+                latestRequestRef.current += 1
+                setQuery('')
+                setResults(null)
+                setAiSubmittedQuery(null)
+                setLoading(false)
+                inputRef.current?.focus()
+              }}
+              className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200"
+              aria-label={t('Clear', 'مسح')}
+            >
+              <X className="size-4" />
+            </button>
+          )}
+          {canShowAI && query.trim() && (
+            <button
+              type="submit"
+              className="p-2 rounded-full bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors"
+              aria-label={t('Ask AI', 'اسأل الذكاء الاصطناعي')}
+            >
+              <Sparkles className="size-4" />
+            </button>
+          )}
+        </div>
       </form>
 
       {chatOverlayOpen && city && (

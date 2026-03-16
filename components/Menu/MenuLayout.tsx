@@ -9,6 +9,8 @@ import { ProductCard } from './ProductCard'
 import { PopularProductCard } from './PopularProductCard'
 import { ProductModal } from '@/components/Menu/ProductModal'
 import { MenuSearch } from '@/components/Menu/MenuSearch'
+import { UniversalSearch } from '@/components/search/UniversalSearch'
+import { useLocation } from '@/components/LocationContext'
 import { ViewSwitcher, ViewType } from '@/components/Menu/ViewSwitcher'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { useLanguage } from '@/components/LanguageContext'
@@ -142,6 +144,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
     ? { supportsDineIn: supportsDineIn ?? true, supportsReceiveInPerson: supportsReceiveInPerson ?? true, hasDelivery: hasDelivery ?? false }
     : null
   const { totalItems, isOpen: cartOpen, setIsOpen, setTenantSlug, setLockedTableNumber, cartTenant, items } = useCart()
+  const { city, isChosen } = useLocation()
   const router = useRouter()
   const orderAuth = useOrderAuth()
   const pathname = usePathname()
@@ -492,15 +495,23 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                 </div>
               </div>
 
-              {/* Search — flex-1 so it uses remaining space */}
+              {/* Search — flex-1 so it uses remaining space. UniversalSearch (with AI) when location chosen; else MenuSearch for in-menu only. */}
               <div className="flex-1 min-w-0">
-                <MenuSearch
-                  categories={categories}
-                  popularProducts={popularProducts}
-                  onProductClick={handleProductClick}
-                  onProductSelectFromSearch={(product) => scrollToProduct(product._id)}
-                  restaurantLogo={restaurantInfo?.logo}
-                />
+                {isChosen && city ? (
+                  <UniversalSearch
+                    tenantSlug={tenantSlug ?? undefined}
+                    compact
+                    placeholder={t('Search menu or ask AI...', 'ابحث في القائمة أو اسأل...')}
+                  />
+                ) : (
+                  <MenuSearch
+                    categories={categories}
+                    popularProducts={popularProducts}
+                    onProductClick={handleProductClick}
+                    onProductSelectFromSearch={(product) => scrollToProduct(product._id)}
+                    restaurantLogo={restaurantInfo?.logo}
+                  />
+                )}
               </div>
 
               {/* Desktop: PWA install, Track order (this business), My orders (global), Browse more, Language, Auth. Mobile: hamburger only */}
