@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useState, useEffect, useCallback, useRef, useMemo, startTransition } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -249,12 +250,15 @@ function DriverOrdersV2Content() {
   const acceptedAtRef = useRef<Map<string, number>>(new Map())
   const pickedUpAtRef = useRef<number | null>(null)
   const activeMapOrderIdRef = useRef<string | null>(null)
+  const bediMapsHandledAtRef = useRef(0)
 
   const [startY, setStartY] = useState<number | null>(null)
   const [pullDistance, setPullDistance] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const MAX_PULL = 120
+  const [isForceReloading, setIsForceReloading] = useState(false)
+  const MAX_PULL = 180
   const REFRESH_THRESHOLD = 80
+  const FORCE_RELOAD_THRESHOLD = 150
 
   /* ── always-on driver geolocation (for distance calcs + map). Samsung: longer timeout. ────── */
   useEffect(() => {
@@ -962,10 +966,11 @@ function DriverOrdersV2Content() {
       setDetailsOrderId(null)
       return
     }
-    setDetailsOrderId(order.orderId)
-    setEditingItemsByOrder((prev) => ({
-      ...prev,
-      [order.orderId]: (order.items || []).map((item, idx) => ({
+    startTransition(() => {
+      setDetailsOrderId(order.orderId)
+      setEditingItemsByOrder((prev) => ({
+        ...prev,
+        [order.orderId]: (order.items || []).map((item, idx) => ({
         _key: `driver-${order.orderId}-${idx}`,
         productId: item.productId,
         productName: item.productName || '',
@@ -984,6 +989,7 @@ function DriverOrdersV2Content() {
       })),
     }))
     void loadAdditionalProducts(order.orderId, additionalProductSearchByOrder[order.orderId] || '')
+    })
   }
 
   const togglePickedItem = (orderId: string, index: number) => {
@@ -1221,8 +1227,14 @@ function DriverOrdersV2Content() {
   }
   const handleTouchEnd = async () => {
     if (pullDistance > REFRESH_THRESHOLD && !isRefreshing) {
+      const forceReload = pullDistance >= FORCE_RELOAD_THRESHOLD
       setIsRefreshing(true)
+      setIsForceReloading(forceReload)
       setPullDistance(REFRESH_THRESHOLD)
+      if (forceReload) {
+        window.location.reload()
+        return
+      }
       await fetchOrders()
       setIsRefreshing(false)
     }
@@ -1539,9 +1551,11 @@ function DriverOrdersV2Content() {
             animate={{
               rotate: isRefreshing
                 ? 360
-                : pullDistance > REFRESH_THRESHOLD
+                : pullDistance >= FORCE_RELOAD_THRESHOLD
                   ? 180
-                  : 0,
+                  : pullDistance > REFRESH_THRESHOLD
+                    ? 90
+                    : 0,
             }}
             transition={
               isRefreshing
@@ -1553,7 +1567,7 @@ function DriverOrdersV2Content() {
               <RefreshCw className="w-5 h-5 text-emerald-400" />
             ) : (
               <ArrowDown
-                className={`w-5 h-5 ${pullDistance > REFRESH_THRESHOLD ? 'text-emerald-400' : 'text-slate-400'}`}
+                className={`w-5 h-5 ${pullDistance >= FORCE_RELOAD_THRESHOLD ? 'text-amber-400' : pullDistance > REFRESH_THRESHOLD ? 'text-emerald-400' : 'text-slate-400'}`}
               />
             )}
           </motion.div>
@@ -1561,14 +1575,18 @@ function DriverOrdersV2Content() {
             <span
               className={`text-sm font-bold ${pullDistance > REFRESH_THRESHOLD ? 'text-emerald-400' : 'text-slate-400'}`}
             >
-              {pullDistance > REFRESH_THRESHOLD
-                ? t('Release to refresh', 'أفلت للتحديث')
-                : t('Pull to refresh', 'اسحب للتحديث')}
+              {pullDistance >= FORCE_RELOAD_THRESHOLD
+                ? t('Release to force reload', 'أفلت لإعادة التحميل')
+                : pullDistance > REFRESH_THRESHOLD
+                  ? t('Release to refresh', 'أفلت للتحديث')
+                  : t('Pull to refresh', 'اسحب للتحديث')}
             </span>
           )}
           {isRefreshing && (
-            <span className="text-sm font-bold text-emerald-400">
-              {t('Refreshing...', 'جاري التحديث...')}
+            <span className={`text-sm font-bold ${isForceReloading ? 'text-amber-400' : 'text-emerald-400'}`}>
+              {isForceReloading
+                ? t('Reloading...', 'جاري إعادة التحميل...')
+                : t('Refreshing...', 'جاري التحديث...')}
             </span>
           )}
         </div>
@@ -1737,14 +1755,26 @@ function DriverOrdersV2Content() {
             {mapState !== 'maximized' &&
               (() => {
                 const urls = getNavUrls(activeOrder)
+                const handleOpenBediMaps = () => {
+                  const now = Date.now()
+                  if (now - bediMapsHandledAtRef.current < 400) return
+                  bediMapsHandledAtRef.current = now
+                  setActiveMapOrderId(activeOrder.orderId)
+                  setMapState('maximized')
+                }
                 return (
                   <div className="grid grid-cols-12 gap-2 mb-4">
                     <button
-                      onClick={() => {
-                        setActiveMapOrderId(activeOrder.orderId)
-                        setMapState('maximized')
+                      type="button"
+                      onClick={handleOpenBediMaps}
+                      onPointerDown={(e) => {
+                        if (e.pointerType === 'touch') {
+                          e.preventDefault()
+                          handleOpenBediMaps()
+                        }
                       }}
-                      className="col-span-6 flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all border-2 border-emerald-500/50 shadow-lg shadow-emerald-900/30"
+                      className="col-span-6 flex items-center justify-center gap-2 rounded-2xl bg-[#ef9f20] hover:bg-[#f5ad2e] text-[#231f20] font-black py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all border-2 border-[#aa1f23] shadow-lg shadow-amber-900/40 touch-manipulation select-none"
+                      style={{ WebkitTapHighlightColor: 'transparent' }}
                     >
                       <MapPin className="w-5 h-5 shrink-0" />
                       Bedi Maps
@@ -1909,7 +1939,7 @@ function DriverOrdersV2Content() {
                   <button
                     type="button"
                     onClick={() => openOrderDetails(activeOrder)}
-                    className={`w-full mb-4 rounded-2xl font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md flex items-center justify-center gap-2 ${
+                    className={`w-full mb-4 rounded-2xl font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md flex items-center justify-center gap-2 touch-manipulation ${
                       detailsOrderId === activeOrder.orderId
                         ? 'bg-amber-400 text-slate-950 border-2 border-amber-300'
                         : 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-amber-500/20'
@@ -2576,7 +2606,7 @@ function DriverOrdersV2Content() {
                     <button
                       type="button"
                       onClick={() => openOrderDetails(o)}
-                      className={`w-full mb-4 rounded-2xl font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md flex items-center justify-center gap-2 ${
+                      className={`w-full mb-4 rounded-2xl font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md flex items-center justify-center gap-2 touch-manipulation ${
                         detailsOrderId === o.orderId
                           ? 'bg-amber-400 text-slate-950 border-2 border-amber-300'
                           : 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-amber-500/20'
@@ -2883,7 +2913,7 @@ function DriverOrdersV2Content() {
         )}
       </AnimatePresence>
 
-      {/* ─── Full-screen Navigation Map Overlay ────────── */}
+      {/* ─── Full-screen Navigation Map Overlay (Portal to body for iOS PWA reliability) ────────── */}
       {mapState === 'maximized' &&
         activeMapOrderId &&
         (() => {
@@ -2904,7 +2934,7 @@ function DriverOrdersV2Content() {
           const logoUrl = isEnRoute ? undefined : order.businessLogoUrl
 
           const hasCountdown = isEnRoute && order.driverPickedUpAt && order.estimatedDeliveryMinutes
-          return (
+          const mapEl = (
             <DriverNavigationMap
               driverLat={driverLat}
               driverLng={driverLng}
@@ -2930,6 +2960,9 @@ function DriverOrdersV2Content() {
               } : undefined}
             />
           )
+          return typeof document !== 'undefined'
+            ? createPortal(mapEl, document.body)
+            : mapEl
         })()}
     </div>
   )

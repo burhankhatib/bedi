@@ -13,6 +13,7 @@ import { parseCoordsFromGoogleMapsUrl } from '@/lib/maps-utils'
 import { useCart } from './CartContext'
 import { isWithinShift } from '@/lib/business-hours'
 import { getShopperFeeByItemCount, getShopperFeeExplanation } from '@/lib/shopper-fee'
+import { formatCurrency } from '@/lib/currency'
 
 const LocationPickerMap = dynamic(() => import('./LocationPickerMap'), { 
   ssr: false, 
@@ -743,7 +744,7 @@ export function UnifiedOrderDialog({
                       <div className="flex flex-col gap-1">
                         <div className="flex justify-between items-center">
                           <span className="font-bold text-green-900">{t('Delivery Fee', 'رسوم التوصيل')}</span>
-                          <span className="font-black text-green-700 text-lg">{distanceFee} {t('ILS', 'شيكل')}</span>
+                          <span className="font-black text-green-700 text-lg">{Number(distanceFee).toFixed(2)} {formatCurrency(items[0]?.currency ?? 'ILS')}</span>
                         </div>
                         <span className="text-xs font-medium text-green-600">
                           {t('Distance:', 'المسافة:')} ~{distanceKm.toFixed(1)} {t('km', 'كم')}

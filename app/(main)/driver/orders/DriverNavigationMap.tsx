@@ -24,7 +24,7 @@ if (typeof window !== 'undefined') {
 const DRIVER_ICON_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>`
 
 const driverIcon = typeof window !== 'undefined' ? L.divIcon({
-  html: `<div style="width:48px;height:48px;background:#2563eb;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 12px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;">${DRIVER_ICON_SVG}</div>`,
+  html: `<div style="width:48px;height:48px;background:#ef9f20;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 12px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;">${DRIVER_ICON_SVG}</div>`,
   className: '',
   iconSize: [48, 48],
   iconAnchor: [24, 24],
@@ -64,7 +64,7 @@ function makeDestIcon(label?: string, logoUrl?: string) {
   return L.divIcon({
     html: `<div style="position:relative;display:flex;flex-direction:column;align-items:center;">
       ${labelBadge}
-      <div style="width:40px;height:40px;background:#dc2626;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;">
+      <div style="width:40px;height:40px;background:#aa1f23;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
       </div>
     </div>`,
@@ -371,13 +371,15 @@ export default function DriverNavigationMap({
             'max(16px, calc(env(safe-area-inset-top, 0px) + 12px))',
         }}
       >
-        <Loader2 className="w-12 h-12 animate-spin mb-4 text-emerald-500" />
+        <Loader2 className="w-12 h-12 animate-spin mb-4 text-[#ef9f20]" />
         <p className="font-bold text-lg">
           {t('Locating driver...', 'جاري تحديد موقع السائق...')}
         </p>
         <button
+          type="button"
           onClick={onMinimize}
-          className="mt-6 text-slate-400 hover:text-white font-semibold text-base px-6 py-3 rounded-2xl transition-colors"
+          onPointerDown={(e) => { if (e.pointerType === 'touch') { e.preventDefault(); onMinimize() } }}
+          className="mt-6 text-slate-400 hover:text-white font-semibold text-base px-6 py-3 rounded-2xl transition-colors touch-manipulation"
         >
           {t('Close', 'إغلاق')}
         </button>
@@ -412,7 +414,7 @@ export default function DriverNavigationMap({
           style={headerStyle}
         >
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 shrink-0">
+          <div className="w-10 h-10 rounded-full bg-[#ef9f20]/20 border border-[#aa1f23]/50 flex items-center justify-center text-[#ef9f20] shrink-0">
             <Navigation className="w-5 h-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -512,14 +514,14 @@ export default function DriverNavigationMap({
                       className="overflow-hidden flex items-stretch shrink-0"
                     >
                       <div className="w-px bg-slate-700/40 my-2" />
-                      <div className="px-3.5 py-2.5 text-center bg-emerald-500/5">
+                      <div className="px-3.5 py-2.5 text-center bg-[#ef9f20]/10">
                         <div className="flex items-center justify-center gap-1">
-                          <Heart className="w-3 h-3 text-emerald-400" />
-                          <p className="text-[9px] text-emerald-400/70 font-bold uppercase leading-none">
+                          <Heart className="w-3 h-3 text-[#ef9f20]" />
+                          <p className="text-[9px] text-[#ef9f20]/80 font-bold uppercase leading-none">
                             {t('TIP', 'إكرامية')}
                           </p>
                         </div>
-                        <p className="text-lg font-black text-emerald-400 tabular-nums leading-tight mt-0.5">
+                        <p className="text-lg font-black text-[#ef9f20] tabular-nums leading-tight mt-0.5">
                           +{(orderInfo.tipAmount ?? 0).toFixed(0)}
                         </p>
                       </div>
@@ -599,7 +601,7 @@ export default function DriverNavigationMap({
               />
               <Polyline
                 positions={route}
-                color="#3b82f6"
+                color="#ef9f20"
                 weight={6}
                 opacity={1}
               />

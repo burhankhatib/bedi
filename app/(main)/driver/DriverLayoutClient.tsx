@@ -1,15 +1,16 @@
 'use client'
 
-import { useState, useEffect, useRef, startTransition } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useClerk } from '@clerk/nextjs'
-import { Menu, Package, BarChart3, User, History, LogOut, Home, ArrowLeft } from 'lucide-react'
+import { Menu, Package, BarChart3, User, History, LogOut, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useLanguage } from '@/components/LanguageContext'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { DriverDashboardNav } from './DriverDashboardNav'
+import { DriverPullToRefresh } from './DriverPullToRefresh'
 import { DriverPushSetup } from './DriverPushSetup'
 import { DriverLocationSetup } from './DriverLocationSetup'
 import { DriverPushProvider } from './DriverPushContext'
@@ -150,7 +151,7 @@ export function DriverLayoutClient({
             >
               <Menu className="size-6" />
             </Button>
-            <Link href="/driver" className="font-black text-lg sm:text-xl text-white hover:text-slate-200 tracking-wide">
+            <Link href="/driver/orders" className="font-black text-lg sm:text-xl text-white hover:text-slate-200 tracking-wide">
               Bedi Driver
             </Link>
             <Link
@@ -198,40 +199,9 @@ export function DriverLayoutClient({
 
               <div className="my-2 border-t border-slate-800/60 mx-2"></div>
 
-              {!hasNoProfileYet && (
-                <Link
-                  href="/driver"
-                  className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-colors ${
-                    pathname === '/driver' 
-                      ? 'bg-emerald-500/10 text-emerald-400' 
-                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                  }`}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  <Home className={`size-6 ${pathname === '/driver' ? 'text-emerald-400' : 'text-slate-400'}`} />
-                  <span className="font-medium text-[15px]">{t('Home', 'الرئيسية')}</span>
-                </Link>
-              )}
-              
               {(hasNoProfileYet ? NAV_ITEMS.filter((i) => i.href === '/driver/profile') : NAV_ITEMS).map((item) => {
                 const isActive = pathname === item.href
-                const isHistoryFromOrders = item.href === '/driver/history' && pathname === '/driver/orders'
-                return isHistoryFromOrders ? (
-                  <button
-                    key={item.href}
-                    type="button"
-                    className="flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-colors w-full text-left text-slate-300 hover:bg-slate-800/80 hover:text-white"
-                    onClick={() => {
-                      setMenuOpen(false)
-                      startTransition(() => {
-                        router.push(item.href)
-                      })
-                    }}
-                  >
-                    <item.icon className="size-6 text-slate-400" />
-                    <span className="font-medium text-[15px]">{navLabel(item)}</span>
-                  </button>
-                ) : (
+                return (
                   <Link
                     key={item.href}
                     href={item.href}
@@ -273,7 +243,9 @@ export function DriverLayoutClient({
           </>
         )}
         <DriverOrdersGate>
-          {children}
+          <DriverPullToRefresh>
+            {children}
+          </DriverPullToRefresh>
         </DriverOrdersGate>
         <DriverPushStatusCard />
       </main>
