@@ -24,7 +24,7 @@ export async function DELETE(
     // Fetch all document IDs that reference this tenant (children first, then tenant)
     const [
       restaurantInfoIds,
-      categoryIds,
+      categoryDocs,
       productIds,
       tenantDriverIds,
       orderIds,
@@ -35,7 +35,10 @@ export async function DELETE(
       tableServiceRequestIds,
     ] = await Promise.all([
       client.fetch<string[]>(`*[_type == "restaurantInfo" && site._ref == $siteId]._id`, { siteId }),
-      client.fetch<string[]>(`*[_type == "category" && site._ref == $siteId]._id`, { siteId }),
+      client.fetch<{ _id: string; parentCategoryRef?: string }[]>(
+        `*[_type == "category" && site._ref == $siteId]{ _id, "parentCategoryRef": parentCategory._ref }`,
+        { siteId }
+      ),
       client.fetch<string[]>(`*[_type == "product" && site._ref == $siteId]._id`, { siteId }),
       client.fetch<string[]>(`*[_type == "tenantDriver" && site._ref == $siteId]._id`, { siteId }),
       client.fetch<string[]>(`*[_type == "order" && site._ref == $siteId]._id`, { siteId }),
@@ -46,9 +49,21 @@ export async function DELETE(
       client.fetch<string[]>(`*[_type == "tableServiceRequest" && site._ref == $siteId]._id`, { siteId }),
     ])
 
+    // Sort categories so child categories (with parentCategory in our set) are deleted before parents
+    const categoryIdSet = new Set((categoryDocs ?? []).map((c) => c._id))
+    const sortedCategoryIds = (categoryDocs ?? [])
+      .sort((a, b) => {
+        const aHasParentInSet = a.parentCategoryRef != null && categoryIdSet.has(a.parentCategoryRef)
+        const bHasParentInSet = b.parentCategoryRef != null && categoryIdSet.has(b.parentCategoryRef)
+        if (aHasParentInSet && !bHasParentInSet) return -1 // a (child) before b (parent)
+        if (!aHasParentInSet && bHasParentInSet) return 1 // b (child) before a (parent)
+        return 0
+      })
+      .map((c) => c._id)
+
     const idsToDelete = [
       ...(restaurantInfoIds ?? []),
-      ...(categoryIds ?? []),
+      ...sortedCategoryIds,
       ...(productIds ?? []),
       ...(tenantDriverIds ?? []),
       ...(orderIds ?? []),
@@ -78,6 +93,47 @@ export async function DELETE(
       console.warn('[DELETE tenant] userPushSubscription patch failed (continuing):', e)
     }
 
+    // Unset driver.site for drivers that reference this tenant (legacy tenant-created drivers)
+    try {
+      const driversWithSite = await client.fetch<string[]>(
+        `*[_type == "driver" && site._ref == $siteId]._id`,
+        { siteId }
+      )
+      for (const driverId of driversWithSite ?? []) {
+        await writeClient.patch(driverId).unset(['site']).commit()
+      }
+    } catch (e) {
+      console.warn('[DELETE tenant] driver site unset failed (continuing):', e)
+    }
+
+    // Unset heroBanner.tenant for banners that link to this tenant
+    try {
+      const bannersWithTenant = await client.fetch<string[]>(
+        `*[_type == "heroBanner" && tenant._ref == $siteId]._id`,
+        { siteId }
+      )
+      for (const bannerId of bannersWithTenant ?? []) {
+        await writeClient.patch(bannerId).unset(['tenant']).commit()
+      }
+    } catch (e) {
+      console.warn('[DELETE tenant] heroBanner tenant unset failed (continuing):', e)
+    }
+
+    // Unset report.order for reports that reference orders we're about to delete (Sanity blocks deletes when strongly referenced)
+    if ((orderIds ?? []).length > 0) {
+      try {
+        const reportsToPatch = await client.fetch<{ _id: string }[]>(
+          `*[_type == "report" && order._ref in $orderIds]{ _id }`,
+          { orderIds: orderIds ?? [] }
+        )
+        for (const report of reportsToPatch ?? []) {
+          await writeClient.patch(report._id).unset(['order']).commit()
+        }
+      } catch (e) {
+        console.warn('[DELETE tenant] report order unset failed (continuing):', e)
+      }
+    }
+
     // Delete in a single transaction (Sanity supports multiple mutations)
     const tx = writeClient.transaction()
     for (const id of idsToDelete) {
@@ -88,7 +144,8 @@ export async function DELETE(
     return NextResponse.json({ ok: true, deleted: idsToDelete.length })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    console.error('[DELETE tenant]', err)
+    const stack = err instanceof Error ? err.stack : undefined
+    console.error('[DELETE tenant]', message, stack)
     return NextResponse.json(
       {
         error: 'Failed to delete business. Please try again or contact support.',

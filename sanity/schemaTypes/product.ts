@@ -150,6 +150,12 @@ export const productType = defineType({
       description: 'Fallback temporary URL before image is uploaded to assets.',
     }),
     defineField({
+      name: 'sourceUrl',
+      title: 'Source URL (optional)',
+      type: 'url',
+      description: 'Original product page URL when imported from external source (e.g. Yummy.ps, Talabat).',
+    }),
+    defineField({
       name: 'additionalImages',
       title: 'Additional Images',
       type: 'array',

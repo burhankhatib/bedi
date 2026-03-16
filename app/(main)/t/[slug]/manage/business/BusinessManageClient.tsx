@@ -322,7 +322,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
   }, [])
 
   const api = (path: string, options?: RequestInit) =>
-    fetch(`/api/tenants/${slug}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } })
+    fetch(`/api/tenants/${slug}${path}`, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } })
 
   // Load countries once (registration-only: Israel & Palestine for now)
   useEffect(() => {
@@ -1236,7 +1236,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                 <span className="text-sm text-slate-500 shrink-0">/t/</span>
                 <Input
                   value={form.slug}
-                  onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') }))}
+                  onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-') }))}
                   placeholder="my-restaurant"
                   className="flex-1 min-w-[140px] h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base font-mono"
                 />
