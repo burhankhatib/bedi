@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Store, MapPin, Navigation, Flag, Wallet, Receipt, Truck,
   User, Smartphone, CircleAlert, RefreshCw, ArrowDown, History,
-  ChevronDown, Package, Calculator, Phone, Trash2, ShieldCheck, Heart,
+  ChevronDown, Package, Calculator, Phone, Trash2, ShieldCheck, Heart, X,
 } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
@@ -75,7 +75,9 @@ type DriverOrder = {
   requiresPersonalShopper?: boolean
   shopperFee?: number
   items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
-  customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
+  customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | 'driver_declined' | null
+  customerRequestedItemChanges?: boolean
+  customerItemChangeSummary?: Array<{ type?: string; fromName?: string; toName?: string; fromQuantity?: number; toQuantity?: number; note?: string }>
   /** True when business manually assigned and driver has not confirmed yet. */
   needsConfirmation?: boolean
 }
@@ -221,7 +223,9 @@ function DriverOrdersV2Content() {
   const [additionalProductSearchByOrder, setAdditionalProductSearchByOrder] = useState<Record<string, string>>({})
   const [additionalProductLoadingByOrder, setAdditionalProductLoadingByOrder] = useState<Record<string, boolean>>({})
   const [customerApprovedModalDismissed, setCustomerApprovedModalDismissed] = useState<Set<string>>(new Set())
+  const [customerEditResponseSending, setCustomerEditResponseSending] = useState<string | null>(null)
   const [expandedDetailsByOrder, setExpandedDetailsByOrder] = useState<Record<string, Set<number>>>({})
+  const [addProductFormOpenByOrder, setAddProductFormOpenByOrder] = useState<Record<string, boolean>>({})
   const [pendingPickupManualConfirmOrderId, setPendingPickupManualConfirmOrderId] = useState<string | null>(null)
 
   const [driverLat, setDriverLat] = useState<number | null>(null)
@@ -690,6 +694,37 @@ function DriverOrdersV2Content() {
     await pickUp(pendingPickupManualConfirmOrderId, true)
   }
 
+  const respondToCustomerEdit = async (orderId: string, action: 'approve' | 'decline') => {
+    if (customerEditResponseSending) return
+    setCustomerEditResponseSending(orderId)
+    try {
+      const res = await fetch(`/api/driver/orders/${orderId}/customer-edit-response`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      showToast(
+        action === 'approve'
+          ? t('Customer changes approved.', 'تمت الموافقة على تعديلات العميل.')
+          : t('Customer changes declined.', 'تم رفض تعديلات العميل.'),
+        action === 'approve'
+          ? t('Customer changes approved.', 'تمت الموافقة على تعديلات العميل.')
+          : t('Customer changes declined.', 'تم رفض تعديلات العميل.'),
+        action === 'approve' ? 'success' : 'info'
+      )
+      fetchOrders()
+    } catch {
+      showToast(
+        t('Could not submit response. Try again.', 'تعذر إرسال الرد. حاول مرة أخرى.'),
+        t('Could not submit response. Try again.', 'تعذر إرسال الرد. حاول مرة أخرى.'),
+        'error'
+      )
+    } finally {
+      setCustomerEditResponseSending(null)
+    }
+  }
+
   const complete = async (orderId: string) => {
     const order = myDeliveries.find((x) => x.orderId === orderId)
     if (!order) return
@@ -1009,6 +1044,7 @@ function DriverOrdersV2Content() {
     setAdditionalProductSelectionByOrder((prev) => ({ ...prev, [orderId]: '' }))
     setAdditionalProductSearchByOrder((prev) => ({ ...prev, [orderId]: '' }))
     setAdditionalProductsByOrder((prev) => ({ ...prev, [orderId]: [] }))
+    setAddProductFormOpenByOrder((prev) => ({ ...prev, [orderId]: false }))
   }
 
   const saveDriverItemChanges = async (order: DriverOrder) => {
@@ -1292,66 +1328,85 @@ function DriverOrdersV2Content() {
             </div>
           )
         })}
-        <div className="rounded-2xl border-2 border-emerald-500/30 bg-emerald-950/20 p-4 space-y-4">
-          <p className="text-base font-bold text-emerald-200">
-            {t('Add missing item', 'إضافة صنف ناقص')}
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              value={additionalProductSearchByOrder[order.orderId] || ''}
-              onChange={(e) => setAdditionalProductSearchByOrder((prev) => ({ ...prev, [order.orderId]: e.target.value }))}
-              placeholder={t('Search business products', 'ابحث في أصناف المتجر')}
-              className="flex-1 min-h-[48px] rounded-2xl border-2 border-slate-600 bg-slate-900 px-4 text-base text-slate-100 placeholder:text-slate-500"
-            />
-            <button
-              type="button"
-              onClick={() => void loadAdditionalProducts(order.orderId, additionalProductSearchByOrder[order.orderId] || '')}
-              disabled={additionalProductLoadingByOrder[order.orderId] === true}
-              className="min-h-[48px] min-w-[120px] rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base disabled:opacity-50"
-            >
-              {additionalProductLoadingByOrder[order.orderId] ? t('Searching...', 'جاري...') : t('Search', 'بحث')}
-            </button>
-          </div>
-          {(additionalProductsByOrder[order.orderId] || []).length > 0 ? (
-            <div className="max-h-56 space-y-2 overflow-y-auto">
-              {(additionalProductsByOrder[order.orderId] || []).map((p) => {
-                const selected = additionalProductSelectionByOrder[order.orderId] === p._id
-                return (
-                  <button
-                    key={`add-${p._id}`}
-                    type="button"
-                    onClick={() => setAdditionalProductSelectionByOrder((prev) => ({ ...prev, [order.orderId]: p._id }))}
-                    className={`w-full flex items-center gap-4 p-3 rounded-2xl border-2 text-left transition-colors ${selected ? 'border-emerald-500 bg-emerald-500/20' : 'border-slate-600 bg-slate-800/80 hover:bg-slate-700/80'}`}
-                  >
-                    <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-slate-700">
-                      {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-500"><Package className="w-6 h-6" /></div>}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-bold text-slate-100 truncate">{lang === 'ar' ? p.title_ar : p.title_en}</p>
-                      <p className="text-emerald-400 font-bold">{p.price.toFixed(2)} {fmtCurrency(p.currency)}</p>
-                    </div>
-                    {selected && <span className="text-emerald-400 font-bold shrink-0">✓</span>}
-                  </button>
-                )
-              })}
-            </div>
-          ) : (
-            <p className="text-slate-400 text-sm">
-              {additionalProductLoadingByOrder[order.orderId] ? t('Searching...', 'جاري البحث...') : t('Search above to add.', 'ابحث أعلاه للإضافة.')}
-            </p>
-          )}
+        {!addProductFormOpenByOrder[order.orderId] ? (
           <button
             type="button"
-            onClick={() => addSelectedProductToOrder(order.orderId)}
-            disabled={!additionalProductSelectionByOrder[order.orderId]}
-            className="w-full min-h-[48px] rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base disabled:opacity-50"
+            onClick={() => setAddProductFormOpenByOrder((prev) => ({ ...prev, [order.orderId]: true }))}
+            className="w-full min-h-[52px] rounded-2xl border-2 border-dashed border-emerald-500/50 bg-emerald-950/20 hover:bg-emerald-950/40 text-emerald-300 font-bold text-base flex items-center justify-center gap-2 transition-colors"
           >
-            ➕ {t('Add selected item', 'إضافة الصنف المحدد')}
+            <Package className="w-5 h-5 shrink-0" />
+            {t('Add a product', 'إضافة صنف')}
           </button>
-          <p className="text-xs text-slate-400">
-            {t('Customer must approve changes.', 'العميل يجب أن يوافق على التغييرات.')}
-          </p>
-        </div>
+        ) : (
+          <div className="rounded-2xl border-2 border-emerald-500/30 bg-emerald-950/20 p-4 space-y-4 relative">
+            <button
+              type="button"
+              onClick={() => setAddProductFormOpenByOrder((prev) => ({ ...prev, [order.orderId]: false }))}
+              className="absolute top-3 end-3 rtl:end-auto rtl:start-3 w-8 h-8 rounded-full bg-slate-700/80 hover:bg-slate-600 text-slate-300 hover:text-white flex items-center justify-center transition-colors"
+              aria-label={t('Close', 'إغلاق')}
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <p className="text-base font-bold text-emerald-200 pe-10 rtl:pe-0 rtl:ps-10">
+              {t('Add missing item', 'إضافة صنف ناقص')}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                value={additionalProductSearchByOrder[order.orderId] || ''}
+                onChange={(e) => setAdditionalProductSearchByOrder((prev) => ({ ...prev, [order.orderId]: e.target.value }))}
+                placeholder={t('Search business products', 'ابحث في أصناف المتجر')}
+                className="flex-1 min-h-[48px] rounded-2xl border-2 border-slate-600 bg-slate-900 px-4 text-base text-slate-100 placeholder:text-slate-500"
+              />
+              <button
+                type="button"
+                onClick={() => void loadAdditionalProducts(order.orderId, additionalProductSearchByOrder[order.orderId] || '')}
+                disabled={additionalProductLoadingByOrder[order.orderId] === true}
+                className="min-h-[48px] min-w-[120px] rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base disabled:opacity-50"
+              >
+                {additionalProductLoadingByOrder[order.orderId] ? t('Searching...', 'جاري...') : t('Search', 'بحث')}
+              </button>
+            </div>
+            {(additionalProductsByOrder[order.orderId] || []).length > 0 ? (
+              <div className="max-h-56 space-y-2 overflow-y-auto">
+                {(additionalProductsByOrder[order.orderId] || []).map((p) => {
+                  const selected = additionalProductSelectionByOrder[order.orderId] === p._id
+                  return (
+                    <button
+                      key={`add-${p._id}`}
+                      type="button"
+                      onClick={() => setAdditionalProductSelectionByOrder((prev) => ({ ...prev, [order.orderId]: p._id }))}
+                      className={`w-full flex items-center gap-4 p-3 rounded-2xl border-2 text-left transition-colors ${selected ? 'border-emerald-500 bg-emerald-500/20' : 'border-slate-600 bg-slate-800/80 hover:bg-slate-700/80'}`}
+                    >
+                      <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-slate-700">
+                        {p.imageUrl ? <img src={p.imageUrl} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-500"><Package className="w-6 h-6" /></div>}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-slate-100 truncate">{lang === 'ar' ? p.title_ar : p.title_en}</p>
+                        <p className="text-emerald-400 font-bold">{p.price.toFixed(2)} {fmtCurrency(p.currency)}</p>
+                      </div>
+                      {selected && <span className="text-emerald-400 font-bold shrink-0">✓</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-slate-400 text-sm">
+                {additionalProductLoadingByOrder[order.orderId] ? t('Searching...', 'جاري البحث...') : t('Search above to add.', 'ابحث أعلاه للإضافة.')}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => addSelectedProductToOrder(order.orderId)}
+              disabled={!additionalProductSelectionByOrder[order.orderId]}
+              className="w-full min-h-[48px] rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base disabled:opacity-50"
+            >
+              ➕ {t('Add selected item', 'إضافة الصنف المحدد')}
+            </button>
+            <p className="text-xs text-slate-400">
+              {t('Customer must approve changes.', 'العميل يجب أن يوافق على التغييرات.')}
+            </p>
+          </div>
+        )}
         <button
           type="button"
           onClick={() => saveDriverItemChanges(order)}
@@ -1658,7 +1713,55 @@ function DriverOrdersV2Content() {
               </div>
             )}
 
-            {activeOrder.customerItemChangeStatus && activeOrder.customerItemChangeStatus !== 'approved' && (
+            {/* Customer updated the order — driver must Approve or Decline */}
+            {activeOrder.customerRequestedItemChanges && activeOrder.customerItemChangeStatus === 'pending' && (
+              <div className="rounded-2xl border-2 border-indigo-500/40 bg-indigo-950/30 p-4 mb-4">
+                <p className="text-indigo-200 font-bold text-base mb-2">
+                  {t('Customer updated the order', 'العميل حدّث الطلب')}
+                </p>
+                <p className="text-indigo-300/90 text-sm mb-3">
+                  {t('Review the changes below and approve or decline.', 'راجع التغييرات أدناه ووافق أو ارفض.')}
+                </p>
+                {(activeOrder.customerItemChangeSummary ?? []).length > 0 && (
+                  <ul className="space-y-1.5 mb-4 text-sm text-slate-200">
+                    {(activeOrder.customerItemChangeSummary ?? []).map((ch, idx) => (
+                      <li key={idx} className="flex flex-wrap gap-x-2">
+                        <span className="font-semibold text-amber-300">
+                          {ch.type === 'removed' && t('Removed', 'تمت الإزالة')}
+                          {ch.type === 'replaced' && t('Replaced', 'تم الاستبدال')}
+                          {ch.type === 'edited' && t('Updated', 'تم التحديث')}
+                          {ch.type === 'not_picked' && t('Not picked', 'لم يتم التقاطه')}
+                          {': '}
+                        </span>
+                        {ch.fromName && <span>{ch.fromName}</span>}
+                        {ch.toName && <span>→ {ch.toName}</span>}
+                        {ch.note && <span className="text-slate-400">({ch.note})</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => respondToCustomerEdit(activeOrder.orderId, 'approve')}
+                    disabled={customerEditResponseSending === activeOrder.orderId}
+                    className="flex-1 min-h-[48px] rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-base disabled:opacity-60"
+                  >
+                    {customerEditResponseSending === activeOrder.orderId ? t('Sending...', 'جاري...') : t('Approve', 'موافق')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => respondToCustomerEdit(activeOrder.orderId, 'decline')}
+                    disabled={customerEditResponseSending === activeOrder.orderId}
+                    className="flex-1 min-h-[48px] rounded-2xl border-2 border-slate-500 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-base disabled:opacity-60"
+                  >
+                    {t('Decline', 'رفض')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeOrder.customerItemChangeStatus && activeOrder.customerItemChangeStatus !== 'approved' && !activeOrder.customerRequestedItemChanges && (
               <div className={`rounded-2xl border p-3 mb-4 text-sm ${
                 activeOrder.customerItemChangeStatus === 'pending'
                   ? 'border-amber-500/40 bg-amber-950/20 text-amber-200'
@@ -1666,6 +1769,7 @@ function DriverOrdersV2Content() {
               }`}>
                 {activeOrder.customerItemChangeStatus === 'pending' && t('Waiting for customer confirmation on latest item changes.', 'بانتظار تأكيد العميل على آخر تغييرات الأصناف.')}
                 {activeOrder.customerItemChangeStatus === 'contact_requested' && t('Customer requested contact for alternatives.', 'العميل طلب التواصل بخصوص البدائل.')}
+                {activeOrder.customerItemChangeStatus === 'driver_declined' && t('You declined the customer\'s edit.', 'رفضت تعديلات العميل.')}
               </div>
             )}
             {activeOrder.customerItemChangeStatus === 'approved' && !customerApprovedModalDismissed.has(activeOrder.orderId) && (
@@ -1730,52 +1834,6 @@ function DriverOrdersV2Content() {
                   </button>
                 )}
                 {renderOrderDetailsPanel(activeOrder)}
-
-                {/* Items checklist for Personal Shopper orders */}
-                {activeOrder.requiresPersonalShopper && activeOrder.items && activeOrder.items.length > 0 && (
-                  <div className="rounded-3xl border-2 border-amber-500/40 bg-amber-950/30 p-4 mb-4">
-                    <p className="text-amber-200 font-bold text-sm mb-3 flex items-center gap-2">
-                      🛒 {t('Collect these items', 'اجمع هذه الأغراض')}
-                    </p>
-                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
-                        ✅ {t('Picked', 'تم التقاطه')}: {activeOrder.items.filter((item) => item.isPicked !== false).length}
-                      </span>
-                      <span className="rounded-full bg-rose-500/15 border border-rose-500/30 px-2.5 py-1 text-[11px] font-bold text-rose-300">
-                        ❌ {t('Not picked', 'غير ملتقط')}: {activeOrder.items.filter((item) => item.isPicked === false).length}
-                      </span>
-                    </div>
-                    <ul className="space-y-2">
-                      {activeOrder.items.map((item, idx) => (
-                        <li
-                          key={idx}
-                          className={`flex items-start gap-2 text-sm font-medium border-b border-amber-700/30 pb-2 last:border-0 last:pb-0 ${item.isPicked === false ? 'text-rose-300' : 'text-slate-200'}`}
-                        >
-                          <span className="shrink-0 w-5 h-5 rounded border-2 border-amber-400/60 flex items-center justify-center text-amber-400 text-xs font-black">
-                            {item.quantity ?? 1}
-                          </span>
-                          <span className="flex-1">
-                            <span className={item.isPicked === false ? 'line-through' : ''}>
-                              {item.productName || t('Item', 'صنف')}
-                            </span>
-                            {item.isPicked === false && (
-                              <span className="text-rose-300 block text-xs mt-0.5">
-                                ❌ {t('Not picked from store', 'لم يتم التقاطه من المتجر')}
-                                {item.notPickedReason ? ` — ${item.notPickedReason}` : ''}
-                              </span>
-                            )}
-                            {item.notes && (
-                              <span className="text-amber-300/90 block text-xs mt-0.5">📝 {item.notes}</span>
-                            )}
-                            {item.addOns && (
-                              <span className="text-slate-400 text-xs block">+ {item.addOns}</span>
-                            )}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
 
                 {(activeOrder.customerName || activeOrder.customerPhone) && (
                   <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 p-4 mb-4">
@@ -1861,7 +1919,7 @@ function DriverOrdersV2Content() {
                   </div>
                 </div>
 
-                {/* Business contact (collapsible) + Order Details shortcut */}
+                {/* Business contact (collapsible) */}
                 <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 overflow-hidden mb-4">
                   <div className="flex items-center gap-2 px-4 py-3">
                     <button
@@ -1875,16 +1933,6 @@ function DriverOrdersV2Content() {
                       </span>
                       <ChevronDown className={`h-4 w-4 text-slate-500 shrink-0 transition-transform duration-200 ${showBizContact ? 'rotate-180' : ''}`} />
                     </button>
-                    {(activeOrder.items?.length ?? 0) > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => openOrderDetails(activeOrder)}
-                        className="shrink-0 rounded-xl bg-amber-500/90 hover:bg-amber-500 text-slate-950 font-bold px-3 py-2 text-xs flex items-center gap-1.5"
-                      >
-                        <Receipt className="h-4 w-4" />
-                        {t('Order Details', 'تفاصيل الطلب')}
-                      </button>
-                    )}
                   </div>
                   {showBizContact && activeOrder.businessWhatsapp && (
                     <div className="px-4 pb-3 flex flex-wrap items-center gap-2">
@@ -2454,52 +2502,6 @@ function DriverOrdersV2Content() {
                   )}
                   {renderOrderDetailsPanel(o)}
 
-                  {/* ── Items checklist (Personal Shopper) ─────────────────── */}
-                  {o.requiresPersonalShopper && o.items && o.items.length > 0 && (
-                    <div className="rounded-3xl border-2 border-amber-500/40 bg-amber-950/30 p-4 mb-4">
-                      <p className="text-amber-200 font-bold text-sm mb-3 flex items-center gap-2">
-                        🛒 {t('Collect these items', 'اجمع هذه الأغراض')}
-                      </p>
-                      <div className="mb-3 flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
-                          ✅ {t('Picked', 'تم التقاطه')}: {o.items.filter((item) => item.isPicked !== false).length}
-                        </span>
-                        <span className="rounded-full bg-rose-500/15 border border-rose-500/30 px-2.5 py-1 text-[11px] font-bold text-rose-300">
-                          ❌ {t('Not picked', 'غير ملتقط')}: {o.items.filter((item) => item.isPicked === false).length}
-                        </span>
-                      </div>
-                      <ul className="space-y-2">
-                        {o.items.map((item, idx) => (
-                          <li
-                            key={idx}
-                            className={`flex items-start gap-2 text-sm font-medium border-b border-amber-700/30 pb-2 last:border-0 last:pb-0 ${item.isPicked === false ? 'text-rose-300' : 'text-slate-200'}`}
-                          >
-                            <span className="shrink-0 w-5 h-5 rounded border-2 border-amber-400/60 flex items-center justify-center text-amber-400 text-xs font-black">
-                              {item.quantity ?? 1}
-                            </span>
-                            <span className="flex-1">
-                              <span className={item.isPicked === false ? 'line-through' : ''}>
-                                {item.productName || t('Item', 'صنف')}
-                              </span>
-                              {item.isPicked === false && (
-                                <span className="text-rose-300 block text-xs mt-0.5">
-                                  ❌ {t('Not picked from store', 'لم يتم التقاطه من المتجر')}
-                                  {item.notPickedReason ? ` — ${item.notPickedReason}` : ''}
-                                </span>
-                              )}
-                              {item.notes && (
-                                <span className="text-amber-300/90 block text-xs mt-0.5">📝 {item.notes}</span>
-                              )}
-                              {item.addOns && (
-                                <span className="text-slate-400 text-xs block">+ {item.addOns}</span>
-                              )}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
                   {/* ── Financial Summary ─────────────────── */}
                   <div className="rounded-3xl border border-slate-700/60 bg-slate-800/30 p-4 mb-4 space-y-3">
                     {/* Pay to Business */}
@@ -2572,16 +2574,6 @@ function DriverOrdersV2Content() {
                           {o.businessName}
                         </p>
                       </div>
-                      {(o.items?.length ?? 0) > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => openOrderDetails(o)}
-                          className="shrink-0 rounded-xl bg-amber-500/90 hover:bg-amber-500 text-slate-950 font-bold px-3 py-2 text-xs flex items-center gap-1.5"
-                        >
-                          <Receipt className="h-4 w-4" />
-                          {t('Order Details', 'تفاصيل الطلب')}
-                        </button>
-                      )}
                     </div>
                     <p className="text-slate-300 text-[15px] leading-relaxed ml-[52px] rtl:mr-[52px] rtl:ml-0">
                       {lang === 'ar' && (o.businessAddressAr || '').trim()

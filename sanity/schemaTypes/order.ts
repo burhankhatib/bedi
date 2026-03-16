@@ -458,9 +458,10 @@ export const orderType = defineType({
           { title: 'Pending customer confirmation', value: 'pending' },
           { title: 'Customer approved', value: 'approved' },
           { title: 'Customer requested contact', value: 'contact_requested' },
+          { title: 'Driver declined (customer edit)', value: 'driver_declined' },
         ],
       },
-      description: 'Tracks customer response after driver updates/removes/replaces delivery items.',
+      description: 'Tracks customer/driver response after item changes (driver or customer initiated).',
       hidden: ({ parent }) => parent?.orderType !== 'delivery',
     }),
     defineField({
@@ -497,6 +498,13 @@ export const orderType = defineType({
       title: 'Previous total amount before item changes',
       type: 'number',
       description: 'Snapshot before latest driver item changes.',
+      hidden: ({ parent }) => parent?.orderType !== 'delivery',
+    }),
+    defineField({
+      name: 'customerRequestedItemChanges',
+      title: 'Customer requested item changes',
+      type: 'boolean',
+      description: 'When true, the pending item change was submitted by the customer; driver must approve or decline.',
       hidden: ({ parent }) => parent?.orderType !== 'delivery',
     }),
     defineField({

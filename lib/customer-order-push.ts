@@ -21,6 +21,7 @@ const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
   'out-for-delivery': { en: 'Driver on the way to you', ar: 'السائق في الطريق إليك' },
   'driver-arrived': { en: 'Driver has arrived!', ar: 'السائق وصل!' },
   items_changed: { en: 'Order items updated — review required', ar: 'تم تحديث عناصر الطلب — يلزم المراجعة' },
+  items_change_declined: { en: 'Driver declined your order changes', ar: 'السائق رفض تعديلات الطلب' },
   completed: { en: 'Completed', ar: 'مكتمل' },
   served: { en: 'Served', ar: 'تم التقديم' },
   cancelled: { en: 'Cancelled', ar: 'ملغى' },

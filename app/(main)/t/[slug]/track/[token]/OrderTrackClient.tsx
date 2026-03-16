@@ -32,6 +32,10 @@ import {
   ShieldCheck,
   X,
   AlertTriangle,
+  Pencil,
+  Plus,
+  Minus,
+  Search,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -62,7 +66,7 @@ type TrackData = {
     deliveryAddress?: string
     deliveryFee?: number
     shopperFee?: number
-    items?: Array<{ productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
+    items?: Array<{ _key?: string; productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
     subtotal?: number
     totalAmount?: number
     currency?: string
@@ -89,7 +93,8 @@ type TrackData = {
       previousScheduledFor: string
       changedAt: string
     }>
-    customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
+    customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | 'driver_declined' | null
+    customerRequestedItemChanges?: boolean
     customerItemChangeRequestedAt?: string | null
     customerItemChangeResolvedAt?: string | null
     customerItemChangeResponseNote?: string | null
@@ -241,7 +246,9 @@ function DeliveryETABox({
     order.status === 'out-for-delivery' || order.status === 'driver_on_the_way'
   const isCompleted = order.status === 'completed'
   const isOutForDelivery = order.status === 'out-for-delivery'
-  const showBox = (isActive || isCompleted) && order.orderType === 'delivery'
+  const isDriverToStore = order.status === 'driver_on_the_way'
+  // Only show this box when driver is out-for-delivery or completed — not when driver is on the way to store (use top blue header only).
+  const showBox = (order.status === 'out-for-delivery' || isCompleted) && order.orderType === 'delivery'
   const driverArrived = !!order.driverArrivedAt
   const tipWasSentToDriver = !!order.tipSentToDriver
   const tipIncluded = !!order.tipIncludedInTotal
@@ -418,17 +425,15 @@ function DeliveryETABox({
   const showTipExpiredPrompt = countdownExpired && tipWasSentToDriver && tipEnabled &&
     order.tipConfirmedAfterCountdown == null
 
-  const isDriverToStore = order.status === 'driver_on_the_way'
-
   return (
     <div className="mt-6 px-4">
-      <div className="rounded-3xl overflow-hidden shadow-md border border-purple-200/80">
+      <div className="rounded-3xl overflow-hidden shadow-md border border-blue-200/80">
 
-        {/* ═══ SECTION 1: COUNTDOWN (Purple header) ═══ */}
+        {/* ═══ SECTION 1: COUNTDOWN (Blue header when active, emerald when arrived) ═══ */}
         <div className={`px-5 pt-5 pb-4 text-white relative overflow-hidden ${
           driverArrived
             ? 'bg-gradient-to-b from-emerald-500 to-emerald-600'
-            : 'bg-gradient-to-b from-purple-600 to-purple-700'
+            : 'bg-gradient-to-b from-blue-600 to-blue-700'
         }`}>
           <div className="absolute -right-6 -top-6 text-white/[0.07] pointer-events-none">
             <Truck className="w-32 h-32" />
@@ -1137,6 +1142,14 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   const [restaurantOpen, setRestaurantOpen] = useState(false)
   const [driverOpen, setDriverOpen] = useState(false)
   const [changeResponseSending, setChangeResponseSending] = useState(false)
+  const [showEditOrder, setShowEditOrder] = useState(false)
+  const [editItems, setEditItems] = useState<Array<{ _key?: string; productId?: string; productName?: string; quantity?: number; price?: number; total?: number; imageUrl?: string }>>([])
+  const [addProductFormOpen, setAddProductFormOpen] = useState(false)
+  const [orderSearchQuery, setOrderSearchQuery] = useState('')
+  const [orderSearchProducts, setOrderSearchProducts] = useState<Array<{ _id: string; title_en: string; title_ar: string; price: number; currency: string; imageUrl: string }>>([])
+  const [orderSearchLoading, setOrderSearchLoading] = useState(false)
+  const [orderSelectedProductId, setOrderSelectedProductId] = useState<string | null>(null)
+  const [editOrderSaving, setEditOrderSaving] = useState(false)
 
   const fetchTrack = useCallback(async (isRefetch = false) => {
     if (!slug || !token?.trim()) return
@@ -1296,6 +1309,125 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
       )
     } finally {
       setChangeResponseSending(false)
+    }
+  }
+
+  const openEditOrder = async () => {
+    if (!data?.order?.items?.length || !slug || !token) return
+    try {
+      await fetch(`/api/tenants/${slug}/track/${encodeURIComponent(token)}/customer-edit-started`, { method: 'POST' })
+    } catch {
+      // non-blocking
+    }
+    setEditItems(
+      (data.order.items ?? []).map((item) => ({
+        _key: item._key,
+        productId: item.productId,
+        productName: item.productName ?? '',
+        quantity: item.quantity ?? 1,
+        price: item.price ?? 0,
+        total: item.total ?? (item.price ?? 0) * (item.quantity ?? 1),
+        imageUrl: item.imageUrl,
+      }))
+    )
+    setAddProductFormOpen(false)
+    setOrderSearchQuery('')
+    setOrderSearchProducts([])
+    setOrderSelectedProductId(null)
+    setShowEditOrder(true)
+  }
+
+  const loadOrderProducts = useCallback(
+    async (query: string) => {
+      if (!slug || !token) return
+      setOrderSearchLoading(true)
+      try {
+        const params = new URLSearchParams()
+        if (query.trim()) params.set('q', query.trim())
+        const res = await fetch(
+          `/api/tenants/${slug}/track/${encodeURIComponent(token)}/order-products?${params.toString()}`,
+          { cache: 'no-store' }
+        )
+        if (!res.ok) return
+        const json = await res.json()
+        setOrderSearchProducts(Array.isArray(json.products) ? json.products : [])
+      } finally {
+        setOrderSearchLoading(false)
+      }
+    },
+    [slug, token]
+  )
+
+  const updateEditItemQty = (index: number, delta: number) => {
+    setEditItems((prev) => {
+      const next = [...prev]
+      const item = next[index]
+      if (!item) return prev
+      const qty = Math.max(1, (item.quantity ?? 1) + delta)
+      const price = item.price ?? 0
+      next[index] = { ...item, quantity: qty, total: price * qty }
+      return next
+    })
+  }
+
+  const removeEditItem = (index: number) => {
+    setEditItems((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const addProductToEdit = (product: { _id: string; title_en: string; title_ar: string; price: number; currency: string; imageUrl?: string }) => {
+    const name = lang === 'ar' ? product.title_ar : product.title_en
+    setEditItems((prev) => [
+      ...prev,
+      {
+        _key: `customer-add-${Date.now()}`,
+        productId: product._id,
+        productName: name,
+        quantity: 1,
+        price: product.price,
+        total: product.price,
+        imageUrl: product.imageUrl,
+      },
+    ])
+    setOrderSelectedProductId(null)
+    setOrderSearchProducts([])
+    setOrderSearchQuery('')
+    setAddProductFormOpen(false)
+  }
+
+  const submitEditOrder = async () => {
+    if (!slug || !token || !data?.order || editItems.length === 0 || editOrderSaving) return
+    setEditOrderSaving(true)
+    try {
+      const res = await fetch(`/api/tenants/${slug}/track/${encodeURIComponent(token)}/customer-edit-order`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: editItems.map((item) => ({
+            _key: item._key,
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity ?? 1,
+            price: item.price ?? 0,
+            total: (item.price ?? 0) * (item.quantity ?? 1),
+          })),
+        }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      showToast(
+        t('Cart updated. Driver was notified to approve.', 'تم تحديث السلة. تم إشعار السائق للموافقة.'),
+        t('Cart updated. Driver was notified to approve.', 'تم تحديث السلة. تم إشعار السائق للموافقة.'),
+        'success'
+      )
+      setShowEditOrder(false)
+      fetchTrack(true)
+    } catch {
+      showToast(
+        t('Could not update cart. Please try again.', 'تعذر تحديث السلة. حاول مرة أخرى.'),
+        t('Could not update cart. Please try again.', 'تعذر تحديث السلة. حاول مرة أخرى.'),
+        'error'
+      )
+    } finally {
+      setEditOrderSaving(false)
     }
   }
 
@@ -1561,53 +1693,84 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
               </p>
             </div>
 
-            <div className="px-5 py-4 space-y-3">
+            <div className="px-5 py-4 space-y-4">
               {hasPendingItemChangeConfirmation && (
                 <>
-                  <div className="rounded-2xl border border-amber-300 bg-amber-50 px-3.5 py-3">
-                    <p className="text-sm font-bold text-amber-800">
-                      {t('Action needed: confirm item changes', 'إجراء مطلوب: تأكيد تغييرات الأصناف')}
-                    </p>
-                    <p className="text-xs text-amber-700 mt-1">
-                      {t('Your order total changed based on updated available items.', 'تم تعديل إجمالي الطلب بناءً على الأصناف المتوفرة.')}
-                    </p>
-                  </div>
+                  <motion.div
+                    className="relative rounded-2xl border-2 border-amber-400 bg-gradient-to-br from-amber-50 to-amber-100/80 overflow-hidden shadow-lg shadow-amber-200/50"
+                    initial={{ opacity: 1, scale: 1 }}
+                    animate={{
+                      opacity: [1, 0.94, 1],
+                      scale: [1, 1.015, 1],
+                    }}
+                    transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
+                  >
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
+                      <Package className="w-32 h-32 text-amber-300/40" />
+                    </div>
+                    <div className="relative z-10 px-4 py-4">
+                      <p className="text-lg font-black text-amber-900">
+                        {t('Action needed: confirm item changes', 'إجراء مطلوب: تأكيد تغييرات الأصناف')}
+                      </p>
+                      <p className="text-sm text-amber-800 mt-1.5 font-medium">
+                        {t('Your order total changed based on updated available items.', 'تم تعديل إجمالي الطلب بناءً على الأصناف المتوفرة.')}
+                      </p>
+                    </div>
+                  </motion.div>
 
                   {(data.order.customerItemChangeSummary ?? []).length > 0 && (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-3.5 space-y-2">
-                      {(data.order.customerItemChangeSummary ?? []).map((change, idx) => (
-                        <div key={`${change.type}-${idx}`} className="text-sm text-slate-700">
-                          <p className="font-semibold">
-                            {change.type === 'removed' && t('Removed', 'تمت الإزالة')}
-                            {change.type === 'replaced' && t('Replaced', 'تم الاستبدال')}
-                            {change.type === 'edited' && t('Updated', 'تم التحديث')}
-                            {change.type === 'not_picked' && t('Not picked', 'لم يتم التقاطه')}
-                            {': '}
-                            {change.fromName || t('Item', 'صنف')}
-                            {change.toName ? ` → ${change.toName}` : ''}
-                          </p>
-                          {(change.note || '').trim() && <p className="text-xs text-slate-500 mt-0.5">📝 {change.note}</p>}
-                        </div>
-                      ))}
+                    <div className="rounded-2xl border-2 border-slate-200 bg-white p-4 space-y-3">
+                      {(data.order.customerItemChangeSummary ?? []).map((change, idx) => {
+                        const displayName = change.toName || change.fromName || t('Item', 'صنف')
+                        const matchingItem = (data.order.items ?? []).find(
+                          (item) => item.productName && (item.productName === displayName || item.productName === change.toName || item.productName === change.fromName)
+                        )
+                        const imageUrl = matchingItem?.imageUrl
+                        return (
+                          <div key={`${change.type}-${idx}`} className="flex gap-4 items-start rounded-xl border border-slate-100 bg-slate-50/50 p-3">
+                            {imageUrl ? (
+                              <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-slate-200">
+                                <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+                              </div>
+                            ) : (
+                              <div className="shrink-0 w-14 h-14 rounded-xl bg-amber-100 flex items-center justify-center">
+                                <Package className="w-7 h-7 text-amber-600/70" />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-base font-bold text-slate-800">
+                                {change.type === 'removed' && t('Removed', 'تمت الإزالة')}
+                                {change.type === 'replaced' && t('Replaced', 'تم الاستبدال')}
+                                {change.type === 'edited' && t('Updated', 'تم التحديث')}
+                                {change.type === 'not_picked' && t('Not picked', 'لم يتم التقاطه')}
+                                {': '}
+                                {change.fromName || t('Item', 'صنف')}
+                                {change.toName ? ` → ${change.toName}` : ''}
+                              </p>
+                              {(change.note || '').trim() && <p className="text-sm text-slate-500 mt-0.5">📝 {change.note}</p>}
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
 
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm">
-                    <div className="flex justify-between">
-                      <span>{t('Previous total', 'الإجمالي السابق')}</span>
-                      <span className="font-semibold">{(data.order.customerItemChangePreviousTotalAmount ?? totalAmount).toFixed(2)} {formatCurrency(currency)}</span>
+                  <div className="rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-3.5 text-base">
+                    <div className="flex justify-between items-baseline">
+                      <span className="font-semibold text-slate-700">{t('Previous total', 'الإجمالي السابق')}</span>
+                      <span className="font-bold text-slate-900">{(data.order.customerItemChangePreviousTotalAmount ?? totalAmount).toFixed(2)} {formatCurrency(currency)}</span>
                     </div>
-                    <div className="flex justify-between mt-1">
-                      <span>{t('New total', 'الإجمالي الجديد')}</span>
-                      <span className="font-bold text-indigo-700">{totalAmount.toFixed(2)} {formatCurrency(currency)}</span>
+                    <div className="flex justify-between items-baseline mt-2">
+                      <span className="font-semibold text-slate-700">{t('New total', 'الإجمالي الجديد')}</span>
+                      <span className="text-lg font-black text-indigo-700">{totalAmount.toFixed(2)} {formatCurrency(currency)}</span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid grid-cols-1 gap-3">
                     <Button
                       onClick={() => respondToItemChanges('approve')}
                       disabled={changeResponseSending}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base py-6"
                     >
                       ✅ {changeResponseSending ? t('Sending...', 'جارٍ الإرسال...') : t('Confirm changes', 'تأكيد التغييرات')}
                     </Button>
@@ -1615,7 +1778,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                       onClick={() => respondToItemChanges('contact_request')}
                       disabled={changeResponseSending}
                       variant="outline"
-                      className="w-full bg-white text-slate-900 border-slate-300 hover:bg-slate-50 font-semibold"
+                      className="w-full bg-white text-slate-900 border-slate-300 hover:bg-slate-50 font-semibold text-base py-6"
                     >
                       💬 {t('Contact driver for alternatives', 'التواصل مع السائق لبدائل')}
                     </Button>
@@ -1624,10 +1787,16 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
               )}
 
               {!hasPendingItemChangeConfirmation && data.order.customerItemChangeStatus && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-800">
+                <div className={`rounded-2xl border px-3.5 py-3 text-sm ${
+                  data.order.customerItemChangeStatus === 'driver_declined'
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                }`}>
                   {data.order.customerItemChangeStatus === 'approved'
                     ? t('You approved the latest item changes.', 'تمت موافقتك على آخر تغييرات الأصناف.')
-                    : t('You requested contact with the driver.', 'لقد طلبت التواصل مع السائق.')}
+                    : data.order.customerItemChangeStatus === 'driver_declined'
+                      ? t('Driver declined your order changes. You can edit again or contact the driver.', 'السائق رفض تعديلات الطلب. يمكنك التعديل مرة أخرى أو التواصل مع السائق.')
+                      : t('You requested contact with the driver.', 'لقد طلبت التواصل مع السائق.')}
                 </div>
               )}
             </div>
@@ -1947,6 +2116,211 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
           </div>
         </div>
       </div>
+
+      {/* Edit Order — delivery only, before completed/cancelled */}
+      {isDelivery && data.order && !['completed', 'cancelled', 'refunded'].includes(data.order.status ?? '') && (
+        <div className="mt-4 px-4">
+          <button
+            type="button"
+            onClick={openEditOrder}
+            className="w-full min-h-[52px] rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-base flex items-center justify-center gap-2 shadow-md shadow-indigo-200/50"
+          >
+            <Pencil className="w-5 h-5 shrink-0" />
+            {t('Edit order', 'تعديل الطلب')}
+          </button>
+        </div>
+      )}
+
+      {/* Edit Order modal */}
+      <AnimatePresence>
+        {showEditOrder && data?.order && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4"
+            onClick={() => setShowEditOrder(false)}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="w-full max-w-lg max-h-[90vh] rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50/80 shrink-0">
+                <h2 className="text-lg font-bold text-slate-900">
+                  {t('Edit order', 'تعديل الطلب')}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowEditOrder(false)}
+                  className="w-10 h-10 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-700"
+                  aria-label={t('Close', 'إغلاق')}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+                {/* Cart items — M3 style */}
+                <div className="space-y-2">
+                  {editItems.map((item, idx) => (
+                    <div
+                      key={item._key ?? idx}
+                      className="rounded-2xl border border-slate-200 bg-slate-50/50 overflow-hidden flex gap-3 p-3"
+                    >
+                      {item.imageUrl ? (
+                        <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-slate-200">
+                          <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="shrink-0 w-14 h-14 rounded-xl bg-slate-200 flex items-center justify-center">
+                          <Package className="w-6 h-6 text-slate-400" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-900 truncate">{item.productName}</p>
+                        <p className="text-sm text-indigo-600 font-bold">
+                          {(item.price ?? 0).toFixed(2)} {formatCurrency(data.order.currency)}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <button
+                            type="button"
+                            onClick={() => updateEditItemQty(idx, -1)}
+                            className="w-9 h-9 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-700 disabled:opacity-50"
+                            disabled={(item.quantity ?? 1) <= 1}
+                            aria-label={t('Decrease', 'تقليل')}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="min-w-[2rem] text-center font-bold text-slate-800">{item.quantity ?? 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => updateEditItemQty(idx, 1)}
+                            className="w-9 h-9 rounded-full bg-indigo-100 hover:bg-indigo-200 flex items-center justify-center text-indigo-700"
+                            aria-label={t('Increase', 'زيادة')}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeEditItem(idx)}
+                        className="shrink-0 w-10 h-10 rounded-full bg-rose-100 hover:bg-rose-200 flex items-center justify-center text-rose-600 self-center"
+                        aria-label={t('Remove', 'حذف')}
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add product — same behavior as driver: button toggles to form */}
+                {!addProductFormOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setAddProductFormOpen(true)}
+                    className="w-full min-h-[52px] rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50/50 hover:bg-indigo-50 text-indigo-700 font-bold text-base flex items-center justify-center gap-2"
+                  >
+                    <Package className="w-5 h-5 shrink-0" />
+                    {t('Add a product', 'إضافة صنف')}
+                  </button>
+                ) : (
+                  <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/30 p-4 space-y-3 relative">
+                    <button
+                      type="button"
+                      onClick={() => setAddProductFormOpen(false)}
+                      className="absolute top-3 end-3 w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-slate-600"
+                      aria-label={t('Close', 'إغلاق')}
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <p className="text-sm font-bold text-slate-800 pe-10">{t('Search store products', 'ابحث في أصناف المتجر')}</p>
+                    <div className="flex gap-2">
+                      <input
+                        value={orderSearchQuery}
+                        onChange={(e) => setOrderSearchQuery(e.target.value)}
+                        placeholder={t('Search', 'بحث')}
+                        className="flex-1 min-h-[48px] rounded-xl border-2 border-slate-200 bg-white px-4 text-slate-900 placeholder:text-slate-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => loadOrderProducts(orderSearchQuery)}
+                        disabled={orderSearchLoading}
+                        className="min-h-[48px] px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold disabled:opacity-50 flex items-center gap-2"
+                      >
+                        <Search className="w-4 h-4" />
+                        {orderSearchLoading ? t('Searching...', 'جاري...') : t('Search', 'بحث')}
+                      </button>
+                    </div>
+                    {orderSearchProducts.length > 0 ? (
+                      <div className="max-h-48 overflow-y-auto space-y-2">
+                        {orderSearchProducts.map((p) => {
+                          const selected = orderSelectedProductId === p._id
+                          const name = lang === 'ar' ? p.title_ar : p.title_en
+                          return (
+                            <button
+                              key={p._id}
+                              type="button"
+                              onClick={() => setOrderSelectedProductId(selected ? null : p._id)}
+                              className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-colors ${selected ? 'border-indigo-500 bg-indigo-100' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                            >
+                              {p.imageUrl ? (
+                                <div className="shrink-0 w-12 h-12 rounded-lg overflow-hidden bg-slate-100">
+                                  <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
+                                </div>
+                              ) : (
+                                <div className="shrink-0 w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center">
+                                  <Package className="w-5 h-5 text-slate-400" />
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-slate-900 truncate">{name}</p>
+                                <p className="text-sm font-bold text-indigo-600">{p.price.toFixed(2)} {formatCurrency(p.currency)}</p>
+                              </div>
+                              {selected && <span className="text-indigo-600 font-bold">✓</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500">
+                        {orderSearchLoading ? t('Searching...', 'جاري البحث...') : t('Search above to add.', 'ابحث أعلاه للإضافة.')}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => orderSelectedProductId && orderSearchProducts.find((p) => p._id === orderSelectedProductId) && addProductToEdit(orderSearchProducts.find((p) => p._id === orderSelectedProductId)!)}
+                      disabled={!orderSelectedProductId}
+                      className="w-full min-h-[48px] rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold disabled:opacity-50"
+                    >
+                      ➕ {t('Add selected item', 'إضافة الصنف المحدد')}
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="px-4 py-4 border-t border-slate-200 bg-slate-50/80 shrink-0 space-y-3">
+                <Button
+                  onClick={submitEditOrder}
+                  disabled={editItems.length === 0 || editOrderSaving}
+                  className="w-full min-h-[56px] rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-base"
+                >
+                  {editOrderSaving
+                    ? t('Sending...', 'جارٍ الإرسال...')
+                    : data.driver?.name
+                      ? t('Update cart & inform', 'تحديث السلة وإشعار') + ` ${data.driver.name}`
+                      : t('Update cart & inform driver', 'تحديث السلة وإشعار السائق')}
+                </Button>
+                <p className="text-xs text-slate-500 text-center">
+                  {t('The driver must approve your changes.', 'يجب أن يوافق السائق على التغييرات.')}
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Tips option — under Order Details: only for Dine-in and In Person. Delivery uses the tip box in the ETA section when driver is on the way. */}
       {(isDineIn || isPickup) && !isDeliveryActive && (

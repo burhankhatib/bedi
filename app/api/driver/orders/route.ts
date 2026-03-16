@@ -50,7 +50,9 @@ type DriverOrderView = {
   requiresPersonalShopper?: boolean
   shopperFee?: number
   items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
-  customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
+  customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | 'driver_declined' | null
+  customerRequestedItemChanges?: boolean
+  customerItemChangeSummary?: Array<{ type?: string; fromName?: string; toName?: string; fromQuantity?: number; toQuantity?: number; note?: string }>
   /** True when business manually assigned and driver has not confirmed yet. */
   needsConfirmation?: boolean
 }
@@ -113,7 +115,9 @@ export async function GET() {
       requiresPersonalShopper?: boolean
       shopperFee?: number
       items?: Array<{ productId?: string; productName?: string; productImage?: unknown; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
-  customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
+  customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | 'driver_declined' | null
+  customerRequestedItemChanges?: boolean
+  customerItemChangeSummary?: Array<{ type?: string; fromName?: string; toName?: string; fromQuantity?: number; toQuantity?: number; note?: string }>
   deliveryArea?: { name_en?: string; name_ar?: string } | null
   driverAcceptedAt?: string
   manualAssignmentAt?: string
@@ -150,6 +154,8 @@ export async function GET() {
       requiresPersonalShopper,
       shopperFee,
       customerItemChangeStatus,
+      customerRequestedItemChanges,
+      customerItemChangeSummary,
       "items": items[]{ "productId": product._ref, productName, "productImage": product->image, quantity, price, total, notes, addOns, isPicked, notPickedReason },
       "assignedDriverRef": assignedDriver._ref,
       "siteRef": site._ref,
@@ -277,6 +283,8 @@ export async function GET() {
         return { ...rest, imageUrl } as { productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }
       }),
       customerItemChangeStatus: o.customerItemChangeStatus ?? null,
+      customerRequestedItemChanges: o.customerRequestedItemChanges ?? false,
+      customerItemChangeSummary: o.customerItemChangeSummary ?? [],
       needsConfirmation,
     }
   }

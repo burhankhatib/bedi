@@ -33,7 +33,7 @@ export async function GET(
     deliveryAddress?: string
     deliveryFee?: number
     shopperFee?: number
-    items?: Array<{ productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string }>
+    items?: Array<{ productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
     subtotal?: number
     totalAmount?: number
     currency?: string
@@ -62,10 +62,11 @@ export async function GET(
     }>
     site?: { _ref?: string }
     assignedDriver?: { _ref?: string } | null
-    customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | null
+    customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | 'driver_declined' | null
     customerItemChangeRequestedAt?: string | null
     customerItemChangeResolvedAt?: string | null
     customerItemChangeResponseNote?: string | null
+    customerRequestedItemChanges?: boolean
     customerItemChangePreviousSubtotal?: number
     customerItemChangePreviousTotalAmount?: number
     customerItemChangeSummary?: Array<{
@@ -88,7 +89,19 @@ export async function GET(
       deliveryAddress,
       deliveryFee,
       shopperFee,
-      items,
+      "items": items[]{
+        _key,
+        "productId": product._ref,
+        productName,
+        quantity,
+        price,
+        total,
+        notes,
+        addOns,
+        isPicked,
+        notPickedReason,
+        "imageUrl": product->image.asset->url
+      },
       subtotal,
       totalAmount,
       currency,
@@ -116,6 +129,7 @@ export async function GET(
       customerItemChangeRequestedAt,
       customerItemChangeResolvedAt,
       customerItemChangeResponseNote,
+      customerRequestedItemChanges,
       customerItemChangePreviousSubtotal,
       customerItemChangePreviousTotalAmount,
       customerItemChangeSummary,
@@ -196,6 +210,7 @@ export async function GET(
       customerItemChangeRequestedAt: order.customerItemChangeRequestedAt ?? null,
       customerItemChangeResolvedAt: order.customerItemChangeResolvedAt ?? null,
       customerItemChangeResponseNote: order.customerItemChangeResponseNote ?? null,
+      customerRequestedItemChanges: order.customerRequestedItemChanges ?? false,
       customerItemChangePreviousSubtotal: order.customerItemChangePreviousSubtotal ?? null,
       customerItemChangePreviousTotalAmount: order.customerItemChangePreviousTotalAmount ?? null,
       customerItemChangeSummary: order.customerItemChangeSummary ?? [],
