@@ -217,6 +217,24 @@ export function SearchAIPanel({
         </button>
       </div>
 
+      {/* Banner: Cart has items from another business — explain why Add from AI results may not work */}
+      {items.length > 0 && cartTenant && (
+        <div
+          className="shrink-0 mx-4 mt-2 mb-1 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5"
+          role="status"
+        >
+          <p className="text-xs font-semibold text-amber-900">
+            {t('Your cart has items from', 'سلتك تحتوي على أصناف من')}{' '}
+            <span className="font-bold">{cartTenant.name}</span>
+          </p>
+          <p className="text-[11px] text-amber-800 mt-0.5">
+            {t(
+              'You can only add products from this restaurant. Products from others will open a choice to replace your cart.',
+              'يمكنك إضافة أصناف من هذا المطعم فقط. أصناف من مطاعم أخرى ستفتح خيار استبدال سلتك.'
+            )}
+          </p>
+        </div>
+      )}
       <div
         ref={containerRef}
         className={cn(
@@ -491,7 +509,7 @@ export function SearchAIPanel({
                             className={cn(
                               'rounded-2xl px-4 py-3 text-sm font-semibold transition-all duration-200 ease-out',
                               'shadow-sm hover:shadow-md active:scale-[0.98]',
-                              'border-2 border-amber-500/80 bg-amber-500 text-white hover:bg-amber-600 hover:border-amber-600',
+                              'border-2 border-amber-500/80 bg-amber-500 text-slate-950 hover:bg-amber-400 hover:border-amber-400',
                               isNumericGrid && 'px-3 py-2.5 min-w-[2.5rem]'
                             )}
                             dir={lang === 'ar' ? 'rtl' : 'ltr'}
@@ -635,7 +653,7 @@ export function SearchAIPanel({
         <button
           type="submit"
           disabled={loading || !replyInput.trim()}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white transition-colors hover:bg-amber-600 disabled:opacity-50 disabled:hover:bg-amber-500"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-slate-950 transition-colors hover:bg-amber-400 disabled:opacity-50 disabled:hover:bg-amber-500"
           aria-label={t('Send', 'إرسال')}
         >
           <Send className="size-5" />

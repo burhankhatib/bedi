@@ -36,6 +36,7 @@ export function SearchChatOverlay({
         showCloseButton={false}
         className={cn(
           'flex flex-col p-0 gap-0 border-0 bg-slate-50',
+          'pt-[max(1rem,env(safe-area-inset-top))]',
           'max-md:inset-0 max-md:w-full max-md:max-w-none max-md:h-full max-md:rounded-none',
           'md:w-[420px] md:max-w-[420px] md:min-w-[360px]'
         )}

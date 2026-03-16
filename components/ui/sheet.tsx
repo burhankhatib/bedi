@@ -16,6 +16,7 @@ const SheetClose = SheetPrimitive.Close
 
 function SheetPortalWithContainer(props: React.ComponentProps<typeof SheetPrimitive.Portal>) {
   const container = usePortalContainer()
+  // Only use custom container when ready; Radix falls back to body when undefined
   return <SheetPrimitive.Portal {...props} container={container ?? undefined} />
 }
 

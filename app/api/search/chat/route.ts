@@ -118,11 +118,12 @@ ${ctx.contextText}
 - Prefer [POPULAR] items.
 
 **INTERACTIVE BUTTONS (CRITICAL — ALWAYS USE FOR SHORT ANSWERS)**:
-- NEVER write "Yes or No?" or "Type 1-10" in plain text. ALWAYS use show_quick_reply_buttons so the user can CLICK instead of typing.
-- Yes/No questions → ALWAYS call show_quick_reply_buttons type "yes_no" (e.g. "Would you like delivery?" → use the tool)
-- Binary choices (ingredients vs ready) → type "custom" with options: ["Find ingredients to cook", "Order ready from a restaurant"]
-- Portion/number questions → type "custom" with options: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
-- Any question with 2–10 possible short answers → use show_quick_reply_buttons. The user must be able to tap a button, not type.`
+- NEVER write "Yes or No?", "Type 1-10", or ask for a number/choice in plain text. ALWAYS call show_quick_reply_buttons FIRST so the user sees tappable buttons.
+- Yes/No questions → ALWAYS call show_quick_reply_buttons type "yes_no" (e.g. "Would you like delivery?", "Should I add cheese?")
+- Binary choices (ingredients vs ready, this or that) → type "custom" with the exact options (e.g. ["Find ingredients to cook", "Order ready from a restaurant"])
+- Portion/number questions ("How many people?") → type "custom" with options: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+- Any question with 2–10 possible short answers → call show_quick_reply_buttons BEFORE or WITH your text reply. The user must be able to tap a button, not type.
+- If your response ends with a Yes/No or short-answer question, you MUST also call show_quick_reply_buttons in the same turn.`
 
     const tools = {
       search_products: tool({

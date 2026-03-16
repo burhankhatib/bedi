@@ -141,7 +141,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   const orderTypeOptions = tenantSlug
     ? { supportsDineIn: supportsDineIn ?? true, supportsReceiveInPerson: supportsReceiveInPerson ?? true, hasDelivery: hasDelivery ?? false }
     : null
-  const { totalItems, isOpen: cartOpen, setIsOpen, setTenantSlug, setLockedTableNumber } = useCart()
+  const { totalItems, isOpen: cartOpen, setIsOpen, setTenantSlug, setLockedTableNumber, cartTenant, items } = useCart()
   const router = useRouter()
   const orderAuth = useOrderAuth()
   const pathname = usePathname()
@@ -386,9 +386,59 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
     setIsModalOpen(true)
   }
 
+  const showCartConflictBanner =
+    items.length > 0 &&
+    cartTenant &&
+    tenantSlug &&
+    cartTenant.slug !== tenantSlug
+
   return (
     <main className="min-h-screen bg-slate-50">
       <FirebaseClerkSync />
+      {/* Banner: Cart has items from another business — explain why Add is not allowed */}
+      {showCartConflictBanner && (
+        <div
+          className="w-full border-b-2 border-amber-400 bg-amber-50/95 px-4 py-3 shadow-sm"
+          role="alert"
+        >
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-start gap-3">
+              <div className="rounded-full bg-amber-200/80 p-2 shrink-0 mt-0.5">
+                <ShoppingCart className="size-5 text-amber-800" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-amber-900">
+                  {t('Your cart has items from another restaurant', 'سلتك تحتوي على أصناف من مطعم آخر')}
+                </p>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  {t(
+                    'You can only order from one restaurant at a time. Clear your cart or checkout with',
+                    'يمكنك الطلب من مطعم واحد فقط في كل مرة. أفرغ سلتك أو أتمم الطلب من'
+                  )}{' '}
+                  <span className="font-semibold">{cartTenant.name}</span>
+                  {t(' first.', ' أولاً.')}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <FullPageLink
+                href={`/t/${cartTenant.slug}`}
+                className="inline-flex items-center justify-center rounded-lg border-2 border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-100"
+              >
+                {t('Go to cart', 'اذهب للسلة')}
+              </FullPageLink>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-amber-300 text-amber-900 hover:bg-amber-100"
+                onClick={() => setIsOpen(true)}
+              >
+                {t('View cart', 'عرض السلة')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Progress Bar — below mobile safe area. Lower z when cart open. */}
       <div
         className={cn('fixed left-0 right-0 h-1 bg-black origin-left', cartOpen ? 'z-0' : 'z-50')}

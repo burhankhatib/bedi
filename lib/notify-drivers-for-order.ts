@@ -41,13 +41,15 @@ type DriverCleanupContext = { driverId: string; clerkUserId?: string; legacyFcmT
 async function sendToDriverTokens(
   tokens: { fcmTokens: string[]; webPush: Array<{ endpoint: string; p256dh: string; auth: string }> },
   payload: { title: string; body: string; url: string; dir: 'rtl' },
-  driverCtx?: DriverCleanupContext
+  driverCtx?: DriverCleanupContext,
+  opts?: { dataOnly?: boolean }
 ): Promise<boolean> {
   let sent = false
-  const payloadWithDataOnly = { ...payload, dataOnly: true as const }
+  const useDataOnly = opts?.dataOnly !== false
+  const fcmPayload = useDataOnly ? { ...payload, dataOnly: true as const } : payload
   for (const tok of tokens.fcmTokens) {
     if (!isFCMConfigured()) break
-    const result = await sendFCMToTokenDetailed(tok, payloadWithDataOnly)
+    const result = await sendFCMToTokenDetailed(tok, fcmPayload)
     if (result.ok) {
       sent = true
       break
@@ -246,9 +248,12 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       const eligibleOffline = (offlineDrivers ?? []).filter((d) => {
         if (d.lastOfflineReminderAt && d.lastOfflineReminderAt >= reminderCutoff) return false
         if (hasGeo) {
-          const matchArea = norm(d.country) === siteCountryNorm && norm(d.city) === siteCityNorm
+          const dCountry = norm(d.country)
+          const dCity = norm(d.city)
+          const matchExact = dCountry === siteCountryNorm && dCity === siteCityNorm
           const noArea = !d.country && !d.city
-          return matchArea || noArea
+          const matchCountryOnly = dCountry === siteCountryNorm && (!dCity || !siteCityNorm)
+          return matchExact || noArea || matchCountryOnly
         }
         return true
       })
@@ -276,7 +281,7 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
           clerkUserId: (d.clerkUserId ?? '').trim() || undefined,
           legacyFcmToken: (d.fcmToken ?? '').trim() || undefined,
         }
-        await sendToDriverTokens(tokens, reminderPayload, driverCtx)
+        await sendToDriverTokens(tokens, reminderPayload, driverCtx, { dataOnly: false })
         writeClient.patch(d._id).set({ lastOfflineReminderAt: reminderNow }).commit().catch(() => {})
       }
     }

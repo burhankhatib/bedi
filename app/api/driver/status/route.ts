@@ -4,19 +4,13 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
-import { getAutoOfflinePushAr, getMorningEncouragementPushAr } from '@/lib/driver-push-messages'
+import { getAutoOfflinePushAr } from '@/lib/driver-push-messages'
 import { getRandomConnectionMessage } from '@/lib/push-connection-messages'
 import { getActiveSubscriptionsForUser } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
 const AUTO_OFFLINE_AFTER_MS = 8 * 60 * 60 * 1000 // 8 hours
-
-/** Palestine timezone: morning = 5am–11am local (UTC+2 or +3). Use UTC hour 2–8 as approx. */
-function isMorningHours(): boolean {
-  const hour = new Date().getUTCHours()
-  return hour >= 2 && hour < 9
-}
 
 /** PATCH driver online status. Updates isOnline, lastSeenAt, onlineSince. Cannot go offline while has active deliveries. */
 export async function PATCH(req: NextRequest) {
@@ -38,11 +32,10 @@ export async function PATCH(req: NextRequest) {
     pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
     nickname?: string
     clerkUserId?: string
-    lastMorningEncouragementDate?: string
   } | null>(
     `*[_type == "driver" && clerkUserId == $userId][0]{
       _id, isVerifiedByAdmin, fcmToken, "pushSubscription": pushSubscription,
-      nickname, clerkUserId, lastMorningEncouragementDate
+      nickname, clerkUserId
     }`,
     { userId }
   )
@@ -91,10 +84,7 @@ export async function PATCH(req: NextRequest) {
   await p.commit()
 
   if (isOnline) {
-    const msg =
-      isMorningHours() && driver.lastMorningEncouragementDate !== new Date().toISOString().slice(0, 10)
-        ? getMorningEncouragementPushAr(driver.nickname)
-        : getRandomConnectionMessage()
+    const msg = getRandomConnectionMessage()
     const payload = { title: msg.title, body: msg.body, url: '/driver/orders', dir: 'rtl' as const }
     let sent = false
     if (driver.clerkUserId) {
@@ -139,10 +129,6 @@ export async function PATCH(req: NextRequest) {
         },
         payload
       )
-    }
-    if (isMorningHours()) {
-      const today = new Date().toISOString().slice(0, 10)
-      await writeClient.patch(driver._id).set({ lastMorningEncouragementDate: today }).commit()
     }
   }
 

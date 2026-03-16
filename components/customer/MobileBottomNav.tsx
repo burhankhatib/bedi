@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
-import Link from 'next/link'
+import { FullPageLink } from '@/components/ui/FullPageLink'
 import Image from 'next/image'
 import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
@@ -91,9 +91,9 @@ function NavItem({
     )
   }
   return (
-    <Link href={href!} className={baseClass} aria-current={active ? 'page' : undefined}>
+    <FullPageLink href={href!} className={baseClass} aria-current={active ? 'page' : undefined}>
       {content}
-    </Link>
+    </FullPageLink>
   )
 }
 
