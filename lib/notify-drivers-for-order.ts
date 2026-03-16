@@ -4,7 +4,7 @@ import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
-const OFFLINE_REMINDER_INTERVAL_MS = 3 * 60 * 1000
+const OFFLINE_REMINDER_INTERVAL_MS = 2 * 60 * 60 * 1000
 
 type CentralSub = { clerkUserId: string; devices?: Array<{ fcmToken?: string; webPush?: { endpoint?: string; p256dh?: string; auth?: string } }> }
 
@@ -192,7 +192,7 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       await sendToDriverTokens(tokens, payload)
     }
 
-    // Send offline driver reminders (once per 3 minutes) — "go online to receive orders"
+    // Send offline driver reminders (once per 2 hours per driver) — "go online to receive orders"
     if (order?.siteRef) {
       const nowMs = Date.now()
       const reminderCutoff = new Date(nowMs - OFFLINE_REMINDER_INTERVAL_MS).toISOString()

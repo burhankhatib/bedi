@@ -22,6 +22,13 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: `${BASE_SITEMAP_URL}/refund-policy`, changeFrequency: "yearly" as const, priority: 0.3 },
 ];
 
+/** Safe date for lastModified — avoid Invalid Date which can cause 500 in XML serialization. */
+function safeLastModified(value: unknown): Date | undefined {
+  if (!value) return undefined;
+  const d = new Date(value as string | number);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+
 /** Shared sitemap entries for both metadata route and XML route (GSC needs correct Content-Type at /sitemap.xml). */
 export async function getSitemapEntries(): Promise<MetadataRoute.Sitemap> {
   let tenantPages: MetadataRoute.Sitemap = [];
@@ -35,7 +42,7 @@ export async function getSitemapEntries(): Promise<MetadataRoute.Sitemap> {
         .filter((t) => t?.slug && typeof t.slug === "string")
         .map((t) => ({
           url: `${BASE_SITEMAP_URL}/t/${encodeURIComponent(t.slug)}`,
-          lastModified: t._updatedAt ? new Date(t._updatedAt) : undefined,
+          lastModified: safeLastModified(t._updatedAt),
           changeFrequency: "weekly" as const,
           priority: 0.8,
         }));
@@ -48,5 +55,10 @@ export async function getSitemapEntries(): Promise<MetadataRoute.Sitemap> {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  return getSitemapEntries();
+  try {
+    return await getSitemapEntries();
+  } catch (err) {
+    console.error("[Sitemap] Unhandled error:", err);
+    return STATIC_PAGES;
+  }
 }

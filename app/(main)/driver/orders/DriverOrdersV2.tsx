@@ -183,7 +183,7 @@ function DriverOrdersV2Content() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const { hasPush } = useDriverPush()
-  const { isOnline, isVerifiedByAdmin, fetchStatus } = useDriverStatus()
+  const { isOnline, isVerifiedByAdmin, fetchStatus, showCannotOffline } = useDriverStatus()
 
   /* go-online deep-link handling */
   useEffect(() => {
@@ -1791,6 +1791,18 @@ function DriverOrdersV2Content() {
             transition={{ duration: 0.2 }}
             className="rounded-3xl border-2 border-emerald-700/80 bg-emerald-950/20 p-4 sm:p-5 shadow-sm"
           >
+            {/* Banner: Complete delivery to go offline */}
+            {showCannotOffline && (
+              <div className="rounded-2xl border-2 border-amber-500/50 bg-amber-950/40 p-4 mb-4 flex items-center gap-3">
+                <CircleAlert className="h-6 w-6 shrink-0 text-amber-400" />
+                <p className="text-amber-200 font-bold text-sm flex-1">
+                  {t(
+                    'Complete this delivery to go offline.',
+                    'أكمل هذا التوصيل للخروج من وضع الاتصال.',
+                  )}
+                </p>
+              </div>
+            )}
             {/* Navigation Bar: Bedi Maps (6 cols) | Waze (3) | Google Maps (3) */}
             {mapState !== 'maximized' &&
               (() => {
@@ -2589,9 +2601,9 @@ function DriverOrdersV2Content() {
             )}
           </motion.div>
         </AnimatePresence>
-      ) : pending.length > 0 ? (
+      ) : isOnline && pending.length > 0 ? (
         /* ══════════════════════════════════════════════════ */
-        /*  PENDING (NEW) ORDERS                             */
+        /*  PENDING (NEW) ORDERS — shown only when online      */
         /* ══════════════════════════════════════════════════ */
         <ul className="space-y-4">
           <AnimatePresence initial={false}>
@@ -2824,7 +2836,7 @@ function DriverOrdersV2Content() {
         </ul>
       ) : (
         /* ══════════════════════════════════════════════════ */
-        /*  IDLE — NO ORDERS                                 */
+        /*  IDLE — NO ORDERS or OFFLINE                      */
         /* ══════════════════════════════════════════════════ */
         <div className="text-center py-12">
           <div className="flex justify-center mb-4">
@@ -2832,15 +2844,31 @@ function DriverOrdersV2Content() {
               <Package className="w-8 h-8 text-slate-500" />
             </div>
           </div>
-          <p className="text-slate-400 text-base font-medium">
-            {t('No orders right now.', 'لا توجد طلبات الآن.')}
-          </p>
-          <p className="text-slate-500 text-sm mt-1">
-            {t(
-              'Stay online to receive new orders.',
-              'ابقَ متصلًا لاستقبال طلبات جديدة.',
-            )}
-          </p>
+          {!isOnline ? (
+            <>
+              <p className="text-slate-400 text-base font-medium">
+                {t('You are offline.', 'أنت غير متصل.')}
+              </p>
+              <p className="text-slate-500 text-sm mt-1">
+                {t(
+                  'Go Online to see available orders to claim.',
+                  'ادخل متصل لعرض الطلبات المتاحة للمطالبة.',
+                )}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-slate-400 text-base font-medium">
+                {t('No orders right now.', 'لا توجد طلبات الآن.')}
+              </p>
+              <p className="text-slate-500 text-sm mt-1">
+                {t(
+                  'Stay online to receive new orders.',
+                  'ابقَ متصلًا لاستقبال طلبات جديدة.',
+                )}
+              </p>
+            </>
+          )}
         </div>
       )}
 

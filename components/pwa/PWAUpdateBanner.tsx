@@ -56,12 +56,16 @@ interface PWAUpdateBannerProps {
   registration: ServiceWorkerRegistration | null
 }
 
+const UPDATE_CHECK_INTERVAL_MS = 30 * 1000 // 30s — aggressive check for new code deployments
+const RELOAD_FALLBACK_MS = 1500 // Max wait for controllerchange before forcing reload
+
 export function PWAUpdateBanner({ config, registration: externalReg }: PWAUpdateBannerProps) {
   const { lang } = useLanguage()
   const isAr = lang === 'ar'
   const [show, setShow] = useState(false)
   const [reg, setReg] = useState<ServiceWorkerRegistration | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [reloading, setReloading] = useState(false)
   const reloadDoneRef = useRef(false)
 
   const scope = config.scope
@@ -80,24 +84,26 @@ export function PWAUpdateBanner({ config, registration: externalReg }: PWAUpdate
     }
 
     const attachUpdateFound = (r: ServiceWorkerRegistration) => {
-      r.addEventListener('updatefound', () => {
-        const newWorker = r.installing
-        if (!newWorker) return
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller && r.waiting) {
-            if (isReloadPending(scope)) { clearReloadPending(scope); return }
-            if (wasAlreadyShown(scope, r)) return
-            markShown(scope, r)
-            setReg(r)
-            setShow(true)
-          }
+      try {
+        r.addEventListener('updatefound', () => {
+          const newWorker = r.installing
+          if (!newWorker) return
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller && r.waiting) {
+              if (isReloadPending(scope)) { clearReloadPending(scope); return }
+              if (wasAlreadyShown(scope, r)) return
+              markShown(scope, r)
+              setReg(r)
+              setShow(true)
+            }
+          })
         })
-      })
+      } catch {}
     }
 
-    // Use external registration or look one up
+    // Use external registration or look one up. Always run reg.update() to detect new deployments.
     const doCheck = async () => {
-      const existing = externalReg || await navigator.serviceWorker.getRegistration(scope)
+      const existing = externalReg ?? (await navigator.serviceWorker.getRegistration(scope))
       if (existing) {
         if (existing.waiting) checkReg(existing)
         existing.update().catch(() => {})
@@ -105,14 +111,17 @@ export function PWAUpdateBanner({ config, registration: externalReg }: PWAUpdate
       }
     }
     doCheck()
+    // Delayed check: catches updates when user opens app shortly after deploy
+    const delayedCheck = setTimeout(doCheck, 2500)
 
     const onFocus = () => doCheck()
     const onVisibility = () => { if (document.visibilityState === 'visible') doCheck() }
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisibility)
-    const interval = setInterval(() => { if (document.visibilityState === 'visible') doCheck() }, 60000)
+    const interval = setInterval(() => { if (document.visibilityState === 'visible') doCheck() }, UPDATE_CHECK_INTERVAL_MS)
 
     return () => {
+      clearTimeout(delayedCheck)
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibility)
       clearInterval(interval)
@@ -132,18 +141,32 @@ export function PWAUpdateBanner({ config, registration: externalReg }: PWAUpdate
   }, [show, reg])
 
   const handleReload = useCallback(() => {
+    if (reloadDoneRef.current) return
     setReloadPending(scope)
-    setShow(false)
-    const doReload = () => { if (!reloadDoneRef.current) { reloadDoneRef.current = true; window.location.reload() } }
+    setReloading(true)
+
+    const doReload = () => {
+      if (reloadDoneRef.current) return
+      reloadDoneRef.current = true
+      window.location.reload()
+    }
+
     try {
-      if (reg?.waiting) { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); setTimeout(doReload, 1200) }
-      else {
+      const tellWaiting = (r: ServiceWorkerRegistration | null) => {
+        if (r?.waiting) r.waiting.postMessage({ type: 'SKIP_WAITING' })
+      }
+      if (reg?.waiting) {
+        tellWaiting(reg)
+        setTimeout(doReload, RELOAD_FALLBACK_MS)
+      } else {
         navigator.serviceWorker.getRegistration(scope).then((r) => {
-          if (r?.waiting) r.waiting.postMessage({ type: 'SKIP_WAITING' })
-          setTimeout(doReload, 1200)
+          tellWaiting(r ?? null)
+          setTimeout(doReload, RELOAD_FALLBACK_MS)
         }).catch(doReload)
       }
-    } catch { doReload() }
+    } catch {
+      doReload()
+    }
   }, [scope, reg])
 
   if (!mounted || !show) return null
@@ -174,12 +197,16 @@ export function PWAUpdateBanner({ config, registration: externalReg }: PWAUpdate
               </p>
             </div>
             <Button
+              type="button"
               onClick={handleReload}
+              disabled={reloading}
               size="sm"
-              className="shrink-0 gap-1.5 bg-emerald-500 font-medium text-slate-950 hover:bg-emerald-400"
+              className="shrink-0 gap-1.5 bg-emerald-500 font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-90 disabled:cursor-wait"
             >
-              <RefreshCw className="size-4" />
-              {isAr ? 'تحديث الآن' : 'Reload to update'}
+              <RefreshCw className={`size-4 ${reloading ? 'animate-spin' : ''}`} />
+              {reloading
+                ? (isAr ? 'جاري التحديث...' : 'Reloading...')
+                : (isAr ? 'تحديث الآن' : 'Reload to update')}
             </Button>
           </div>
         </div>

@@ -17,7 +17,8 @@ var PWA_DEFAULT_ICON = '/adminslogo.webp';
 var PWA_TAG = 'bedi-tenant-order-update';
 var PWA_DEFAULT_TITLE = '\\u0637\\u0644\\u0628 \\u062c\\u062f\\u064a\\u062f';
 var PWA_DEFAULT_DIR = 'rtl';
-var PWA_SKIP_WAITING = true;
+// Stay in "waiting" until user taps Update — SKIP_WAITING sent from PWAUpdateBanner
+var PWA_SKIP_WAITING = false;
 
 self.addEventListener('install', function (event) {
   if (PWA_SKIP_WAITING) {

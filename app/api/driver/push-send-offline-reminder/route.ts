@@ -5,6 +5,7 @@ import { token } from '@/sanity/lib/token'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
 import { getOfflineReminderPushAr } from '@/lib/driver-push-messages'
+import { getActiveSubscriptionsForUser } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -44,7 +45,34 @@ export async function POST() {
   const payload = { title, body, url: '/driver/orders' }
 
   let sent = false
-  if (driver.fcmToken && isFCMConfigured()) {
+
+  // Prefer central subscriptions (multi-device)
+  const subs = await getActiveSubscriptionsForUser({ clerkUserId: userId, roleContext: 'driver' })
+  for (const sub of subs) {
+    for (const dev of sub?.devices ?? []) {
+      if (dev?.fcmToken && isFCMConfigured() && (await sendFCMToToken(dev.fcmToken, payload))) {
+        sent = true
+        break
+      }
+      if (
+        dev?.webPush?.endpoint &&
+        dev.webPush.p256dh &&
+        dev.webPush.auth &&
+        isPushConfigured() &&
+        (await sendPushNotification(
+          { endpoint: dev.webPush.endpoint, keys: { p256dh: dev.webPush.p256dh, auth: dev.webPush.auth } },
+          payload
+        ))
+      ) {
+        sent = true
+        break
+      }
+    }
+    if (sent) break
+  }
+
+  // Legacy fallback
+  if (!sent && driver.fcmToken && isFCMConfigured()) {
     sent = await sendFCMToToken(driver.fcmToken, payload)
   }
   if (!sent && driver.pushSubscription?.endpoint && driver.pushSubscription?.p256dh && driver.pushSubscription?.auth && isPushConfigured()) {

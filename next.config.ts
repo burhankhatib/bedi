@@ -10,7 +10,9 @@ const nextConfig: NextConfig = {
   async headers() {
     const noCache = { key: 'Cache-Control' as const, value: 'public, max-age=0, must-revalidate' }
     const noStore = { key: 'Cache-Control' as const, value: 'no-store, no-cache, must-revalidate, max-age=0' }
+    const sitemapCache = { key: 'Cache-Control' as const, value: 'public, max-age=3600, s-maxage=3600' }
     return [
+      { source: '/sitemap.xml', headers: [sitemapCache] },
       { source: '/app-sw.js', headers: [noCache] },
       { source: '/driver-sw.js', headers: [noCache] },
       { source: '/dashboard-sw.js', headers: [noCache] },
@@ -42,7 +44,7 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      // /sitemap.xml is served by app/sitemap.xml/route.ts with Content-Type: application/xml for GSC
+      // /sitemap.xml is served by app/sitemap.ts (Next.js MetadataRoute) with Content-Type: application/xml for GSC
       // Handle /listings/* requests (likely from bots/crawlers or Sanity Studio references)
       {
         source: '/listings/:path*',

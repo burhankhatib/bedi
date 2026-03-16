@@ -5,6 +5,7 @@ import { token } from '@/sanity/lib/token'
 import { sendPushNotificationDetailed, isPushConfigured } from '@/lib/push'
 import { sendFCMToTokenDetailed, isFCMConfigured } from '@/lib/fcm'
 import { getRandomDriverWelcome } from '@/lib/welcome-push-templates'
+import { getMorningEncouragementPushAr } from '@/lib/driver-push-messages'
 import { removeDevice } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
@@ -64,7 +65,10 @@ export async function POST(_req: NextRequest) {
   }
 
   const displayName = driver.nickname || driver.name
-  const { title, body } = getRandomDriverWelcome(displayName)
+  // Morning hours (5–11am Palestine ≈ UTC 2–9): send encouraging morning message; otherwise random welcome.
+  const hour = new Date().getUTCHours()
+  const isMorning = hour >= 2 && hour < 9
+  const { title, body } = isMorning ? getMorningEncouragementPushAr(displayName) : getRandomDriverWelcome(displayName)
   const payload = { title, body, url: '/driver/orders', dir: 'rtl' as const }
 
   let sent = false
