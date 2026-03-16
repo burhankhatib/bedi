@@ -13,7 +13,6 @@ const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: BASE_SITEMAP_URL, changeFrequency: "daily" as const, priority: 1 },
   { url: `${BASE_SITEMAP_URL}/search`, changeFrequency: "daily" as const, priority: 0.9 },
   { url: `${BASE_SITEMAP_URL}/join`, changeFrequency: "monthly" as const, priority: 0.9 },
-  { url: `${BASE_SITEMAP_URL}/driver`, changeFrequency: "monthly" as const, priority: 0.9 },
   { url: `${BASE_SITEMAP_URL}/about`, changeFrequency: "monthly" as const, priority: 0.7 },
   { url: `${BASE_SITEMAP_URL}/contact`, changeFrequency: "monthly" as const, priority: 0.7 },
   { url: `${BASE_SITEMAP_URL}/pricing`, changeFrequency: "monthly" as const, priority: 0.7 },

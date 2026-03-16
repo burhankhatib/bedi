@@ -4,6 +4,10 @@ import { Suspense } from 'react'
 import VerifyPhoneClient from './VerifyPhoneClient'
 import { FormSkeleton } from '@/components/loading'
 
+export const metadata = {
+  robots: { index: false, follow: false },
+}
+
 export default async function VerifyPhonePage() {
   const { userId } = await auth()
   if (!userId) {

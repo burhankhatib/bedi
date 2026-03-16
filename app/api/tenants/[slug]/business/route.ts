@@ -3,6 +3,7 @@ import { auth as clerkAuth, clerkClient } from '@clerk/nextjs/server'
 import { client, clientNoCdn } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
+import { slugify } from '@/lib/slugify'
 import { isVerifiedPhoneForUser } from '@/lib/order-auth'
 import { isAllowedRegistrationCountry } from '@/lib/constants'
 import { urlFor } from '@/sanity/lib/image'
@@ -44,6 +45,7 @@ export async function GET(
     tenantClient.fetch<{
       _id: string
       name: string
+      slug?: string
       country?: string
       city?: string
       businessType?: string
@@ -63,7 +65,7 @@ export async function GET(
       locationLng?: number
     } | null>(
       `*[_type == "tenant" && _id == $tenantId][0]{
-        _id, name, country, city,
+        _id, name, "slug": slug.current, country, city,
         businessType,
         "businessSubcategoryIds": businessSubcategories[]._ref,
         deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, supportsDriverPickup, catalogHidePrices, prioritizeWhatsapp,
@@ -235,6 +237,33 @@ export async function PATCH(
     }
   }
 
+  // Slug (Business URL): validate, check uniqueness, update. Returns redirectTo when changed.
+  let slugRedirectTo: string | undefined
+  if (body.slugNew !== undefined && typeof body.slugNew === 'string') {
+    const rawSlug = body.slugNew.trim()
+    const newSlug = slugify(rawSlug || '')
+    if (!newSlug) {
+      return NextResponse.json(
+        { error: 'Invalid URL slug. Use only letters, numbers, and hyphens (e.g. my-restaurant).' },
+        { status: 400 }
+      )
+    }
+    if (newSlug !== slug) {
+      const existing = await client.fetch<{ _id: string } | null>(
+        `*[_type == "tenant" && slug.current == $s && _id != $tenantId][0]{ _id }`,
+        { s: newSlug, tenantId: auth.tenantId }
+      )
+      if (existing) {
+        return NextResponse.json(
+          { error: 'This URL is already taken by another business. Choose a different slug.' },
+          { status: 409 }
+        )
+      }
+      await writeClient.patch(auth.tenantId).set({ slug: { _type: 'slug' as const, current: newSlug } }).commit()
+      slugRedirectTo = `/t/${encodeURIComponent(newSlug)}/manage/business`
+    }
+  }
+
   const existing = await client.fetch<{ _id: string } | null>(
     `*[_type == "restaurantInfo" && site._ref == $siteId][0]{ _id }`,
     { siteId: auth.tenantId }
@@ -332,5 +361,5 @@ export async function PATCH(
     }
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json(slugRedirectTo ? { ok: true, redirectTo: slugRedirectTo } : { ok: true })
 }

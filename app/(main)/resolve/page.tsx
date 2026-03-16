@@ -8,6 +8,10 @@ import { getEmailForUser } from '@/lib/getClerkEmail'
 
 export const dynamic = 'force-dynamic'
 
+export const metadata = {
+  robots: { index: false, follow: false },
+}
+
 /**
  * Post-sign-in resolver: always send users to homepage so they can choose role.
  * Super admin with no business/driver → /admin. Everyone else → /.

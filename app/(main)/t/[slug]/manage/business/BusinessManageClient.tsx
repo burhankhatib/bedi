@@ -25,6 +25,7 @@ type BusinessData = {
   tenant: {
     _id: string
     name: string
+    slug?: string
     country?: string
     city?: string
     businessType?: string
@@ -152,6 +153,7 @@ function BusinessLocationShare({ slug, onSuccess, onCityDetected }: { slug: stri
 
 type FormState = {
   name: string
+  slug: string
   businessType: string
   businessSubcategoryIds: string[]
   country: string
@@ -187,11 +189,12 @@ type FormState = {
   customDateHours: Array<{ date: string; open: string; close: string; shifts: { open: string; close: string }[] }>
 }
 
-function formSnapshotFromData(d: BusinessData): FormState {
+function formSnapshotFromData(d: BusinessData, currentSlug: string): FormState {
   const tenant = d.tenant
   const r = d.restaurantInfo
   return {
     name: tenant?.name ?? '',
+    slug: tenant?.slug ?? currentSlug,
     businessType: tenant?.businessType ?? '',
     businessSubcategoryIds: Array.isArray(tenant?.businessSubcategoryIds) ? tenant.businessSubcategoryIds : [],
     country: tenant?.country ?? '',
@@ -252,6 +255,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
   const [subcategoriesLoading, setSubcategoriesLoading] = useState(false)
   const [form, setForm] = useState({
     name: '',
+    slug: '',
     businessType: '',
     businessSubcategoryIds: [] as string[],
     country: '',
@@ -353,6 +357,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
         setForm((f) => ({
           ...f,
           name: d.tenant!.name || '',
+          slug: d.tenant!.slug ?? slug,
           businessType: d.tenant!.businessType || '',
           businessSubcategoryIds: Array.isArray(d.tenant!.businessSubcategoryIds) ? d.tenant!.businessSubcategoryIds : [],
           country,
@@ -410,7 +415,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
         setLogoPreviewUrl(r.logoUrl || null)
       }
       if (d) {
-        const snap = formSnapshotFromData(d)
+        const snap = formSnapshotFromData(d, slug)
         if (geo?.countryCode && !snap.country) snap.country = geo.countryCode
         lastSavedRef.current = snap
       }
@@ -601,11 +606,9 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     }
     setSaving(true)
     try {
-      const res = await api('/business', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          name: form.name,
-          businessType: form.businessType || undefined,
+      const payload: Record<string, unknown> = {
+        name: form.name,
+        businessType: form.businessType || undefined,
           businessSubcategoryIds: form.businessSubcategoryIds?.length ? form.businessSubcategoryIds : undefined,
           country: form.country || undefined,
           city: form.city || undefined,
@@ -639,16 +642,27 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
             whatsapp: form.whatsapp || undefined,
             website: form.website || undefined,
           },
-        }),
+        }
+      if (form.slug && form.slug.trim() && form.slug.trim() !== slug) {
+        payload.slugNew = form.slug.trim()
+      }
+      const res = await api('/business', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
       })
       if (res.ok) {
+        const resData = (await res.json().catch(() => ({}))) as { redirectTo?: string }
         showToast('Business saved successfully.', 'تم حفظ البيانات بنجاح.', 'success')
         lastSavedRef.current = JSON.parse(JSON.stringify(form))
         skipNextApplyRef.current = true
-        setData((prev) => prev ? { ...prev, tenant: { ...prev.tenant, name: form.name, businessType: form.businessType, businessSubcategoryIds: form.businessSubcategoryIds, country: form.country, city: form.city, ownerPhone: form.ownerPhone, catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false, supportsDriverPickup: form.catalogMode ? false : form.supportsDriverPickup } } : null)
+        setData((prev) => prev ? { ...prev, tenant: { ...prev.tenant, name: form.name, slug: form.slug, businessType: form.businessType, businessSubcategoryIds: form.businessSubcategoryIds, country: form.country, city: form.city, ownerPhone: form.ownerPhone, catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false, supportsDriverPickup: form.catalogMode ? false : form.supportsDriverPickup } } : null)
         businessContext.refetch()
+        if (resData?.redirectTo) {
+          window.location.assign(resData.redirectTo)
+          return
+        }
       } else {
-        const errData = await res.json().catch(() => ({}))
+        const errData = (await res.json().catch(() => ({}))) as { error?: string; code?: string }
         if (errData?.code === 'MUST_VERIFY_PHONE') {
           const phone = (form.ownerPhone || '').trim()
           const params = new URLSearchParams({ returnTo: `/t/${slug}/manage/business` })
@@ -656,14 +670,19 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           window.location.href = `/verify-phone?${params.toString()}`
           return
         }
-        showToast('Failed to save. Please try again.', 'فشل الحفظ. يرجى المحاولة مرة أخرى.', 'error')
+        const errMsg = typeof errData?.error === 'string' ? errData.error : undefined
+        showToast(
+          errMsg || 'Failed to save. Please try again.',
+          errMsg || 'فشل الحفظ. يرجى المحاولة مرة أخرى.',
+          'error'
+        )
       }
     } catch {
       showToast('Failed to save. Please try again.', 'فشل الحفظ. يرجى المحاولة مرة أخرى.', 'error')
     } finally {
       setSaving(false)
     }
-  }, [form, logoPreviewUrl, api, showToast, businessContext])
+  }, [form, logoPreviewUrl, api, showToast, businessContext, slug])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1209,6 +1228,25 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                 required
               />
               <p className="mt-2 text-xs text-slate-400">{t('Shown in the header of your menu (e.g. B Cafe).', 'يظهر في رأس القائمة (مثال: مقهى ب).')}</p>
+            </div>
+
+            <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
+              <label className="block text-sm font-semibold text-slate-300 mb-2">{t('Business URL', 'رابط المتجر')}</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-slate-500 shrink-0">/t/</span>
+                <Input
+                  value={form.slug}
+                  onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') }))}
+                  placeholder="my-restaurant"
+                  className="flex-1 min-w-[140px] h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base font-mono"
+                />
+              </div>
+              <p className="mt-2 text-xs text-slate-400">
+                {t(
+                  'Your menu link. Letters, numbers, and hyphens only. Changing it will update your public URL.',
+                  'رابط قائمتك. أحرف وأرقام وشرطات فقط. تغييره يحدّث رابطك العام.'
+                )}
+              </p>
             </div>
 
             <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">

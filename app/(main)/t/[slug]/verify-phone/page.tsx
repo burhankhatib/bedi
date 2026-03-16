@@ -1,5 +1,9 @@
 import { redirect } from 'next/navigation'
 
+export const metadata = {
+  robots: { index: false, follow: false },
+}
+
 /**
  * Tenant-scoped verify-phone: redirect to global verify-phone with returnTo so user comes back to this tenant's menu.
  */
