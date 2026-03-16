@@ -259,6 +259,11 @@ function DriverOrdersV2Content() {
   const MAX_PULL = 180
   const REFRESH_THRESHOLD = 80
   const FORCE_RELOAD_THRESHOLD = 150
+  const pullContainerRef = useRef<HTMLDivElement>(null)
+  const startYRef = useRef<number | null>(null)
+  const setPullDistanceRef = useRef((n: number) => setPullDistance(n))
+  startYRef.current = startY
+  setPullDistanceRef.current = setPullDistance
 
   /* ── always-on driver geolocation (for distance calcs + map). Samsung: longer timeout. ────── */
   useEffect(() => {
@@ -1217,14 +1222,41 @@ function DriverOrdersV2Content() {
 
   /* ── pull-to-refresh ───────────────────────────────── */
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (window.scrollY <= 0) setStartY(e.touches[0].clientY)
+    if (window.scrollY <= 5) {
+      const y = e.touches[0].clientY
+      setStartY(y)
+      startYRef.current = y
+    } else {
+      setStartY(null)
+      startYRef.current = null
+    }
   }
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (startY !== null && window.scrollY <= 0) {
-      const dist = e.touches[0].clientY - startY
+    if (startYRef.current !== null && window.scrollY <= 5) {
+      const dist = e.touches[0].clientY - startYRef.current
       if (dist > 0) setPullDistance(Math.min(dist * 0.5, MAX_PULL))
     }
   }
+  useEffect(() => {
+    const el = pullContainerRef.current
+    if (!el) return
+    const onMove = (e: TouchEvent) => {
+      const sy = startYRef.current
+      if (sy === null) return
+      if (window.scrollY > 10) {
+        setStartY(null)
+        startYRef.current = null
+        return
+      }
+      const dist = e.touches[0].clientY - sy
+      if (dist > 0) {
+        e.preventDefault()
+        setPullDistanceRef.current(Math.min(dist * 0.5, MAX_PULL))
+      }
+    }
+    el.addEventListener('touchmove', onMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onMove)
+  }, [])
   const handleTouchEnd = async () => {
     if (pullDistance > REFRESH_THRESHOLD && !isRefreshing) {
       const forceReload = pullDistance >= FORCE_RELOAD_THRESHOLD
@@ -1531,10 +1563,12 @@ function DriverOrdersV2Content() {
   /* ═══════════════════════════════════════════════════════════════════ */
   return (
     <div
-      className="relative touch-pan-y space-y-5"
+      ref={pullContainerRef}
+      className="relative touch-pan-y space-y-5 overflow-visible touch-manipulation"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      style={{ touchAction: pullDistance > 0 ? 'none' : 'pan-y' }}
     >
       {/* ─── Pull-to-refresh indicator ─────────────────── */}
       <motion.div

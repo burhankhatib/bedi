@@ -1,7 +1,7 @@
-import { DriverAnalyticsClient } from './DriverAnalyticsClient'
+import { DriverAnalyticsPageClient } from './DriverAnalyticsPageClient'
 
 export const dynamic = 'force-dynamic'
 
 export default function DriverAnalyticsPage() {
-  return <DriverAnalyticsClient />
+  return <DriverAnalyticsPageClient />
 }

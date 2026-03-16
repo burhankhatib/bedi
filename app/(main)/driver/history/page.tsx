@@ -1,5 +1,5 @@
-import { DriverHistoryClient } from './DriverHistoryClient'
+import { DriverHistoryPageClient } from './DriverHistoryPageClient'
 
 export default function DriverHistoryPage() {
-  return <DriverHistoryClient />
+  return <DriverHistoryPageClient />
 }

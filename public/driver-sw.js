@@ -85,11 +85,24 @@ self.addEventListener('notificationclick', function (event) {
     ? event.notification.data.url
     : PWA_DEFAULT_URL
 
+  // Ensure we open Orders (main page), not /driver which redirects
+  var normPath = (typeof path === 'string' ? path : '').split('?')[0]
+  if (normPath === '/driver' || normPath === self.location.origin + '/driver' ||
+      normPath.endsWith('/driver') || normPath.endsWith('/driver/')) {
+    path = PWA_DEFAULT_URL
+  }
+
   var fullUrl
   try {
     fullUrl = new URL(path, self.location.origin).href
   } catch (_) {
     fullUrl = self.location.origin + (path.startsWith('/') ? path : '/' + path)
+  }
+
+  // Normalize bare /driver to /driver/orders (goOnline param added below)
+  var fullPath = fullUrl.split('?')[0]
+  if (fullPath === self.location.origin + '/driver' || fullPath.endsWith('/driver') || fullPath.endsWith('/driver/')) {
+    fullUrl = self.location.origin + PWA_DEFAULT_URL
   }
 
   // Driver: ensure ?goOnline=1 when routing to orders
