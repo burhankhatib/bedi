@@ -152,7 +152,8 @@ export function UniversalSearch({
   }, [skipFetch, debouncedQuery, tenantSlug, city, isChosen, lang, isAIMode])
 
   const totalItems = (results?.businesses?.length ?? 0) + (results?.products?.length ?? 0)
-  const canShowAI = (isAIMode || aiSubmittedQuery) && city && isChosen && !tenantSlug
+  /** Always allow opening AI chat when location is chosen (any input is treated as a question for the AI). */
+  const canShowAI = !!(city && isChosen && !tenantSlug)
   /** Can receive "open chat" event (e.g. from ChatFab) — needs location, regardless of current query. */
   const canReceiveOpenChat = !!city && isChosen && !tenantSlug
   const chatOverlayOpen = canShowAI && !!aiSubmittedQuery
