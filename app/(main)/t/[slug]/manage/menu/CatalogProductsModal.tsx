@@ -83,8 +83,10 @@ export function CatalogProductsModal({
   const [selectedMenuCategoryId, setSelectedMenuCategoryId] = useState('')
   const [products, setProducts] = useState<CatalogProduct[]>([])
   const [masterProducts, setMasterProducts] = useState<MasterCatalogProduct[]>([])
+  const [masterHasMore, setMasterHasMore] = useState(false)
   const [loading, setLoading] = useState(false)
   const [masterLoading, setMasterLoading] = useState(false)
+  const [masterLoadingMore, setMasterLoadingMore] = useState(false)
   const [masterImageOptions, setMasterImageOptions] = useState<Record<string, { urls: string[]; selectedIndex: number; page: number }>>({})
   const [refreshImageId, setRefreshImageId] = useState<string | null>(null)
   const [addingMasterId, setAddingMasterId] = useState<string | null>(null)
@@ -99,6 +101,8 @@ export function CatalogProductsModal({
   const [contributeImage, setContributeImage] = useState(true)
   const [adding, setAdding] = useState(false)
   const uploadInputRef = useRef<HTMLInputElement>(null)
+  const masterProductsLengthRef = useRef(0)
+  masterProductsLengthRef.current = masterProducts.length
 
   const menuCategoryId = selectedMenuCategoryId || categories[0]?._id || ''
 
@@ -152,45 +156,61 @@ export function CatalogProductsModal({
     }
   }, [])
 
-  const fetchMasterProducts = useCallback(async () => {
-    if (!open || !slug || !businessType) return
-    setMasterLoading(true)
-    try {
-      const params = new URLSearchParams()
-      if (q.trim()) params.set('q', q.trim())
-      // Restaurant & cafe: show grocery (cheese, beverages) + bakery (bread) for meals/sandwiches
-      if (businessType === 'restaurant' || businessType === 'cafe') {
-        params.set('categories', 'grocery,bakery,restaurant,cafe')
-        params.set('limit', '48')
+  const fetchMasterProducts = useCallback(
+    async (append = false) => {
+      if (!open || !slug || !businessType) return
+      if (append) {
+        setMasterLoadingMore(true)
       } else {
-        const cat = businessType === 'supermarket' || businessType === 'greengrocer' ? 'grocery' : businessType
-        params.set('category', cat)
+        setMasterLoading(true)
       }
-      if (!params.has('limit')) params.set('limit', '24')
-      const res = await fetch(`/api/tenants/${slug}/master-catalog?${params}`, { credentials: 'include' })
-      const data = await res.json()
-      const list = Array.isArray(data) ? (data as MasterCatalogProduct[]) : []
-      setMasterProducts(list)
+      try {
+        const params = new URLSearchParams()
+        if (q.trim()) params.set('q', q.trim())
+        if (businessType === 'restaurant' || businessType === 'cafe') {
+          params.set('categories', 'grocery,bakery,restaurant,cafe')
+        } else {
+          const cat = businessType === 'supermarket' || businessType === 'greengrocer' ? 'grocery' : businessType
+          params.set('category', cat)
+        }
+        if (append) params.set('offset', String(masterProductsLengthRef.current))
+        const res = await fetch(`/api/tenants/${slug}/master-catalog?${params}`, { credentials: 'include' })
+        const data = await res.json()
+        const list = Array.isArray(data?.items) ? (data.items as MasterCatalogProduct[]) : []
+        const hasMore = !!data?.hasMore
+        setMasterHasMore(hasMore)
+        setMasterProducts((prev) => (append ? [...prev, ...list] : list))
 
-      const pairs = await Promise.all(
-        list.map(async (item) => {
-          const imageRef = item.image?.asset?._ref
-          if (imageRef) {
-            const storedUrl = urlFor({ _type: 'image', asset: { _ref: imageRef } }).width(400).height(400).url()
-            return [item._id, { urls: [storedUrl], selectedIndex: 0, page: 1 }] as const
-          }
-          const { itemId, urls } = await fetchImagesForProduct(item._id, item.searchQuery?.trim() ?? '', 1)
-          return [itemId, { urls, selectedIndex: 0, page: 1 }] as const
-        })
-      )
-      setMasterImageOptions(Object.fromEntries(pairs))
-    } catch {
-      setMasterProducts([])
-      setMasterImageOptions({})
-    } finally {
-      setMasterLoading(false)
-    }
-  }, [open, slug, q, businessType, fetchImagesForProduct])
+        const toFetch = append ? list : list
+        const pairs = await Promise.all(
+          toFetch.map(async (item) => {
+            const imageRef = item.image?.asset?._ref
+            if (imageRef) {
+              const storedUrl = urlFor({ _type: 'image', asset: { _ref: imageRef } }).width(400).height(400).url()
+              return [item._id, { urls: [storedUrl], selectedIndex: 0, page: 1 }] as const
+            }
+            const { itemId, urls } = await fetchImagesForProduct(item._id, item.searchQuery?.trim() ?? '', 1)
+            return [itemId, { urls, selectedIndex: 0, page: 1 }] as const
+          })
+        )
+        setMasterImageOptions((prev) => (append ? { ...prev, ...Object.fromEntries(pairs) } : Object.fromEntries(pairs)))
+      } catch {
+        if (!append) {
+          setMasterProducts([])
+          setMasterImageOptions({})
+        }
+      } finally {
+        setMasterLoading(false)
+        setMasterLoadingMore(false)
+      }
+    },
+    [open, slug, q, businessType, fetchImagesForProduct]
+  )
+
+  const loadMoreMasterProducts = useCallback(() => {
+    if (masterLoadingMore || masterLoading || !masterHasMore) return
+    fetchMasterProducts(true)
+  }, [fetchMasterProducts, masterHasMore, masterLoadingMore, masterLoading])
 
   const refreshMasterImages = useCallback(async (item: MasterCatalogProduct) => {
     const query = item.searchQuery?.trim()
@@ -565,6 +585,23 @@ export function CatalogProductsModal({
                         </div>
                       )
                     })}
+                  </div>
+                )}
+                {masterHasMore && (
+                  <div className="mt-3 flex justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={loadMoreMasterProducts}
+                      disabled={masterLoadingMore || masterLoading}
+                      className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10"
+                    >
+                      {masterLoadingMore ? (
+                        <Loader2 className="size-4 animate-spin mr-2" />
+                      ) : null}
+                      {masterLoadingMore ? t('Loading…', 'جاري التحميل…') : t('Load more', 'تحميل المزيد')}
+                    </Button>
                   </div>
                 )}
               </section>

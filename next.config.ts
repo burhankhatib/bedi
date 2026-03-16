@@ -42,6 +42,8 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
+      // Next.js 15+ serves dynamic sitemap at /sitemap; GSC and robots.txt expect /sitemap.xml
+      { source: '/sitemap.xml', destination: '/sitemap' },
       // Handle /listings/* requests (likely from bots/crawlers or Sanity Studio references)
       {
         source: '/listings/:path*',

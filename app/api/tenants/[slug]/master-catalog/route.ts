@@ -5,6 +5,8 @@ import { normalizeForSearch } from '@/lib/search/normalize'
 
 export const revalidate = 60
 
+const PAGE_SIZE = 200
+
 type MasterCatalogRow = {
   _id: string
   nameEn?: string
@@ -16,8 +18,9 @@ type MasterCatalogRow = {
 }
 
 /**
- * GET /api/tenants/[slug]/master-catalog?category=...&q=...
- * Returns master catalog templates and marks items already added by this tenant.
+ * GET /api/tenants/[slug]/master-catalog?category=...&q=...&offset=...
+ * Returns master catalog templates (paginated) and marks items already added by this tenant.
+ * Uses Sanity CDN client to reduce API load; pagination keeps each request small (~200 items).
  */
 export async function GET(
   req: NextRequest,
@@ -30,31 +33,40 @@ export async function GET(
   const qRaw = (req.nextUrl.searchParams.get('q') ?? '').trim()
   const categoryRaw = (req.nextUrl.searchParams.get('category') ?? '').trim()
   const categoriesParam = (req.nextUrl.searchParams.get('categories') ?? '').trim()
-  // Map supermarket, greengrocer (vegetable & fruit stores) → grocery so they see grocery catalog items
+  const offset = Math.max(0, parseInt(req.nextUrl.searchParams.get('offset') ?? '0', 10) || 0)
+  const requestedLimit = Math.min(
+    parseInt(req.nextUrl.searchParams.get('limit') ?? String(PAGE_SIZE), 10) || PAGE_SIZE,
+    500
+  )
+  const limit = Math.min(requestedLimit, PAGE_SIZE)
+
   const singleCategory =
     categoryRaw === 'supermarket' || categoryRaw === 'greengrocer' ? 'grocery' : categoryRaw
-  // Support multiple categories (e.g. for restaurant/cafe: grocery,bakery)
   const categories: string[] = categoriesParam
     ? categoriesParam.split(',').map((c) => c.trim()).filter(Boolean)
     : singleCategory
       ? [singleCategory]
       : []
-  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '100', 10) || 100, 200)
   const qNormalized = normalizeForSearch(qRaw)
   const qTerms = qNormalized
     .split(/\s+/)
     .filter(Boolean)
-    .filter((t) => t.length >= 2 && /[\w\u0600-\u06FF]/.test(t)) // require letters/digits, ignore pure punctuation
+    .filter((t) => t.length >= 2 && /[\w\u0600-\u06FF]/.test(t))
+
+  const isSearch = qTerms.length > 0
+  const fetchSize = isSearch ? Math.min(2000, 2500) : limit
+  const fetchOffset = isSearch ? 0 : offset
 
   const [items, addedRefs] = await Promise.all([
     client.fetch<MasterCatalogRow[]>(
-      `*[_type == "masterCatalogProduct" ${categories.length > 0 ? `&& category in $categories` : ''}] | order(nameEn asc) [0...$limit]{
+      `*[_type == "masterCatalogProduct" ${categories.length > 0 ? `&& category in $categories` : ''}] | order(nameEn asc) [$fetchOffset...$fetchEnd]{
         _id, nameEn, nameAr, category, searchQuery, unitType,
         "image": image
       }`,
       {
         ...(categories.length > 0 ? { categories } : {}),
-        limit: Math.max(limit, 300),
+        fetchOffset,
+        fetchEnd: fetchOffset + fetchSize,
       }
     ),
     client.fetch<Array<{ _id: string; ref?: string }>>(
@@ -76,11 +88,18 @@ export async function GET(
     return qTerms.every((term) => haystack.includes(term))
   })
 
+  const hasMore = !isSearch && items.length >= limit
+  const resultItems = isSearch ? filtered : filtered.slice(0, limit)
+
   return NextResponse.json(
-    filtered.slice(0, limit).map((item) => ({
-      ...item,
-      alreadyAdded: addedSet.has(item._id),
-    })),
+    {
+      items: resultItems.map((item) => ({
+        ...item,
+        alreadyAdded: addedSet.has(item._id),
+      })),
+      hasMore,
+      offset,
+    },
     { headers: { 'Cache-Control': 'private, max-age=60' } }
   )
 }
