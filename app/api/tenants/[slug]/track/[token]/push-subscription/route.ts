@@ -89,8 +89,11 @@ export async function POST(
     })
   }
 
-  if (fcmToken) {
-    sendConnectionConfirmationFcm(fcmToken, { url: `/t/${slug}/track/${trackingToken}` }).catch(() => {})
+  if (fcmToken || hasWebPush) {
+    await sendConnectionConfirmationFcm(fcmToken ?? null, {
+      url: `/t/${slug}/track/${trackingToken}`,
+      webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : undefined,
+    }).catch(() => {})
   }
 
   return NextResponse.json({ success: true, linkedUser: Boolean(userId) })

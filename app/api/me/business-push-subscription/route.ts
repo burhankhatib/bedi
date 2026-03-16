@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
       await patch.commit()
     }
 
-    sendConnectionConfirmationFcm(fcmToken, { url: '/dashboard' }).catch(() => {})
+    await sendConnectionConfirmationFcm(fcmToken, { url: '/dashboard' }).catch(() => {})
 
     return NextResponse.json({ success: true, saved: list.length })
   } catch (e) {

@@ -88,8 +88,11 @@ export async function POST(req: NextRequest) {
   }
   await patch.commit()
 
-  if (fcmToken) {
-    sendConnectionConfirmationFcm(fcmToken, { url: '/driver/orders' }).catch(() => {})
+  const confirmOpts = {
+    url: '/driver/orders' as const,
+    webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : undefined,
   }
+  await sendConnectionConfirmationFcm(fcmToken ?? null, confirmOpts).catch(() => {})
+
   return NextResponse.json({ success: true, hasFcm: !!fcmToken })
 }

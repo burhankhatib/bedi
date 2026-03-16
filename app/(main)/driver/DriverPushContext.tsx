@@ -219,13 +219,13 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     }
   }, [checked, permission, checkPushHealth])
 
-  // Daily welcome ping with local throttle to reduce API calls; server also enforces 24h.
+  // Welcome ping with local throttle (2h); server enforces 24h. Confirms push works when driver returns to app.
   const WELCOME_LAST_PING_KEY = 'bedi-driver-welcome-last-ping'
   useEffect(() => {
     if (typeof window === 'undefined' || !hasPush) return
     try {
       const last = Number(localStorage.getItem(WELCOME_LAST_PING_KEY) || '0')
-      if (Number.isFinite(last) && Date.now() - last < 6 * 60 * 60 * 1000) return
+      if (Number.isFinite(last) && Date.now() - last < 2 * 60 * 60 * 1000) return
       localStorage.setItem(WELCOME_LAST_PING_KEY, String(Date.now()))
       fetch('/api/driver/push-send-welcome', { method: 'POST' }).catch(() => {})
     } catch {

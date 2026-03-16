@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    sendConnectionConfirmationFcm(fcmToken).catch(() => {})
+    await sendConnectionConfirmationFcm(fcmToken).catch(() => {})
 
     return NextResponse.json({ success: true, linkedUser: Boolean(userId) })
   } catch (e) {
