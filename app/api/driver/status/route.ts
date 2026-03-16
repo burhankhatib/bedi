@@ -56,7 +56,13 @@ export async function PATCH(req: NextRequest) {
       )
     }
 
-    const hasPush = !!(driver.fcmToken || driver.pushSubscription?.endpoint)
+    const hasLegacyPush = !!(driver.fcmToken || driver.pushSubscription?.endpoint)
+    let hasCentralPush = false
+    if (driver.clerkUserId) {
+      const subs = await getActiveSubscriptionsForUser({ clerkUserId: driver.clerkUserId, roleContext: 'driver' })
+      hasCentralPush = subs.some((s) => Array.isArray(s?.devices) && s.devices.length > 0)
+    }
+    const hasPush = hasLegacyPush || hasCentralPush
     if (!hasPush) {
       return NextResponse.json(
         { error: 'push_required', message: 'Enable push notifications on the Orders page before going online.' },

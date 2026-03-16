@@ -1,7 +1,8 @@
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
-import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
+import { sendFCMToTokenDetailed, isFCMConfigured } from '@/lib/fcm'
+import { removeDevice } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 const OFFLINE_REMINDER_INTERVAL_MS = 2 * 60 * 60 * 1000
@@ -35,15 +36,27 @@ async function getDriverTokens(
   return { fcmTokens, webPush }
 }
 
+type DriverCleanupContext = { driverId: string; clerkUserId?: string; legacyFcmToken?: string }
+
 async function sendToDriverTokens(
   tokens: { fcmTokens: string[]; webPush: Array<{ endpoint: string; p256dh: string; auth: string }> },
-  payload: { title: string; body: string; url: string; dir: 'rtl' }
+  payload: { title: string; body: string; url: string; dir: 'rtl' },
+  driverCtx?: DriverCleanupContext
 ): Promise<boolean> {
   let sent = false
+  const payloadWithDataOnly = { ...payload, dataOnly: true as const }
   for (const tok of tokens.fcmTokens) {
-    if (isFCMConfigured() && (await sendFCMToToken(tok, payload))) {
+    if (!isFCMConfigured()) break
+    const result = await sendFCMToTokenDetailed(tok, payloadWithDataOnly)
+    if (result.ok) {
       sent = true
       break
+    }
+    if (result.permanent && driverCtx?.clerkUserId) {
+      await removeDevice({ clerkUserId: driverCtx.clerkUserId, roleContext: 'driver', fcmToken: tok }).catch(() => {})
+      if (tok === driverCtx.legacyFcmToken) {
+        writeClient.patch(driverCtx.driverId).unset(['fcmToken']).commit().catch(() => {})
+      }
     }
   }
   if (!sent && isPushConfigured()) {
@@ -189,7 +202,12 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
     for (const d of matching) {
       const tokens = await getDriverTokens(d, centralByClerk)
       if (tokens.fcmTokens.length === 0 && tokens.webPush.length === 0) continue
-      await sendToDriverTokens(tokens, payload)
+      const driverCtx: DriverCleanupContext = {
+        driverId: d._id,
+        clerkUserId: (d.clerkUserId ?? '').trim() || undefined,
+        legacyFcmToken: (d.fcmToken ?? '').trim() || undefined,
+      }
+      await sendToDriverTokens(tokens, payload, driverCtx)
     }
 
     // Send offline driver reminders (once per 2 hours per driver) — "go online to receive orders"
@@ -253,7 +271,12 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       for (const d of eligibleOffline) {
         const tokens = await getDriverTokens({ ...d, pushSubscription: d.pushSubscription }, offlineCentralByClerk)
         if (tokens.fcmTokens.length === 0 && tokens.webPush.length === 0) continue
-        await sendToDriverTokens(tokens, reminderPayload)
+        const driverCtx: DriverCleanupContext = {
+          driverId: d._id,
+          clerkUserId: (d.clerkUserId ?? '').trim() || undefined,
+          legacyFcmToken: (d.fcmToken ?? '').trim() || undefined,
+        }
+        await sendToDriverTokens(tokens, reminderPayload, driverCtx)
         writeClient.patch(d._id).set({ lastOfflineReminderAt: reminderNow }).commit().catch(() => {})
       }
     }
