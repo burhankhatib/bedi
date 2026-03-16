@@ -36,6 +36,9 @@ import {
   Plus,
   Minus,
   Search,
+  Trash2,
+  ArrowRight,
+  RefreshCw,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -241,6 +244,8 @@ function DeliveryETABox({
   const [removeReason, setRemoveReason] = useState('')
   const [removeSending, setRemoveSending] = useState(false)
   const [acknowledgeChecked, setAcknowledgeChecked] = useState(false)
+  const [showAddTipConfirmModal, setShowAddTipConfirmModal] = useState(false)
+  const [showSendTipConfirmModal, setShowSendTipConfirmModal] = useState(false)
 
   const isActive =
     order.status === 'out-for-delivery' || order.status === 'driver_on_the_way'
@@ -649,6 +654,182 @@ function DeliveryETABox({
           </div>
         )}
 
+        {/* When driver arrived but customer hasn't added a tip: allow add with confirmation */}
+        {isOutForDelivery && driverArrived && !tipWasSentToDriver && (
+          <div className="bg-gradient-to-b from-amber-50 to-amber-100/50 px-5 py-5 border-t border-amber-200/40">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Heart className="h-5 w-5 text-amber-500" />
+              <p className="font-bold text-amber-900 text-[15px]">
+                {t('Thank your driver with a tip?', 'هل تود شكر السائق بإكرامية؟')}
+              </p>
+            </div>
+            <p className="text-xs text-amber-700/80 mb-4 leading-relaxed">
+              {t(
+                'A small gesture that makes a big difference! Confirm before sending to avoid mistakes.',
+                'لفتة صغيرة تصنع فرقاً! أكّد قبل الإرسال لتجنّب الأخطاء.'
+              )}
+            </p>
+
+            {/* Yes / No */}
+            <div className="flex gap-3">
+              <motion.button
+                type="button"
+                onClick={() => onTipToggle(true)}
+                whileTap={{ scale: 0.95 }}
+                className={`flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all duration-300 ${
+                  tipEnabled
+                    ? 'bg-amber-500 text-white shadow-lg shadow-amber-300/40'
+                    : 'bg-white text-amber-600 border-2 border-amber-200 hover:border-amber-300 hover:bg-amber-50'
+                }`}
+              >
+                {tipEnabled ? '💚 ' : ''}{t('Yes, add a tip!', 'نعم، أضف إكرامية!')}
+              </motion.button>
+              <motion.button
+                type="button"
+                onClick={() => onTipToggle(false)}
+                whileTap={{ scale: 0.95 }}
+                className={`flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all duration-300 ${
+                  !tipEnabled
+                    ? 'bg-slate-600 text-white shadow-lg shadow-slate-300/40'
+                    : 'bg-white text-slate-400 border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {t('No, thanks', 'لا، شكراً')}
+              </motion.button>
+            </div>
+
+            {/* Amount selector */}
+            <AnimatePresence>
+              {tipEnabled && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-4">
+                    <p className="text-xs text-amber-600/80 font-semibold mb-2.5">
+                      {t('Choose tip amount', 'اختر مبلغ الإكرامية')}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {getSuggestedTips(totalAmount).map((amt) => (
+                        <motion.button
+                          key={amt}
+                          type="button"
+                          onClick={() => onTipAmountChange(amt)}
+                          whileTap={{ scale: 0.9 }}
+                          animate={selectedTipAmount === amt ? { scale: [1, 1.08, 1] } : {}}
+                          transition={{ duration: 0.25 }}
+                          className={`flex-1 min-w-[3.5rem] py-2.5 rounded-2xl text-sm font-bold transition-all duration-200 ${
+                            selectedTipAmount === amt
+                              ? 'bg-amber-500 text-white shadow-md shadow-amber-300/50 ring-2 ring-amber-300/60'
+                              : 'bg-white text-amber-500 border border-amber-200 hover:border-amber-300 hover:bg-amber-50'
+                          }`}
+                        >
+                          +{amt} {fmtCurrency}
+                        </motion.button>
+                      ))}
+                    </div>
+                    <AnimatePresence mode="wait">
+                      <motion.p
+                        key={`${selectedTipAmount}`}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: 0.15 }}
+                        className="text-center text-xs text-amber-500 mt-3"
+                      >
+                        {t('New total:', 'المجموع الجديد:')} {(totalAmount + selectedTipAmount).toFixed(2)} {fmtCurrency}
+                      </motion.p>
+                    </AnimatePresence>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Add tip button — opens confirmation modal */}
+            <AnimatePresence>
+              {tipEnabled && tipAmount > 0 && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-3">
+                    <motion.button
+                      type="button"
+                      onClick={() => setShowAddTipConfirmModal(true)}
+                      disabled={tipSending}
+                      whileTap={{ scale: 0.97 }}
+                      className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-300/30 disabled:opacity-60 transition-all"
+                    >
+                      {t('Add tip for driver', 'أضف إكرامية للسائق')} 🚀
+                    </motion.button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Confirmation modal */}
+            <AnimatePresence>
+              {showAddTipConfirmModal && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50"
+                  onClick={() => !tipSending && setShowAddTipConfirmModal(false)}
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                    className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="text-center font-bold text-slate-800 text-lg">
+                      {t('Confirm add tip?', 'تأكيد إضافة الإكرامية؟')}
+                    </p>
+                    <p className="text-center text-slate-600 text-sm mt-2">
+                      {t('You are about to add', 'ستقوم بإضافة')} <span className="font-bold text-amber-600">+{tipAmount.toFixed(2)} {fmtCurrency}</span> {t('as a tip. The driver will be notified.', 'كإكرامية. سيتم إشعار السائق.')}
+                    </p>
+                    <p className="text-center text-xs text-slate-500 mt-1">
+                      {t('This prevents accidental taps.', 'هذا يمنع الضغط بالخطأ.')}
+                    </p>
+                    <div className="flex gap-3 mt-6">
+                      <motion.button
+                        type="button"
+                        onClick={() => setShowAddTipConfirmModal(false)}
+                        disabled={tipSending}
+                        whileTap={{ scale: 0.95 }}
+                        className="flex-1 py-3 rounded-xl font-bold text-sm bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+                      >
+                        {t('Cancel', 'إلغاء')}
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        onClick={async () => {
+                          setShowAddTipConfirmModal(false)
+                          onSendTipToDriver()
+                        }}
+                        disabled={tipSending}
+                        whileTap={{ scale: 0.95 }}
+                        className="flex-1 py-3 rounded-xl font-bold text-sm bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
+                      >
+                        {tipSending ? t('Sending…', 'جاري الإرسال…') : t('Confirm', 'تأكيد')}
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
         {/* When driver has NOT arrived: show full tip controls */}
         {isOutForDelivery && !driverArrived && (
           <div className="bg-gradient-to-b from-rose-50 to-rose-100/50 px-5 py-5 border-t border-rose-200/40">
@@ -743,7 +924,7 @@ function DeliveryETABox({
               )}
             </AnimatePresence>
 
-            {/* Send tip to driver button */}
+            {/* Send tip to driver button — confirmation prevents accidental send */}
             <AnimatePresence>
               {tipEnabled && tipAmount > 0 && !tipWasSentToDriver && (
                 <motion.div
@@ -756,7 +937,7 @@ function DeliveryETABox({
                   <div className="pt-3">
                     <motion.button
                       type="button"
-                      onClick={onSendTipToDriver}
+                      onClick={() => setShowSendTipConfirmModal(true)}
                       disabled={tipSending}
                       whileTap={{ scale: 0.97 }}
                       className="w-full py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-300/30 disabled:opacity-60 transition-all"
@@ -767,11 +948,66 @@ function DeliveryETABox({
                     </motion.button>
                     <p className="text-[10px] text-rose-400/70 mt-2 text-center leading-relaxed">
                       {t(
-                        'The driver will see your tip as encouragement. You can change or remove it anytime.',
-                        'سيرى السائق الإكرامية كتشجيع. يمكنك تغييرها أو إزالتها في أي وقت.'
+                        'The driver will see your tip as encouragement. Confirm before sending to prevent mistakes.',
+                        'سيرى السائق الإكرامية كتشجيع. أكّد قبل الإرسال لتجنّب الأخطاء.'
                       )}
                     </p>
                   </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Pre-arrival send tip confirmation modal */}
+            <AnimatePresence>
+              {showSendTipConfirmModal && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50"
+                  onClick={() => !tipSending && setShowSendTipConfirmModal(false)}
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                    className="relative w-full max-w-sm rounded-2xl bg-white shadow-2xl p-6"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="text-center font-bold text-slate-800 text-lg">
+                      {t('Confirm send tip?', 'تأكيد إرسال الإكرامية؟')}
+                    </p>
+                    <p className="text-center text-slate-600 text-sm mt-2">
+                      {t('You are about to send', 'ستقوم بإرسال')} <span className="font-bold text-purple-600">+{tipAmount.toFixed(2)} {fmtCurrency}</span> {t('as a tip. The driver will be notified.', 'كإكرامية. سيتم إشعار السائق.')}
+                    </p>
+                    <p className="text-center text-xs text-slate-500 mt-1">
+                      {t('This prevents accidental taps.', 'هذا يمنع الضغط بالخطأ.')}
+                    </p>
+                    <div className="flex gap-3 mt-6">
+                      <motion.button
+                        type="button"
+                        onClick={() => setShowSendTipConfirmModal(false)}
+                        disabled={tipSending}
+                        whileTap={{ scale: 0.95 }}
+                        className="flex-1 py-3 rounded-xl font-bold text-sm bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+                      >
+                        {t('Cancel', 'إلغاء')}
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        onClick={async () => {
+                          setShowSendTipConfirmModal(false)
+                          onSendTipToDriver()
+                        }}
+                        disabled={tipSending}
+                        whileTap={{ scale: 0.95 }}
+                        className="flex-1 py-3 rounded-xl font-bold text-sm bg-purple-500 text-white hover:bg-purple-600 disabled:opacity-50"
+                      >
+                        {tipSending ? t('Sending…', 'جاري الإرسال…') : t('Confirm', 'تأكيد')}
+                      </motion.button>
+                    </div>
+                  </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1719,35 +1955,125 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
                   </motion.div>
 
                   {(data.order.customerItemChangeSummary ?? []).length > 0 && (
-                    <div className="rounded-2xl border-2 border-slate-200 bg-white p-4 space-y-3">
+                    <div className="rounded-2xl border-2 border-slate-200 bg-white p-4 space-y-4">
                       {(data.order.customerItemChangeSummary ?? []).map((change, idx) => {
-                        const displayName = change.toName || change.fromName || t('Item', 'صنف')
-                        const matchingItem = (data.order.items ?? []).find(
-                          (item) => item.productName && (item.productName === displayName || item.productName === change.toName || item.productName === change.fromName)
+                        const fromName = change.fromName || t('Item', 'صنف')
+                        const toName = change.toName || fromName
+                        const fromQty = change.fromQuantity ?? 1
+                        const toQty = change.toQuantity ?? 1
+                        const isQtyChange = change.type === 'edited' && fromQty !== toQty && fromName === toName
+                        const newProductItem = (data.order.items ?? []).find(
+                          (item) => item.productName && (item.productName === toName || item.productName === change.toName)
                         )
-                        const imageUrl = matchingItem?.imageUrl
+                        const imageUrl = newProductItem?.imageUrl
+                        const price = newProductItem?.price ?? 0
+                        const currency = data.order.currency ?? 'ILS'
+
+                        if (change.type === 'removed' || change.type === 'not_picked') {
+                          return (
+                            <div key={`${change.type}-${idx}`} className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 flex gap-4 items-center">
+                              <div className="shrink-0 w-14 h-14 rounded-xl bg-rose-100 flex items-center justify-center">
+                                <Trash2 className="w-8 h-8 text-rose-500" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-rose-600 uppercase tracking-wide">
+                                  {change.type === 'removed' ? t('Removed', 'تمت الإزالة') : t('Not picked', 'لم يتم التقاطه')}
+                                </p>
+                                <p className="text-base font-bold text-slate-800 line-through mt-0.5">{fromName}</p>
+                                {fromQty > 1 && <p className="text-sm text-slate-500">{t('Qty', 'الكمية')}: {fromQty}</p>}
+                                {(change.note || '').trim() && <p className="text-sm text-slate-500 mt-1">📝 {change.note}</p>}
+                              </div>
+                            </div>
+                          )
+                        }
+
+                        if (change.type === 'replaced') {
+                          return (
+                            <div key={`replaced-${idx}`} className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/30 p-4 space-y-3">
+                              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide flex items-center gap-1.5">
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                {t('Replaced', 'تم الاستبدال')}
+                              </p>
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-slate-500 line-through truncate">{fromName}</p>
+                                  {fromQty > 1 && <p className="text-xs text-slate-400">{fromQty}×</p>}
+                                </div>
+                                <ArrowRight className="w-6 h-6 text-indigo-400 shrink-0" />
+                                <div className="flex-1 flex gap-3 items-center min-w-0">
+                                  {imageUrl ? (
+                                    <div className="shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-white border border-slate-200 shadow-sm">
+                                      <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+                                    </div>
+                                  ) : (
+                                    <div className="shrink-0 w-20 h-20 rounded-xl bg-slate-100 flex items-center justify-center">
+                                      <Package className="w-10 h-10 text-slate-400" />
+                                    </div>
+                                  )}
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-bold text-slate-900 text-base truncate">{toName}</p>
+                                    <p className="text-indigo-600 font-bold mt-0.5">
+                                      {price.toFixed(2)} {formatCurrency(currency)}
+                                      {toQty > 1 && ` × ${toQty}`}
+                                    </p>
+                                    {(change.note || '').trim() && <p className="text-xs text-slate-500 mt-1">📝 {change.note}</p>}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        }
+
+                        if (isQtyChange) {
+                          return (
+                            <div key={`edited-${idx}`} className="rounded-2xl border-2 border-amber-200 bg-amber-50/40 p-4 flex gap-4 items-center">
+                              {imageUrl ? (
+                                <div className="shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-white border border-slate-200 shadow-sm">
+                                  <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+                                </div>
+                              ) : (
+                                <div className="shrink-0 w-20 h-20 rounded-xl bg-slate-100 flex items-center justify-center">
+                                  <Package className="w-10 h-10 text-slate-400" />
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">{t('Quantity changed', 'تم تغيير الكمية')}</p>
+                                <p className="font-bold text-slate-900 text-base mt-0.5">{fromName}</p>
+                                <div className="flex items-center gap-2 mt-2">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-200 text-slate-600 font-bold text-sm">
+                                    <Minus className="w-3.5 h-3.5" /> {fromQty}
+                                  </span>
+                                  <ArrowRight className="w-4 h-4 text-amber-500" />
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-200 text-amber-800 font-bold text-sm">
+                                    <Plus className="w-3.5 h-3.5" /> {toQty}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-slate-600 mt-1">
+                                  {price.toFixed(2)} {formatCurrency(currency)} {t('each', 'للقطعة')}
+                                </p>
+                                {(change.note || '').trim() && <p className="text-xs text-slate-500 mt-1">📝 {change.note}</p>}
+                              </div>
+                            </div>
+                          )
+                        }
+
                         return (
-                          <div key={`${change.type}-${idx}`} className="flex gap-4 items-start rounded-xl border border-slate-100 bg-slate-50/50 p-3">
+                          <div key={`${change.type}-${idx}`} className="flex gap-4 items-start rounded-xl border border-slate-200 bg-slate-50/50 p-4">
                             {imageUrl ? (
-                              <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-slate-200">
+                              <div className="shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-slate-200">
                                 <img src={imageUrl} alt="" className="w-full h-full object-cover" />
                               </div>
                             ) : (
-                              <div className="shrink-0 w-14 h-14 rounded-xl bg-amber-100 flex items-center justify-center">
-                                <Package className="w-7 h-7 text-amber-600/70" />
+                              <div className="shrink-0 w-16 h-16 rounded-xl bg-amber-100 flex items-center justify-center">
+                                <Package className="w-8 h-8 text-amber-600/70" />
                               </div>
                             )}
                             <div className="min-w-0 flex-1">
-                              <p className="text-base font-bold text-slate-800">
-                                {change.type === 'removed' && t('Removed', 'تمت الإزالة')}
-                                {change.type === 'replaced' && t('Replaced', 'تم الاستبدال')}
+                              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                                 {change.type === 'edited' && t('Updated', 'تم التحديث')}
-                                {change.type === 'not_picked' && t('Not picked', 'لم يتم التقاطه')}
-                                {': '}
-                                {change.fromName || t('Item', 'صنف')}
-                                {change.toName ? ` → ${change.toName}` : ''}
                               </p>
-                              {(change.note || '').trim() && <p className="text-sm text-slate-500 mt-0.5">📝 {change.note}</p>}
+                              <p className="font-bold text-slate-800 text-base">{toName}</p>
+                              {(change.note || '').trim() && <p className="text-sm text-slate-500 mt-1">📝 {change.note}</p>}
                             </div>
                           </div>
                         )
@@ -2117,8 +2443,8 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         </div>
       </div>
 
-      {/* Edit Order — delivery only, before completed/cancelled */}
-      {isDelivery && data.order && !['completed', 'cancelled', 'refunded'].includes(data.order.status ?? '') && (
+      {/* Edit Order — delivery only, before picked up / completed / cancelled. Hide once driver confirms pickup. */}
+      {isDelivery && data.order && !['completed', 'cancelled', 'refunded', 'out-for-delivery'].includes(data.order.status ?? '') && !data.order.driverPickedUpAt && (
         <div className="mt-4 px-4">
           <button
             type="button"

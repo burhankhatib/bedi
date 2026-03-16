@@ -13,6 +13,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { useDriverPush } from '../DriverPushContext'
 import { useDriverStatus } from '../DriverStatusContext'
 import { usePusherStream } from '@/lib/usePusherStream'
+import { getPusherClient } from '@/lib/pusher-client'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import {
   parseCoordsFromGoogleMapsUrl,
@@ -27,6 +28,7 @@ import { SlideToComplete } from './SlideToComplete'
 import { SlideToPickUp } from './SlideToPickUp'
 import { SlideToConfirm } from './SlideToConfirm'
 import { SlideToArrive } from './SlideToArrive'
+import { TipCelebrationModal } from './TipCelebrationModal'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
 import { ChangeCalculatorModal } from './ChangeCalculatorModal'
 import { DRIVER_MOTIVATIONAL_QUOTES } from './driverQuotes'
@@ -227,6 +229,11 @@ function DriverOrdersV2Content() {
   const [expandedDetailsByOrder, setExpandedDetailsByOrder] = useState<Record<string, Set<number>>>({})
   const [addProductFormOpenByOrder, setAddProductFormOpenByOrder] = useState<Record<string, boolean>>({})
   const [pendingPickupManualConfirmOrderId, setPendingPickupManualConfirmOrderId] = useState<string | null>(null)
+  const [tipCelebration, setTipCelebration] = useState<{
+    orderId: string
+    tipAmount: number
+    currency: string
+  } | null>(null)
 
   const [driverLat, setDriverLat] = useState<number | null>(null)
   const [driverLng, setDriverLng] = useState<number | null>(null)
@@ -389,6 +396,30 @@ function DriverOrdersV2Content() {
   usePusherStream('driver-global', 'order-update', fetchOrders, {
     debounceMs: 700,
   })
+
+  /* ── tip celebration: listen for tip-sent-to-driver, show modal ─────────────────────────── */
+  const myDeliveriesRef = useRef<DriverOrder[]>([])
+  myDeliveriesRef.current = myDeliveries
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const pusher = getPusherClient()
+    if (!pusher) return
+    const channel = pusher.subscribe('driver-global')
+    const handler = (data: { type?: string; orderId?: string; tipAmount?: number; currency?: string }) => {
+      if (data?.type !== 'tip-sent-to-driver' || !data?.orderId || (data?.tipAmount ?? 0) <= 0) return
+      const delivered = myDeliveriesRef.current.map((o) => o.orderId)
+      if (!delivered.includes(data.orderId)) return
+      setTipCelebration({
+        orderId: data.orderId,
+        tipAmount: data.tipAmount!,
+        currency: data.currency ?? 'ILS',
+      })
+    }
+    channel.bind('order-update', handler)
+    return () => {
+      channel.unbind('order-update', handler)
+    }
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined' || !hasPush || isOnline) return
@@ -2765,6 +2796,18 @@ function DriverOrdersV2Content() {
         orderTotal={calcOrderTotal}
         currency={calcCurrency}
       />
+
+      {/* ─── Tip Celebration Modal (10s auto-close) ─────── */}
+      <AnimatePresence>
+        {tipCelebration && (
+          <TipCelebrationModal
+            key={tipCelebration.orderId}
+            tipAmount={tipCelebration.tipAmount}
+            currency={tipCelebration.currency}
+            onClose={() => setTipCelebration(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ─── Full-screen Navigation Map Overlay ────────── */}
       {mapState === 'maximized' &&

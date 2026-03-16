@@ -30,9 +30,10 @@ export async function POST(
     status?: string
     tipPercent?: number
     tipAmount?: number
+    currency?: string
   } | null>(
     `*[_type == "order" && site._ref == $tenantId && trackingToken == $trackingToken][0]{
-      _id, "site": site, status, tipPercent, tipAmount
+      _id, "site": site, status, tipPercent, tipAmount, currency
     }`,
     { tenantId, trackingToken }
   )
@@ -66,12 +67,13 @@ export async function POST(
     tipAmount,
   }).commit()
 
+  const currency = order.currency ?? 'ILS'
   pusherServer
-    .trigger(`order-${order._id}`, 'order-update', { type: 'tip-sent-to-driver' })
+    .trigger(`order-${order._id}`, 'order-update', { type: 'tip-sent-to-driver', tipAmount, currency })
     .catch(() => {})
 
   pusherServer
-    .trigger('driver-global', 'order-update', { type: 'tip-sent-to-driver', orderId: order._id })
+    .trigger('driver-global', 'order-update', { type: 'tip-sent-to-driver', orderId: order._id, tipAmount, currency })
     .catch(() => {})
 
   return NextResponse.json({ success: true })
