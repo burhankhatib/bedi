@@ -35,7 +35,6 @@ import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
 import { useTenantBusiness } from '../TenantBusinessContext'
 import { CatalogProductsModal } from './CatalogProductsModal'
-import { usePusherStream } from '@/lib/usePusherStream'
 import { isAbortError } from '@/lib/abort-utils'
 import { cn } from '@/lib/utils'
 import { ProductFormModal, type ProductFormData } from './ProductFormModal'
@@ -375,20 +374,9 @@ export function MenuManageClient({
     reloadProducts(true)
   }, [reloadCategories, reloadProducts])
 
-  const refreshDebounceMs = 400
-  const refreshDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const refreshMenuDebounced = useCallback(() => {
-    if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current)
-    refreshDebounceRef.current = setTimeout(() => {
-      refreshDebounceRef.current = null
-      refreshMenu()
-    }, refreshDebounceMs)
-  }, [refreshMenu])
-  useEffect(() => () => {
-    if (refreshDebounceRef.current) clearTimeout(refreshDebounceRef.current)
-  }, [])
-
-  usePusherStream(siteId ? `tenant-${siteId}` : null, 'menu-update', refreshMenuDebounced)
+  // Do not subscribe to Pusher menu-update on this page: it triggers a refetch that overwrites
+  // local state with CDN-cached data (often stale). User edits stay until they click Refresh.
+  // usePusherStream(siteId ? `tenant-${siteId}` : null, 'menu-update', refreshMenuDebounced)
 
   const [submittingCategory, setSubmittingCategory] = useState(false)
   const [sectionSuggestions, setSectionSuggestions] = useState<{
