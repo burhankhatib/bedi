@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { Package, Search, Flag, Undo2 } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { getCityDisplayName } from '@/lib/registration-translations'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { ReportFormModal } from '@/components/Reports/ReportFormModal'
+
+const ReportFormModal = dynamic(() => import('@/components/Reports/ReportFormModal').then((m) => m.ReportFormModal), { ssr: false })
 
 type HistoryOrder = {
   orderId: string
@@ -85,8 +87,10 @@ export function DriverHistoryClient() {
     return () => clearTimeout(id)
   }, [search])
 
+  // Defer fetch to next tick so initial render (loading state) paints first — prevents freeze on navigation
   useEffect(() => {
-    fetchHistory()
+    const id = setTimeout(() => fetchHistory(), 0)
+    return () => clearTimeout(id)
   }, [fetchHistory])
 
   return (

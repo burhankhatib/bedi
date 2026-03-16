@@ -1220,8 +1220,11 @@ function DriverOrdersV2Content() {
   const [dismissedRegistered, setDismissedRegistered] = useState(false)
   const showJustRegistered = justRegistered && !dismissedRegistered
 
-  /* ── pull-to-refresh ───────────────────────────────── */
+  /* ── pull-to-refresh (skipped on iOS PWA: pulltorefreshjs handles it) ── */
+  const isIOSStandalone =
+    typeof window !== 'undefined' && (navigator as unknown as { standalone?: boolean }).standalone === true
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (isIOSStandalone) return
     if (window.scrollY <= 5) {
       const y = e.touches[0].clientY
       setStartY(y)
@@ -1232,12 +1235,14 @@ function DriverOrdersV2Content() {
     }
   }
   const handleTouchMove = (e: React.TouchEvent) => {
+    if (isIOSStandalone) return
     if (startYRef.current !== null && window.scrollY <= 5) {
       const dist = e.touches[0].clientY - startYRef.current
       if (dist > 0) setPullDistance(Math.min(dist * 0.5, MAX_PULL))
     }
   }
   useEffect(() => {
+    if (typeof window !== 'undefined' && (navigator as unknown as { standalone?: boolean }).standalone === true) return
     const el = pullContainerRef.current
     if (!el) return
     const onMove = (e: TouchEvent) => {
@@ -1258,6 +1263,7 @@ function DriverOrdersV2Content() {
     return () => el.removeEventListener('touchmove', onMove)
   }, [])
   const handleTouchEnd = async () => {
+    if (isIOSStandalone) return
     if (pullDistance > REFRESH_THRESHOLD && !isRefreshing) {
       const forceReload = pullDistance >= FORCE_RELOAD_THRESHOLD
       setIsRefreshing(true)

@@ -15,10 +15,17 @@ function isAtTop(): boolean {
   return window.scrollY <= 5 || document.documentElement.scrollTop <= 5
 }
 
+/** iOS PWA uses pulltorefreshjs (DriverIOSPullToRefresh); skip custom pull to avoid conflicts. */
+function isIOSStandalonePWA(): boolean {
+  if (typeof window === 'undefined') return false
+  return (window.navigator as unknown as { standalone?: boolean }).standalone === true
+}
+
 /**
  * Layout-level pull-to-refresh for driver pages other than Orders.
  * Orders has its own enhanced pull-to-refresh in DriverOrdersV2.
  * Light pull = router.refresh(), Strong pull = window.location.reload() to recover from freezes.
+ * On iOS PWA, pulltorefreshjs handles this – we passthrough.
  */
 export function DriverPullToRefresh({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -32,7 +39,7 @@ export function DriverPullToRefresh({ children }: { children: React.ReactNode })
   const setPullDistanceRef = useRef((n: number) => setPullDistance(n))
 
   const isOrdersPage = pathname?.startsWith?.('/driver/orders') ?? false
-  if (isOrdersPage) return <>{children}</>
+  if (isOrdersPage || isIOSStandalonePWA()) return <>{children}</>
 
   setPullDistanceRef.current = setPullDistance
   startYRef.current = startY

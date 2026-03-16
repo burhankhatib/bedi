@@ -11,6 +11,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { DriverDashboardNav } from './DriverDashboardNav'
 import { DriverPullToRefresh } from './DriverPullToRefresh'
+import { DriverIOSPullToRefresh } from './DriverIOSPullToRefresh'
 import { DriverPushSetup } from './DriverPushSetup'
 import { DriverLocationSetup } from './DriverLocationSetup'
 import { DriverPushProvider } from './DriverPushContext'
@@ -239,6 +240,7 @@ export function DriverLayoutClient({
       </Sheet>
 
       <main className="mx-auto max-w-lg px-4 py-4 sm:py-6 sm:max-w-[100vw] overflow-visible">
+        <DriverIOSPullToRefresh />
         <PWAManager role="driver" variant="inline" hideInstall />
         {pathname !== '/driver/profile' && (
           <>
