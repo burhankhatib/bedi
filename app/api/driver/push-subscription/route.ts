@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { upsertUserPushSubscription, checkDeviceToken } from '@/lib/user-push-subscriptions'
+import { sendConnectionConfirmationFcm } from '@/lib/send-connection-confirmation'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -86,5 +87,9 @@ export async function POST(req: NextRequest) {
     })
   }
   await patch.commit()
+
+  if (fcmToken) {
+    sendConnectionConfirmationFcm(fcmToken, { url: '/driver/orders' }).catch(() => {})
+  }
   return NextResponse.json({ success: true, hasFcm: !!fcmToken })
 }

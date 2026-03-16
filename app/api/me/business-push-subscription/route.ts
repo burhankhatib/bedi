@@ -4,6 +4,7 @@ import { clientNoCdn } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { upsertUserPushSubscription } from '@/lib/user-push-subscriptions'
+import { sendConnectionConfirmationFcm } from '@/lib/send-connection-confirmation'
 
 const writeClient = clientNoCdn.withConfig({ token: token || undefined, useCdn: false })
 
@@ -120,6 +121,8 @@ export async function POST(req: NextRequest) {
       if (t.fcmToken) patch.unset(['fcmToken'])
       await patch.commit()
     }
+
+    sendConnectionConfirmationFcm(fcmToken, { url: '/dashboard' }).catch(() => {})
 
     return NextResponse.json({ success: true, saved: list.length })
   } catch (e) {

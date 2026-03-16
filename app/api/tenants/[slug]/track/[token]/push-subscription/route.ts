@@ -4,6 +4,7 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { getTenantIdBySlug } from '@/lib/tenant'
 import { checkDeviceToken, getActiveSubscriptionsForUser, upsertUserPushSubscription } from '@/lib/user-push-subscriptions'
+import { sendConnectionConfirmationFcm } from '@/lib/send-connection-confirmation'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -86,6 +87,10 @@ export async function POST(
       isIOS,
       standalone,
     })
+  }
+
+  if (fcmToken) {
+    sendConnectionConfirmationFcm(fcmToken, { url: `/t/${slug}/track/${trackingToken}` }).catch(() => {})
   }
 
   return NextResponse.json({ success: true, linkedUser: Boolean(userId) })

@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { checkDeviceToken, getActiveSubscriptionsForUser, upsertUserPushSubscription } from '@/lib/user-push-subscriptions'
+import { sendConnectionConfirmationFcm } from '@/lib/send-connection-confirmation'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -84,6 +85,9 @@ export async function POST(req: NextRequest) {
         standalone,
       })
     }
+
+    sendConnectionConfirmationFcm(fcmToken).catch(() => {})
+
     return NextResponse.json({ success: true, linkedUser: Boolean(userId) })
   } catch (e) {
     console.error('[customer push-subscription]', e)
