@@ -30,10 +30,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Plus, Pencil, Trash2, Copy, ChevronDown, ChevronRight, GripVertical, AlertTriangle, Package, RefreshCw } from 'lucide-react'
+import { Plus, Pencil, Trash2, Copy, ChevronDown, ChevronRight, GripVertical, AlertTriangle, Package, RefreshCw, Search, Loader2 } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
 import { useTenantBusiness } from '../TenantBusinessContext'
+import Image from 'next/image'
+import { urlFor } from '@/sanity/lib/image'
 import { CatalogProductsModal } from './CatalogProductsModal'
 import { isAbortError } from '@/lib/abort-utils'
 import { cn } from '@/lib/utils'
@@ -79,7 +81,7 @@ function DroppableProductList({
   return (
     <ul
       ref={setNodeRef}
-      className={`space-y-2 rounded-lg transition-colors ${isEmpty ? 'min-h-[56px] py-3' : 'min-h-[24px]'} ${isOver ? 'ring-2 ring-amber-400/80 ring-inset bg-amber-500/10' : ''} ${className}`}
+      className={`space-y-2 rounded-lg transition-colors ${isEmpty ? 'min-h-0 py-0' : 'min-h-[24px]'} ${isOver ? 'ring-2 ring-amber-400/80 ring-inset bg-amber-500/10' : ''} ${className}`}
     >
       {children}
     </ul>
@@ -87,6 +89,11 @@ function DroppableProductList({
 }
 
 const SORT_ORDER_GAP = 100
+
+function getProductImageUrl(product: { image?: { asset?: { _ref?: string } } }): string | null {
+  const ref = product.image?.asset?._ref
+  return ref ? urlFor({ _type: 'image', asset: { _ref: ref } }).width(80).height(80).url() : null
+}
 
 function SortableProduct({
   product,
@@ -97,9 +104,12 @@ function SortableProduct({
   onDuplicate,
   onDelete,
   onMove,
+  onPriceChange,
+  updatingPrice,
   dragTitle,
+  lang,
 }: {
-  product: { _id: string; title_en: string; price: number; currency: string }
+  product: { _id: string; title_en: string; title_ar?: string; price: number; currency: string; image?: { asset?: { _ref?: string } } }
   loading: boolean
   currentCategoryId: string
   categories: Array<{ _id: string; title_en: string }>
@@ -107,7 +117,10 @@ function SortableProduct({
   onDuplicate: () => void
   onDelete: () => void
   onMove: (targetCategoryId: string) => void
+  onPriceChange?: (productId: string, newPrice: number, currency: string) => void
+  updatingPrice?: boolean
   dragTitle?: string
+  lang?: 'en' | 'ar'
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `product-${product._id}`,
@@ -118,6 +131,8 @@ function SortableProduct({
     transition,
     opacity: isDragging ? 0.5 : 1,
   }
+  const imageUrl = getProductImageUrl(product)
+  const displayName = (product as { title_ar?: string }).title_ar && lang === 'ar' ? (product as { title_ar: string }).title_ar : product.title_en
   return (
     <li ref={setNodeRef} style={style} className="rounded-lg bg-slate-800/50">
       <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 text-sm">
@@ -130,7 +145,39 @@ function SortableProduct({
         >
           <GripVertical className="size-4" />
         </button>
-        <span className="min-w-0 flex-1 truncate">{product.title_en} — {product.price} {product.currency}</span>
+        {imageUrl ? (
+          <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-slate-700/60">
+            <Image src={imageUrl} alt="" fill className="object-cover" sizes="40px" unoptimized />
+          </div>
+        ) : (
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-700/60 text-slate-500">
+            <Package className="size-5" />
+          </div>
+        )}
+        <span className="min-w-0 flex-1 truncate">{displayName}</span>
+        {onPriceChange && !loading ? (
+          <div className="flex shrink-0 items-center gap-1">
+            {updatingPrice ? (
+              <Loader2 className="size-4 animate-spin text-amber-400" />
+            ) : (
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                defaultValue={product.price}
+                className="h-8 w-14 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-right text-xs text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                onBlur={(e) => {
+                  const val = parseFloat(e.target.value)
+                  if (!Number.isNaN(val) && val >= 0) onPriceChange(product._id, val, product.currency)
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+              />
+            )}
+            <span className="text-slate-400 text-xs">{product.currency}</span>
+          </div>
+        ) : (
+          <span className="shrink-0 text-slate-400 text-sm">{product.price} {product.currency}</span>
+        )}
         <div className="flex shrink-0 items-center gap-1">
           {otherCategories.length > 0 && (
             <select
@@ -174,8 +221,11 @@ function ProductRow({
   onDuplicate,
   onDelete,
   onMove,
+  onPriceChange,
+  updatingPrice,
+  lang,
 }: {
-  product: { _id: string; title_en: string; price: number; currency: string }
+  product: { _id: string; title_en: string; title_ar?: string; price: number; currency: string; image?: { asset?: { _ref?: string } } }
   loading: boolean
   currentCategoryId: string
   categories: Array<{ _id: string; title_en: string }>
@@ -183,15 +233,52 @@ function ProductRow({
   onDuplicate: () => void
   onDelete: () => void
   onMove: (targetCategoryId: string) => void
+  onPriceChange?: (productId: string, newPrice: number, currency: string) => void
+  updatingPrice?: boolean
+  lang?: 'en' | 'ar'
 }) {
   const otherCategories = categories.filter((c) => c._id !== currentCategoryId)
+  const imageUrl = getProductImageUrl(product)
+  const displayName = product.title_ar && lang === 'ar' ? product.title_ar : product.title_en
   return (
     <li className="rounded-lg bg-slate-800/50">
       <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 text-sm">
         <div className="flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-lg border border-slate-600/40 bg-slate-800/30 p-2 text-slate-600">
           <GripVertical className="size-4 opacity-50" />
         </div>
-        <span className="min-w-0 flex-1 truncate">{product.title_en} — {product.price} {product.currency}</span>
+        {imageUrl ? (
+          <div className="relative size-10 shrink-0 overflow-hidden rounded-lg bg-slate-700/60">
+            <Image src={imageUrl} alt="" fill className="object-cover" sizes="40px" unoptimized />
+          </div>
+        ) : (
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-700/60 text-slate-500">
+            <Package className="size-5" />
+          </div>
+        )}
+        <span className="min-w-0 flex-1 truncate">{displayName}</span>
+        {onPriceChange && !loading ? (
+          <div className="flex shrink-0 items-center gap-1">
+            {updatingPrice ? (
+              <Loader2 className="size-4 animate-spin text-amber-400" />
+            ) : (
+              <input
+                type="number"
+                min={0}
+                step={0.01}
+                defaultValue={product.price}
+                className="h-8 w-14 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-right text-xs text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                onBlur={(e) => {
+                  const val = parseFloat(e.target.value)
+                  if (!Number.isNaN(val) && val >= 0) onPriceChange(product._id, val, product.currency)
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+              />
+            )}
+            <span className="text-slate-400 text-xs">{product.currency}</span>
+          </div>
+        ) : (
+          <span className="shrink-0 text-slate-400 text-sm">{product.price} {product.currency}</span>
+        )}
         <div className="flex shrink-0 items-center gap-1">
           {otherCategories.length > 0 && (
             <select
@@ -279,6 +366,7 @@ type Product = {
   dietaryTags?: string[]
   addOns?: Array<{ name_en: string; name_ar: string; price: number }>
   variants?: Array<{ name_en: string; name_ar: string; options: Array<{ label_en: string; label_ar: string; priceModifier?: number }> }>
+  image?: { asset?: { _ref?: string } }
 }
 
 export function MenuManageClient({
@@ -302,8 +390,9 @@ export function MenuManageClient({
   const [savingProduct, setSavingProduct] = useState(false)
   const [loading, setLoading] = useState(false)
   const { showToast } = useToast()
-  const { t } = useLanguage()
+  const { t, lang } = useLanguage()
   const { data } = useTenantBusiness()
+  const [productSearch, setProductSearch] = useState('')
   const businessType = data?.tenant?.businessType ?? ''
   const canUseCatalog = true
   const [catalogOpen, setCatalogOpen] = useState(false)
@@ -319,6 +408,7 @@ export function MenuManageClient({
   } | null>(null)
   const [editingCategory, setEditingCategory] = useState<{ id: string; title_en: string; title_ar: string } | null>(null)
   const [savingCategory, setSavingCategory] = useState(false)
+  const [updatingPriceProductId, setUpdatingPriceProductId] = useState<string | null>(null)
 
   const api = (path: string, options?: RequestInit & { refresh?: boolean }) => {
     const { refresh, ...rest } = options ?? {}
@@ -765,6 +855,16 @@ export function MenuManageClient({
     }
   }
 
+  const searchedProducts = useMemo(() => {
+    const q = (productSearch ?? '').trim().toLowerCase()
+    if (!q) return []
+    return products.filter((p) => {
+      const en = (p.title_en ?? '').toLowerCase()
+      const ar = (p.title_ar ?? '').toLowerCase()
+      return en.includes(q) || ar.includes(q)
+    })
+  }, [products, productSearch])
+
   const getCategoryProducts = useCallback((categoryId: string) => {
     const seen = new Set<string>()
     return products
@@ -1150,6 +1250,34 @@ export function MenuManageClient({
     }
   }
 
+  const handleQuickPriceUpdate = useCallback(
+    async (productId: string, newPrice: number, currency: string) => {
+      const product = products.find((p) => p._id === productId)
+      if (!product || newPrice === product.price || newPrice < 0) return
+      setUpdatingPriceProductId(productId)
+      try {
+        const res = await api(`/products/${productId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ price: newPrice, currency }),
+        })
+        if (res.ok) {
+          setProducts((prev) =>
+            prev.map((p) => (p._id === productId ? { ...p, price: newPrice } : p))
+          )
+          showToast(t('Price updated.', 'تم تحديث السعر.'), '', 'success')
+        } else {
+          const data = await res.json().catch(() => ({}))
+          showToast((data as { error?: string })?.error || t('Failed to update price', 'فشل تحديث السعر'), '', 'error')
+        }
+      } catch {
+        showToast(t('Failed to update price', 'فشل تحديث السعر'), '', 'error')
+      } finally {
+        setUpdatingPriceProductId(null)
+      }
+    },
+    [api, products, showToast, t]
+  )
+
   return (
     <div className="mt-6 space-y-6">
       {/* Edit category dialog */}
@@ -1275,7 +1403,18 @@ export function MenuManageClient({
               {t('Drag categories to reorder or move sub-categories between main categories. Drag products to reorder or move between categories. Expand a category to access its products.', 'اسحب الفئات لإعادة الترتيب أو نقل الفئات الفرعية بين الفئات الرئيسية. اسحب المنتجات لإعادة الترتيب أو نقلها بين الفئات. وسّع الفئة للوصول إلى منتجاتها.')}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" aria-hidden />
+              <Input
+                type="search"
+                placeholder={t('Search products…', 'بحث في المنتجات…')}
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                className="pl-9 w-52 bg-slate-800 border-slate-600 text-white placeholder:text-slate-500"
+                dir={lang === 'ar' ? 'rtl' : 'ltr'}
+              />
+            </div>
             <Button
               type="button"
               variant="outline"
@@ -1302,6 +1441,78 @@ export function MenuManageClient({
             )}
           </div>
         </div>
+
+        {productSearch.trim() && (
+          <div className="mt-4 rounded-lg border border-slate-700/60 bg-slate-800/40 p-4">
+            <p className="mb-3 text-sm font-medium text-slate-300">
+              {t('Search results', 'نتائج البحث')} ({searchedProducts.length})
+            </p>
+            {searchedProducts.length === 0 ? (
+              <p className="text-sm text-slate-500">{t('No products match your search.', 'لا توجد منتجات تطابق بحثك.')}</p>
+            ) : (
+              <ul className="space-y-2">
+                {searchedProducts.map((p) => {
+                  const imageUrl = getProductImageUrl(p)
+                  const displayName = p.title_ar && lang === 'ar' ? p.title_ar : p.title_en
+                  return (
+                    <li
+                      key={p._id}
+                      className="flex items-center gap-3 rounded-lg bg-slate-800/60 px-3 py-2.5"
+                    >
+                      {imageUrl ? (
+                        <div className="relative size-12 shrink-0 overflow-hidden rounded-lg bg-slate-700/60">
+                          <Image src={imageUrl} alt="" fill className="object-cover" sizes="48px" unoptimized />
+                        </div>
+                      ) : (
+                        <div className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-slate-700/60 text-slate-500">
+                          <Package className="size-6" />
+                        </div>
+                      )}
+                      <span className="min-w-0 flex-1 truncate font-medium text-white" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+                        {displayName}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        {updatingPriceProductId === p._id ? (
+                          <Loader2 className="size-4 animate-spin text-amber-400" />
+                        ) : (
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            defaultValue={p.price}
+                            className="w-16 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-right text-sm text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                            onBlur={(e) => {
+                              const val = parseFloat(e.target.value)
+                              if (!Number.isNaN(val) && val >= 0) handleQuickPriceUpdate(p._id, val, p.currency)
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.currentTarget.blur()
+                              }
+                            }}
+                          />
+                        )}
+                        <span className="text-slate-400 text-sm">{p.currency}</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 border-amber-500/50 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20"
+                        onClick={() => openEditProduct(p)}
+                        disabled={loading}
+                      >
+                        <Pencil className="mr-1.5 size-3.5" />
+                        {t('Edit', 'تعديل')}
+                      </Button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={orderedCategoriesWithParent.map((_, i) => `cat-${i}`)} strategy={verticalListSortingStrategy}>
             <ul className="mt-4 space-y-2">
@@ -1311,21 +1522,24 @@ export function MenuManageClient({
                     <>
                       <div
                         className={cn(
-                          "flex cursor-pointer items-center justify-between py-3",
-                          isSubCategory ? "pl-8 pr-4 border-l-2 border-amber-500/30" : "px-4"
+                          "flex cursor-pointer items-center justify-between",
+                          isSubCategory ? "py-3 pl-8 pr-4 border-l-2 border-amber-500/30" : "py-2 px-4"
                         )}
                         onClick={() => setExpandedCat(expandedCat === c._id ? null : c._id)}
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           <button
                             type="button"
-                            className="touch-none select-none flex min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-slate-500/60 bg-slate-700/60 p-2.5 text-slate-400 hover:border-amber-500/50 hover:bg-slate-700 hover:text-amber-400 cursor-grab active:cursor-grabbing transition-colors"
+                            className={cn(
+                              "touch-none select-none flex shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-slate-500/60 bg-slate-700/60 text-slate-400 hover:border-amber-500/50 hover:bg-slate-700 hover:text-amber-400 cursor-grab active:cursor-grabbing transition-colors",
+                              isSubCategory ? "min-h-[48px] min-w-[48px] p-2.5" : "min-h-[36px] min-w-[36px] p-2"
+                            )}
                             title={t("Drag to reorder or move category", "اسحب لإعادة الترتيب أو نقل الفئة")}
                             onClick={(e) => e.stopPropagation()}
                             {...attributes}
                             {...listeners}
                           >
-                            <GripVertical className="size-5" />
+                            <GripVertical className={cn(isSubCategory ? "size-5" : "size-4")} />
                           </button>
                           {expandedCat === c._id ? <ChevronDown className="size-4 shrink-0" /> : <ChevronRight className="size-4 shrink-0" />}
                           <span className="font-medium truncate">{c.title_en}</span>
@@ -1347,8 +1561,8 @@ export function MenuManageClient({
                         </div>
                       </div>
                       {expandedCat === c._id && (
-                        <div className="border-t border-slate-700/50 px-4 py-3">
-                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div className="border-t border-slate-700/50 px-4 pt-2 pb-1">
+                          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                             <p className="text-xs font-medium text-slate-500">
                               {t('Products', 'المنتجات')}
                               {(c.productSortMode ?? sortModes[c._id] ?? 'manual') === 'manual' && ' — ' + t('Drag to reorder or move', 'اسحب لإعادة الترتيب أو النقل')}
@@ -1381,7 +1595,10 @@ export function MenuManageClient({
                                     onDuplicate={() => handleDuplicateProduct(p)}
                                     onDelete={() => setDeleteConfirm({ type: 'product', id: p._id, nameEn: p.title_en, nameAr: p.title_ar })}
                                     onMove={(targetId) => moveProductToCategory(p._id, targetId)}
+                                    onPriceChange={handleQuickPriceUpdate}
+                                    updatingPrice={updatingPriceProductId === p._id}
                                     dragTitle={t('Drag to reorder or move to another category', 'اسحب لإعادة الترتيب أو نقل المنتج')}
+                                    lang={lang === 'ar' ? 'ar' : 'en'}
                                   />
                                 ))}
                               </SortableContext>
@@ -1397,12 +1614,15 @@ export function MenuManageClient({
                                   onDuplicate={() => handleDuplicateProduct(p)}
                                   onDelete={() => setDeleteConfirm({ type: 'product', id: p._id, nameEn: p.title_en, nameAr: p.title_ar })}
                                   onMove={(targetId) => moveProductToCategory(p._id, targetId)}
+                                  onPriceChange={handleQuickPriceUpdate}
+                                  updatingPrice={updatingPriceProductId === p._id}
+                                  lang={lang === 'ar' ? 'ar' : 'en'}
                                 />
                               ))
                             )}
                           </DroppableProductList>
                           {((isSubCategory) || !categories.some((cat) => cat.parentCategoryRef === c._id)) && (
-                            <div className="mt-2 flex flex-wrap gap-2">
+                            <div className="mt-1 flex flex-wrap gap-2">
                               <Button type="button" size="sm" className="border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white" onClick={() => openAddProduct(c._id)}>
                                 <Plus className="mr-1 size-3.5" /> Add product
                               </Button>
