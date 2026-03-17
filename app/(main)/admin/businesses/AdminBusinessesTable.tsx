@@ -8,9 +8,10 @@ import { Building2, Mail, ExternalLink, Settings, Plus, Loader2, Calendar, Messa
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { BlockToggle } from '@/components/admin/BlockToggle'
@@ -254,10 +255,10 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
               Create business
             </Button>
           </DialogTrigger>
-          <DialogContent className="border-slate-700 bg-slate-900 text-white">
+          <DialogContent className="border-slate-700 bg-slate-900 text-white" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>Create new business</DialogTitle>
-              <p className="text-sm text-slate-400">The business will be owned by you until you transfer it to the final owner.</p>
+              <DialogDescription className="text-sm text-slate-400">The business will be owned by you until you transfer it to the final owner.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateSubmit} className="space-y-4">
               <div>
@@ -454,9 +455,9 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
         <DialogContent className="border-slate-700 bg-slate-900 text-white">
           <DialogHeader>
             <DialogTitle>Manage Subscription</DialogTitle>
-            <p className="text-sm text-slate-400">
+            <DialogDescription className="text-sm text-slate-400">
               {subTenant?.name} - Currently: <span className="capitalize">{subTenant?.subscriptionStatus}</span>
-            </p>
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={(e) => handleSubSubmit(e, false)} className="space-y-4">
             <div>

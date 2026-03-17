@@ -85,6 +85,7 @@ export function ReportFormModal({
       <DialogContent
         className="sm:max-w-md z-[350]"
         overlayClassName="z-[350]"
+        aria-describedby={undefined}
       >
         <DialogHeader>
           <DialogTitle>

@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { X, Bell, MapPin, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
@@ -179,7 +179,10 @@ export function PWAPermissions({ config, os, fcm, inOrderFlow = false }: PWAPerm
         contentClassName="z-[100]"
         overlayClassName="z-[99]"
         style={{ touchAction: 'manipulation' }}
+        aria-describedby={undefined}
       >
+        <DialogTitle className="sr-only">{t('Allow notifications & location', 'السماح بالإشعارات والموقع')}</DialogTitle>
+        <DialogDescription className="sr-only">{t('Order updates & delivery', 'تحديثات الطلبات والتوصيل')}</DialogDescription>
         <div className="relative pt-6">
           <Button
             variant="ghost"

@@ -4,6 +4,8 @@ import { useState, useCallback, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog'
 import { X } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
@@ -60,7 +62,10 @@ export function ChangeCalculatorModal({
       <DialogContent
         className="sm:max-w-[360px] p-0 bg-slate-900 border-slate-700 overflow-hidden rounded-3xl gap-0 z-[200]"
         overlayClassName="z-[200]"
+        aria-describedby={undefined}
       >
+        <DialogTitle className="sr-only">{t('Change Calculator', 'حاسبة الباقي')}</DialogTitle>
+        <DialogDescription className="sr-only">{t('Calculate change for customer payment', 'حساب الباقي للمبلغ المدفوع')}</DialogDescription>
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
           <h2 className="text-lg font-black text-white">

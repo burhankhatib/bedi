@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { Download, X, Smartphone, Share2, Plus, Bell, MapPin, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
 import { getFCMToken } from '@/lib/firebase'
@@ -377,7 +377,10 @@ export function PWAInstall() {
           contentClassName="z-[100]"
           overlayClassName="z-[99]"
           style={{ touchAction: 'manipulation' }}
+          aria-describedby={undefined}
         >
+          <DialogTitle className="sr-only">{t('Get the most out of the app', 'استفد من التطبيق بأقصى قدر')}</DialogTitle>
+          <DialogDescription className="sr-only">{t('Enable notifications and location for order updates and delivery.', 'فعّل الإشعارات والموقع لتحديثات الطلبات والتوصيل.')}</DialogDescription>
           <div className="relative pt-8">
             <Button
               variant="ghost"
