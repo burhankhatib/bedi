@@ -236,7 +236,14 @@ export const orderType = defineType({
               name: 'quantity',
               title: 'Quantity',
               type: 'number',
-              validation: (Rule) => Rule.required().min(1),
+              validation: (Rule) => Rule.required().min(0.05),
+              description: 'For weight items (kg): weight in kg. For piece items: count.',
+            }),
+            defineField({
+              name: 'saleUnit',
+              title: 'Sale Unit',
+              type: 'string',
+              description: 'How item is sold: piece, kg, g, etc. Used for display (e.g. "1.5 kg").',
             }),
             defineField({
               name: 'price',

@@ -58,7 +58,7 @@ export type OrderType = 'receive-in-person' | 'dine-in' | 'delivery'
 interface CartContextType {
   items: CartItem[]
   /** Pass tenantContext when adding from a menu page; enforces single-business cart. */
-  addToCart: (product: Product, selectedAddOns?: string[], selectedVariants?: (number | undefined)[], tenantContext?: CartTenant, orderTypeOptions?: OrderTypeOptions) => void
+  addToCart: (product: Product, selectedAddOns?: string[], selectedVariants?: (number | undefined)[], tenantContext?: CartTenant, orderTypeOptions?: OrderTypeOptions, quantity?: number) => void
   removeFromCart: (cartItemId: string) => void
   updateQuantity: (cartItemId: string, quantity: number) => void
   updateNotes: (cartItemId: string, notes: string) => void
@@ -103,7 +103,7 @@ interface CartContextType {
   conflictState: {
     cartTenant: CartTenant
     newTenant: CartTenant
-    pending: { product: Product; selectedAddOns?: string[]; selectedVariants?: (number | undefined)[] }
+    pending: { product: Product; selectedAddOns?: string[]; selectedVariants?: (number | undefined)[]; quantity?: number }
   } | null
   resolveConflictReplace: () => void
   resolveConflictGoBack: () => void
@@ -244,7 +244,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     product: Product,
     selectedAddOns: string[],
     selectedVariants: (number | undefined)[],
-    tenant: CartTenant | null
+    tenant: CartTenant | null,
+    quantityToAdd = 1
   ) => {
     const addonsKey = (selectedAddOns || []).sort().join('-')
     const v = selectedVariants ?? []
@@ -258,13 +259,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const existingItem = prevItems.find((item) => item.cartItemId === cartItemId)
       if (existingItem) {
         return prevItems.map((item) =>
-          item.cartItemId === cartItemId ? { ...item, quantity: item.quantity + 1 } : item
+          item.cartItemId === cartItemId ? { ...item, quantity: item.quantity + quantityToAdd } : item
         )
       }
       return [...prevItems, {
         ...product,
         cartItemId,
-        quantity: 1,
+        quantity: quantityToAdd,
         notes: '',
         selectedAddOns: selectedAddOns || [],
         selectedVariants: selectedVariants ?? [],
@@ -274,31 +275,32 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     showToast(t('Item added to cart!', 'تمت إضافة الصنف للسلة'), product.title_en || product.title_ar || 'Item')
   }, [t])
 
-  const addToCart = (product: Product, selectedAddOns?: string[], selectedVariants?: (number | undefined)[], tenantContext?: CartTenant, orderTypeOptionsParam?: OrderTypeOptions) => {
+  const addToCart = (product: Product, selectedAddOns?: string[], selectedVariants?: (number | undefined)[], tenantContext?: CartTenant, orderTypeOptionsParam?: OrderTypeOptions, quantity?: number) => {
     const addons = selectedAddOns || []
     const variants = selectedVariants ?? []
+    const qty = quantity ?? 1
 
     // Single-business rule: if cart has items from a different business, show conflict modal
     if (items.length > 0 && tenantContext && cartTenant) {
       if (cartTenant.slug === tenantContext.slug) {
-        doAddItem(product, addons, variants, null) // tenant already set
+        doAddItem(product, addons, variants, null, qty) // tenant already set
         if (orderTypeOptionsParam) setOrderTypeOptions(orderTypeOptionsParam)
         return
       }
       setConflictState({
         cartTenant,
         newTenant: tenantContext,
-        pending: { product, selectedAddOns: addons, selectedVariants: variants },
+        pending: { product, selectedAddOns: addons, selectedVariants: variants, quantity: qty },
       })
       return
     }
 
     const tenant = tenantContext ?? cartTenant
-    doAddItem(product, addons, variants, tenant)
+    doAddItem(product, addons, variants, tenant, qty)
     if (tenantContext && orderTypeOptionsParam) setOrderTypeOptions(orderTypeOptionsParam)
   }
 
-  const resolveConflictReplace = useCallback(() => {
+  const   resolveConflictReplace = useCallback(() => {
     if (!conflictState) return
     const { newTenant, pending } = conflictState
     setItems([])
@@ -314,7 +316,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setDeliveryAreaId('')
     setDeliveryAddress('')
     setDeliveryFee(0)
-    doAddItem(pending.product, pending.selectedAddOns || [], pending.selectedVariants ?? [], newTenant)
+    doAddItem(pending.product, pending.selectedAddOns || [], pending.selectedVariants ?? [], newTenant, pending.quantity ?? 1)
     setConflictState(null)
     setIsOpen(true)
   }, [conflictState, setTenantSlug, doAddItem])

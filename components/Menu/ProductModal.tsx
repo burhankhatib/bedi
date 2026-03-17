@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { X, Star, Tag, Check, Plus, Minus, XCircle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/currency'
-import { getSaleUnitLabel } from '@/lib/sale-units'
+import { getSaleUnitLabel, isWeightBasedUnit, WEIGHT_PRESETS_KG, WEIGHT_PRESETS_100G, WEIGHT_MIN, WEIGHT_STEP } from '@/lib/sale-units'
 import { cn } from '@/lib/utils'
 import { getVariantOptionModifier } from '@/lib/cart-price'
 import { isProductUnavailable } from '@/lib/product-availability'
@@ -38,6 +38,8 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
   const [addOnQuantities, setAddOnQuantities] = useState<Record<string, number>>({})
   const [selectedVariants, setSelectedVariants] = useState<(number | undefined)[]>([])
   const [isHovered, setIsHovered] = useState(false)
+  /** For weight-based products (kg, g): selected weight. For kg: value in kg. For g: value = number of 100g. */
+  const [weightQty, setWeightQty] = useState(1)
 
   useEffect(() => {
     if (product?.variants?.length) {
@@ -50,6 +52,9 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
       setSelectedVariants([])
     }
   }, [product?._id, product?.variants?.length])
+
+  const isWeightProduct = isWeightBasedUnit(product?.saleUnit)
+  const weightPresets = product?.saleUnit === 'g' ? WEIGHT_PRESETS_100G : WEIGHT_PRESETS_KG
 
   if (!product) return null
 
@@ -96,7 +101,9 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
       }
     })
   }
-  const totalPrice = basePrice + addOnPrice + variantPrice
+  const baseUnitPrice = basePrice + addOnPrice + variantPrice
+  const effectiveQty = isWeightProduct ? Math.max(WEIGHT_MIN, weightQty) : 1
+  const totalPrice = isWeightProduct ? baseUnitPrice * effectiveQty : baseUnitPrice
   const shouldHidePrice = catalogOnly && (catalogHidePrices || product.hidePrice)
 
   const hasVariants = variantCount > 0
@@ -135,15 +142,18 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
       qty > 0 ? Array(qty).fill(key) : []
     )
     const variantIndices = hasVariants ? selectedVariants.filter((v): v is number => v !== undefined) : undefined
-    addToCart(product, selectedAddOns, variantIndices, tenantContext, orderTypeOptions ?? undefined)
+    const qty = isWeightProduct ? Math.max(WEIGHT_MIN, weightQty) : 1
+    addToCart(product, selectedAddOns, variantIndices, tenantContext, orderTypeOptions ?? undefined, qty)
     setAddOnQuantities({})
     setSelectedVariants([])
+    setWeightQty(1)
     onClose()
   }
 
   const handleClose = () => {
     setAddOnQuantities({})
     setSelectedVariants([])
+    setWeightQty(1)
     setIsHovered(false)
     onClose()
   }
@@ -371,6 +381,67 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                         </div>
                       )
                     })}
+                  </div>
+                </section>
+              )}
+
+              {/* Weight selector for kg/g products (greengrocery, produce) */}
+              {!catalogOnly && isWeightProduct && (
+                <section className="mb-5" aria-label={t('Choose weight', 'اختر الوزن')}>
+                  <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                    {product.saleUnit === 'kg'
+                      ? t('How much? (kg)', 'كم؟ (كيلو)')
+                      : t('How much? (100g units)', 'كم؟ (وحدات 100 غرام)')}
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {weightPresets.map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setWeightQty(preset)}
+                        className={cn(
+                          'flex min-h-[44px] min-w-[52px] touch-manipulation items-center justify-center rounded-xl border-2 px-4 text-sm font-bold transition-all',
+                          weightQty === preset
+                            ? 'border-slate-900 bg-slate-900 text-white'
+                            : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300 active:bg-slate-50'
+                        )}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setWeightQty((q) => Math.max(WEIGHT_MIN, q - WEIGHT_STEP))}
+                      className="flex size-11 shrink-0 items-center justify-center rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:border-slate-300 active:bg-slate-50"
+                      aria-label={t('Decrease', 'تقليل')}
+                    >
+                      <Minus className="size-5" />
+                    </button>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={WEIGHT_MIN}
+                      step={WEIGHT_STEP}
+                      value={weightQty}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value)
+                        if (!Number.isNaN(v) && v >= WEIGHT_MIN) setWeightQty(v)
+                      }}
+                      className="h-11 w-24 rounded-xl border-2 border-slate-200 px-3 text-center font-bold text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setWeightQty((q) => q + WEIGHT_STEP)}
+                      className="flex size-11 shrink-0 items-center justify-center rounded-xl border-2 border-slate-200 bg-white text-slate-700 hover:border-slate-300 active:bg-slate-50"
+                      aria-label={t('Increase', 'زيادة')}
+                    >
+                      <Plus className="size-5" />
+                    </button>
+                    <span className="text-sm font-medium text-slate-500">
+                      {product.saleUnit === 'kg' ? 'kg' : lang === 'ar' ? '× 100غ' : '× 100g'}
+                    </span>
                   </div>
                 </section>
               )}

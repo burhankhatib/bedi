@@ -29,3 +29,51 @@ export function getSaleUnitLabel(value: SaleUnit | null | undefined, lang: 'en' 
 export function getSaleUnitByValue(value: SaleUnit | null | undefined) {
   return SALE_UNITS.find((x) => x.value === value) ?? null
 }
+
+/** Whether this unit uses weight (kg) or fractional weight (g = per 100g). Quantity = weight. */
+export function isWeightBasedUnit(unit: SaleUnit | null | undefined): boolean {
+  return unit === 'kg' || unit === 'g'
+}
+
+/** Whether this unit uses volume (liter). Quantity = liters. */
+export function isVolumeBasedUnit(unit: SaleUnit | null | undefined): boolean {
+  return unit === 'liter'
+}
+
+/** Preset weight options for quick selection (kg). Steps in kg. */
+export const WEIGHT_PRESETS_KG: number[] = [0.25, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5]
+
+/** Preset options for per-100g unit. Quantity = number of 100g (0.5 = 50g, 2 = 200g). */
+export const WEIGHT_PRESETS_100G: number[] = [0.25, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5]
+
+/** Minimum quantity for weight/volume items. */
+export const WEIGHT_MIN = 0.05
+
+/** Step size when incrementing/decrementing weight (kg or 100g units). */
+export const WEIGHT_STEP = 0.25
+
+/** Format quantity for display: "1.5 kg" or "2×" for pieces. */
+export function formatQuantityWithUnit(
+  quantity: number,
+  unit: SaleUnit | null | undefined,
+  lang: 'en' | 'ar'
+): string {
+  if (!unit || unit === 'piece') {
+    const q = Math.round(quantity)
+    return lang === 'ar' ? `${q}×` : `×${q}`
+  }
+  if (unit === 'kg') {
+    const q = quantity % 1 === 0 ? quantity : quantity.toFixed(2).replace(/\.?0+$/, '')
+    return `${q} ${lang === 'ar' ? 'كغ' : 'kg'}`
+  }
+  if (unit === 'g') {
+    const grams = Math.round(quantity * 100)
+    return `${grams} ${lang === 'ar' ? 'غ' : 'g'}`
+  }
+  if (unit === 'liter') {
+    const q = quantity % 1 === 0 ? quantity : quantity.toFixed(2).replace(/\.?0+$/, '')
+    return `${q} ${lang === 'ar' ? 'لتر' : 'L'}`
+  }
+  const q = Math.round(quantity)
+  return lang === 'ar' ? `${q}×` : `×${q}`
+}

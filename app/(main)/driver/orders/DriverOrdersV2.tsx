@@ -25,6 +25,7 @@ import {
   distanceKm,
 } from '@/lib/maps-utils'
 import { getCityDisplayName } from '@/lib/registration-translations'
+import { formatQuantityWithUnit } from '@/lib/sale-units'
 import dynamic from 'next/dynamic'
 
 import { SlideToComplete } from './SlideToComplete'
@@ -80,7 +81,7 @@ type DriverOrder = {
   driverArrivedAt?: string
   requiresPersonalShopper?: boolean
   shopperFee?: number
-  items?: Array<{ productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
+  items?: Array<{ productId?: string; productName?: string; quantity?: number; saleUnit?: string; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
   customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | 'driver_declined' | null
   customerRequestedItemChanges?: boolean
   customerItemChangeSummary?: Array<{ type?: string; fromName?: string; toName?: string; fromQuantity?: number; toQuantity?: number; note?: string }>
@@ -219,7 +220,7 @@ function DriverOrdersV2Content() {
   const countdownBoxRef = useRef<HTMLDivElement>(null)
   const [detailsOrderId, setDetailsOrderId] = useState<string | null>(null)
   const [savingItemsOrderId, setSavingItemsOrderId] = useState<string | null>(null)
-  const [editingItemsByOrder, setEditingItemsByOrder] = useState<Record<string, Array<{ productName?: string; quantity?: number; notes?: string; addOns?: string; price?: number; _key?: string; productId?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>>>({})
+  const [editingItemsByOrder, setEditingItemsByOrder] = useState<Record<string, Array<{ productName?: string; quantity?: number; saleUnit?: string; notes?: string; addOns?: string; price?: number; _key?: string; productId?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>>>({})
   const [replacementProductsByOrder, setReplacementProductsByOrder] = useState<Record<string, Record<number, ReplacementProduct[]>>>({})
   const [replacementSelectionByOrder, setReplacementSelectionByOrder] = useState<Record<string, Record<number, string>>>({})
   const [replacementSearchByOrder, setReplacementSearchByOrder] = useState<Record<string, Record<number, string>>>({})
@@ -975,11 +976,15 @@ function DriverOrdersV2Content() {
       setDetailsOrderId(order.orderId)
       setEditingItemsByOrder((prev) => ({
         ...prev,
-        [order.orderId]: (order.items || []).map((item, idx) => ({
+        [order.orderId]: (order.items || []).map((item, idx) => {
+        const isWeight = item.saleUnit === 'kg' || item.saleUnit === 'g'
+        const minQty = isWeight ? 0.05 : 1
+        return {
         _key: `driver-${order.orderId}-${idx}`,
         productId: item.productId,
         productName: item.productName || '',
-        quantity: Math.max(1, Number(item.quantity) || 1),
+        quantity: Math.max(minQty, Number(item.quantity) || minQty),
+        saleUnit: item.saleUnit || undefined,
         notes: item.notes || '',
         addOns: item.addOns || '',
         isPicked: item.isPicked !== false,
@@ -988,10 +993,10 @@ function DriverOrdersV2Content() {
           0,
           typeof item.price === 'number'
             ? item.price
-            : (Number(item.total) || 0) / Math.max(1, Number(item.quantity) || 1)
+            : (Number(item.total) || 0) / Math.max(minQty, Number(item.quantity) || minQty)
         ),
         imageUrl: (item as { imageUrl?: string }).imageUrl || '',
-      })),
+      }}),
     }))
     void loadAdditionalProducts(order.orderId, additionalProductSearchByOrder[order.orderId] || '')
     })
@@ -1032,7 +1037,10 @@ function DriverOrdersV2Content() {
       ...prev,
       [orderId]: (prev[orderId] || []).map((item, idx) => {
         if (idx !== index) return item
-        const nextQty = Math.max(1, (item.quantity || 1) + delta)
+        const isWeight = item.saleUnit === 'kg' || item.saleUnit === 'g'
+        const minQty = isWeight ? 0.05 : 1
+        const step = isWeight ? 0.25 : 1
+        const nextQty = Math.max(minQty, Math.round(((item.quantity || minQty) + delta * step) * 100) / 100)
         return { ...item, quantity: nextQty }
       }),
     }))
@@ -1181,18 +1189,24 @@ function DriverOrdersV2Content() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: edited.map((item) => ({
-            _key: item._key,
-            productId: item.productId,
-            productName: item.productName,
-            quantity: item.quantity,
-            price: Math.max(0, Number(item.price) || 0),
-            total: Math.max(0, Number(item.price) || 0) * Math.max(1, Number(item.quantity) || 1),
-            isPicked: item.isPicked !== false,
-            notPickedReason: item.notPickedReason || '',
-            notes: item.notes || '',
-            addOns: item.addOns || '',
-          })),
+          items: edited.map((item) => {
+            const qty = item.quantity ?? 1
+            const price = item.price ?? 0
+            const total = item.isPicked === false ? 0 : qty * price
+            return {
+              _key: item._key,
+              productId: item.productId,
+              productName: item.productName,
+              saleUnit: item.saleUnit || undefined,
+              quantity: qty,
+              price: Math.max(0, Number(item.price) || 0),
+              total,
+              isPicked: item.isPicked !== false,
+              notPickedReason: item.notPickedReason || '',
+              notes: item.notes || '',
+              addOns: item.addOns || '',
+            }
+          }),
           changeSummary,
         }),
       })
@@ -1346,7 +1360,7 @@ function DriverOrdersV2Content() {
                     <span className="text-lg font-black text-emerald-400">
                       {(item.price ?? 0) * (item.quantity ?? 1)} {fmtCurrency('ILS')}
                     </span>
-                    <span className="text-slate-500 text-sm">× {item.quantity ?? 1}</span>
+                    <span className="text-slate-500 text-sm">{formatQuantityWithUnit(item.quantity ?? 1, item.saleUnit, lang as 'en' | 'ar')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -1359,7 +1373,7 @@ function DriverOrdersV2Content() {
                     </button>
                     <div className="flex items-center gap-1">
                       <button type="button" onClick={() => updateEditingItemQuantity(order.orderId, idx, -1)} className="min-w-[44px] min-h-[44px] rounded-xl border border-slate-600 bg-slate-700/50 text-white font-bold text-lg">−</button>
-                      <span className="min-w-[2.5rem] text-center text-base font-bold">{item.quantity ?? 1}</span>
+                      <span className="min-w-[2.5rem] text-center text-base font-bold tabular-nums">{formatQuantityWithUnit(item.quantity ?? 1, item.saleUnit, lang as 'en' | 'ar')}</span>
                       <button type="button" onClick={() => updateEditingItemQuantity(order.orderId, idx, 1)} className="min-w-[44px] min-h-[44px] rounded-xl border border-slate-600 bg-slate-700/50 text-white font-bold text-lg">+</button>
                     </div>
                   </div>

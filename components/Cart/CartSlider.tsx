@@ -23,7 +23,7 @@ import { useState, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/currency'
-import { getSaleUnitLabel } from '@/lib/sale-units'
+import { getSaleUnitLabel, isWeightBasedUnit, formatQuantityWithUnit, WEIGHT_STEP, WEIGHT_MIN } from '@/lib/sale-units'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { getVariantOptionModifier } from '@/lib/cart-price'
 import { getShopperFeeByItemCount, getShopperFeeExplanation } from '@/lib/shopper-fee'
@@ -340,6 +340,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
           total: itemTotal,
           notes: item.notes || '',
           addOns: addOnsList,
+          saleUnit: item.saleUnit || undefined,
         }
       })
 
@@ -624,7 +625,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                           <p className="text-sm font-bold text-slate-400 mb-3">
                             {itemPrice.toFixed(2)} {formatCurrency(item.currency)}
                             {item.saleUnit && item.saleUnit !== 'piece' && ` / ${getSaleUnitLabel(item.saleUnit, lang as 'en' | 'ar')}`}
-                            {' × '}{item.quantity}
+                            {' × '}{formatQuantityWithUnit(item.quantity, item.saleUnit, lang as 'en' | 'ar')}
                           </p>
 
                           <div className="flex items-center justify-between gap-4 mt-auto">
@@ -633,22 +634,32 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 rounded-xl hover:bg-white hover:shadow-sm"
-                                onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)}
+                                onClick={() => {
+                                  const isWeight = isWeightBasedUnit(item.saleUnit)
+                                  const step = isWeight ? WEIGHT_STEP : 1
+                                  const next = item.quantity - step
+                                  if (next < (isWeight ? WEIGHT_MIN : 1)) removeFromCart(item.cartItemId)
+                                  else updateQuantity(item.cartItemId, Math.round(next * 100) / 100)
+                                }}
                               >
-                                {item.quantity === 1 ? (
+                                {(isWeightBasedUnit(item.saleUnit) ? item.quantity < WEIGHT_MIN + WEIGHT_STEP : item.quantity <= 1) ? (
                                   <Trash2 className="w-4 h-4 text-red-500" />
                                 ) : (
                                   <Minus className="w-4 h-4" />
                                 )}
                               </Button>
-                              <span className="font-black text-sm w-10 text-center">
-                                {item.quantity}
+                              <span className="font-black text-sm w-12 text-center tabular-nums">
+                                {formatQuantityWithUnit(item.quantity, item.saleUnit, lang as 'en' | 'ar')}
                               </span>
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 rounded-xl hover:bg-white hover:shadow-sm"
-                                onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
+                                onClick={() => {
+                                  const isWeight = isWeightBasedUnit(item.saleUnit)
+                                  const step = isWeight ? WEIGHT_STEP : 1
+                                  updateQuantity(item.cartItemId, Math.round((item.quantity + step) * 100) / 100)
+                                }}
                               >
                                 <Plus className="w-4 h-4 text-black" />
                               </Button>

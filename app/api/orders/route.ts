@@ -130,6 +130,7 @@ export async function POST(request: NextRequest) {
       total?: number
       notes?: string
       addOns?: string
+      saleUnit?: string
     }) => ({
       _type: 'orderItem',
       _key: Math.random().toString(36).substring(7),
@@ -139,6 +140,7 @@ export async function POST(request: NextRequest) {
       } : undefined,
       productName: item.productName,
       quantity: item.quantity,
+      saleUnit: item.saleUnit || undefined,
       price: item.price,
       total: item.total,
       isPicked: true,

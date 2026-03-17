@@ -13,6 +13,7 @@ type IncomingOrderItem = {
   productId?: string
   productName?: string
   quantity?: number
+  saleUnit?: string
   price?: number
   total?: number
   notes?: string
@@ -106,7 +107,10 @@ export async function PATCH(
   }
 
   const normalizedItems = body.items.map((item, index) => {
-    const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1))
+    const isWeight = item.saleUnit === 'kg' || item.saleUnit === 'g'
+    const minQty = isWeight ? 0.05 : 1
+    const rawQty = Number(item.quantity) || minQty
+    const quantity = isWeight ? Math.max(minQty, Math.round(rawQty * 100) / 100) : Math.max(1, Math.floor(rawQty))
     const price = Math.max(0, Number(item.price) || 0)
     return {
       _type: 'orderItem',
@@ -114,6 +118,7 @@ export async function PATCH(
       product: item.productId ? { _type: 'reference', _ref: item.productId } : undefined,
       productName: (item.productName || '').trim() || 'Item',
       quantity,
+      saleUnit: (item.saleUnit || '').trim() || undefined,
       price,
       total: Number.isFinite(item.total as number) ? Math.max(0, Number(item.total)) : quantity * price,
       isPicked: item.isPicked !== false,

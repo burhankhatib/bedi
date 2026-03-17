@@ -21,7 +21,7 @@
     "import:talabat:url": "PLAYWRIGHT_BROWSERS_PATH=0 TALABAT_HEADLESS=false tsx scripts/import-talabat.ts --interactive-auth",
     "import:yummy": "PLAYWRIGHT_BROWSERS_PATH=0 tsx scripts/import-yummy.ts",
     "import:yummy:url": "PLAYWRIGHT_BROWSERS_PATH=0 YUMMY_HEADLESS=false tsx scripts/import-yummy.ts --interactive-auth",
-    "deploy": "clear && npm run build && git add . && (git commit -m \"deploy\" || true) && git push origin main && vercel --prod"
+    "deploy": "clear && npm run build && git add . && (git commit -m \"deploy\" || true) && git push origin main"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.41",

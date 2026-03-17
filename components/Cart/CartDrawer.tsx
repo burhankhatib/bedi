@@ -15,7 +15,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } f
 import { QRCodeSVG } from 'qrcode.react'
 import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/currency'
-import { getSaleUnitLabel } from '@/lib/sale-units'
+import { getSaleUnitLabel, isWeightBasedUnit, formatQuantityWithUnit, WEIGHT_STEP, WEIGHT_MIN } from '@/lib/sale-units'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { getVariantOptionModifier } from '@/lib/cart-price'
 import { getShopperFeeByItemCount, getShopperFeeExplanation } from '@/lib/shopper-fee'
@@ -588,7 +588,7 @@ export function CartDrawer() {
                             <p className="text-sm text-slate-500 mb-2">
                               {itemPrice.toFixed(2)} {formatCurrency(item.currency)}
                               {item.saleUnit && item.saleUnit !== 'piece' && ` / ${getSaleUnitLabel(item.saleUnit, lang as 'en' | 'ar')}`}
-                              {' × '}{item.quantity}
+                              {' × '}{formatQuantityWithUnit(item.quantity, item.saleUnit, lang as 'en' | 'ar')}
                             </p>
                             <div className="mb-2">
                               <Input
@@ -605,22 +605,32 @@ export function CartDrawer() {
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 rounded-lg"
-                                  onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)}
+                                  onClick={() => {
+                                    const isWeight = isWeightBasedUnit(item.saleUnit)
+                                    const step = isWeight ? WEIGHT_STEP : 1
+                                    const next = item.quantity - step
+                                    if (next < (isWeight ? WEIGHT_MIN : 1)) removeFromCart(item.cartItemId)
+                                    else updateQuantity(item.cartItemId, Math.round(next * 100) / 100)
+                                  }}
                                 >
-                                  {item.quantity === 1 ? (
+                                  {(isWeightBasedUnit(item.saleUnit) ? item.quantity < WEIGHT_MIN + WEIGHT_STEP : item.quantity <= 1) ? (
                                     <Trash2 className="w-4 h-4 text-red-500" />
                                   ) : (
                                     <Minus className="w-4 h-4" />
                                   )}
                                 </Button>
-                                <span className="font-bold text-sm w-8 text-center">
-                                  {item.quantity}
+                                <span className="font-bold text-sm w-12 text-center tabular-nums">
+                                  {formatQuantityWithUnit(item.quantity, item.saleUnit, lang as 'en' | 'ar')}
                                 </span>
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 rounded-lg"
-                                  onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
+                                  onClick={() => {
+                                    const isWeight = isWeightBasedUnit(item.saleUnit)
+                                    const step = isWeight ? WEIGHT_STEP : 1
+                                    updateQuantity(item.cartItemId, Math.round((item.quantity + step) * 100) / 100)
+                                  }}
                                 >
                                   <Plus className="w-4 h-4" />
                                 </Button>
