@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { SanitizedMarkdown } from '@/components/ai/SanitizedMarkdown'
 import type { Product } from '@/app/types/menu'
-import type { ToolProduct, ToolBusiness } from '@/lib/ai/search-tools'
+import type { ToolProduct, ToolBusiness, StoreOption } from '@/lib/ai/search-tools'
 import { BUSINESS_TYPES } from '@/lib/constants'
 
 const CHAT_STORAGE_PREFIX = 'zonify-ai-chat-'
@@ -93,6 +93,11 @@ export function SearchAIPanel({
   const [addingProductId, setAddingProductId] = useState<string | null>(null)
   const [addedProductId, setAddedProductId] = useState<string | null>(null)
   const [addingAllFromKey, setAddingAllFromKey] = useState<string | null>(null)
+  /** When user picks a store from store cards, we fetch and cache products per part */
+  const [storeChoiceResults, setStoreChoiceResults] = useState<
+    Record<string, { products: ToolProduct[]; byStore: Record<string, ToolProduct[]>; missingIngredients: string[] }>
+  >({})
+  const [loadingStoreSlug, setLoadingStoreSlug] = useState<string | null>(null)
 
   const initialMessages = useMemo(() => loadStoredMessages(city), [city])
 
@@ -287,10 +292,264 @@ export function SearchAIPanel({
                   const data = part.output as {
                     products?: ToolProduct[]
                     byStore?: Record<string, ToolProduct[]>
+                    storeOptions?: StoreOption[]
                     soughtIngredients?: string[]
                     matchedIngredients?: string[]
                     missingIngredients?: string[]
                   }
+                  const storeOptions = data.storeOptions ?? []
+                  const hasMultipleStores = storeOptions.length >= 2
+                  const partKey = `${message.id}-ingredients-${idx}`
+                  const chosenResult = storeChoiceResults[partKey]
+
+                  if (chosenResult) {
+                    const products = chosenResult.products
+                    const byStore = chosenResult.byStore
+                    const missing = chosenResult.missingIngredients ?? []
+                    if (products.length === 0) {
+                      return (
+                        <div key={idx} className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                          <p className="text-sm font-medium text-amber-800">
+                            {t('No matching ingredients in this store.', 'لا توجد مكونات مطابقة في هذا المتجر.')}
+                          </p>
+                        </div>
+                      )
+                    }
+                    const displayProducts = Object.values(byStore).flat()
+                    return (
+                      <div key={idx} className="space-y-2 mt-3">
+                        {missing.length > 0 && (
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2">
+                            <p className="text-xs font-medium text-amber-800">
+                              {t('Some ingredients from the recipe are not available in our stores:', 'بعض مكونات الوصفة غير متوفرة في متاجرنا:')}
+                            </p>
+                            <p className="mt-1 text-xs text-amber-700">{missing.join(', ')}</p>
+                          </div>
+                        )}
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                          {t('Ingredients from chosen store', 'المكونات من المتجر المختار')}
+                        </p>
+                        {Object.entries(byStore).map(([storeSlug, storeProds]) => (
+                          <div key={String(storeSlug)} className="space-y-2">
+                            {storeProds.length > 1 && (
+                              <motion.button
+                                type="button"
+                                disabled={!!addingAllFromKey}
+                                whileTap={!addingAllFromKey ? { scale: 0.95 } : undefined}
+                                onClick={async () => {
+                                  const key = String(storeSlug)
+                                  setAddingAllFromKey(key)
+                                  try {
+                                    for (const prod of storeProds) {
+                                      const res = await fetch(`/api/search/product/${prod._id}`)
+                                      if (res.ok) {
+                                        const { product, tenant } = await res.json()
+                                        if (product && tenant?.slug) {
+                                          const willConflict = items.length > 0 && cartTenant?.slug && tenant.slug && cartTenant.slug !== tenant.slug
+                                          addToCart(product as Product, [], [], { slug: tenant.slug, name: tenant.name })
+                                          if (willConflict) break
+                                        }
+                                      }
+                                    }
+                                  } catch (e) {
+                                    console.error('Add to cart:', e)
+                                    showToast(
+                                      t('Could not add items. Try again.', 'تعذر إضافة الأصناف. حاول مرة أخرى.'),
+                                      t('Could not add items. Try again.', 'تعذر إضافة الأصناف. حاول مرة أخرى.'),
+                                      'error'
+                                    )
+                                  } finally {
+                                    setAddingAllFromKey(null)
+                                  }
+                                }}
+                                className={cn(
+                                  'text-xs font-bold flex items-center gap-1 transition-opacity',
+                                  addingAllFromKey === String(storeSlug)
+                                    ? 'text-amber-500 opacity-70'
+                                    : 'text-amber-600 hover:text-amber-700'
+                                )}
+                              >
+                                {addingAllFromKey === String(storeSlug) ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <ShoppingCart className="size-3.5" />
+                                )}
+                                {addingAllFromKey === String(storeSlug) ? t('Adding…', 'جاري الإضافة…') : `${t('Add all from', 'أضف الكل من')} ${(lang === 'ar' && storeProds[0]?.businessName_ar ? storeProds[0].businessName_ar : storeProds[0]?.businessName) ?? ''}`}
+                              </motion.button>
+                            )}
+                            {storeProds.slice(0, 12).map((p) => {
+                              const title = lang === 'ar' ? (p.title_ar ?? p.title_en) : (p.title_en ?? p.title_ar)
+                              const businessDisplayName = lang === 'ar' && p.businessName_ar ? p.businessName_ar : p.businessName
+                              const isDifferentStore = items.length > 0 && cartTenant?.slug && p.businessSlug && cartTenant.slug !== p.businessSlug
+                              return (
+                                <div
+                                  key={p._id}
+                                  className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200"
+                                >
+                                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                                    <div className="relative size-14 shrink-0 rounded-lg overflow-hidden bg-slate-100">
+                                      {p.imageUrl ? (
+                                        <Image
+                                          src={p.imageUrl}
+                                          alt={title ?? ''}
+                                          fill
+                                          className="object-cover"
+                                          sizes="56px"
+                                          placeholder="blur"
+                                          blurDataURL={SHIMMER_PLACEHOLDER}
+                                        />
+                                      ) : (
+                                        <div className="flex h-full w-full items-center justify-center">
+                                          <Store className="size-6 text-slate-400" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="font-semibold text-slate-900 truncate">{title}</p>
+                                      <p className="text-xs text-slate-500 flex items-center gap-1.5" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+                                        {businessDisplayName}
+                                        {isDifferentStore && (
+                                          <span className="inline-flex items-center rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
+                                            {t('Different store', 'متجر آخر')}
+                                          </span>
+                                        )}
+                                        {p.businessOpenNow && !isDifferentStore && (
+                                          <span className="inline-flex items-center rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                                            {t('Open', 'مفتوح')}
+                                          </span>
+                                        )}
+                                      </p>
+                                      {p.price > 0 && (
+                                        <p className="text-sm font-bold text-slate-700 mt-0.5">
+                                          {p.price} {p.currency}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex shrink-0 gap-2 flex-wrap">
+                                    <a
+                                      href={`/t/${p.businessSlug}#product-${p._id}`}
+                                      className="text-xs font-medium text-amber-600 hover:text-amber-700"
+                                    >
+                                      {t('View menu', 'عرض القائمة')}
+                                    </a>
+                                    <motion.button
+                                      type="button"
+                                      onClick={() => handleAddToCart(p)}
+                                      disabled={addingProductId === p._id}
+                                      title={isDifferentStore ? t('Cart has items from another restaurant. Tap to choose: replace cart or go back.', 'سلتك تحتوي على أصناف من مطعم آخر. اضغط لاختيار: استبدال السلة أو العودة.') : undefined}
+                                      whileTap={addingProductId !== p._id ? { scale: 0.95 } : undefined}
+                                      className={cn(
+                                        'inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors',
+                                        addedProductId === p._id
+                                          ? 'bg-emerald-500 text-white'
+                                          : isDifferentStore
+                                            ? 'bg-amber-200 text-amber-950 border-2 border-amber-500 hover:bg-amber-300'
+                                            : 'text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-70'
+                                      )}
+                                    >
+                                      {addingProductId === p._id ? (
+                                        <Loader2 className="size-3 animate-spin" />
+                                      ) : addedProductId === p._id ? (
+                                        <Check className="size-3" />
+                                      ) : (
+                                        <ShoppingCart className="size-3" />
+                                      )}
+                                      {addingProductId === p._id ? t('Adding…', 'جاري الإضافة…') : addedProductId === p._id ? t('Added', 'تمت الإضافة') : t('Add', 'أضف')}
+                                    </motion.button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                  }
+
+                  if (hasMultipleStores) {
+                    return (
+                      <div key={idx} className="space-y-3 mt-3">
+                        {data.missingIngredients && data.missingIngredients.length > 0 && (
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2">
+                            <p className="text-xs font-medium text-amber-800">
+                              {t('Some ingredients from the recipe are not available in our stores:', 'بعض مكونات الوصفة غير متوفرة في متاجرنا:')}
+                            </p>
+                            <p className="mt-1 text-xs text-amber-700">{data.missingIngredients.join(', ')}</p>
+                          </div>
+                        )}
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                          {t('Ingredients are available in these stores. Pick one to see products:', 'المكونات متوفرة في هذه المتاجر. اختر متجراً لعرض المنتجات:')}
+                        </p>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {storeOptions.map((s) => {
+                            const displayName = (lang === 'ar' && s.name_ar ? s.name_ar : s.name) || s.name
+                            return (
+                              <motion.button
+                                key={s.slug}
+                                type="button"
+                                disabled={loadingStoreSlug !== null}
+                                whileTap={loadingStoreSlug === null ? { scale: 0.98 } : undefined}
+                                onClick={async () => {
+                                  setLoadingStoreSlug(s.slug)
+                                  try {
+                                    const res = await fetch('/api/search/ingredients-by-store', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        ingredients: data.soughtIngredients ?? [],
+                                        storeSlug: s.slug,
+                                        city,
+                                        country,
+                                      }),
+                                    })
+                                    if (res.ok) {
+                                      const result = await res.json()
+                                      setStoreChoiceResults((prev) => ({
+                                        ...prev,
+                                        [partKey]: {
+                                          products: result.products ?? [],
+                                          byStore: result.byStore ?? {},
+                                          missingIngredients: result.missingIngredients ?? [],
+                                        },
+                                      }))
+                                    }
+                                  } catch (e) {
+                                    console.error('Store choice fetch:', e)
+                                    showToast(
+                                      t('Could not load products. Try again.', 'تعذر تحميل المنتجات. حاول مرة أخرى.'),
+                                      t('Could not load products. Try again.', 'تعذر تحميل المنتجات. حاول مرة أخرى.'),
+                                      'error'
+                                    )
+                                  } finally {
+                                    setLoadingStoreSlug(null)
+                                  }
+                                }}
+                                className={cn(
+                                  'flex flex-col items-center p-4 rounded-xl border-2 transition-all',
+                                  'bg-white border-slate-200 hover:border-amber-400 hover:shadow-md',
+                                  loadingStoreSlug === s.slug && 'opacity-70'
+                                )}
+                              >
+                                {loadingStoreSlug === s.slug ? (
+                                  <Loader2 className="size-10 text-amber-500 animate-spin mb-2" />
+                                ) : (
+                                  <Store className="size-10 text-amber-500 mb-2" />
+                                )}
+                                <span className="font-bold text-slate-900 text-sm line-clamp-2 text-center" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+                                  {displayName}
+                                </span>
+                                <span className="text-xs text-slate-500 mt-0.5">
+                                  {s.productCount} {t('products', 'منتج')}
+                                </span>
+                              </motion.button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  }
+
                   const products = data.products ?? Object.values(data.byStore ?? {}).flat()
                   const missing = data.missingIngredients ?? []
                   if (products.length === 0) {
@@ -487,6 +746,158 @@ export function SearchAIPanel({
                       {data.fullWeekHours && (
                         <p className="mt-1 text-xs text-slate-500">{data.fullWeekHours}</p>
                       )}
+                    </div>
+                  )
+                }
+                if (part.type === 'tool-show_store_choice') {
+                  if (part.state !== 'output-available' || !part.output) return null
+                  const hasIngredientStoreOptions = (message.parts ?? []).some((p) => {
+                    if ((p as { type?: string }).type !== 'tool-search_ingredients') return false
+                    const out = (p as { output?: { storeOptions?: unknown[] } }).output
+                    return (out?.storeOptions?.length ?? 0) >= 2
+                  })
+                  if (hasIngredientStoreOptions) return null
+                  const data = part.output as { type?: string; stores?: StoreOption[] }
+                  const stores = data.stores ?? []
+                  if (stores.length < 2) return null
+                  const ingPart = (message.parts ?? []).find(
+                    (p: { type?: string }) => p.type === 'tool-search_ingredients'
+                  ) as { output?: { soughtIngredients?: string[] } } | undefined
+                  const soughtIngredients = ingPart?.output?.soughtIngredients ?? []
+                  const partKey = `${message.id}-store-choice-${idx}`
+                  const chosenResult = storeChoiceResults[partKey]
+
+                  if (chosenResult) {
+                    const products = chosenResult.products
+                    const byStore = chosenResult.byStore
+                    const missing = chosenResult.missingIngredients ?? []
+                    if (products.length === 0) {
+                      return (
+                        <div key={idx} className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                          <p className="text-sm font-medium text-amber-800">
+                            {t('No matching ingredients in this store.', 'لا توجد مكونات مطابقة في هذا المتجر.')}
+                          </p>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div key={idx} className="space-y-2 mt-3">
+                        {missing.length > 0 && (
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2">
+                            <p className="text-xs font-medium text-amber-800">{missing.join(', ')}</p>
+                          </div>
+                        )}
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                          {t('Ingredients from chosen store', 'المكونات من المتجر المختار')}
+                        </p>
+                        {Object.entries(byStore).map(([storeSlug, storeProds]) => (
+                          <div key={storeSlug} className="space-y-2">
+                            {storeProds.slice(0, 12).map((p) => {
+                              const title = lang === 'ar' ? (p.title_ar ?? p.title_en) : (p.title_en ?? p.title_ar)
+                              const businessDisplayName = lang === 'ar' && p.businessName_ar ? p.businessName_ar : p.businessName
+                              const isDifferentStore = items.length > 0 && cartTenant?.slug && p.businessSlug && cartTenant.slug !== p.businessSlug
+                              return (
+                                <div
+                                  key={p._id}
+                                  className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200"
+                                >
+                                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                                    <div className="relative size-14 shrink-0 rounded-lg overflow-hidden bg-slate-100">
+                                      {p.imageUrl ? (
+                                        <Image src={p.imageUrl} alt={title ?? ''} fill className="object-cover" sizes="56px" placeholder="blur" blurDataURL={SHIMMER_PLACEHOLDER} />
+                                      ) : (
+                                        <div className="flex h-full w-full items-center justify-center">
+                                          <Store className="size-6 text-slate-400" />
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="font-semibold text-slate-900 truncate">{title}</p>
+                                      <p className="text-xs text-slate-500">{businessDisplayName}</p>
+                                      {p.price > 0 && <p className="text-sm font-bold text-slate-700">{p.price} {p.currency}</p>}
+                                    </div>
+                                  </div>
+                                  <div className="flex shrink-0 gap-2">
+                                    <a href={`/t/${p.businessSlug}#product-${p._id}`} className="text-xs font-medium text-amber-600 hover:text-amber-700">{t('View menu', 'عرض القائمة')}</a>
+                                    <motion.button
+                                      type="button"
+                                      onClick={() => handleAddToCart(p)}
+                                      disabled={addingProductId === p._id}
+                                      whileTap={addingProductId !== p._id ? { scale: 0.95 } : undefined}
+                                      className={cn(
+                                        'inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg',
+                                        addedProductId === p._id ? 'bg-emerald-500 text-white' : 'text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-70'
+                                      )}
+                                    >
+                                      {addingProductId === p._id ? <Loader2 className="size-3 animate-spin" /> : addedProductId === p._id ? <Check className="size-3" /> : <ShoppingCart className="size-3" />}
+                                      {addingProductId === p._id ? t('Adding…', 'جاري الإضافة…') : addedProductId === p._id ? t('Added', 'تمت الإضافة') : t('Add', 'أضف')}
+                                    </motion.button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div key={idx} className="space-y-3 mt-3">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        {t('Ingredients are available in these stores. Pick one to see products:', 'المكونات متوفرة في هذه المتاجر. اختر متجراً لعرض المنتجات:')}
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {stores.map((s) => {
+                          const displayName = (lang === 'ar' && s.name_ar ? s.name_ar : s.name) || s.name
+                          return (
+                            <motion.button
+                              key={s.slug}
+                              type="button"
+                              disabled={loadingStoreSlug !== null || soughtIngredients.length === 0}
+                              whileTap={loadingStoreSlug === null ? { scale: 0.98 } : undefined}
+                              onClick={async () => {
+                                if (soughtIngredients.length === 0) return
+                                setLoadingStoreSlug(s.slug)
+                                try {
+                                  const res = await fetch('/api/search/ingredients-by-store', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ ingredients: soughtIngredients, storeSlug: s.slug, city, country }),
+                                  })
+                                  if (res.ok) {
+                                    const result = await res.json()
+                                    setStoreChoiceResults((prev) => ({
+                                      ...prev,
+                                      [partKey]: {
+                                        products: result.products ?? [],
+                                        byStore: result.byStore ?? {},
+                                        missingIngredients: result.missingIngredients ?? [],
+                                      },
+                                    }))
+                                  }
+                                } catch (e) {
+                                  console.error('Store choice fetch:', e)
+                                  showToast(t('Could not load products. Try again.', 'تعذر تحميل المنتجات. حاول مرة أخرى.'), '', 'error')
+                                } finally {
+                                  setLoadingStoreSlug(null)
+                                }
+                              }}
+                              className="flex flex-col items-center p-4 rounded-xl border-2 bg-white border-slate-200 hover:border-amber-400 hover:shadow-md disabled:opacity-70"
+                            >
+                              {loadingStoreSlug === s.slug ? (
+                                <Loader2 className="size-10 text-amber-500 animate-spin mb-2" />
+                              ) : (
+                                <Store className="size-10 text-amber-500 mb-2" />
+                              )}
+                              <span className="font-bold text-slate-900 text-sm line-clamp-2 text-center" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+                                {displayName}
+                              </span>
+                              <span className="text-xs text-slate-500 mt-0.5">{s.productCount} {t('products', 'منتج')}</span>
+                            </motion.button>
+                          )
+                        })}
+                      </div>
                     </div>
                   )
                 }

@@ -103,7 +103,8 @@ ${ctx.contextText}
 
 **SEARCH RULES**
 - search_products: Use for READY meals, product search, OR store-type search (e.g. greengrocery). Supports preferOpenOnly, sortBy, and businessType (e.g. "greengrocer" for خضار/فواكه). Use 1–3 keywords.
-- search_ingredients: Use for recipe ingredients. Supports preferOpenOnly, sortBy: price_asc, popularity. Returns soughtIngredients, matchedIngredients, missingIngredients.
+- search_ingredients: Use for recipe ingredients. Returns ONE product per ingredient (no duplicates). Supports preferOpenOnly, sortBy, storeSlug. Returns soughtIngredients, matchedIngredients, missingIngredients, storeOptions.
+- INGREDIENTS + MULTIPLE STORES: When search_ingredients returns storeOptions with 2+ stores, you MUST call show_store_choice with those stores and ask the user to pick before showing products. Do not list products from mixed stores—wait for store choice.
 - get_business_hours: Use when user asks when a business opens, closes, or its hours. Pass business name or slug.
 - WHEN INGREDIENTS ARE MISSING: Inform user which ingredients are not available. Do NOT suggest unrelated products.
 - NEVER suggest products that don't match the question or recipe.
@@ -159,13 +160,14 @@ ${ctx.contextText}
       }),
       search_ingredients: tool({
         description:
-          'Search for products matching recipe ingredients. Returns products with price, businessOpenNow, orderCount. Use preferOpenOnly for open businesses, sortBy price_asc for cheapest.',
+          'Search for products matching recipe ingredients. Returns ONE product per ingredient (no duplicates). Prefers products from the same store. Use storeSlug when user has chosen a store. Returns storeOptions when products span 2+ stores—then call show_store_choice.',
         inputSchema: z.object({
           ingredients: z.array(z.string()).describe('List of ingredient names'),
           preferOpenOnly: z.boolean().optional(),
           sortBy: z.enum(['price_asc', 'popularity']).optional(),
+          storeSlug: z.string().optional().describe('When user chose a store, filter results to that store only'),
         }),
-        execute: async ({ ingredients, preferOpenOnly, sortBy }) => {
+        execute: async ({ ingredients, preferOpenOnly, sortBy, storeSlug }) => {
           return searchIngredients({
             city: cityVal,
             country: (country ?? '').trim(),
@@ -173,7 +175,27 @@ ${ctx.contextText}
             lang: langVal,
             preferOpenOnly,
             sortBy,
+            storeSlug,
           })
+        },
+      }),
+      show_store_choice: tool({
+        description:
+          'MANDATORY when search_ingredients returns storeOptions with 2+ stores. Renders store cards so user can pick which store to shop from. Pass the storeOptions array from search_ingredients. After user picks, call search_ingredients again with storeSlug set to the chosen store slug.',
+        inputSchema: z.object({
+          stores: z
+            .array(
+              z.object({
+                slug: z.string(),
+                name: z.string(),
+                name_ar: z.string().nullable().optional(),
+                productCount: z.number(),
+              })
+            )
+            .describe('Store options from search_ingredients storeOptions'),
+        }),
+        execute: async ({ stores }) => {
+          return { type: 'store_choice', stores }
         },
       }),
       get_business_hours: tool({

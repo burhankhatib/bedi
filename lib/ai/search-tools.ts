@@ -213,6 +213,8 @@ function isProductRelevantForIngredients(
   })
 }
 
+export type StoreOption = { slug: string; name: string; name_ar: string | null; productCount: number }
+
 export async function searchIngredients(params: {
   city: string
   country?: string
@@ -220,16 +222,20 @@ export async function searchIngredients(params: {
   lang?: 'en' | 'ar'
   preferOpenOnly?: boolean
   sortBy?: 'price_asc' | 'popularity'
+  /** When set, return only products from this store (for post–store-choice flow). */
+  storeSlug?: string
 }): Promise<{
   products: ToolProduct[]
   byStore: Record<string, ToolProduct[]>
+  storeOptions: StoreOption[]
   soughtIngredients: string[]
   matchedIngredients: string[]
   missingIngredients: string[]
 }> {
-  const { city, country = '', preferOpenOnly, sortBy } = params
+  const { city, country = '', preferOpenOnly, sortBy, storeSlug } = params
   const sought = params.ingredients.slice(0, 15).map((i) => i.trim()).filter(Boolean)
-  if (sought.length === 0) return { products: [], byStore: {}, soughtIngredients: [], matchedIngredients: [], missingIngredients: [] }
+  if (sought.length === 0)
+    return { products: [], byStore: {}, storeOptions: [], soughtIngredients: [], matchedIngredients: [], missingIngredients: [] }
 
   const matchClauses = sought
     .map(
@@ -300,18 +306,86 @@ export async function searchIngredients(params: {
   }
 
   let list = rawList.filter((p) => isProductRelevantForIngredients(p, sought))
+
+  // Filter to single store when user has chosen one
+  if (storeSlug) {
+    list = list.filter((p) => (p.businessSlug || '') === storeSlug)
+  }
+
   if (sortBy === 'price_asc') list = [...list].sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
   else if (sortBy === 'popularity') list = [...list].sort((a, b) => (b.orderCount ?? 0) - (a.orderCount ?? 0))
 
   const matchedIngredients = sought.filter((ing) => list.some((p) => isProductRelevantForIngredients(p, [ing])))
   const missingIngredients = sought.filter((ing) => !matchedIngredients.some((m) => m.trim().toLowerCase() === ing.trim().toLowerCase()))
 
-  const byStore: Record<string, ToolProduct[]> = {}
+  // Build byStore before deduplication (for storeOptions)
+  const byStoreRaw: Record<string, ToolProduct[]> = {}
   for (const p of list) {
+    const key = p.businessSlug || 'unknown'
+    if (!byStoreRaw[key]) byStoreRaw[key] = []
+    byStoreRaw[key].push(p)
+  }
+
+  // Deduplicate: ONE product per ingredient. Prefer store that covers the most ingredients.
+  const ingredientToProducts = new Map<string, ToolProduct[]>()
+  for (const ing of matchedIngredients) {
+    const prods = list.filter((p) => isProductRelevantForIngredients(p, [ing]))
+    if (prods.length > 0) ingredientToProducts.set(ing, prods)
+  }
+
+  const storeCoverage = new Map<string, number>()
+  for (const [ing, prods] of ingredientToProducts) {
+    const storesForIng = new Set(prods.map((p) => p.businessSlug || 'unknown'))
+    for (const slug of storesForIng) {
+      storeCoverage.set(slug, (storeCoverage.get(slug) ?? 0) + 1)
+    }
+  }
+  const storeOrder = [...storeCoverage.entries()]
+    .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
+    .map(([slug]) => slug)
+
+  const picked = new Set<string>()
+  const deduped: ToolProduct[] = []
+  for (const ing of matchedIngredients) {
+    const prods = ingredientToProducts.get(ing) ?? []
+    if (prods.length === 0) continue
+    const sorted = [...prods].sort((a, b) => {
+      const aIdx = storeOrder.indexOf(a.businessSlug || '')
+      const bIdx = storeOrder.indexOf(b.businessSlug || '')
+      if (aIdx !== bIdx) return aIdx - bIdx
+      if (sortBy === 'price_asc') return (a.price ?? 0) - (b.price ?? 0)
+      if (sortBy === 'popularity') return (b.orderCount ?? 0) - (a.orderCount ?? 0)
+      return 0
+    })
+    const best = sorted[0]
+    if (best && !picked.has(best._id)) {
+      picked.add(best._id)
+      deduped.push(best)
+    }
+  }
+
+  const byStore: Record<string, ToolProduct[]> = {}
+  for (const p of deduped) {
     const key = p.businessSlug || 'unknown'
     if (!byStore[key]) byStore[key] = []
     byStore[key].push(p)
   }
 
-  return { products: list, byStore, soughtIngredients: sought, matchedIngredients, missingIngredients }
+  const storeOptions: StoreOption[] = Object.entries(byStoreRaw)
+    .filter(([slug]) => storeCoverage.has(slug))
+    .map(([slug, prods]) => ({
+      slug,
+      name: prods[0]?.businessName ?? slug,
+      name_ar: prods[0]?.businessName_ar ?? null,
+      productCount: storeCoverage.get(slug) ?? 0,
+    }))
+
+  return {
+    products: deduped,
+    byStore,
+    storeOptions,
+    soughtIngredients: sought,
+    matchedIngredients,
+    missingIngredients,
+  }
 }
