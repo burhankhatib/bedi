@@ -55,21 +55,27 @@ export async function POST(req: Request) {
       }
     }
 
-    const searchQuery = extractSearchQuery(query || '')
-    const effectiveQuery = searchQuery || query || 'food restaurant'
+    const extractResult = extractSearchQuery(query || '', true)
+    const effectiveQuery = (typeof extractResult === 'string' ? extractResult : extractResult.query) || query || 'food restaurant'
+    const produceIntent = typeof extractResult === 'object' && extractResult.produceIntent
 
     const ctx = await buildSearchContext({
       city: cityVal,
       country: (country ?? '').trim(),
       query: effectiveQuery,
       lang: langVal,
+      businessType: produceIntent ? 'greengrocer' : undefined,
     })
 
     const systemPrompt = `You are a Personal Shopping Helper for Bedi Delivery—a food and goods delivery platform. You work side-by-side with the user as their personal shopper for anything related to our businesses and products.
 
+**LANGUAGE — 90% ARABIC USERS**
+- Most users speak Arabic. When user writes in Arabic, respond in Arabic. When in English, respond in English.
+- ALWAYS use the correct Arabic business names from tool results (e.g. businessName_ar, name_ar). Never transliterate or guess—use exactly what the data provides.
+
 **STRICT SCOPE — NEVER DEVIATE**
 - ONLY answer questions about: (1) Our platform's businesses, products, meals, opening times, addresses, and delivery; (2) Food recipes and how to cook.
-- FORBIDDEN: General knowledge, news, politics, non-food topics, or anything outside our database and food recipes.
+- FORBIDDEN: General knowledge, news, politics, non-food topics, or anything outside our database and food recipes. NEVER share business income, revenue, order counts as business metrics, or any sensitive business data.
 - If asked something out of scope, politely say: "I can only help with food, recipes, and our local businesses. What would you like to find?"
 
 **ALWAYS RESPOND — REMEMBER CONVERSATION**
@@ -81,6 +87,7 @@ ${ctx.contextText}
 
 **UNDERSTAND USER INTENT — BE RELEVANT**
 - READY-TO-EAT (broast, pizza, shawarma, burgers, etc.): User wants the dish NOW from a restaurant/cafe. Call search_products with the dish name. ONLY suggest products that are that dish (e.g. "broast" → fried chicken meals from restaurants). NEVER suggest unrelated products.
+- PRODUCE / GREENGROCERY: When user asks for vegetables, fruits, produce—in Arabic (خضار، فواكه، فواكة، محتاج خضار، محتاج فواكه) or English (vegetables, fruits, produce, greengrocery)—they want a greengrocery or produce store. ALWAYS call search_products with businessType: "greengrocer" and query like "خضار فواكه" or "vegetables fruits". Do NOT treat this as a meal or recipe.
 - COOK AT HOME (recipe, ingredients, "how to make"): User wants to cook. Suggest ingredients from markets/grocery ONLY. search_ingredients returns only grocery/supermarket/greengrocer products—never restaurant meals like "Fries with Cheese". NEVER suggest restaurant dishes as ingredients.
 - RECIPE WITH 2 CHOICES: When user asks for a recipe (e.g. "broast recipe", "how to make shawarma"), give a short recipe, then ALWAYS offer BOTH options via show_quick_reply_buttons type "custom" with options: ["Find ingredients to cook", "Order ready from a restaurant"]. If they choose ingredients → ask how many people → call search_ingredients. If they choose restaurant → call search_products for the dish.
 - AFTER SHOWING INGREDIENTS: Always offer: "Would you also like to find something ready and delicious from our restaurants?" Use show_quick_reply_buttons type "yes_no" with prompt: "Find something ready from restaurants too?"
@@ -95,7 +102,7 @@ ${ctx.contextText}
 - Products include businessOpenNow and orderCount—use these to recommend the best options.
 
 **SEARCH RULES**
-- search_products: Use for READY meals OR product search. Supports preferOpenOnly (prefer open businesses), sortBy: price_asc (cheapest), price_desc, popularity (most ordered). Use 1–3 keywords.
+- search_products: Use for READY meals, product search, OR store-type search (e.g. greengrocery). Supports preferOpenOnly, sortBy, and businessType (e.g. "greengrocer" for خضار/فواكه). Use 1–3 keywords.
 - search_ingredients: Use for recipe ingredients. Supports preferOpenOnly, sortBy: price_asc, popularity. Returns soughtIngredients, matchedIngredients, missingIngredients.
 - get_business_hours: Use when user asks when a business opens, closes, or its hours. Pass business name or slug.
 - WHEN INGREDIENTS ARE MISSING: Inform user which ingredients are not available. Do NOT suggest unrelated products.
@@ -110,7 +117,7 @@ ${ctx.contextText}
 **VISUAL CARDS (CRITICAL — ALWAYS USE TOOLS)**:
 - NEVER recommend products or businesses in plain text with markdown links. ALWAYS call search_products or search_ingredients so the user sees visual cards with image, price, "View menu", and "Add" buttons.
 - When the user asks "which one", "what are the options", "show me broast", or similar: you MUST call search_products (or search_ingredients for recipes) to show visual cards. Text-only lists are forbidden for product/business recommendations.
-- Links in any text must use RELATIVE paths only: [Name](/t/slug) or [Product](/t/slug#product-xyz). NEVER use absolute URLs (no https://, no bedidelivery.com, no bedi.delivery in links). The app stays in-app; all navigation uses /t/slug.
+- Links in any text must use RELATIVE paths ONLY: [Name](/t/slug) or [Product](/t/slug#product-xyz). NEVER use absolute URLs (no https://, no example.com, no domain names). Write /t/slug only.
 
 **FORMATTING**:
 - Use markdown: **bold**, numbered lists for recipes, bullets for options.
@@ -128,13 +135,17 @@ ${ctx.contextText}
     const tools = {
       search_products: tool({
         description:
-          'Search for products and businesses. Returns products with price, businessOpenNow, orderCount. Use preferOpenOnly when user wants to order now. Use sortBy price_asc for cheapest, popularity for most-ordered.',
+          'Search for products and businesses. Returns products with price, businessOpenNow. Use businessType "greengrocer" when user asks for vegetables, fruits, خضار، فواكه، فواكة. Use preferOpenOnly when user wants to order now. Use sortBy price_asc for cheapest, popularity for most-ordered.',
         inputSchema: z.object({
-          query: z.string().describe('1-3 search keywords'),
+          query: z.string().describe('1-3 search keywords (e.g. "خضار فواكه" for produce)'),
           preferOpenOnly: z.boolean().optional().describe('When true, only show products from businesses currently open'),
           sortBy: z.enum(['price_asc', 'price_desc', 'popularity']).optional().describe('price_asc=cheapest first, popularity=most ordered first'),
+          businessType: z
+            .enum(['greengrocer', 'grocery', 'supermarket', 'restaurant', 'cafe', 'bakery', 'pharmacy', 'retail'])
+            .optional()
+            .describe('Filter by store type. Use "greengrocer" for vegetables/fruits/خضار/فواكه.'),
         }),
-        execute: async ({ query: q, preferOpenOnly, sortBy }) => {
+        execute: async ({ query: q, preferOpenOnly, sortBy, businessType }) => {
           return searchProducts({
             city: cityVal,
             country: (country ?? '').trim(),
@@ -142,6 +153,7 @@ ${ctx.contextText}
             limit: 25,
             preferOpenOnly,
             sortBy,
+            businessType,
           })
         },
       }),

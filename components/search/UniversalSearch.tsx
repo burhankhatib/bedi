@@ -167,15 +167,25 @@ export function UniversalSearch({
   ]
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+    const handlePointerOutside = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node
+      if (!wrapperRef.current?.contains(target)) {
+        // Don't close chat if user tapped inside the AI overlay (portaled, not in wrapperRef)
+        const inChatOverlay = (e.target as Element)?.closest?.('[data-ai-chat-overlay]')
+        if (inChatOverlay) return
         setOpen(false)
         setFocusedIndex(-1)
         setAiSubmittedQuery(null)
       }
     }
-    if (open) document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    if (open) {
+      document.addEventListener('mousedown', handlePointerOutside)
+      document.addEventListener('touchstart', handlePointerOutside, { passive: true })
+    }
+    return () => {
+      document.removeEventListener('mousedown', handlePointerOutside)
+      document.removeEventListener('touchstart', handlePointerOutside)
+    }
   }, [open])
 
   useEffect(() => {

@@ -44,7 +44,7 @@ export function SearchChatOverlay({
         contentClassName="z-[401]"
         portalClassName="z-[400]"
       >
-        <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+        <div data-ai-chat-overlay className="flex flex-1 flex-col min-h-0 overflow-hidden">
           <SearchAIPanel
             query={query}
             city={city}

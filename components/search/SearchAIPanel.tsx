@@ -15,7 +15,8 @@ import { cn } from '@/lib/utils'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
 import { SanitizedMarkdown } from '@/components/ai/SanitizedMarkdown'
 import type { Product } from '@/app/types/menu'
-import type { ToolProduct } from '@/lib/ai/search-tools'
+import type { ToolProduct, ToolBusiness } from '@/lib/ai/search-tools'
+import { BUSINESS_TYPES } from '@/lib/constants'
 
 const CHAT_STORAGE_PREFIX = 'zonify-ai-chat-'
 
@@ -368,11 +369,12 @@ export function SearchAIPanel({
                               ) : (
                                 <ShoppingCart className="size-3.5" />
                               )}
-                              {addingAllFromKey === String(storeSlug) ? t('Adding…', 'جاري الإضافة…') : `${t('Add all from', 'أضف الكل من')} ${storeProds[0]?.businessName}`}
+                              {addingAllFromKey === String(storeSlug) ? t('Adding…', 'جاري الإضافة…') : `${t('Add all from', 'أضف الكل من')} ${(lang === 'ar' && storeProds[0]?.businessName_ar ? storeProds[0].businessName_ar : storeProds[0]?.businessName) ?? ''}`}
                             </motion.button>
                           )}
                           {storeProds.slice(0, 12).map((p) => {
                           const title = lang === 'ar' ? (p.title_ar ?? p.title_en) : (p.title_en ?? p.title_ar)
+                          const businessDisplayName = lang === 'ar' && p.businessName_ar ? p.businessName_ar : p.businessName
                           const isDifferentStore = items.length > 0 && cartTenant?.slug && p.businessSlug && cartTenant.slug !== p.businessSlug
                           return (
                             <div
@@ -399,8 +401,8 @@ export function SearchAIPanel({
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="font-semibold text-slate-900 truncate">{title}</p>
-                                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                                    {p.businessName}
+                                  <p className="text-xs text-slate-500 flex items-center gap-1.5" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+                                    {businessDisplayName}
                                     {isDifferentStore && (
                                       <span className="inline-flex items-center rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
                                         {t('Different store', 'متجر آخر')}
@@ -532,7 +534,7 @@ export function SearchAIPanel({
                 }
                 if (part.type === 'tool-search_products') {
                   if (part.state !== 'output-available' || !part.output) return null
-                  const data = part.output as { products?: ToolProduct[]; businesses?: Array<{ name: string; slug: string }> }
+                  const data = part.output as { products?: ToolProduct[]; businesses?: ToolBusiness[] }
                   const products = data.products ?? []
                   const businesses = data.businesses ?? []
                   return (
@@ -542,17 +544,42 @@ export function SearchAIPanel({
                           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                             {t('Stores', 'المتاجر')}
                           </p>
-                          <div className="flex flex-wrap gap-1">
-                            {businesses.slice(0, 6).map((b) => (
-                              <Link
-                                key={b.slug}
-                                href={`/t/${b.slug}`}
-                                className="text-xs font-medium text-amber-600 hover:text-amber-700"
-                                onClick={onClose}
-                              >
-                                {b.name}
-                              </Link>
-                            ))}
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {businesses.slice(0, 6).map((b) => {
+                              const displayName = (lang === 'ar' && b.name_ar ? b.name_ar : b.name) || b.name
+                              return (
+                                <Link
+                                  key={b.slug}
+                                  href={`/t/${b.slug}`}
+                                  onClick={onClose}
+                                  className="group flex flex-col items-center overflow-hidden rounded-[20px] bg-white p-4 pb-4 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-amber-300/50"
+                                >
+                                  <div className="relative size-[64px] sm:size-[72px] shrink-0 overflow-hidden rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300 mb-2">
+                                    {b.logoUrl ? (
+                                      <Image
+                                        src={b.logoUrl}
+                                        alt={displayName}
+                                        fill
+                                        className="object-contain p-2"
+                                        sizes="72px"
+                                      />
+                                    ) : (
+                                      <div className="flex h-full w-full items-center justify-center">
+                                        <Store className="size-8 text-slate-300" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  <h3 className="font-bold text-slate-900 text-[15px] sm:text-[17px] tracking-tight text-center line-clamp-2 w-full" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+                                    {displayName}
+                                  </h3>
+                                  <p className="mt-0.5 text-[12px] text-slate-500 capitalize font-medium">
+                                    {lang === 'ar'
+                                      ? BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.labelAr ?? b.businessType
+                                      : BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.label ?? b.businessType}
+                                  </p>
+                                </Link>
+                              )
+                            })}
                           </div>
                         </>
                       )}
@@ -564,6 +591,7 @@ export function SearchAIPanel({
                           <div className="grid gap-2">
                             {products.slice(0, 12).map((p) => {
                               const title = lang === 'ar' ? (p.title_ar ?? p.title_en) : (p.title_en ?? p.title_ar)
+                              const businessDisplayName = lang === 'ar' && p.businessName_ar ? p.businessName_ar : p.businessName
                               const isDifferentStore = items.length > 0 && cartTenant?.slug && p.businessSlug && cartTenant.slug !== p.businessSlug
                               return (
                                 <div
@@ -584,8 +612,8 @@ export function SearchAIPanel({
                                     </div>
                                     <div className="min-w-0 flex-1">
                                       <p className="font-semibold text-slate-900 truncate">{title}</p>
-                                      <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                                        {p.businessName}
+                                      <p className="text-xs text-slate-500 flex items-center gap-1.5" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+                                        {businessDisplayName}
                                         {isDifferentStore && (
                                           <span className="inline-flex items-center rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold text-amber-900">
                                             {t('Different store', 'متجر آخر')}

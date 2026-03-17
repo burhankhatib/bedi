@@ -14,10 +14,13 @@ export type SearchContextInput = {
   lang: 'en' | 'ar'
   /** Max businesses + products to include (keeps tokens low) */
   limit?: number
+  /** When set (e.g. greengrocer), filter businesses/products to this type. Used for خضار/فواكه intent. */
+  businessType?: string
 }
 
 export type BusinessContext = {
   name: string
+  name_ar?: string
   slug: string
   businessType: string
 }
@@ -42,9 +45,11 @@ export type SearchContext = {
 }
 
 export async function buildSearchContext(input: SearchContextInput): Promise<SearchContext> {
-  const { city, country = '', query, lang, limit = 40 } = input
+  const { city, country = '', query, lang, limit = 40, businessType } = input
   const q = query.toLowerCase().trim()
   const terms = q.split(/\s+/).filter(Boolean)
+
+  const businessTypeFilter = businessType ? `&& businessType == $businessType` : ''
 
   const productMatchFilter =
     terms.length > 0
@@ -65,9 +70,10 @@ export async function buildSearchContext(input: SearchContextInput): Promise<Sea
     city,
     ...(country ? { country } : {}),
     ...termParams,
+    ...(businessType ? { businessType } : {}),
   }
 
-  type TenantRow = { _id: string; name: string; slug: string | { current?: string }; businessType: string }
+  type TenantRow = { _id: string; name: string; name_ar?: string | null; slug: string | { current?: string }; businessType: string }
   type ProductRow = {
     _id: string
     title_en?: string | null
@@ -85,14 +91,15 @@ export async function buildSearchContext(input: SearchContextInput): Promise<Sea
 
   const [tenants, products] = await Promise.all([
     client.fetch<TenantRow[]>(
-      `*[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}] | order(name asc) [0...15] {
-        _id, name, "slug": slug.current, businessType
+      `*[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter} ${businessTypeFilter}] | order(name asc) [0...15] {
+        _id, name, "name_ar": coalesce(*[_type == "restaurantInfo" && site._ref == ^._id][0].name_ar, name_ar, name),
+        "slug": slug.current, businessType
       }`,
       params
     ),
-    terms.length
+    terms.length || businessType
       ? client.fetch<ProductRow[]>(
-          `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}]._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && ${productMatchFilter}] | order(site->name asc) [0...30] {
+          `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter} ${businessTypeFilter}]._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && ${productMatchFilter}] | order(site->name asc) [0...30] {
             _id, title_en, title_ar, description_en, description_ar, ingredients_en, ingredients_ar, price, currency, isPopular,
             "siteName": site->name, "siteSlug": site->slug.current
           }`,
@@ -105,11 +112,13 @@ export async function buildSearchContext(input: SearchContextInput): Promise<Sea
   const businesses: BusinessContext[] = (terms.length
     ? tenantList.filter((t) => {
         const name = (t.name ?? '').toLowerCase()
-        return terms.some((term) => name.includes(term))
+        const nameAr = (t.name_ar ?? '').toLowerCase()
+        return terms.some((term) => name.includes(term) || nameAr.includes(term))
       })
     : tenantList
   ).slice(0, 15).map((t) => ({
     name: t.name ?? '',
+    name_ar: t.name_ar ?? undefined,
     slug: typeof t.slug === 'string' ? t.slug : t.slug?.current ?? '',
     businessType: t.businessType ?? 'restaurant',
   }))
@@ -143,7 +152,10 @@ export async function buildSearchContext(input: SearchContextInput): Promise<Sea
   }
   if (businesses.length > 0 && terms.length > 0) {
     lines.push('\nBusinesses matching your search:')
-    businesses.forEach((b) => lines.push(`- ${b.name} (slug: ${b.slug})`))
+    businesses.forEach((b) => {
+      const displayName = lang === 'ar' && b.name_ar ? b.name_ar : b.name
+      lines.push(`- ${displayName} (slug: ${b.slug})`)
+    })
   }
   if (productContexts.length > 0) {
     lines.push('\nProducts available:')

@@ -16,7 +16,8 @@ const ALLOWED_TAGS = [
 ]
 const ALLOWED_ATTR = ['href', 'target', 'rel']
 
-/** Rewrite href for in-app: pathname only. Fixes AI-generated absolute URLs. Returns { path, inApp }. */
+/** Rewrite href for in-app: pathname only. Fixes AI-generated absolute URLs (e.g. example.com).
+ * Any URL with path /t/... is treated as in-app and rewritten to relative /t/... */
 function rewriteHrefForInApp(href: string, origin?: string): { path: string; inApp: boolean } {
   if (!href?.trim()) return { path: '#', inApp: false }
   const h = href.trim()
@@ -26,6 +27,9 @@ function rewriteHrefForInApp(href: string, origin?: string): { path: string; inA
     const u = new URL(h, origin || 'https://bedi.delivery')
     const sameOrigin = !origin || u.origin === origin
     if (sameOrigin) return { path: u.pathname + (u.hash || ''), inApp: true }
+    // AI often outputs example.com or wrong domains. Strip domain, keep /t/... paths in-app.
+    const path = u.pathname + (u.hash || '')
+    if (path.startsWith('/t/')) return { path, inApp: true }
     return { path: h, inApp: false }
   } catch {
     return { path: h, inApp: false }

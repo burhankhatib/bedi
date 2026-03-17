@@ -23,6 +23,8 @@ export type ToolProduct = {
   imageUrl: string | null
   businessSlug: string
   businessName: string
+  /** Arabic business name. Use when lang is ar. */
+  businessName_ar?: string | null
   businessType?: string
   isPopular?: boolean
   /** Whether the business is currently open */
@@ -34,6 +36,8 @@ export type ToolProduct = {
 export type ToolBusiness = {
   _id: string
   name: string
+  /** Arabic display name (from restaurantInfo or tenant). Use when lang is ar. */
+  name_ar?: string | null
   slug: string
   businessType: string
   logoUrl: string | null
@@ -53,10 +57,15 @@ export async function searchProducts(params: {
   preferOpenOnly?: boolean
   /** Sort: price_asc (cheapest first), price_desc, popularity (most ordered first) */
   sortBy?: 'price_asc' | 'price_desc' | 'popularity'
+  /** Filter by business type (e.g. greengrocer for خضار وفواكه) */
+  businessType?: string
 }): Promise<SearchProductsResult> {
-  const { city, country = '', query, limit = 30, preferOpenOnly, sortBy } = params
+  const { city, country = '', query, limit = 30, preferOpenOnly, sortBy, businessType } = params
   const q = query.toLowerCase().trim()
   const terms = q.split(/\s+/).filter(Boolean)
+
+  const businessTypeFilter = businessType ? `&& businessType == $businessType` : ''
+  const businessTypeParam = businessType ? { businessType } : {}
 
   const productMatchFilter =
     terms.length > 0
@@ -79,7 +88,15 @@ export async function searchProducts(params: {
     ...termParams,
   }
 
-  type TenantRow = { _id: string; name: string; slug: string | { current?: string }; businessType: string; businessLogo?: ImageSource; restaurantLogo?: ImageSource }
+  type TenantRow = {
+    _id: string
+    name: string
+    name_ar?: string | null
+    slug: string | { current?: string }
+    businessType: string
+    businessLogo?: ImageSource
+    restaurantLogo?: ImageSource
+  }
   type ProductRow = {
     _id: string
     title_en?: string | null
@@ -89,29 +106,35 @@ export async function searchProducts(params: {
     currency?: string
     isPopular?: boolean
     siteName?: string
+    siteName_ar?: string | null
     siteSlug?: string
     siteBusinessType?: string
     siteBusinessLogo?: ImageSource
     restaurantLogo?: ImageSource
   }
 
+  const tenantParams = { ...sanityParams, ...businessTypeParam }
   const [tenants, products] = await Promise.all([
     client.fetch<TenantRow[]>(
-      `*[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}] | order(name asc) [0...20] {
-        _id, name, "slug": slug.current, businessType, businessLogo,
+      `*[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter} ${businessTypeFilter}] | order(name asc) [0...20] {
+        _id, name,
+        "name_ar": coalesce(*[_type == "restaurantInfo" && site._ref == ^._id][0].name_ar, name_ar, name),
+        "slug": slug.current, businessType, businessLogo,
         "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^._id][0].logo
       }`,
-      sanityParams
+      tenantParams
     ),
-    terms.length
+    terms.length || businessType
       ? client.fetch<ProductRow[]>(
-          `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter}]._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && ${productMatchFilter}] | order(isPopular desc, site->name asc) [0...${limit}] {
+          `*[_type == "product" && defined(site) && (site._ref in *[_type == "tenant" && ${CITY_TENANT_FILTER} ${countryFilter} ${businessTypeFilter}]._id) && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && ${productMatchFilter}] | order(isPopular desc, site->name asc) [0...${limit}] {
             _id, title_en, title_ar, image, price, currency, isPopular,
-            "siteName": site->name, "siteSlug": site->slug.current, "siteBusinessType": site->businessType,
+            "siteName": site->name,
+            "siteName_ar": coalesce(*[_type == "restaurantInfo" && site._ref == ^.site._ref][0].name_ar, site->name_ar, site->name),
+            "siteSlug": site->slug.current, "siteBusinessType": site->businessType,
             "siteBusinessLogo": site->businessLogo,
             "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^.site._ref][0].logo
           }`,
-          sanityParams
+          { ...sanityParams, ...businessTypeParam }
         )
       : Promise.resolve([]),
   ])
@@ -120,7 +143,8 @@ export async function searchProducts(params: {
   const businesses: ToolBusiness[] = (terms.length
     ? tenantList.filter((t) => {
         const name = (t.name ?? '').toLowerCase()
-        return terms.some((term) => name.includes(term))
+        const nameAr = (t.name_ar ?? '').toLowerCase()
+        return terms.some((term) => name.includes(term) || nameAr.includes(term))
       })
     : tenantList
   )
@@ -132,6 +156,7 @@ export async function searchProducts(params: {
       return {
         _id: t._id,
         name: t.name ?? '',
+        name_ar: t.name_ar ?? null,
         slug,
         businessType: t.businessType ?? 'restaurant',
         logoUrl,
@@ -161,6 +186,7 @@ export async function searchProducts(params: {
       imageUrl,
       businessSlug: p.siteSlug ?? '',
       businessName: p.siteName ?? '',
+      businessName_ar: p.siteName_ar ?? null,
       businessType: p.siteBusinessType ?? undefined,
       isPopular: p.isPopular ?? false,
       businessOpenNow: openBySlug.get(p.siteSlug ?? ''),
@@ -226,6 +252,7 @@ export async function searchIngredients(params: {
     price?: number
     currency?: string
     siteName?: string
+    siteName_ar?: string | null
     siteSlug?: string
     siteBusinessLogo?: ImageSource
     restaurantLogo?: ImageSource
@@ -235,7 +262,9 @@ export async function searchIngredients(params: {
   const products = await client.fetch<ProductRow[]>(
     `*[_type == "product" && defined(site) && ${ingredientTenantFilter} && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt)) && (${matchClauses})] | order(site->name asc) [0...50] {
       _id, title_en, title_ar, image, price, currency,
-      "siteName": site->name, "siteSlug": site->slug.current,
+      "siteName": site->name,
+      "siteName_ar": coalesce(*[_type == "restaurantInfo" && site._ref == ^.site._ref][0].name_ar, site->name_ar, site->name),
+      "siteSlug": site->slug.current,
       "siteBusinessLogo": site->businessLogo,
       "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^.site._ref][0].logo
     }`,
@@ -259,6 +288,7 @@ export async function searchIngredients(params: {
       imageUrl,
       businessSlug: p.siteSlug ?? '',
       businessName: p.siteName ?? '',
+      businessName_ar: p.siteName_ar ?? null,
       businessOpenNow: openBySlug.get(p.siteSlug ?? ''),
       orderCount: orderCounts.get(p._id),
     }

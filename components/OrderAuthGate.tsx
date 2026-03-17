@@ -3,13 +3,13 @@
 /**
  * Gate for placing orders: requires sign-in + verified phone.
  * Renders a clear message that orders from unverified numbers are not accepted.
- * Uses Link instead of Clerk modal to avoid freeze on mobile (modal + Sheet conflict).
+ * Uses native <a> (full-page nav) instead of Next.js Link to avoid freeze on mobile
+ * when clicking inside CartSlider Sheet—client-side nav from within a Sheet can stall.
  */
 import { usePathname } from 'next/navigation'
 import { useOrderAuth } from '@/lib/useOrderAuth'
 import { Button } from '@/components/ui/button'
 import { ShieldAlert, Phone } from 'lucide-react'
-import Link from 'next/link'
 import { useLanguage } from '@/components/LanguageContext'
 
 const MESSAGE_SIGN_IN_EN = 'Sign in and verify your phone to place an order. Orders from unverified numbers are not accepted.'
@@ -67,14 +67,14 @@ export function OrderAuthGate({ returnTo, tenantSlug, variant = 'block', childre
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2">
           <Button asChild className="bg-amber-600 hover:bg-amber-700 text-white touch-manipulation">
-            <Link href={`/sign-in?redirect_url=${encodeURIComponent(signInRedirectUrl)}`}>
+            <a href={`/sign-in?redirect_url=${encodeURIComponent(signInRedirectUrl)}`}>
               {t('Sign in', 'تسجيل الدخول')}
-            </Link>
+            </a>
           </Button>
           <Button asChild variant="outline" className="border-amber-600 text-amber-800 hover:bg-amber-100 touch-manipulation">
-            <Link href={`/sign-up?redirect_url=${encodeURIComponent(signInRedirectUrl)}`}>
+            <a href={`/sign-up?redirect_url=${encodeURIComponent(signInRedirectUrl)}`}>
               {t('Sign up', 'إنشاء حساب')}
-            </Link>
+            </a>
           </Button>
         </div>
       </div>
@@ -99,8 +99,8 @@ export function OrderAuthGate({ returnTo, tenantSlug, variant = 'block', childre
         <p className="text-sm text-amber-900 mb-4">
           {lang === 'ar' ? MESSAGE_VERIFY_AR : MESSAGE_VERIFY_EN}
         </p>
-        <Button asChild className="bg-amber-600 hover:bg-amber-700 text-white">
-          <Link href={verifyUrl}>{t('Verify phone number', 'تأكيد رقم الهاتف')}</Link>
+        <Button asChild className="bg-amber-600 hover:bg-amber-700 text-white touch-manipulation">
+          <a href={verifyUrl}>{t('Verify phone number', 'تأكيد رقم الهاتف')}</a>
         </Button>
       </div>
     )

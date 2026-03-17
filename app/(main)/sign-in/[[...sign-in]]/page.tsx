@@ -7,7 +7,9 @@ export default async function SignInPage({
   searchParams: Promise<{ redirect_url?: string }>
 }) {
   const { redirect_url } = await searchParams
-  const afterSignInUrl = getAllowedRedirectPath(redirect_url, '/')
+  const destination = getAllowedRedirectPath(redirect_url, '/')
+  // Route through /auth/continue to check phone verification (OAuth users may need to verify)
+  const afterSignInUrl = `/auth/continue?returnTo=${encodeURIComponent(destination)}`
   const signUpUrl = redirect_url ? `/sign-up?redirect_url=${encodeURIComponent(redirect_url)}` : '/sign-up'
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-12">
