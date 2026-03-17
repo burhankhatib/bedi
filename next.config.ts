@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
     const sitemapCache = { key: 'Cache-Control' as const, value: 'public, max-age=3600, s-maxage=3600' }
     return [
       { source: '/sitemap.xml', headers: [sitemapCache] },
+      { source: '/sitemap/sitemap.xml', headers: [sitemapCache] },
       { source: '/app-sw.js', headers: [noCache] },
       { source: '/driver-sw.js', headers: [noCache] },
       { source: '/dashboard-sw.js', headers: [noCache] },
@@ -44,7 +45,9 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      // /sitemap.xml is served by app/sitemap.ts (Next.js MetadataRoute) with Content-Type: application/xml for GSC
+      // Sitemap trailing-slash redirects: GSC cache-bust tip — submit .../sitemap.xml/ or .../sitemap/sitemap.xml/
+      { source: '/sitemap.xml/', destination: '/sitemap.xml' },
+      { source: '/sitemap/sitemap.xml/', destination: '/sitemap/sitemap.xml' },
       // Handle /listings/* requests (likely from bots/crawlers or Sanity Studio references)
       {
         source: '/listings/:path*',

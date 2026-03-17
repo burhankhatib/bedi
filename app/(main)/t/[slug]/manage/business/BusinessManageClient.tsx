@@ -546,7 +546,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     setSubcategoriesLoading(true)
     const ac = new AbortController()
     subcategoriesAbortRef.current = ac
-    fetch(`/api/business-subcategories?businessType=${encodeURIComponent(form.businessType)}`, { signal: ac.signal })
+    fetch(`/api/business-subcategories?businessType=${encodeURIComponent(form.businessType)}`, { signal: ac.signal, cache: 'no-store' })
       .then((r) => r.json())
       .then((data) => {
         if (!mountedRef.current || ac.signal.aborted) return

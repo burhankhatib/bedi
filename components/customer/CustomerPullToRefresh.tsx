@@ -21,6 +21,12 @@ function isIOSStandalonePWA(): boolean {
   return (window.navigator as unknown as { standalone?: boolean }).standalone === true
 }
 
+/** Skip pull when a modal/sheet has body scroll locked (avoids touch conflict and freeze). */
+function isOverlayOpen(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.body.style.overflow === 'hidden' || !!document.body.getAttribute('data-scroll-locked')
+}
+
 /**
  * Customer PWA pull-to-refresh. Light pull = router.refresh(), Strong pull = window.location.reload() to recover from freezes.
  * On iOS PWA, pulltorefreshjs handles this – we passthrough.
@@ -42,6 +48,7 @@ export function CustomerPullToRefresh({ children }: { children: React.ReactNode 
   startYRef.current = startY
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (isOverlayOpen()) return
     if (isAtTop()) {
       const y = e.touches[0].clientY
       setStartY(y)
@@ -53,6 +60,7 @@ export function CustomerPullToRefresh({ children }: { children: React.ReactNode 
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (isOverlayOpen()) return
     const sy = startYRef.current
     if (sy === null || !isAtTop()) return
     const dist = e.touches[0].clientY - sy
@@ -68,6 +76,7 @@ export function CustomerPullToRefresh({ children }: { children: React.ReactNode 
     const el = containerRef.current
     if (!el) return
     const onMove = (e: TouchEvent) => {
+      if (isOverlayOpen()) return
       const sy = startYRef.current
       if (sy === null) return
       if (!isAtTop()) {

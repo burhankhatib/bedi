@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Home, Search, LogIn } from 'lucide-react'
+import { Home, LogIn } from 'lucide-react'
 
 export default function NotFound() {
   return (
@@ -13,28 +13,22 @@ export default function NotFound() {
         <p className="text-8xl font-bold text-slate-800">404</p>
         <h1 className="mt-4 text-2xl font-bold md:text-3xl">Page not found</h1>
         <p className="mt-2 text-slate-400" dir="auto">
-          The page you're looking for doesn't exist or has been moved.
+          The page you're looking for doesn't exist or you may need to sign in.
         </p>
         <p className="mt-1 text-slate-500 text-sm" dir="auto">
-          الصفحة التي تبحث عنها غير موجودة أو تم نقلها.
+          الصفحة التي تبحث عنها غير موجودة أو تحتاج تسجيل الدخول.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Button asChild className="bg-amber-500 text-slate-950 hover:bg-amber-400" size="lg">
-            <Link href="/">
-              <Home className="mr-2 size-4" />
-              Back to home
-            </Link>
-          </Button>
-          <Button asChild variant="outline" size="lg" className="border-slate-600 bg-slate-800/80 text-white hover:bg-slate-700">
-            <Link href="/sign-in">
+            <Link href="/sign-in?redirect_url=/">
               <LogIn className="mr-2 size-4" />
               Sign in
             </Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="border-slate-600 bg-slate-800/80 text-white hover:bg-slate-700">
-            <Link href="/dashboard">
-              <Search className="mr-2 size-4" />
-              Dashboard
+            <Link href="/">
+              <Home className="mr-2 size-4" />
+              Back to home
             </Link>
           </Button>
         </div>

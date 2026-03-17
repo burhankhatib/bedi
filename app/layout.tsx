@@ -7,6 +7,7 @@ import "./globals.css";
 const cairo = Cairo({
   variable: "--font-cairo",
   subsets: ["latin", "arabic"],
+  weight: ["400", "700"],
 });
 
 const plusJakartaSans = Plus_Jakarta_Sans({

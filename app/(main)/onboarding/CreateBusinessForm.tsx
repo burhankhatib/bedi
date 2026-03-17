@@ -36,7 +36,7 @@ export function CreateBusinessForm() {
       }
       setSubcategoriesLoading(true)
       setBusinessSubcategoryIds([])
-      fetch(`/api/business-subcategories?businessType=${encodeURIComponent(businessType)}`)
+      fetch(`/api/business-subcategories?businessType=${encodeURIComponent(businessType)}`, { cache: 'no-store' })
         .then((r) => r.json())
         .then((data) => setSubcategories(Array.isArray(data) ? data : []))
         .catch(() => setSubcategories([]))

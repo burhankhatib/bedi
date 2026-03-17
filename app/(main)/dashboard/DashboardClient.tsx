@@ -56,7 +56,9 @@ export function DashboardClient({
                     <Store className="size-6" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="truncate font-semibold text-white">{tenant.name}</h2>
+                    <h2 className="truncate font-semibold text-white">
+                      {(lang === 'ar' ? tenant.name_ar : tenant.name_en) || tenant.name_en || tenant.name_ar || tenant.name}
+                    </h2>
                     <p className="mt-0.5 text-xs capitalize text-slate-500">{tenant.businessType}</p>
                     <p className="mt-2 font-mono text-xs text-slate-400">/t/{tenant.slug}</p>
                   </div>

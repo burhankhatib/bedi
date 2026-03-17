@@ -17,7 +17,7 @@ export default function DriverError({
   reset: () => void
 }) {
   const msg = error?.message ?? ''
-  const isAuthRelated = /unauthorized|forbidden|sign.?in|session|token|clerk|401|403|500/i.test(msg)
+  const isAuthRelated = /unauthorized|forbidden|not permitted|permission denied|sign.?in|session|token|clerk|401|403|500|internal server error|application error/i.test(msg)
 
   useEffect(() => {
     if (isAuthRelated) {

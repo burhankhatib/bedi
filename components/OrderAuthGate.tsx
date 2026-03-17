@@ -3,10 +3,10 @@
 /**
  * Gate for placing orders: requires sign-in + verified phone.
  * Renders a clear message that orders from unverified numbers are not accepted.
+ * Uses Link instead of Clerk modal to avoid freeze on mobile (modal + Sheet conflict).
  */
 import { usePathname } from 'next/navigation'
 import { useOrderAuth } from '@/lib/useOrderAuth'
-import { SignInButton, SignUpButton } from '@clerk/nextjs'
 import { Button } from '@/components/ui/button'
 import { ShieldAlert, Phone } from 'lucide-react'
 import Link from 'next/link'
@@ -32,11 +32,8 @@ export function OrderAuthGate({ returnTo, tenantSlug, variant = 'block', childre
   const pathname = usePathname()
   const { isLoaded, needsSignIn, needsPhoneVerification } = useOrderAuth()
   const signInRedirectUrl = returnTo || (tenantSlug ? `/t/${tenantSlug}` : pathname || '/')
-  // After sign-up from menu/cart, send to verify-phone once then to menu (Clerk sign-up does not mark phone as verified).
-  const signUpRedirectUrl =
-    returnTo && tenantSlug && returnTo.startsWith('/t/')
-      ? `/verify-phone?returnTo=${encodeURIComponent(returnTo)}`
-      : signInRedirectUrl
+  // Always send new sign-ups to verify-phone first (customers must verify to order).
+  const signUpRedirectUrl = `/verify-phone?returnTo=${encodeURIComponent(signInRedirectUrl)}`
 
   if (!isLoaded) return <>{children}</>
   if (!needsSignIn && !needsPhoneVerification) return <>{children}</>
@@ -69,16 +66,16 @@ export function OrderAuthGate({ returnTo, tenantSlug, variant = 'block', childre
           {t('After signing in you’ll return here to complete your order. Your cart is saved.', 'بعد تسجيل الدخول ستُعاد إلى هذه الصفحة لإكمال الطلب. سلّتك محفوظة.')}
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <SignInButton mode="modal" forceRedirectUrl={signInRedirectUrl} signUpForceRedirectUrl={signUpRedirectUrl}>
-            <Button className="bg-amber-600 hover:bg-amber-700 text-white">
+          <Button asChild className="bg-amber-600 hover:bg-amber-700 text-white touch-manipulation">
+            <Link href={`/sign-in?redirect_url=${encodeURIComponent(signInRedirectUrl)}`}>
               {t('Sign in', 'تسجيل الدخول')}
-            </Button>
-          </SignInButton>
-          <SignUpButton mode="modal" forceRedirectUrl={signUpRedirectUrl} signInForceRedirectUrl={signInRedirectUrl}>
-            <Button variant="outline" className="border-amber-600 text-amber-800 hover:bg-amber-100">
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="border-amber-600 text-amber-800 hover:bg-amber-100 touch-manipulation">
+            <Link href={`/sign-up?redirect_url=${encodeURIComponent(signInRedirectUrl)}`}>
               {t('Sign up', 'إنشاء حساب')}
-            </Button>
-          </SignUpButton>
+            </Link>
+          </Button>
         </div>
       </div>
     )

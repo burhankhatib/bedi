@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { client } from '@/sanity/lib/client'
+import { clientNoCdn } from '@/sanity/lib/client'
 
-/** GET: List business sub-categories, optionally filtered by businessType. Used by onboarding and Studio. Uses CDN (reference data changes rarely). */
-export const revalidate = 300
+/** GET: List business sub-categories, optionally filtered by businessType. Bypasses CDN so newly seeded subcategories appear immediately. */
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const businessType = searchParams.get('businessType') ?? ''
 
+  // Match businessType case-insensitively (handles "Restaurant" vs "restaurant")
   const filter = businessType
-    ? `_type == "businessSubcategory" && businessType == $businessType`
+    ? `_type == "businessSubcategory" && defined(businessType) && lower(businessType) == lower($businessType)`
     : `_type == "businessSubcategory"`
   const params = businessType ? { businessType } : {}
 
-  const list = await client.fetch<
+  const list = await clientNoCdn.fetch<
     Array<{
       _id: string
       slug?: { current?: string }

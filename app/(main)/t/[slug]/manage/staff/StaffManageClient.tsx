@@ -29,11 +29,13 @@ const ROLE_LABELS: Record<string, { en: string; ar: string }> = {
 export function StaffManageClient({
   slug,
   ownerEmail,
-  businessName,
+  nameEn,
+  nameAr,
 }: {
   slug: string
   ownerEmail: string
-  businessName: string
+  nameEn?: string
+  nameAr?: string
 }) {
   const [staff, setStaff] = useState<StaffEntry[]>([])
   const [loading, setLoading] = useState(true)

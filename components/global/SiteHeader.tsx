@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { UserButton } from '@clerk/nextjs'
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog'
 import { PREFER_DRIVER_KEY, PREFER_TENANT_KEY } from '@/components/StandaloneDriverRedirect'
 import { useCart } from '@/components/Cart/CartContext'
 import { PWAInstallIcon } from '@/components/pwa/PWAInstallIcon'
@@ -60,54 +59,20 @@ function HamburgerAuthSection({
   )
 }
 
-/** Desktop: 1 clear button for Signup/Signin Modal */
-function AuthModalButton({ t, isRtl }: { t: (en: string, ar: string) => string; isRtl: boolean }) {
-  const [open, setOpen] = useState(false)
+/**
+ * Auth entry point: Direct Link instead of Dialog to avoid mobile freeze.
+ * Radix Dialog's focus trap + scroll lock can conflict with pull-to-refresh touch handlers on iOS/Android.
+ * Client-side Link navigation keeps fast SPA routing.
+ */
+function AuthEntryButton({ t }: { t: (en: string, ar: string) => string; isRtl: boolean }) {
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <button className="inline-flex shrink-0 items-center justify-center size-10 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 transition-colors outline-none focus:ring-2 focus:ring-brand-black/20" aria-label={t('Log in', 'تسجيل الدخول')}>
-          <User className="size-5" />
-        </button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md rounded-3xl p-6 sm:p-8 border-none" dir={isRtl ? 'rtl' : 'ltr'} overlayClassName="z-[500]" contentClassName="z-[500] shadow-2xl">
-        <DialogHeader className="mb-6">
-          <div className="flex justify-center mb-4">
-            <div className="size-16 rounded-full bg-brand-yellow/20 flex items-center justify-center">
-              <User className="size-8 text-brand-yellow" />
-            </div>
-          </div>
-          <DialogTitle className="text-2xl font-black text-center text-slate-900 tracking-tight">
-            {t('Welcome to Bedi Delivery', 'مرحباً بك في تطبيق بدي')}
-          </DialogTitle>
-          <DialogDescription className="text-center text-slate-500 mt-2 text-base">
-            {t('Choose how you would like to proceed.', 'اختر كيف تود المتابعة.')}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <Link
-            href="/sign-in?redirect_url=/"
-            onClick={() => setOpen(false)}
-            className="group flex w-full items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white px-5 py-4 font-bold text-slate-900 transition-all hover:border-slate-300 hover:bg-slate-50 hover:shadow-sm"
-          >
-            <div className="bg-slate-100 p-2 rounded-full group-hover:bg-white transition-colors">
-              <LogIn className="size-5" />
-            </div>
-            {t('Log in to your account', 'تسجيل الدخول لحسابك')}
-          </Link>
-          <Link
-            href="/sign-up?redirect_url=/"
-            onClick={() => setOpen(false)}
-            className="group flex w-full items-center gap-3 rounded-2xl bg-brand-black px-5 py-4 font-bold text-white transition-all hover:bg-brand-black/90 hover:shadow-md hover:-translate-y-0.5"
-          >
-            <div className="bg-white/10 p-2 rounded-full group-hover:bg-white/20 transition-colors">
-              <User className="size-5" />
-            </div>
-            {t('Create a new account', 'إنشاء حساب جديد')}
-          </Link>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <Link
+      href="/sign-in?redirect_url=/"
+      className="inline-flex shrink-0 items-center justify-center size-10 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 transition-colors outline-none focus:ring-2 focus:ring-brand-black/20 touch-manipulation"
+      aria-label={t('Log in', 'تسجيل الدخول')}
+    >
+      <User className="size-5" />
+    </Link>
   )
 }
 
@@ -301,8 +266,8 @@ export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderPr
           href="/"
           className="flex min-w-0 shrink items-center gap-2 font-bold text-slate-900 transition-opacity hover:opacity-80"
         >
-          <Image src="/logo.webp" alt="Bedi Delivery" width={36} height={36} className="h-9 w-auto shrink-0" />
-          <span className="text-xl font-semibold tracking-tight [font-family:var(--font-brand),var(--font-cairo),ui-sans-serif,sans-serif]">Bedi Delivery</span>
+          <Image src="/logo.webp" alt={t('Bedi Delivery', 'بدي ديليفري')} width={36} height={36} className="h-9 w-auto shrink-0" />
+          <span className="text-xl font-bold tracking-tight [font-family:var(--font-cairo),ui-sans-serif,sans-serif]">{t('Bedi Delivery', 'بدي ديليفري')}</span>
         </Link>
 
         {/* Desktop: full inline controls */}
@@ -361,7 +326,7 @@ export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderPr
                     appearance={{ elements: { avatarBox: 'size-[42px]' } }}
                   />
                 ) : (
-                  <AuthModalButton t={t} isRtl={isRtl} />
+                  <AuthEntryButton t={t} isRtl={isRtl} />
                 )}
               </div>
 
@@ -395,7 +360,7 @@ export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderPr
 
         {/* Mobile controls: PWA icon next to logo (in desktop block), menu on right. Hide PWA from this block to avoid duplicate. */}
         <div className="md:hidden flex flex-1 items-center justify-end gap-2">
-          {!isSignedIn && <AuthModalButton t={t} isRtl={isRtl} />}
+          {!isSignedIn && <AuthEntryButton t={t} isRtl={isRtl} />}
           
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>

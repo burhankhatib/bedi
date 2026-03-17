@@ -1,8 +1,11 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, Home, LogIn } from 'lucide-react'
+import { getAllowedRedirectPath } from '@/lib/auth-utils'
 
 export default function Error({
   error,
@@ -11,9 +14,17 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const pathname = usePathname()
   const msg = error.message || 'An unexpected error occurred'
   const isAuthRelated =
-    /unauthorized|forbidden|sign.?in|session|token|clerk|401|403|500|internal server error/i.test(msg)
+    /unauthorized|forbidden|not permitted|permission denied|sign.?in|session|token|clerk|401|403|500|internal server error|application error/i.test(msg)
+
+  useEffect(() => {
+    if (isAuthRelated && typeof window !== 'undefined') {
+      const returnTo = getAllowedRedirectPath(pathname ?? undefined, '/')
+      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(returnTo)}`
+    }
+  }, [isAuthRelated, pathname])
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 px-4 text-white">
@@ -23,13 +34,13 @@ export default function Error({
         </h1>
         <p className="text-slate-400 text-sm mb-6">
           {isAuthRelated
-            ? 'Please sign in again to continue.'
+            ? 'Redirecting you to sign in…'
             : msg}
         </p>
         <div className="flex flex-wrap justify-center gap-3">
           {isAuthRelated ? (
             <Button asChild className="bg-amber-500 text-slate-950 hover:bg-amber-400" size="lg">
-              <Link href="/sign-in?redirect_url=/">
+              <Link href={`/sign-in?redirect_url=${encodeURIComponent(getAllowedRedirectPath(pathname ?? undefined, '/'))}`}>
                 <LogIn className="mr-2 size-4" />
                 Sign in
               </Link>
@@ -46,7 +57,7 @@ export default function Error({
           )}
           {!isAuthRelated && (
             <Button asChild variant="outline" size="lg" className="border-slate-600 bg-slate-800/80 text-white hover:bg-slate-700">
-              <Link href="/sign-in?redirect_url=/">
+              <Link href={`/sign-in?redirect_url=${encodeURIComponent(getAllowedRedirectPath(pathname ?? undefined, '/'))}`}>
                 <LogIn className="mr-2 size-4" />
                 Sign in
               </Link>

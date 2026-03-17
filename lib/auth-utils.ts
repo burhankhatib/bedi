@@ -17,6 +17,7 @@ const ALLOWED_REDIRECT_PREFIXES = [
   '/verify-phone',
   '/sign-in',
   '/orders',
+  '/my-orders',
 ]
 
 /**

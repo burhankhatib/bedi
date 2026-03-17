@@ -59,6 +59,16 @@ Based on DoorDash, Talabat, Jahez, and popular MENA food delivery apps.
 | donuts | Donuts | دونات | 48 |
 | desserts | Desserts | حلويات | 49 |
 | snacks | Snacks | وجبات خفيفة | 50 |
+| italian | Italian | إيطالي | 51 |
+| chinese | Chinese | صيني | 52 |
+| greek | Greek | يوناني | 53 |
+| vietnamese | Vietnamese | فيتنامي | 54 |
+| american | American | أمريكي | 55 |
+| french | French | فرنسي | 56 |
+| middle-eastern | Middle Eastern | شرق أوسطي | 57 |
+| spanish | Spanish | إسباني | 58 |
+| pakistani | Pakistani | باكستاني | 59 |
+| caribbean | Caribbean | كاريبي | 60 |
 
 ## Cafe (businessType: `cafe`)
 

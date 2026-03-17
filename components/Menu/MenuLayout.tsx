@@ -18,7 +18,7 @@ import { useCart } from '@/components/Cart/CartContext'
 import { useOrderAuth } from '@/lib/useOrderAuth'
 import { FirebaseClerkSync } from '@/components/FirebaseClerkSync'
 import { TableChoiceModal } from '@/components/Menu/TableChoiceModal'
-import { Star, Facebook, Instagram, Globe, MessageCircle, ShoppingCart, MapPin, Clock, Package, ShieldAlert, Menu, LogOut, Home, ClipboardList } from 'lucide-react'
+import { Star, Facebook, Instagram, Globe, MessageCircle, ShoppingCart, MapPin, Clock, Package, ShieldAlert, Menu, LogOut, LogIn, User, Home, ClipboardList } from 'lucide-react'
 import { getTodaysHours, isWithinHours, getNextOpening, formatCountdown, getTimeZoneForCountry, getNowInTimeZone, getTodayActiveOrNextShift } from '@/lib/business-hours'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
@@ -30,8 +30,6 @@ import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { FullPageLink } from '@/components/ui/FullPageLink'
 import {
-  SignInButton,
-  SignUpButton,
   SignedIn,
   SignedOut,
   useClerk,
@@ -151,7 +149,10 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   const searchParams = useSearchParams()
   const { signOut } = useClerk()
   const { user } = useUser()
-  const menuRedirectUrl = tenantSlug ? `/t/${tenantSlug}` : (pathname && pathname.startsWith('/t/') ? pathname : '/')
+  const menuBaseUrl = tenantSlug ? `/t/${tenantSlug}` : (pathname && pathname.startsWith('/t/') ? pathname : '/')
+  // After sign-up, redirect to verify-phone first (customers must verify to order)
+  const menuRedirectUrl = menuBaseUrl
+  const signUpRedirectUrl = `/verify-phone?returnTo=${encodeURIComponent(menuBaseUrl)}`
   useEffect(() => {
     setTenantSlug(tenantSlug ?? null)
     return () => setTenantSlug(null)
@@ -545,8 +546,19 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   </FullPageLink>
                 <LanguageSwitcher />
                 <SignedOut>
-                  <SignInButton mode="modal" forceRedirectUrl={menuRedirectUrl} signUpForceRedirectUrl={menuRedirectUrl} />
-                  <SignUpButton mode="modal" forceRedirectUrl={menuRedirectUrl} signInForceRedirectUrl={menuRedirectUrl} />
+                  <Link
+                    href={`/sign-in?redirect_url=${encodeURIComponent(menuRedirectUrl)}`}
+                    className="inline-flex items-center gap-1.5 rounded-full h-9 px-3 border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-sm font-medium touch-manipulation"
+                  >
+                    <LogIn className="w-4 h-4 shrink-0" />
+                    {t('Sign in', 'تسجيل الدخول')}
+                  </Link>
+                  <Link
+                    href={`/sign-up?redirect_url=${encodeURIComponent(menuBaseUrl)}`}
+                    className="inline-flex items-center gap-1.5 rounded-full h-9 px-3 bg-brand-yellow text-brand-black hover:bg-amber-500 text-sm font-semibold transition-colors shadow-sm touch-manipulation"
+                  >
+                    {t('Sign up', 'إنشاء حساب')}
+                  </Link>
                 </SignedOut>
                 <SignedIn>
                   <UserButtonWithSignOutUrl />
@@ -597,16 +609,24 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                       </div>
                       <div className="rounded-lg py-2">
                         <SignedOut>
-                          <SignInButton mode="modal" forceRedirectUrl={menuRedirectUrl} signUpForceRedirectUrl={menuRedirectUrl}>
-                            <button className="flex w-full items-center gap-3 rounded-lg py-3 px-3 text-slate-700 hover:bg-slate-100 transition-colors text-left">
+                          <SheetClose asChild>
+                            <Link
+                              href={`/sign-in?redirect_url=${encodeURIComponent(menuRedirectUrl)}`}
+                              className="flex w-full items-center gap-3 rounded-lg py-3 px-3 text-slate-700 hover:bg-slate-100 transition-colors text-left touch-manipulation"
+                            >
+                              <LogIn className="w-5 h-5 shrink-0 text-slate-500" />
                               {t('Sign in', 'تسجيل الدخول')}
-                            </button>
-                          </SignInButton>
-                          <SignUpButton mode="modal" forceRedirectUrl={menuRedirectUrl} signInForceRedirectUrl={menuRedirectUrl}>
-                            <button className="flex w-full items-center gap-3 rounded-lg py-3 px-3 text-slate-700 hover:bg-slate-100 transition-colors text-left mt-1">
+                            </Link>
+                          </SheetClose>
+                          <SheetClose asChild>
+                            <Link
+                              href={`/sign-up?redirect_url=${encodeURIComponent(menuBaseUrl)}`}
+                              className="flex w-full items-center gap-3 rounded-lg py-3 px-3 bg-brand-yellow text-brand-black hover:bg-amber-500 transition-colors font-semibold mt-1 touch-manipulation"
+                            >
+                              <User className="w-5 h-5 shrink-0" />
                               {t('Sign up', 'إنشاء حساب')}
-                            </button>
-                          </SignUpButton>
+                            </Link>
+                          </SheetClose>
                         </SignedOut>
                         <SignedIn>
                           <div className="rounded-lg py-2 px-3 flex flex-col gap-1">

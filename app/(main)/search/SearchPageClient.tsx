@@ -614,25 +614,30 @@ export function SearchPageClient() {
                         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
                           {t('Businesses', 'الأعمال')}
                         </h2>
-                        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 no-scrollbar snap-x snap-mandatory scroll-smooth">
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                           {sortedSearchResults.businesses.map((b) => (
-                            <div key={b._id} className="shrink-0 w-[140px] sm:w-[160px] snap-start">
+                            <div key={b._id}>
                               <FullPageLink
                                 href={b.slug ? `/t/${b.slug}` : '#'}
-                                className="group flex flex-col items-center gap-2 rounded-2xl bg-white p-4 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:shadow-lg border border-transparent hover:border-slate-200"
+                                className="group flex flex-col items-center overflow-hidden rounded-[20px] bg-white p-4 pb-5 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
                               >
-                                <div className="relative size-16 sm:size-20 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
+                                <div className="relative size-[80px] sm:size-[88px] shrink-0 overflow-hidden rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300 mb-3">
                                   {b.logoUrl ? (
-                                    <Image src={b.logoUrl} alt={b.name} fill className="object-contain p-2" sizes="80px" />
+                                    <Image src={b.logoUrl} alt={(lang === 'ar' ? b.name_ar : b.name_en) || b.name} fill className="object-contain p-2" sizes="88px" />
                                   ) : (
                                     <div className="flex h-full w-full items-center justify-center">
-                                      <Store className="size-8" />
+                                      <Store className="size-9 text-slate-300" />
                                     </div>
                                   )}
                                 </div>
-                                <h3 className="w-full font-bold text-slate-900 line-clamp-2 text-sm text-center">
+                                <h3 className="font-bold text-slate-900 text-[17px] sm:text-[19px] tracking-tight text-center line-clamp-2 group-hover:text-brand-yellow transition-colors w-full">
                                   {(lang === 'ar' ? b.name_ar : b.name_en) || b.name}
                                 </h3>
+                                <p className="mt-1 text-[13px] text-slate-500 capitalize font-medium">
+                                  {lang === 'ar'
+                                    ? BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.labelAr ?? b.businessType
+                                    : BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.label ?? b.businessType}
+                                </p>
                               </FullPageLink>
                             </div>
                           ))}
@@ -731,55 +736,48 @@ export function SearchPageClient() {
                 </FullPageLink>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-4">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-4">
                 {displayTenants.map((t) => (
                   <div key={t._id}>
                     <FullPageLink
                       href={t.slug ? `/t/${t.slug}` : '#'}
-                      className="group flex items-center gap-4 overflow-hidden rounded-[20px] bg-white p-4 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
+                      className="group flex flex-col items-center overflow-hidden rounded-[20px] bg-white p-4 pb-5 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
                     >
-                      {/* Logo - Circular elevated avatar M3 */}
-                      <div className="relative size-[72px] shrink-0 overflow-hidden rounded-full bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300">
+                      {/* Logo - Top, centered */}
+                      <div className="relative size-[80px] sm:size-[88px] shrink-0 overflow-hidden rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300 mb-3">
                         {t.logoUrl ? (
                           <Image
                             src={t.logoUrl}
                             alt={(lang === 'ar' ? t.name_ar : t.name_en) || t.name}
                             fill
                             className="object-contain p-2"
-                            sizes="72px"
+                            sizes="88px"
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center">
-                            <Store className="size-8 text-slate-300" />
+                            <Store className="size-9 text-slate-300" />
                           </div>
                         )}
                       </div>
-                      {/* Details - Right stack */}
-                      <div className="min-w-0 flex-1 flex flex-col justify-center">
-                        <h2 className="font-bold text-slate-900 text-[17px] tracking-tight truncate group-hover:text-brand-yellow transition-colors">
-                          {(lang === 'ar' ? t.name_ar : t.name_en) || t.name}
-                        </h2>
-                        
-                        <div className="flex items-center gap-1.5 mt-0.5 text-[13px] text-slate-500 capitalize font-medium">
-                          {lang === 'ar'
-                            ? BUSINESS_TYPES.find((b) => b.value === t.businessType)?.labelAr ??
-                              t.businessType
-                            : BUSINESS_TYPES.find((b) => b.value === t.businessType)?.label ??
-                              t.businessType}
-                        </div>
-
-                        {t.sections.length > 0 && (
-                          <div className="flex items-center gap-1.5 mt-1.5 text-[13px] text-slate-500">
-                            <UtensilsCrossed className="size-3.5 shrink-0 text-slate-400" />
-                            <span className="line-clamp-1">
-                              {t.sections
-                                .map((s) => (lang === 'ar' ? s.ar || s.en : s.en || s.ar))
-                                .filter(Boolean)
-                                .join(' • ')}
-                            </span>
-                          </div>
-                        )}
-                      </div>
+                      {/* Business name - bold, big font */}
+                      <h2 className="font-bold text-slate-900 text-[17px] sm:text-[19px] tracking-tight text-center line-clamp-2 group-hover:text-brand-yellow transition-colors w-full">
+                        {(lang === 'ar' ? t.name_ar : t.name_en) || t.name}
+                      </h2>
+                      {/* Category */}
+                      <p className="mt-1 text-[13px] text-slate-500 capitalize font-medium">
+                        {lang === 'ar'
+                          ? BUSINESS_TYPES.find((b) => b.value === t.businessType)?.labelAr ?? t.businessType
+                          : BUSINESS_TYPES.find((b) => b.value === t.businessType)?.label ?? t.businessType}
+                      </p>
+                      {/* Specialty */}
+                      {t.sections.length > 0 && (
+                        <p className="mt-1 text-[12px] text-slate-500 line-clamp-2 text-center">
+                          {t.sections
+                            .map((s) => (lang === 'ar' ? s.ar || s.en : s.en || s.ar))
+                            .filter(Boolean)
+                            .join(' • ')}
+                        </p>
+                      )}
                     </FullPageLink>
                   </div>
                 ))}

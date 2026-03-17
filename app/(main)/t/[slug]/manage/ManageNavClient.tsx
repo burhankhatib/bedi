@@ -63,7 +63,8 @@ export function ManageNavClient({
   const { data } = useTenantBusiness()
   const pathname = usePathname()
   const restaurantInfo = data?.restaurantInfo as { name_en?: string; name_ar?: string } | undefined
-  const businessName = (lang === 'ar' ? restaurantInfo?.name_ar : restaurantInfo?.name_en) || restaurantInfo?.name_en || restaurantInfo?.name_ar || data?.tenant?.name || slug
+  // Store Details (Name English/Arabic) — language-based; fallback to slug when not set
+  const businessName = (lang === 'ar' ? restaurantInfo?.name_ar : restaurantInfo?.name_en) || restaurantInfo?.name_en || restaurantInfo?.name_ar || slug
   const fetchedSlugRef = useRef<string | null>(null)
   const ordersCountAbortRef = useRef<AbortController | null>(null)
   const isMountedRef = useRef(false)

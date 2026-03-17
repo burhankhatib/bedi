@@ -2,6 +2,12 @@
 
 import { useEffect, useRef } from 'react'
 
+/** Skip pull when a modal/sheet has body scroll locked (avoids touch conflict and freeze). */
+function isOverlayOpen(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.body.style.overflow === 'hidden' || !!document.body.getAttribute('data-scroll-locked')
+}
+
 /**
  * iOS PWA has native pull-to-refresh disabled. Use pulltorefreshjs to restore it.
  * Only runs when navigator.standalone === true (iOS standalone PWA).
@@ -30,8 +36,8 @@ export function DriverIOSPullToRefresh() {
         mainElement: 'body',
         triggerElement: 'body',
         onRefresh: () => window.location.reload(),
-        // iOS PWA overscroll can make scrollY go negative; be lenient
-        shouldPullToRefresh: () => window.scrollY <= 10,
+        // iOS PWA overscroll can make scrollY go negative; be lenient. Skip when overlay open.
+        shouldPullToRefresh: () => !isOverlayOpen() && window.scrollY <= 10,
         instructionsPullToRefresh: 'Pull down to refresh',
         instructionsReleaseToRefresh: 'Release to refresh',
         instructionsRefreshing: 'Refreshing…',

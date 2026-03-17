@@ -149,7 +149,8 @@ export default function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     // Skip Next.js internals, static files, and SEO files (sitemap, robots) for Google Search Console
-    '/((?!_next|robots\\.txt|sitemap\\.xml|sitemap/[^?]*|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest|xml)).*)',
+    // sitemap.xml, sitemap/sitemap.xml, and sitemap/* must never hit middleware
+    '/((?!_next|robots\\.txt|sitemap(?:\\.xml|/)|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest|xml)).*)',
     // Always run for API routes
     '/(api|trpc)(.*)',
     // Run for apple-touch-icon so we can serve driver icon when adding from /driver

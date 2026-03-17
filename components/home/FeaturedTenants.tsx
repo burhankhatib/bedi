@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion } from 'motion/react'
-import { Store, UtensilsCrossed, Flame, ChevronRight } from 'lucide-react'
+import { Store } from 'lucide-react'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
 import { BUSINESS_TYPES } from '@/lib/constants'
@@ -57,11 +57,11 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
         <h2 className="mb-6 text-xl font-bold text-slate-900 md:text-2xl tracking-tight">
           {t('Featured places', 'أماكن مميزة')}
         </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
-          {[...Array(6)].map((_, i) => (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {[...Array(8)].map((_, i) => (
             <div
               key={i}
-              className="h-[104px] animate-pulse rounded-[20px] bg-slate-200/60"
+              className="h-[200px] animate-pulse rounded-[20px] bg-slate-200/60"
             />
           ))}
         </div>
@@ -93,8 +93,8 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
-        {tenants.slice(0, 9).map((tStore, i) => (
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {tenants.slice(0, 12).map((tStore, i) => (
           <motion.div
             key={tStore._id}
             initial={{ opacity: 0, scale: 0.95, y: 16 }}
@@ -103,51 +103,48 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
           >
             <Link
               href={tStore.slug ? `/t/${tStore.slug}` : '#'}
-              className="group flex items-center gap-4 overflow-hidden rounded-[20px] bg-white p-4 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
+              className="group flex flex-col items-center overflow-hidden rounded-[20px] bg-white p-4 pb-5 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
             >
-              {/* Logo - Circular elevated avatar M3 */}
-              <div className="relative size-[72px] shrink-0 overflow-hidden rounded-full bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300">
+              {/* Logo - Top, centered */}
+              <div className="relative size-[80px] sm:size-[88px] shrink-0 overflow-hidden rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300 mb-3">
                 {tStore.logoUrl ? (
                   <Image
                     src={tStore.logoUrl}
                     alt={(lang === 'ar' ? tStore.name_ar : tStore.name_en) || tStore.name}
                     fill
                     className="object-contain p-2"
-                    sizes="72px"
+                    sizes="88px"
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center">
-                    <Store className="size-8 text-slate-300" />
+                    <Store className="size-9 text-slate-300" />
                   </div>
                 )}
               </div>
-              
-              {/* Details - Right stack */}
-              <div className="min-w-0 flex-1 flex flex-col justify-center">
-                <h2 className="font-bold text-slate-900 text-[17px] tracking-tight truncate group-hover:text-brand-yellow transition-colors">
-                  {(lang === 'ar' ? tStore.name_ar : tStore.name_en) || tStore.name}
-                </h2>
-                
-                <div className="flex items-center gap-1.5 mt-0.5 text-[13px] text-slate-500 capitalize font-medium">
-                  {lang === 'ar'
-                    ? BUSINESS_TYPES.find((b) => b.value === tStore.businessType)?.labelAr ??
-                      tStore.businessType
-                    : BUSINESS_TYPES.find((b) => b.value === tStore.businessType)?.label ??
-                      tStore.businessType}
-                </div>
 
-                {tStore.sections.length > 0 && (
-                  <div className="flex items-center gap-1.5 mt-1.5 text-[13px] text-slate-500">
-                    <UtensilsCrossed className="size-3.5 shrink-0 text-slate-400" />
-                    <span className="line-clamp-1">
-                      {tStore.sections
-                        .map((s) => (lang === 'ar' ? s.ar || s.en : s.en || s.ar))
-                        .filter(Boolean)
-                        .join(' • ')}
-                    </span>
-                  </div>
-                )}
-              </div>
+              {/* Business name - bold, big font */}
+              <h2 className="font-bold text-slate-900 text-[17px] sm:text-[19px] tracking-tight text-center line-clamp-2 group-hover:text-brand-yellow transition-colors w-full">
+                {(lang === 'ar' ? tStore.name_ar : tStore.name_en) || tStore.name}
+              </h2>
+
+              {/* Category */}
+              <p className="mt-1 text-[13px] text-slate-500 capitalize font-medium">
+                {lang === 'ar'
+                  ? BUSINESS_TYPES.find((b) => b.value === tStore.businessType)?.labelAr ??
+                    tStore.businessType
+                  : BUSINESS_TYPES.find((b) => b.value === tStore.businessType)?.label ??
+                    tStore.businessType}
+              </p>
+
+              {/* Specialty */}
+              {tStore.sections.length > 0 && (
+                <p className="mt-1 text-[12px] text-slate-500 line-clamp-2 text-center">
+                  {tStore.sections
+                    .map((s) => (lang === 'ar' ? s.ar || s.en : s.en || s.ar))
+                    .filter(Boolean)
+                    .join(' • ')}
+                </p>
+              )}
             </Link>
           </motion.div>
         ))}
