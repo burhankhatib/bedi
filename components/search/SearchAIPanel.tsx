@@ -1,8 +1,11 @@
 'use client'
 
+/**
+ * AI search panel (Sheet overlay). Uses <a> for business/product cards: Link causes
+ * freeze when navigating from inside a Sheet. Prefer Link elsewhere for fast SPA nav.
+ */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { UIMessage } from 'ai'
@@ -422,13 +425,12 @@ export function SearchAIPanel({
                                 </div>
                               </div>
                               <div className="flex shrink-0 gap-2 flex-wrap">
-                                <Link
+                                <a
                                   href={`/t/${p.businessSlug}#product-${p._id}`}
                                   className="text-xs font-medium text-amber-600 hover:text-amber-700"
-                                  onClick={onClose}
                                 >
                                   {t('View menu', 'عرض القائمة')}
-                                </Link>
+                                </a>
                                 <motion.button
                                   type="button"
                                   onClick={() => handleAddToCart(p)}
@@ -548,10 +550,9 @@ export function SearchAIPanel({
                             {businesses.slice(0, 6).map((b) => {
                               const displayName = (lang === 'ar' && b.name_ar ? b.name_ar : b.name) || b.name
                               return (
-                                <Link
+                                <a
                                   key={b.slug}
                                   href={`/t/${b.slug}`}
-                                  onClick={onClose}
                                   className="group flex flex-col items-center overflow-hidden rounded-[20px] bg-white p-4 pb-4 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-amber-300/50"
                                 >
                                   <div className="relative size-[64px] sm:size-[72px] shrink-0 overflow-hidden rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300 mb-2">
@@ -577,7 +578,7 @@ export function SearchAIPanel({
                                       ? BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.labelAr ?? b.businessType
                                       : BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.label ?? b.businessType}
                                   </p>
-                                </Link>
+                                </a>
                               )
                             })}
                           </div>
@@ -598,9 +599,8 @@ export function SearchAIPanel({
                                   key={p._id}
                                   className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200"
                                 >
-                                  <Link
+                                  <a
                                     href={`/t/${p.businessSlug}#product-${p._id}`}
-                                    onClick={onClose}
                                     className="flex min-w-0 flex-1 items-center gap-3"
                                   >
                                     <div className="relative size-14 shrink-0 rounded-lg overflow-hidden bg-slate-100 flex items-center justify-center">
@@ -631,15 +631,14 @@ export function SearchAIPanel({
                                         </p>
                                       )}
                                     </div>
-                                  </Link>
+                                  </a>
                                   <div className="flex shrink-0 gap-2 flex-wrap">
-                                    <Link
+                                    <a
                                       href={`/t/${p.businessSlug}#product-${p._id}`}
                                       className="text-xs font-medium text-amber-600 hover:text-amber-700"
-                                      onClick={onClose}
                                     >
                                       {t('View menu', 'عرض القائمة')}
-                                    </Link>
+                                    </a>
                                     <motion.button
                                       type="button"
                                       onClick={() => handleAddToCart(p)}

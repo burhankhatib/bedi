@@ -7,7 +7,6 @@
  */
 
 import { useState } from 'react'
-import Link from 'next/link'
 import Image from 'next/image'
 import { motion } from 'motion/react'
 import { Truck, Store, Download, ExternalLink, Copy, Check } from 'lucide-react'
@@ -92,7 +91,7 @@ export function PWAAppBanners() {
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.35 }}
               >
-                <Link
+                <a
                   href={config.href}
                   onClick={(e) => handleCtaClick(e, app)}
                   className="group flex items-center gap-4 rounded-2xl border p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5"
@@ -122,7 +121,7 @@ export function PWAAppBanners() {
                       {ctaLabel}
                     </span>
                   </div>
-                </Link>
+                </a>
               </motion.div>
             )
           })}

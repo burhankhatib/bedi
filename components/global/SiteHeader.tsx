@@ -38,41 +38,40 @@ function HamburgerAuthSection({
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3">
-        <Link
+        <a
           href="/sign-in?redirect_url=/"
           onClick={onNavigate}
           className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-5 py-3.5 font-semibold text-slate-800 transition-colors hover:bg-slate-50"
         >
           <LogIn className="size-5" />
           {t('Sign in', 'تسجيل الدخول')}
-        </Link>
-        <Link
+        </a>
+        <a
           href="/sign-up?redirect_url=/"
           onClick={onNavigate}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3.5 font-semibold text-white transition-colors hover:bg-slate-800"
         >
           <User className="size-5" />
           {t('Create account', 'إنشاء حساب')}
-        </Link>
+        </a>
       </div>
     </div>
   )
 }
 
 /**
- * Auth entry point: Direct Link instead of Dialog to avoid mobile freeze.
- * Radix Dialog's focus trap + scroll lock can conflict with pull-to-refresh touch handlers on iOS/Android.
- * Client-side Link navigation keeps fast SPA routing.
+ * Auth entry: use <a> to force full load and clean session state.
+ * (Verification, AI links, and header auth use <a>; normal browsing uses Link for fast SPA.)
  */
 function AuthEntryButton({ t }: { t: (en: string, ar: string) => string; isRtl: boolean }) {
   return (
-    <Link
+    <a
       href="/sign-in?redirect_url=/"
       className="inline-flex shrink-0 items-center justify-center size-10 rounded-full bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 transition-colors outline-none focus:ring-2 focus:ring-brand-black/20 touch-manipulation"
       aria-label={t('Log in', 'تسجيل الدخول')}
     >
       <User className="size-5" />
-    </Link>
+    </a>
   )
 }
 

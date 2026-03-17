@@ -192,22 +192,22 @@ export function StoreTypeSidebar({ activeCategory, onChange }: StoreTypeSidebarP
             ) : (
               <>
             {hasDriver ? (
-              <Link href="/driver" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-red text-white font-bold text-[15px] tracking-tight hover:brightness-110 transition-all shadow-sm">
+              <a href="/driver" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-red text-white font-bold text-[15px] tracking-tight hover:brightness-110 transition-all shadow-sm">
                 {t('Driver Dashboard', 'لوحة السائق')}
-              </Link>
+              </a>
             ) : (
-              <Link href="/sign-up?redirect_url=/driver" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-red text-white font-bold text-[15px] tracking-tight hover:brightness-110 transition-all shadow-sm">
+              <a href="/sign-up?redirect_url=/driver" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-red text-white font-bold text-[15px] tracking-tight hover:brightness-110 transition-all shadow-sm">
                 {t('Drive with us', 'انضم ككابتن')}
-              </Link>
+              </a>
             )}
             {hasTenants ? (
-              <Link href="/dashboard" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-black text-white font-bold text-[15px] tracking-tight hover:bg-brand-black/90 transition-all shadow-sm">
+              <a href="/dashboard" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-black text-white font-bold text-[15px] tracking-tight hover:bg-brand-black/90 transition-all shadow-sm">
                 {t('Business Dashboard', 'لوحة الأعمال')}
-              </Link>
+              </a>
             ) : (
-              <Link href="/sign-up?redirect_url=/onboarding" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-black text-white font-bold text-[15px] tracking-tight hover:bg-brand-black/90 transition-all shadow-sm">
+              <a href="/sign-up?redirect_url=/onboarding" className="flex items-center justify-center w-full py-3.5 rounded-xl bg-brand-black text-white font-bold text-[15px] tracking-tight hover:bg-brand-black/90 transition-all shadow-sm">
                 {t('Add your business', 'أضف عملك')}
-              </Link>
+              </a>
             )}
               </>
             )}

@@ -3,8 +3,9 @@
 /**
  * Gate for placing orders: requires sign-in + verified phone.
  * Renders a clear message that orders from unverified numbers are not accepted.
- * Uses native <a> (full-page nav) instead of Next.js Link to avoid freeze on mobile
- * when clicking inside CartSlider Sheet—client-side nav from within a Sheet can stall.
+ *
+ * Uses <a> (full-page nav) here: verification + auth links need a forced load for clean
+ * session state. Prefer Link elsewhere for fast SPA navigation (critical for slow 3G).
  */
 import { usePathname } from 'next/navigation'
 import { useOrderAuth } from '@/lib/useOrderAuth'

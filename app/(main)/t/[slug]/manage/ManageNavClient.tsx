@@ -126,12 +126,13 @@ export function ManageNavClient({
     <div className="flex flex-col md:h-full">
       {/* Desktop & Mobile Header / Breadcrumb */}
       <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2">
-        <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:bg-slate-800 hover:text-white rounded-full touch-manipulation">
-          <Link href="/dashboard">
-            <ArrowLeft className="mr-1.5 size-4 shrink-0 rtl:ml-1.5 rtl:mr-0 rtl:rotate-180" />
-            {t('Dashboard', 'لوحة التحكم')}
-          </Link>
-        </Button>
+        <a
+          href="/dashboard"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors touch-manipulation"
+        >
+          <ArrowLeft className="mr-1.5 size-4 shrink-0 rtl:ml-1.5 rtl:mr-0 rtl:rotate-180" />
+          {t('Dashboard', 'لوحة التحكم')}
+        </a>
         <span className="shrink-0 text-slate-600">/</span>
         <span className="min-w-0 truncate font-medium text-white px-2">{t('Manage', 'إدارة')}: {businessName}</span>
       </div>
@@ -139,7 +140,7 @@ export function ManageNavClient({
       {/* Primary Orders Banner */}
       <Link
         href={ordersHref}
-        className="group relative overflow-hidden mb-6 flex items-center justify-between rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500 to-amber-400 px-5 py-4 font-bold text-slate-950 shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98] hover:shadow-amber-500/40 touch-manipulation"
+        className="group relative overflow-hidden mb-6 flex items-center justify-between rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500 to-amber-400 px-5 py-4 font-bold text-slate-950 shadow-lg shadow-amber-500/20 transition-all active:scale-[0.98] hover:shadow-amber-500/40 touch-manipulation block"
       >
         <span className="flex items-center gap-3 relative z-10">
           <ShoppingBag className="size-6 shrink-0" />
@@ -158,8 +159,8 @@ export function ManageNavClient({
             const href = `${base}${path}`
             const isActive = pathname === href
             const isLocked = isBasicPlan && proOnly
-            const className = `relative flex items-center gap-2 px-4 py-3 rounded-full text-sm font-semibold transition-colors touch-manipulation ${
-              isActive ? 'text-amber-400' : 'text-slate-400 bg-slate-900 border border-slate-800'
+            const className = `flex items-center gap-2 px-4 py-3 rounded-full text-sm font-semibold transition-colors touch-manipulation ${
+              isActive ? 'text-amber-400 bg-amber-500/10 border border-amber-500/30' : 'text-slate-400 bg-slate-900 border border-slate-800'
             }`
             if (isLocked) {
               return (
@@ -179,13 +180,10 @@ export function ManageNavClient({
               )
             }
             return (
-              <Link key={href} href={href} className={className}>
-                {isActive && (
-                  <div className="absolute inset-0 rounded-full bg-amber-500/10 border border-amber-500/30 pointer-events-none" />
-                )}
-                <Icon className="size-4 relative z-10" />
-                <span className="relative z-10 whitespace-nowrap">{t(labelEn, labelAr)}</span>
-              </Link>
+              <a key={href} href={href} className={className}>
+                <Icon className="size-4 shrink-0" />
+                <span className="whitespace-nowrap">{t(labelEn, labelAr)}</span>
+              </a>
             )
           })}
         </div>
@@ -205,8 +203,8 @@ export function ManageNavClient({
                 const href = `${base}${path}`
                 const isActive = pathname === href
                 const isLocked = isBasicPlan && proOnly
-                const className = `relative flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-colors group overflow-hidden touch-manipulation w-full text-start ${
-                  isActive ? 'text-amber-400' : 'text-slate-300 hover:text-white'
+                const className = `flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-colors group touch-manipulation w-full text-start ${
+                  isActive ? 'text-amber-400 bg-amber-500/10 border border-amber-500/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/50'
                 }`
                 if (isLocked) {
                   return (
@@ -229,16 +227,10 @@ export function ManageNavClient({
                   )
                 }
                 return (
-                  <Link key={href} href={href} className={className}>
-                    {isActive && (
-                      <div className="absolute inset-0 rounded-2xl bg-amber-500/10 border border-amber-500/30 pointer-events-none" />
-                    )}
-                    {!isActive && (
-                      <div className="absolute inset-0 rounded-2xl bg-slate-800/0 group-hover:bg-slate-800/50 transition-colors pointer-events-none" />
-                    )}
-                    <Icon className={`size-5 relative z-10 shrink-0 ${isActive ? 'text-amber-400' : 'text-slate-400 group-hover:text-slate-300'}`} />
-                    <span className="relative z-10 flex-1">{t(labelEn, labelAr)}</span>
-                  </Link>
+                  <a key={href} href={href} className={className}>
+                    <Icon className={`size-5 shrink-0 ${isActive ? 'text-amber-400' : 'text-slate-400 group-hover:text-slate-300'}`} />
+                    <span className="flex-1">{t(labelEn, labelAr)}</span>
+                  </a>
                 )
               })}
             </div>
@@ -274,9 +266,9 @@ export function ManageNavClient({
               {t('Cancel', 'إلغاء')}
             </Button>
             <Button asChild className="bg-amber-500 text-slate-950 hover:bg-amber-400">
-              <Link href={billingHref} onClick={() => setUpgradeModalOpen(false)}>
+              <a href={billingHref} onClick={() => setUpgradeModalOpen(false)}>
                 {t('Upgrade in Billing', 'الترقية في الدفع')}
-              </Link>
+              </a>
             </Button>
           </DialogFooter>
         </DialogContent>
