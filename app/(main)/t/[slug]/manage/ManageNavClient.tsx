@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useLanguage } from '@/components/LanguageContext'
+import { useTenantBusiness } from './TenantBusinessContext'
 import { Menu, MapPin, Truck, ArrowLeft, Store, TrendingUp, History, ShoppingBag, ArrowRightLeft, CreditCard, Table, Users } from 'lucide-react'
 import type { StaffPermission } from '@/lib/staff-permissions'
 import { TenantSidebarActions } from './TenantSidebarActions'
@@ -59,7 +60,10 @@ export function ManageNavClient({
   const hasPermission = (p?: string) => !p || (Array.isArray(permissions) && permissions.includes(p as StaffPermission))
   const [newOrdersCount, setNewOrdersCount] = useState(0)
   const { t, lang } = useLanguage()
+  const { data } = useTenantBusiness()
   const pathname = usePathname()
+  const restaurantInfo = data?.restaurantInfo as { name_en?: string; name_ar?: string } | undefined
+  const businessName = (lang === 'ar' ? restaurantInfo?.name_ar : restaurantInfo?.name_en) || restaurantInfo?.name_en || restaurantInfo?.name_ar || data?.tenant?.name || slug
   const fetchedSlugRef = useRef<string | null>(null)
   const ordersCountAbortRef = useRef<AbortController | null>(null)
   const isMountedRef = useRef(false)
@@ -128,7 +132,7 @@ export function ManageNavClient({
           </Link>
         </Button>
         <span className="shrink-0 text-slate-600">/</span>
-        <span className="min-w-0 truncate font-medium text-white px-2">{t('Manage', 'إدارة')}: {slug}</span>
+        <span className="min-w-0 truncate font-medium text-white px-2">{t('Manage', 'إدارة')}: {businessName}</span>
       </div>
 
       {/* Primary Orders Banner */}

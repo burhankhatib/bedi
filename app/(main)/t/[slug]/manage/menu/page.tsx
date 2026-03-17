@@ -44,7 +44,7 @@ export default async function ManageMenuPage({
         _id, title_en, title_ar, description_en, description_ar,
         ingredients_en, ingredients_ar, price, specialPrice, specialPriceExpires, currency,
         "categoryRef": category._ref, sortOrder, isPopular, isAvailable, availableAgainAt,
-        dietaryTags, addOns
+        dietaryTags, addOns, image, additionalImages, variants
       }
     }`,
     { siteId: authResult.tenantId }

@@ -827,11 +827,10 @@ export function ProductFormModal({
                 </p>
                 <div className="flex flex-wrap items-start gap-3">
                   <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-600 bg-slate-800/50">
-                    {mainImagePreview ? (
-                      <img src={mainImagePreview} alt="" className="size-full object-cover" />
-                    ) : (
-                      <ImageIcon className="size-8 text-slate-500" />
-                    )}
+                    {(() => {
+                      const thumbUrl = mainImagePreview ?? (form.imageAssetId ? urlFor({ _type: 'image', asset: { _type: 'reference', _ref: form.imageAssetId } }).width(320).height(320).url() : null)
+                      return thumbUrl ? <img src={thumbUrl} alt="" className="size-full object-cover" /> : <ImageIcon className="size-8 text-slate-500" />
+                    })()}
                   </div>
                   <div className="flex flex-col gap-2">
                     <input

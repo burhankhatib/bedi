@@ -298,10 +298,12 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
   const [logoUploading, setLogoUploading] = useState(false)
   const [setAllOpen, setSetAllOpen] = useState('')
   const [setAllClose, setSetAllClose] = useState('')
+  const [cityMapCenter, setCityMapCenter] = useState<{ lat: number; lng: number } | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const mountedRef = useRef(false)
   const countriesAbortRef = useRef<AbortController | null>(null)
   const citiesAbortRef = useRef<AbortController | null>(null)
+  const geocodeAbortRef = useRef<AbortController | null>(null)
   const subcategoriesAbortRef = useRef<AbortController | null>(null)
   /** Snapshot of form when last saved (or when loaded); used to detect unsaved changes. */
   const lastSavedRef = useRef<typeof form | null>(null)
@@ -318,6 +320,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
       countriesAbortRef.current?.abort()
       citiesAbortRef.current?.abort()
       subcategoriesAbortRef.current?.abort()
+      geocodeAbortRef.current?.abort()
     }
   }, [])
 
@@ -502,6 +505,36 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
   useEffect(() => {
     loadCities(form.country)
   }, [form.country, loadCities])
+
+  // Auto-center map on selected city when no GPS location is set yet
+  useEffect(() => {
+    if (form.locationLat != null && form.locationLng != null) {
+      setCityMapCenter(null)
+      return
+    }
+    if (!form.country || !form.city) {
+      setCityMapCenter(null)
+      return
+    }
+    geocodeAbortRef.current?.abort()
+    const ac = new AbortController()
+    geocodeAbortRef.current = ac
+    fetch(`/api/geocode-city?country=${encodeURIComponent(form.country)}&city=${encodeURIComponent(form.city)}`, {
+      signal: ac.signal,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!mountedRef.current || ac.signal.aborted || !data?.lat || !data?.lng) return
+        setCityMapCenter({ lat: Number(data.lat), lng: Number(data.lng) })
+      })
+      .catch((err) => {
+        if (isAbortError(err)) return
+        if (mountedRef.current) setCityMapCenter(null)
+      })
+    return () => {
+      ac.abort()
+    }
+  }, [form.country, form.city, form.locationLat, form.locationLng])
 
   useEffect(() => {
     subcategoriesAbortRef.current?.abort()
@@ -1443,8 +1476,8 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                 </label>
                 <div className="w-full h-[300px] rounded-2xl overflow-hidden border border-slate-600 bg-slate-900">
                   <LocationPickerMap
-                    lat={form.locationLat ?? 24.7136}
-                    lng={form.locationLng ?? 46.6753}
+                    lat={form.locationLat ?? cityMapCenter?.lat ?? 24.7136}
+                    lng={form.locationLng ?? cityMapCenter?.lng ?? 46.6753}
                     onChange={(lat, lng) => setForm((f) => ({ ...f, locationLat: lat, locationLng: lng }))}
                   />
                 </div>
