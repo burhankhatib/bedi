@@ -45,7 +45,7 @@ type CatalogProduct = {
   categoryId?: string
 }
 
-type CatalogCategory = { _id: string; title_en: string; title_ar: string }
+type CatalogCategory = { _id: string; title_en: string; title_ar: string; slug?: string }
 type MenuCategory = { _id: string; title_en: string; title_ar: string }
 type MasterCatalogProduct = {
   _id: string
@@ -66,6 +66,7 @@ export function CatalogProductsModal({
   onAdded,
   businessType,
   defaultCategoryId,
+  defaultMenuCategoryTitle,
 }: {
   open: boolean
   onClose: () => void
@@ -74,6 +75,8 @@ export function CatalogProductsModal({
   onAdded: () => void
   businessType?: string
   defaultCategoryId?: string
+  /** Menu category title (e.g. "Vegetables") — when set, filters master catalog to relevant products for quick-add */
+  defaultMenuCategoryTitle?: string
 }) {
   const { t, lang } = useLanguage()
   const { showToast } = useToast()
@@ -125,6 +128,20 @@ export function CatalogProductsModal({
     }
   }, [open, slug])
 
+  // When opening from a menu category (e.g. Vegetables), auto-select matching catalog category for catalog-products
+  useEffect(() => {
+    if (open && defaultMenuCategoryTitle?.trim() && catalogCategories.length > 0) {
+      const key = defaultMenuCategoryTitle.toLowerCase().trim()
+      const match = catalogCategories.find(
+        (c) =>
+          (c.title_en?.toLowerCase() ?? '').includes(key) ||
+          (c.title_ar ?? '').includes(defaultMenuCategoryTitle) ||
+          (c.slug?.toLowerCase() ?? '').includes(key.replace(/\s+/g, '-'))
+      )
+      if (match) setSelectedCatalogCategoryId(match._id)
+    }
+  }, [open, defaultMenuCategoryTitle, catalogCategories])
+
   const fetchProducts = useCallback(async () => {
     if (!open || !slug) return
     setLoading(true)
@@ -173,6 +190,7 @@ export function CatalogProductsModal({
           const cat = businessType === 'supermarket' || businessType === 'greengrocer' ? 'grocery' : businessType
           params.set('category', cat)
         }
+        if (defaultMenuCategoryTitle?.trim()) params.set('menuCategoryTitle', defaultMenuCategoryTitle.trim())
         if (append) params.set('offset', String(masterProductsLengthRef.current))
         const res = await fetch(`/api/tenants/${slug}/master-catalog?${params}`, { credentials: 'include' })
         const data = await res.json()
@@ -204,7 +222,7 @@ export function CatalogProductsModal({
         setMasterLoadingMore(false)
       }
     },
-    [open, slug, q, businessType, fetchImagesForProduct]
+    [open, slug, q, businessType, defaultMenuCategoryTitle, fetchImagesForProduct]
   )
 
   const loadMoreMasterProducts = useCallback(() => {

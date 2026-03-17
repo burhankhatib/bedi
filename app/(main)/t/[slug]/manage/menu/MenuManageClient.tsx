@@ -308,6 +308,7 @@ export function MenuManageClient({
   const canUseCatalog = true
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [catalogDefaultCategoryId, setCatalogDefaultCategoryId] = useState<string | undefined>(undefined)
+  const [catalogDefaultMenuCategoryTitle, setCatalogDefaultMenuCategoryTitle] = useState<string | undefined>(undefined)
   const [sortModes, setSortModes] = useState<Record<string, ProductSortMode>>(() => loadSortModes(slug))
   const [reorderingCategoryId, setReorderingCategoryId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -1293,7 +1294,7 @@ export function MenuManageClient({
                 variant="outline"
                 size="sm"
                 className="border-amber-500/50 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 hover:border-amber-500/70"
-                onClick={() => { setCatalogDefaultCategoryId(undefined); setCatalogOpen(true) }}
+                onClick={() => { setCatalogDefaultCategoryId(undefined); setCatalogDefaultMenuCategoryTitle(undefined); setCatalogOpen(true) }}
               >
                 <Package className="mr-2 size-4" />
                 {t('Add from catalog', 'إضافة من الكتالوج')}
@@ -1405,7 +1406,7 @@ export function MenuManageClient({
                               <Button type="button" size="sm" className="border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white" onClick={() => openAddProduct(c._id)}>
                                 <Plus className="mr-1 size-3.5" /> Add product
                               </Button>
-                              <Button type="button" size="sm" variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20" onClick={() => { setCatalogDefaultCategoryId(c._id); setCatalogOpen(true) }}>
+                              <Button type="button" size="sm" variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20" onClick={() => { setCatalogDefaultCategoryId(c._id); setCatalogDefaultMenuCategoryTitle(c.title_en); setCatalogOpen(true) }}>
                                 <Package className="mr-1 size-3.5" /> {t('Global Catalog', 'الكتالوج العالمي')}
                               </Button>
                             </div>
@@ -1638,11 +1639,12 @@ export function MenuManageClient({
       {canUseCatalog && (
         <CatalogProductsModal
           open={catalogOpen}
-          onClose={() => { setCatalogOpen(false); setCatalogDefaultCategoryId(undefined) }}
+          onClose={() => { setCatalogOpen(false); setCatalogDefaultCategoryId(undefined); setCatalogDefaultMenuCategoryTitle(undefined) }}
           categories={categories}
           slug={slug}
           businessType={businessType || 'grocery'}
           defaultCategoryId={catalogDefaultCategoryId}
+          defaultMenuCategoryTitle={catalogDefaultMenuCategoryTitle}
           onAdded={refreshMenuForce}
         />
       )}

@@ -128,7 +128,7 @@ export async function GET(
   )
 }
 
-/** PATCH tenant (name, country, city) and create/update restaurantInfo. */
+/** PATCH tenant (name, country, city) and create/update restaurantInfo. Batched into 1–2 Sanity commits for speed. */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -140,6 +140,7 @@ export async function PATCH(
 
   const body = await req.json()
 
+  // Validation only (no writes yet)
   if (body.country !== undefined && body.country) {
     const country = String(body.country).trim()
     if (!isAllowedRegistrationCountry(country)) {
@@ -150,74 +151,9 @@ export async function PATCH(
     }
   }
 
-  if (body.name != null) {
-    await writeClient.patch(auth.tenantId).set({ name: String(body.name) }).commit()
-  }
-  if (body.businessType != null) {
-    const validTypes = ['restaurant', 'cafe', 'bakery', 'grocery', 'supermarket', 'greengrocer', 'retail', 'pharmacy', 'other']
-    const bt = String(body.businessType).trim()
-    if (validTypes.includes(bt)) {
-      await writeClient.patch(auth.tenantId).set({ businessType: bt }).commit()
-      if (!body.businessSubcategoryIds?.length) {
-        await writeClient.patch(auth.tenantId).unset(['businessSubcategories']).commit()
-      }
-    }
-  }
-  if (body.businessSubcategoryIds !== undefined) {
-    const ids = Array.isArray(body.businessSubcategoryIds)
-      ? body.businessSubcategoryIds.filter((id: unknown): id is string => typeof id === 'string' && id.trim() !== '').map((id: string) => id.trim())
-      : []
-    if (ids.length > 0) {
-      await writeClient
-        .patch(auth.tenantId)
-        .set({
-          businessSubcategories: ids.map((id: string, i: number) => ({ _type: 'reference' as const, _key: `sub-${i}`, _ref: id })),
-        })
-        .commit()
-    } else {
-      await writeClient.patch(auth.tenantId).unset(['businessSubcategories']).commit()
-    }
-  }
-  if (body.country !== undefined) {
-    await writeClient.patch(auth.tenantId).set({ country: body.country ? String(body.country) : null }).commit()
-  }
-  if (body.city !== undefined) {
-    await writeClient.patch(auth.tenantId).set({ city: body.city ? String(body.city) : null }).commit()
-  }
-  if (body.deactivated !== undefined) {
-    await writeClient.patch(auth.tenantId).set({ deactivated: Boolean(body.deactivated) }).commit()
-  }
-  if (body.deactivateUntil !== undefined) {
-    const v = body.deactivateUntil
-    await writeClient.patch(auth.tenantId).set({ deactivateUntil: v === null || v === '' ? null : String(v) }).commit()
-  }
-  if (body.defaultLanguage !== undefined) {
-    const v = body.defaultLanguage
-    await writeClient.patch(auth.tenantId).set({ defaultLanguage: v === null || v === '' ? null : (v === 'en' ? 'en' : 'ar') }).commit()
-  }
-  if (body.supportsDineIn !== undefined) {
-    await writeClient.patch(auth.tenantId).set({ supportsDineIn: Boolean(body.supportsDineIn) }).commit()
-  }
-  if (body.supportsReceiveInPerson !== undefined) {
-    await writeClient.patch(auth.tenantId).set({ supportsReceiveInPerson: Boolean(body.supportsReceiveInPerson) }).commit()
-  }
-  if (body.supportsDelivery !== undefined) {
-    await writeClient.patch(auth.tenantId).set({ supportsDelivery: Boolean(body.supportsDelivery) }).commit()
-  }
-  if (body.supportsDriverPickup !== undefined) {
-    await writeClient.patch(auth.tenantId).set({ supportsDriverPickup: Boolean(body.supportsDriverPickup) }).commit()
-  }
-  if (body.catalogHidePrices !== undefined) {
-    await writeClient.patch(auth.tenantId).set({ catalogHidePrices: Boolean(body.catalogHidePrices) }).commit()
-  }
-  if (body.prioritizeWhatsapp !== undefined) {
-    await writeClient.patch(auth.tenantId).set({ prioritizeWhatsapp: Boolean(body.prioritizeWhatsapp) }).commit()
-  }
   if (body.ownerPhone !== undefined) {
-    const { normalizePhoneDigits } = await import('@/lib/order-auth')
     const raw = typeof body.ownerPhone === 'string' ? body.ownerPhone.trim() : ''
     if (raw) {
-      // When tenant changes the phone, it must be verified in Clerk first
       const { userId } = await clerkAuth()
       if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       const isVerified = await isVerifiedPhoneForUser(userId, raw)
@@ -227,17 +163,9 @@ export async function PATCH(
           { status: 400 }
         )
       }
-      let digits = normalizePhoneDigits(raw)
-      if (digits.startsWith('0') && digits.length === 10) digits = '972' + digits.slice(1)
-      if (digits) {
-        await writeClient.patch(auth.tenantId).set({ ownerPhone: raw, normalizedOwnerPhone: digits }).commit()
-      }
-    } else {
-      await writeClient.patch(auth.tenantId).unset(['ownerPhone', 'normalizedOwnerPhone']).commit()
     }
   }
 
-  // Slug (Business URL): validate, check uniqueness, update. Returns redirectTo when changed.
   let slugRedirectTo: string | undefined
   if (body.slugNew !== undefined && typeof body.slugNew === 'string') {
     const rawSlug = body.slugNew.trim()
@@ -259,16 +187,84 @@ export async function PATCH(
           { status: 409 }
         )
       }
-      await writeClient.patch(auth.tenantId).set({ slug: { _type: 'slug' as const, current: newSlug } }).commit()
       slugRedirectTo = `/t/${encodeURIComponent(newSlug)}/manage/business`
     }
   }
 
-  const existing = await client.fetch<{ _id: string } | null>(
+  // Fetch restaurantInfo once (needed for create vs patch)
+  const existingRest = await client.fetch<{ _id: string } | null>(
     `*[_type == "restaurantInfo" && site._ref == $siteId][0]{ _id }`,
     { siteId: auth.tenantId }
   )
 
+  // Build tenant patch (single object; merge into one commit)
+  const tenantSet: Record<string, unknown> = {}
+  const tenantUnset: string[] = []
+
+  if (body.name != null) tenantSet.name = String(body.name)
+  if (body.businessType != null) {
+    const validTypes = ['restaurant', 'cafe', 'bakery', 'grocery', 'supermarket', 'greengrocer', 'retail', 'pharmacy', 'other']
+    const bt = String(body.businessType).trim()
+    if (validTypes.includes(bt)) tenantSet.businessType = bt
+  }
+  if (body.businessSubcategoryIds !== undefined) {
+    const ids = Array.isArray(body.businessSubcategoryIds)
+      ? body.businessSubcategoryIds.filter((id: unknown): id is string => typeof id === 'string' && id.trim() !== '').map((id: string) => id.trim())
+      : []
+    if (ids.length > 0) {
+      tenantSet.businessSubcategories = ids.map((id: string, i: number) => ({ _type: 'reference' as const, _key: `sub-${i}`, _ref: id }))
+    } else {
+      tenantUnset.push('businessSubcategories')
+    }
+  }
+  if (body.country !== undefined) tenantSet.country = body.country ? String(body.country) : null
+  if (body.city !== undefined) tenantSet.city = body.city ? String(body.city) : null
+  if (body.deactivated !== undefined) tenantSet.deactivated = Boolean(body.deactivated)
+  if (body.deactivateUntil !== undefined) {
+    const v = body.deactivateUntil
+    tenantSet.deactivateUntil = v === null || v === '' ? null : String(v)
+  }
+  if (body.defaultLanguage !== undefined) {
+    const v = body.defaultLanguage
+    tenantSet.defaultLanguage = v === null || v === '' ? null : (v === 'en' ? 'en' : 'ar')
+  }
+  if (body.supportsDineIn !== undefined) tenantSet.supportsDineIn = Boolean(body.supportsDineIn)
+  if (body.supportsReceiveInPerson !== undefined) tenantSet.supportsReceiveInPerson = Boolean(body.supportsReceiveInPerson)
+  if (body.supportsDelivery !== undefined) tenantSet.supportsDelivery = Boolean(body.supportsDelivery)
+  if (body.supportsDriverPickup !== undefined) tenantSet.supportsDriverPickup = Boolean(body.supportsDriverPickup)
+  if (body.catalogHidePrices !== undefined) tenantSet.catalogHidePrices = Boolean(body.catalogHidePrices)
+  if (body.prioritizeWhatsapp !== undefined) tenantSet.prioritizeWhatsapp = Boolean(body.prioritizeWhatsapp)
+
+  if (body.ownerPhone !== undefined) {
+    const { normalizePhoneDigits } = await import('@/lib/order-auth')
+    const raw = typeof body.ownerPhone === 'string' ? body.ownerPhone.trim() : ''
+    if (raw) {
+      let digits = normalizePhoneDigits(raw)
+      if (digits.startsWith('0') && digits.length === 10) digits = '972' + digits.slice(1)
+      if (digits) {
+        tenantSet.ownerPhone = raw
+        tenantSet.normalizedOwnerPhone = digits
+      }
+    } else {
+      tenantUnset.push('ownerPhone', 'normalizedOwnerPhone')
+    }
+  }
+
+  if (body.slugNew !== undefined && typeof body.slugNew === 'string') {
+    const newSlug = slugify(body.slugNew.trim() || '')
+    if (newSlug && newSlug !== slug) tenantSet.slug = { _type: 'slug' as const, current: newSlug }
+  }
+
+  if (body.locationLat !== undefined && body.locationLng !== undefined) {
+    if (body.locationLat === null || body.locationLng === null) {
+      tenantUnset.push('locationLat', 'locationLng')
+    } else {
+      tenantSet.locationLat = Number(body.locationLat)
+      tenantSet.locationLng = Number(body.locationLng)
+    }
+  }
+
+  // Build restaurantInfo patch
   const restFields = {
     name_en: body.name_en,
     name_ar: body.name_ar,
@@ -309,7 +305,7 @@ export async function PATCH(
       : []
   }
   if (restFields.customDateHours !== undefined) {
-    const custom = Array.isArray(restFields.customDateHours)
+    restPatch.customDateHours = Array.isArray(restFields.customDateHours)
       ? restFields.customDateHours.filter((d: CustomDateHours) => d?.date).map((d: CustomDateHours, i: number) => ({
           _key: `custom-${i}-${d.date ?? ''}`,
           _type: 'object',
@@ -319,47 +315,50 @@ export async function PATCH(
           shifts: Array.isArray(d?.shifts) ? d.shifts.map((s, j) => ({ _key: `shift-${j}`, _type: 'object', open: s.open ?? '', close: s.close ?? '' })) : []
         }))
       : []
-    restPatch.customDateHours = custom
   }
 
-  // Also patch locationLat and locationLng on the tenant directly
-  if (body.locationLat !== undefined && body.locationLng !== undefined) {
-    if (body.locationLat === null || body.locationLng === null) {
-      await writeClient.patch(auth.tenantId).unset(['locationLat', 'locationLng']).commit()
+  const hasRestFields = Object.keys(restPatch).length > 0
+
+  if (hasRestFields && restPatch.logo) {
+    tenantSet.businessLogo = restPatch.logo
+  }
+
+  if (hasRestFields && !existingRest) {
+    const now = new Date()
+    const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+    tenantSet.businessCreatedAt = now.toISOString()
+    tenantSet.subscriptionExpiresAt = expiresAt.toISOString()
+    tenantSet.subscriptionStatus = 'trial'
+    tenantSet.subscriptionPlan = 'ultra'
+  }
+
+  // Execute: 1 tenant commit + 1 restaurantInfo commit (batched)
+  const tenantPatch = writeClient.patch(auth.tenantId)
+  if (Object.keys(tenantSet).length > 0) tenantPatch.set(tenantSet)
+  if (tenantUnset.length > 0) tenantPatch.unset(tenantUnset)
+
+  const ops: Promise<unknown>[] = []
+  if (Object.keys(tenantSet).length > 0 || tenantUnset.length > 0) {
+    ops.push(tenantPatch.commit())
+  }
+
+  if (hasRestFields) {
+    if (existingRest) {
+      ops.push(writeClient.patch(existingRest._id).set(restPatch).commit())
     } else {
-      await writeClient.patch(auth.tenantId).set({ 
-        locationLat: Number(body.locationLat), 
-        locationLng: Number(body.locationLng) 
-      }).commit()
+      ops.push(
+        writeClient.create({
+          _type: 'restaurantInfo',
+          site: { _type: 'reference' as const, _ref: auth.tenantId },
+          name_en: (body.name_en != null && body.name_en !== '') ? String(body.name_en) : 'Store',
+          name_ar: (body.name_ar != null && body.name_ar !== '') ? String(body.name_ar) : 'متجر',
+          ...restPatch,
+        })
+      )
     }
   }
 
-  if (Object.keys(restPatch).length > 0) {
-    if (existing) {
-      await writeClient.patch(existing._id).set(restPatch).commit()
-    } else {
-      await writeClient.create({
-        _type: 'restaurantInfo',
-        site: { _type: 'reference' as const, _ref: auth.tenantId },
-        name_en: (body.name_en != null && body.name_en !== '') ? String(body.name_en) : 'Store',
-        name_ar: (body.name_ar != null && body.name_ar !== '') ? String(body.name_ar) : 'متجر',
-        ...restPatch,
-      })
-
-      const now = new Date()
-      const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
-      
-      await writeClient.patch(auth.tenantId).set({
-        businessCreatedAt: now.toISOString(),
-        subscriptionExpiresAt: expiresAt.toISOString(),
-        subscriptionStatus: 'trial',
-        subscriptionPlan: 'ultra',
-      }).commit()
-    }
-    if (restPatch.logo) {
-      await writeClient.patch(auth.tenantId).set({ businessLogo: restPatch.logo }).commit()
-    }
-  }
+  await Promise.all(ops)
 
   return NextResponse.json(slugRedirectTo ? { ok: true, redirectTo: slugRedirectTo } : { ok: true })
 }

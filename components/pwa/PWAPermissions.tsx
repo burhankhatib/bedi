@@ -3,7 +3,7 @@
 /**
  * PWA Permissions – Standalone Permissions Dialog
  * Shows notification + location permission requests when running inside an installed PWA.
- * Extracted from the old PWAInstall.tsx.
+ * M3 design, compact layout, icon-led with concise copy.
  *
  * Location detection: Trust Permissions API when it says 'granted' (avoids getCurrentPosition
  * which can hang or fail with POSITION_UNAVAILABLE even when permission is granted, e.g. indoors).
@@ -173,92 +173,97 @@ export function PWAPermissions({ config, os, fcm, inOrderFlow = false }: PWAPerm
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) dismissCard() }}>
       <DialogContent
+        showCloseButton={false}
         dir={isRtl ? 'rtl' : 'ltr'}
-        className="max-w-lg border-emerald-500/30 bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 p-5 shadow-lg shadow-emerald-900/20 md:p-6 overflow-y-auto max-h-[90vh] [&_[data-slot=dialog-close]]:text-white [&_[data-slot=dialog-close]]:hover:bg-white/20"
+        className="max-w-[320px] p-4 border border-border bg-card shadow-[var(--m3-elevation-3)]"
         contentClassName="z-[100]"
         overlayClassName="z-[99]"
         style={{ touchAction: 'manipulation' }}
       >
-        <div className="relative pt-8">
+        <div className="relative pt-6">
           <Button
             variant="ghost"
             size="icon"
             onClick={dismissCard}
-            className="absolute top-0 end-0 -me-2 -mt-2 z-20 size-10 shrink-0 rounded-xl text-white/90 hover:bg-white/20 hover:text-white"
+            className="absolute top-0 end-0 -me-2 -mt-2 z-20 size-8 shrink-0 rounded-lg"
             aria-label={t('Close', 'إغلاق')}
           >
-            <X className="size-5" />
+            <X className="size-4" />
           </Button>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-12 h-12 shrink-0 rounded-xl bg-white/20 flex items-center justify-center overflow-hidden p-1">
+
+          {/* Compact header: icon + short title + subtitle */}
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-muted flex items-center justify-center overflow-hidden p-1">
               <img src={config.icon} alt="" className="w-full h-full object-contain" />
             </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="text-white font-black text-lg">
-                {t('Get the most out of the app', 'استفد من التطبيق بأقصى قدر')}
+            <div className="min-w-0">
+              <h3 className="text-foreground font-semibold text-sm leading-tight">
+                {t('Allow notifications & location', 'السماح بالإشعارات والموقع')}
               </h3>
-              <p className="text-emerald-100 text-sm">
-                {t('Enable notifications and location for order updates and delivery.', 'فعّل الإشعارات والموقع لتحديثات الطلبات والتوصيل.')}
+              <p className="text-muted-foreground text-xs mt-0.5">
+                {t('Order updates & delivery', 'تحديثات الطلبات والتوصيل')}
               </p>
             </div>
           </div>
-          <div className="rounded-xl bg-white/10 border border-white/20 p-4 space-y-2.5">
+
+          {/* Icon-led permission rows (M3 8dp spacing) */}
+          <div className="space-y-2">
             {canPush && (
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                    <Bell className="w-5 h-5 text-white" />
+              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-muted/60 border border-border/80">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <Bell className="w-4 h-4 text-primary" aria-hidden />
                   </div>
-                  <span className="text-emerald-100 text-sm font-medium">{t('Notifications', 'الإشعارات')}</span>
+                  <span className="text-foreground text-sm font-medium truncate">{t('Notifications', 'الإشعارات')}</span>
                 </div>
                 {pushGranted ? (
-                  <div className="flex items-center gap-2 shrink-0 rounded-full bg-emerald-400/30 border border-emerald-300/50 px-3 py-1.5 text-emerald-50">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-200" aria-hidden />
-                    <span className="text-sm font-semibold">{t('Enabled', 'مفعّل')}</span>
+                  <div className="flex items-center gap-1.5 shrink-0 rounded-full bg-primary/15 px-2 py-1">
+                    <CheckCircle2 className="w-4 h-4 text-primary" aria-hidden />
+                    <span className="text-xs font-medium text-foreground">{t('On', 'مفعّل')}</span>
                   </div>
                 ) : (
                   <Button
                     size="sm"
                     onClick={handleRequestPush}
                     disabled={fcm.loading || fcm.permission === 'denied'}
-                    className="shrink-0 rounded-xl bg-white/20 hover:bg-white/30 text-white border border-white/30"
+                    className="shrink-0 h-8 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 px-3 text-xs font-medium"
                   >
-                    {fcm.loading ? t('Enabling…', 'جاري التفعيل…') : t('Enable', 'تفعيل')}
+                    {fcm.loading ? t('…', '…') : t('Enable', 'تفعيل')}
                   </Button>
                 )}
               </div>
             )}
             {canLocation && (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-                      <MapPin className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-emerald-100 text-sm font-medium">{t('Location', 'الموقع')}</span>
+              <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-muted/60 border border-border/80">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <MapPin className="w-4 h-4 text-primary" aria-hidden />
                   </div>
-                  {locationGranted ? (
-                    <div className="flex items-center gap-2 shrink-0 rounded-full bg-emerald-400/30 border border-emerald-300/50 px-3 py-1.5 text-emerald-50">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-200" aria-hidden />
-                      <span className="text-sm font-semibold">{t('Enabled', 'مفعّل')}</span>
-                    </div>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={requestLocation}
-                      disabled={locationChecking}
-                      className="shrink-0 rounded-xl bg-white/20 hover:bg-white/30 text-white border border-white/30"
-                    >
-                      {locationChecking ? t('Checking…', 'جاري التحقق…') : locationState === 'denied' ? t('Try again', 'حاول مرة أخرى') : t('Enable', 'تفعيل')}
-                    </Button>
-                  )}
+                  <span className="text-foreground text-sm font-medium truncate">{t('Location', 'الموقع')}</span>
                 </div>
+                {locationGranted ? (
+                  <div className="flex items-center gap-1.5 shrink-0 rounded-full bg-primary/15 px-2 py-1">
+                    <CheckCircle2 className="w-4 h-4 text-primary" aria-hidden />
+                    <span className="text-xs font-medium text-foreground">{t('On', 'مفعّل')}</span>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={requestLocation}
+                    disabled={locationChecking}
+                    className="shrink-0 h-8 rounded-lg border-border bg-background hover:bg-muted px-3 text-xs font-medium"
+                  >
+                    {locationChecking ? t('…', '…') : locationState === 'denied' ? t('Retry', 'حاول') : t('Enable', 'تفعيل')}
+                  </Button>
+                )}
               </div>
             )}
           </div>
-          <div className="mt-4 pt-3 border-t border-white/20 flex justify-end">
-            <Button variant="ghost" size="sm" onClick={dismissCard} className="text-emerald-100 hover:bg-white/20 hover:text-white">
-              {t('Close', 'إغلاق')}
+
+          <div className="mt-3 pt-2 border-t border-border flex justify-end">
+            <Button variant="ghost" size="sm" onClick={dismissCard} className="h-8 text-muted-foreground hover:text-foreground hover:bg-muted text-xs">
+              {t('Not now', 'لاحقاً')}
             </Button>
           </div>
         </div>
