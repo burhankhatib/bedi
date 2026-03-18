@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,7 @@ import { Store, UtensilsCrossed, Truck, User, MapPin, Phone, Locate, Check, Load
 import { OrderType } from './CartContext'
 import { parseCoordsFromGoogleMapsUrl } from '@/lib/maps-utils'
 import { useCart } from './CartContext'
-import { isWithinShift } from '@/lib/business-hours'
+import { isWithinShift, getTodaysHours, isWithinHours, getTimeZoneForCountry } from '@/lib/business-hours'
 import { getShopperFeeByItemCount, getShopperFeeExplanation } from '@/lib/shopper-fee'
 import { formatCurrency } from '@/lib/currency'
 
@@ -24,7 +24,7 @@ interface UnifiedOrderDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onReceiveInPersonSubmit: (name: string, phone: string, scheduledFor?: string) => void
-  onDineInSubmit: (name: string, table: string, phone: string) => void
+  onDineInSubmit: (name: string, table: string, phone: string, scheduledFor?: string) => void
   onDeliverySubmit: (name: string, phone: string, address: string, deliveryFee: number, scheduledFor?: string) => void
   initialName?: string
   /** Prefill phone from Clerk verified phone so user does not re-enter */
@@ -67,6 +67,18 @@ export function UnifiedOrderDialog({
   const isTableLocked = Boolean(lockedTableNumber)
   const { t, lang } = useLanguage()
   const { cartTenant, items, totalItems } = useCart()
+
+  /** Business is closed (manual or by schedule). When true, only scheduling is allowed at checkout. */
+  const effectiveClosed = useMemo(() => {
+    if (!cartTenant) return false
+    const isManuallyClosed = cartTenant.isManuallyClosed === true
+    if (isManuallyClosed) return true
+    const tz = getTimeZoneForCountry(cartTenant.businessCountry ?? null)
+    const todaysHours = getTodaysHours(cartTenant.openingHours ?? null, cartTenant.customDateHours ?? null, tz)
+    const hasSchedule = (cartTenant.openingHours ?? []).some((d: { open?: string; close?: string }) => d?.open || d?.close)
+    return hasSchedule && !isWithinHours(todaysHours, tz)
+  }, [cartTenant])
+
   const [step, setStep] = useState<'type' | 'details'>(lockedTableNumber ? 'details' : 'type')
   const [orderType, setOrderType] = useState<OrderType | null>(lockedTableNumber ? 'dine-in' : null)
 
@@ -149,7 +161,7 @@ export function UnifiedOrderDialog({
       setTableNumber(lockedTableNumber ?? '')
       setPhone(initialPhone)
       setAddress('')
-      setIsScheduled(false)
+      setIsScheduled(effectiveClosed)
       setScheduledFor('')
       setLocationError(null)
       setMapsLinkInput('')
@@ -162,7 +174,7 @@ export function UnifiedOrderDialog({
       // If the modal is already open but the initialName just loaded from Clerk, update it
       setName(initialName)
     }
-  }, [open, initialName, initialPhone, clearDeliveryLocation, lockedTableNumber, t, isEditingName, name])
+  }, [open, initialName, initialPhone, clearDeliveryLocation, lockedTableNumber, t, isEditingName, name, effectiveClosed])
 
   const handleNameNext = (e: React.FormEvent) => {
     e.preventDefault()
@@ -315,8 +327,9 @@ export function UnifiedOrderDialog({
         onOpenChange(false)
       }
     } else if (orderType === 'dine-in') {
-      if (name.trim() && tableNumber.trim() && phone.trim()) {
-        onDineInSubmit(name.trim(), tableNumber.trim(), phone.trim())
+      const dineInScheduled = (isScheduled || effectiveClosed) && scheduledFor ? new Date(scheduledFor).toISOString() : undefined
+      if (name.trim() && tableNumber.trim() && phone.trim() && (!effectiveClosed || dineInScheduled)) {
+        onDineInSubmit(name.trim(), tableNumber.trim(), phone.trim(), dineInScheduled)
         onOpenChange(false)
       }
     } else if (orderType === 'delivery') {
@@ -439,14 +452,14 @@ export function UnifiedOrderDialog({
 
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
-  // Re-validate when time changes
+  // Re-validate when time changes (including when effectiveClosed and dine-in)
   useEffect(() => {
-    if (isScheduled && scheduledFor) {
+    if ((isScheduled || effectiveClosed) && scheduledFor) {
       setScheduleError(validateScheduleTime(scheduledFor));
     } else {
       setScheduleError(null);
     }
-  }, [isScheduled, scheduledFor, cartTenant?.openingHours]);
+  }, [isScheduled, effectiveClosed, scheduledFor, cartTenant?.openingHours]);
 
   const customerInfoHeader = (
     <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-6">
@@ -580,22 +593,29 @@ export function UnifiedOrderDialog({
             <form onSubmit={handleFinalSubmit} className="space-y-6">
               {customerInfoHeader}
 
-              {/* Timing */}
+              {/* Timing — when closed, only scheduling is allowed */}
               <div className="space-y-3 pt-4 border-t border-slate-100">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0 flex items-center gap-1">
                   {t('Timing', 'التوقيت')}
                 </label>
+                {effectiveClosed && (
+                  <p className="text-sm font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                    {t('Business is closed. Please schedule your order for when we open.', 'المتجر مغلق. يرجى جدولة طلبك لوقت الافتتاح.')}
+                  </p>
+                )}
                 <div className="flex flex-col gap-3">
-                  <label className="flex items-center gap-3 cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 transition-all">
-                    <input
-                      type="radio"
-                      name="timing"
-                      checked={!isScheduled}
-                      onChange={() => setIsScheduled(false)}
-                      className="size-5 accent-slate-900"
-                    />
-                    <span className="font-bold text-slate-800">{t('As soon as possible (ASAP)', 'في أسرع وقت ممكن')}</span>
-                  </label>
+                  {!effectiveClosed && (
+                    <label className="flex items-center gap-3 cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 transition-all">
+                      <input
+                        type="radio"
+                        name="timing"
+                        checked={!isScheduled}
+                        onChange={() => setIsScheduled(false)}
+                        className="size-5 accent-slate-900"
+                      />
+                      <span className="font-bold text-slate-800">{t('As soon as possible (ASAP)', 'في أسرع وقت ممكن')}</span>
+                    </label>
+                  )}
                   <label className="flex flex-col gap-3 cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 transition-all">
                     <div className="flex items-center gap-3">
                       <input
@@ -604,16 +624,19 @@ export function UnifiedOrderDialog({
                         checked={isScheduled}
                         onChange={() => setIsScheduled(true)}
                         className="size-5 accent-slate-900"
+                        disabled={effectiveClosed}
                       />
-                      <span className="font-bold text-slate-800">{t('Schedule for later', 'جدولة لوقت لاحق')}</span>
+                      <span className="font-bold text-slate-800">
+                        {effectiveClosed ? t('Schedule for when we open', 'جدولة لوقت الافتتاح') : t('Schedule for later', 'جدولة لوقت لاحق')}
+                      </span>
                     </div>
-                    {isScheduled && (
+                    {(isScheduled || effectiveClosed) && (
                       <Input
                         type="datetime-local"
                         value={scheduledFor}
                         onChange={(e) => setScheduledFor(e.target.value)}
                         className="h-12 w-full mt-2"
-                        required={isScheduled}
+                        required={isScheduled || effectiveClosed}
                         min={getMinDateTime()}
                       />
                     )}
@@ -634,18 +657,18 @@ export function UnifiedOrderDialog({
                   <Button
                     type="submit"
                     className="w-full h-14 rounded-2xl font-black bg-black text-white shadow-xl shadow-black/10 active:scale-[0.98] transition-all"
-                    disabled={!phone.trim() || (isScheduled && (!scheduledFor || !!scheduleError))}
+                    disabled={!phone.trim() || ((isScheduled || effectiveClosed) && (!scheduledFor || !!scheduleError))}
                   >
                     {t('Continue', 'متابعة')}
                   </Button>
-                  {isScheduled && scheduleError && <p className="text-[10px] text-red-500 font-bold text-center leading-tight mt-1 px-1">{scheduleError}</p>}
+                  {(isScheduled || effectiveClosed) && scheduleError && <p className="text-[10px] text-red-500 font-bold text-center leading-tight mt-1 px-1">{scheduleError}</p>}
                 </div>
               </div>
             </form>
           </>
         )}
 
-        {/* Step 3: Dine-in Details – table + WhatsApp required */}
+        {/* Step 3: Dine-in Details – table + WhatsApp required; scheduling when closed */}
         {step === 'details' && orderType === 'dine-in' && (
           <>
             <DialogHeader className="mb-6">
@@ -692,6 +715,26 @@ export function UnifiedOrderDialog({
                 )}
               </div>
 
+              {effectiveClosed && (
+                <div className="space-y-2 pt-4 border-t border-slate-100">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0">
+                    {t('Schedule for when we open', 'جدولة لوقت الافتتاح')} *
+                  </label>
+                  <p className="text-sm font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                    {t('Business is closed. Please schedule your order for when we open.', 'المتجر مغلق. يرجى جدولة طلبك لوقت الافتتاح.')}
+                  </p>
+                  <Input
+                    type="datetime-local"
+                    value={scheduledFor}
+                    onChange={(e) => setScheduledFor(e.target.value)}
+                    className="h-12 w-full"
+                    required
+                    min={getMinDateTime()}
+                  />
+                  {scheduleError && <p className="text-[10px] text-red-500 font-bold">{scheduleError}</p>}
+                </div>
+              )}
+
               <div className="flex gap-3">
                 <Button
                   type="button"
@@ -704,7 +747,7 @@ export function UnifiedOrderDialog({
                 <Button
                   type="submit"
                   className="flex-1 h-14 rounded-2xl font-black bg-black text-white shadow-xl shadow-black/10 active:scale-[0.98] transition-all"
-                  disabled={!tableNumber.trim() || !phone.trim()}
+                  disabled={!tableNumber.trim() || !phone.trim() || (effectiveClosed && (!scheduledFor || !!scheduleError))}
                 >
                   {t('Continue', 'متابعة')}
                 </Button>
@@ -923,22 +966,29 @@ export function UnifiedOrderDialog({
                 )}
               </div>
 
-              {/* Timing */}
+              {/* Timing — when closed, only scheduling is allowed */}
               <div className="space-y-3 pt-4 border-t border-slate-100">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0 flex items-center gap-1">
                   {t('Timing', 'التوقيت')}
                 </label>
+                {effectiveClosed && (
+                  <p className="text-sm font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                    {t('Business is closed. Please schedule your order for when we open.', 'المتجر مغلق. يرجى جدولة طلبك لوقت الافتتاح.')}
+                  </p>
+                )}
                 <div className="flex flex-col gap-3">
-                  <label className="flex items-center gap-3 cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 transition-all">
-                    <input
-                      type="radio"
-                      name="delivery_timing"
-                      checked={!isScheduled}
-                      onChange={() => setIsScheduled(false)}
-                      className="size-5 accent-slate-900"
-                    />
-                    <span className="font-bold text-slate-800">{t('As soon as possible (ASAP)', 'في أسرع وقت ممكن')}</span>
-                  </label>
+                  {!effectiveClosed && (
+                    <label className="flex items-center gap-3 cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 transition-all">
+                      <input
+                        type="radio"
+                        name="delivery_timing"
+                        checked={!isScheduled}
+                        onChange={() => setIsScheduled(false)}
+                        className="size-5 accent-slate-900"
+                      />
+                      <span className="font-bold text-slate-800">{t('As soon as possible (ASAP)', 'في أسرع وقت ممكن')}</span>
+                    </label>
+                  )}
                   <label className="flex flex-col gap-3 cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 transition-all">
                     <div className="flex items-center gap-3">
                       <input
@@ -947,16 +997,19 @@ export function UnifiedOrderDialog({
                         checked={isScheduled}
                         onChange={() => setIsScheduled(true)}
                         className="size-5 accent-slate-900"
+                        disabled={effectiveClosed}
                       />
-                      <span className="font-bold text-slate-800">{t('Schedule for later', 'جدولة لوقت لاحق')}</span>
+                      <span className="font-bold text-slate-800">
+                        {effectiveClosed ? t('Schedule for when we open', 'جدولة لوقت الافتتاح') : t('Schedule for later', 'جدولة لوقت لاحق')}
+                      </span>
                     </div>
-                    {isScheduled && (
+                    {(isScheduled || effectiveClosed) && (
                       <Input
                         type="datetime-local"
                         value={scheduledFor}
                         onChange={(e) => setScheduledFor(e.target.value)}
                         className="h-12 w-full mt-2"
-                        required={isScheduled}
+                        required={isScheduled || effectiveClosed}
                         min={getMinDateTime()}
                       />
                     )}
@@ -977,11 +1030,11 @@ export function UnifiedOrderDialog({
                   <Button
                     type="submit"
                     className="w-full h-14 rounded-2xl font-black bg-green-600 text-white shadow-xl shadow-green-600/10 hover:bg-green-700 active:scale-[0.98] transition-all disabled:opacity-50"
-                    disabled={!phone.trim() || deliveryLat == null || deliveryLng == null || (isScheduled && (!scheduledFor || !!scheduleError)) || distanceFee === null}
+                    disabled={!phone.trim() || deliveryLat == null || deliveryLng == null || ((isScheduled || effectiveClosed) && (!scheduledFor || !!scheduleError)) || distanceFee === null}
                   >
                     {t('Continue', 'متابعة')}
                   </Button>
-                  {isScheduled && scheduleError && <p className="text-[10px] text-red-500 font-bold text-center leading-tight mt-1 px-1">{scheduleError}</p>}
+                  {(isScheduled || effectiveClosed) && scheduleError && <p className="text-[10px] text-red-500 font-bold text-center leading-tight mt-1 px-1">{scheduleError}</p>}
                 </div>
               </div>
             </form>

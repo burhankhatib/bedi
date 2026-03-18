@@ -23,6 +23,10 @@ export interface CartTenant {
   openingHours?: any[] | null
   customDateHours?: any[] | null
   businessCountry?: string
+  /** When true, business is manually closed. With opening hours, used to compute schedule-only checkout. */
+  isManuallyClosed?: boolean
+  /** ISO date when manual closure ends. Used to validate scheduledFor. */
+  deactivateUntil?: string | null
   deliveryPricingMode?: 'areas' | 'distance'
   deliveryFeeMin?: number
   deliveryFeeMax?: number

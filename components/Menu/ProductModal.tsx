@@ -25,13 +25,15 @@ interface ProductModalProps {
   restaurantLogo?: any
   /** When true, product is view-only (catalog); hide Add to Cart. */
   catalogOnly?: boolean
+  /** When true, show add-to-cart. If undefined, falls back to !catalogOnly. */
+  canAddToCart?: boolean
   /** For single-business cart: pass when adding from menu page. */
   tenantContext?: CartTenant
   orderTypeOptions?: OrderTypeOptions | null
   catalogHidePrices?: boolean
 }
 
-export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product', restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions, catalogHidePrices = false }: ProductModalProps) {
+export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product', restaurantLogo, catalogOnly = false, canAddToCart, tenantContext, orderTypeOptions, catalogHidePrices = false }: ProductModalProps) {
   const { t, lang } = useLanguage()
   const { addToCart } = useCart()
   /** Add-on key -> quantity (0 = not selected). Allows e.g. "Bread x3". */
@@ -386,7 +388,7 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
               )}
 
               {/* Weight selector for kg/g products (greengrocery, produce) */}
-              {!catalogOnly && isWeightProduct && (
+              {(canAddToCart ?? !catalogOnly) && isWeightProduct && (
                 <section className="mb-5" aria-label={t('Choose weight', 'اختر الوزن')}>
                   <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-3">
                     {product.saleUnit === 'kg'
@@ -479,7 +481,7 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
             </div>
 
             {/* Sticky footer: total always visible + Add to Cart */}
-            {!catalogOnly && (
+            {(canAddToCart ?? !catalogOnly) && (
               <div className="shrink-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] pb-[env(safe-area-inset-bottom,0px)]">
                 <div className="px-4 py-3 flex items-center justify-between gap-4 md:px-6">
                   <div className="flex items-baseline gap-1.5 min-w-0">

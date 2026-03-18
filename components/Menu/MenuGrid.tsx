@@ -36,12 +36,14 @@ interface MenuGridProps {
   viewType?: ViewType
   restaurantLogo?: any
   catalogOnly?: boolean
+  /** When true, show add-to-cart. If undefined, falls back to !catalogOnly. */
+  canAddToCart?: boolean
   tenantContext?: CartTenant
   orderTypeOptions?: OrderTypeOptions | null
   catalogHidePrices?: boolean
 }
 
-export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewType = 'thumbnail', restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions, catalogHidePrices = false }: MenuGridProps) {
+export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewType = 'thumbnail', restaurantLogo, catalogOnly = false, canAddToCart, tenantContext, orderTypeOptions, catalogHidePrices = false }: MenuGridProps) {
   const { t } = useLanguage()
   const groups = useMemo(() => groupCategoriesByRoot(menuData), [menuData])
 
@@ -58,6 +60,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
                   layoutPrefix={prefix}
                   restaurantLogo={restaurantLogo}
                   catalogOnly={catalogOnly}
+                  canAddToCart={canAddToCart}
                   tenantContext={tenantContext}
                   orderTypeOptions={orderTypeOptions}
                   catalogHidePrices={catalogHidePrices}
@@ -83,6 +86,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
                   priority={index === 0 || index === 1}
                   restaurantLogo={restaurantLogo}
                   catalogOnly={catalogOnly}
+                  canAddToCart={canAddToCart}
                   tenantContext={tenantContext}
                   orderTypeOptions={orderTypeOptions}
                   catalogHidePrices={catalogHidePrices}
@@ -103,6 +107,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
                   layoutPrefix={prefix}
                   restaurantLogo={restaurantLogo}
                   catalogOnly={catalogOnly}
+                  canAddToCart={canAddToCart}
                   tenantContext={tenantContext}
                   orderTypeOptions={orderTypeOptions}
                   catalogHidePrices={catalogHidePrices}
@@ -124,6 +129,7 @@ export function MenuGrid({ menuData, onProductClick, scrollOffset = 144, viewTyp
                   layoutPrefix={prefix}
                   restaurantLogo={restaurantLogo}
                   catalogOnly={catalogOnly}
+                  canAddToCart={canAddToCart}
                   tenantContext={tenantContext}
                   orderTypeOptions={orderTypeOptions}
                   catalogHidePrices={catalogHidePrices}

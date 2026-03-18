@@ -20,6 +20,7 @@ const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
   driver_on_the_way: { en: 'Driver on the way to the store', ar: 'السائق في الطريق إلى المتجر' },
   'out-for-delivery': { en: 'Driver on the way to you', ar: 'السائق في الطريق إليك' },
   'driver-arrived': { en: 'Driver has arrived!', ar: 'السائق وصل!' },
+  driver_arrived_at_business: { en: 'Driver reached the store', ar: 'وصل السائق إلى المتجر' },
   items_changed: { en: 'Order items updated — review required', ar: 'تم تحديث عناصر الطلب — يلزم المراجعة' },
   items_change_declined: { en: 'Driver declined your order changes', ar: 'السائق رفض تعديلات الطلب' },
   completed: { en: 'Completed', ar: 'مكتمل' },
@@ -132,6 +133,10 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
   } else if (newStatus === 'items_changed') {
     label = 'Action needed now: your order items were changed. Tap to review and confirm.'
     labelAr = 'مطلوب إجراء الآن: تم تعديل أصناف طلبك. اضغط للمراجعة والتأكيد.'
+  } else if (newStatus === 'driver_arrived_at_business') {
+    const driverDisplay = (driverName && String(driverName).trim()) || 'السائق'
+    label = `Driver ${driverDisplay} has reached ${businessNameEn}`
+    labelAr = `السائق ${driverDisplay} وصل إلى ${businessName}`
   }
 
   const title = `${customerName}, your order at ${businessNameEn}`

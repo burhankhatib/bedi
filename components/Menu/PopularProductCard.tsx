@@ -21,6 +21,8 @@ interface PopularProductCardProps {
   priority?: boolean
   restaurantLogo?: any
   catalogOnly?: boolean
+  /** When true, show add-to-cart button. When false, hide. If undefined, falls back to !catalogOnly. */
+  canAddToCart?: boolean
   tenantContext?: CartTenant
   orderTypeOptions?: OrderTypeOptions | null
   catalogHidePrices?: boolean
@@ -33,6 +35,7 @@ export function PopularProductCard({
   priority = false,
   restaurantLogo,
   catalogOnly = false,
+  canAddToCart,
   tenantContext,
   orderTypeOptions,
   catalogHidePrices = false,
@@ -170,7 +173,7 @@ export function PopularProductCard({
           </div>
 
           {/* Floating Add to Cart Button - hidden when closed or unavailable */}
-          {!catalogOnly && !unavailable && (
+          {(canAddToCart ?? !catalogOnly) && !unavailable && (
           <button
             onClick={handleAddToCart}
             className="relative bg-black hover:bg-slate-800 active:bg-slate-700 shadow-2xl rounded-2xl h-12 w-12 flex items-center justify-center cursor-pointer pointer-events-auto shrink-0 transition-colors"

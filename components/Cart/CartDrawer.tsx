@@ -251,11 +251,11 @@ export function CartDrawer() {
     setIsReady(true)
   }
 
-  const handleDineInSubmit = (name: string, table: string, phone: string) => {
+  const handleDineInSubmit = (name: string, table: string, phone: string, scheduleStr?: string) => {
     setCustomerName(name)
     setTableNumber(table)
     setCustomerPhone(phone)
-    setScheduledFor(undefined)
+    setScheduledFor(scheduleStr)
     setOrderType('dine-in')
     setIsReady(true)
   }

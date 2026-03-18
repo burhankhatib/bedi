@@ -108,7 +108,7 @@ function ClosedBanner({
             </div>
             <div>
               <p className="text-base sm:text-lg font-bold text-amber-900 leading-snug">
-                {t("We're closed right now. You can still browse the menu.", 'نحن مغلقون حالياً. يمكنك تصفح القائمة.')}
+                {t("We're closed right now. You can still browse and add items to your cart, then schedule for when we open.", 'نحن مغلقون حالياً. يمكنك تصفح القائمة وإضافة المنتجات للسلة وجدولة الطلب لوقت الافتتاح.')}
               </p>
               <p className="mt-1 text-sm sm:text-base text-amber-800 font-medium">
                 {message}
@@ -137,6 +137,8 @@ function ClosedBanner({
 export default function MenuLayout({ initialData, tenantSlug, initialTableNumber }: MenuLayoutProps) {
   const { categories, popularProducts, restaurantInfo, aboutUs, storeName, supportsDineIn, supportsReceiveInPerson, hasDelivery, isManuallyClosed, deactivateUntil, locationLat, locationLng } = initialData
   const catalogOnlyBySettings = supportsDineIn === false && supportsReceiveInPerson === false && hasDelivery === false
+  /** When true, allow add-to-cart and checkout. False only when business has no order types (truly catalog only). */
+  const canOrderFromMenu = !catalogOnlyBySettings
   const catalogHidePrices = initialData.catalogHidePrices
   const orderTypeOptions = tenantSlug
     ? { supportsDineIn: supportsDineIn ?? true, supportsReceiveInPerson: supportsReceiveInPerson ?? true, hasDelivery: hasDelivery ?? false }
@@ -687,7 +689,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
             />
           </div>
           {/* Cart in menu bar: hidden on mobile — bottom nav has cart there */}
-          {!catalogOnly && (
+          {canOrderFromMenu && (
             <div className="hidden md:flex shrink-0 items-center pr-3 pl-2 py-2 border-l border-slate-100 bg-white">
               <Button
                 variant="outline"
@@ -744,7 +746,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
       )}
 
       {/* Order auth: sign in + verified phone required to place orders */}
-      {!catalogOnly && orderAuth.isLoaded && (orderAuth.needsSignIn || orderAuth.needsPhoneVerification) && (
+      {canOrderFromMenu && orderAuth.isLoaded && (orderAuth.needsSignIn || orderAuth.needsPhoneVerification) && (
         <div className="flex w-full items-center justify-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-center" role="status">
           <ShieldAlert className="size-4 shrink-0 text-amber-700" />
           <p className="text-xs font-medium text-amber-900">
@@ -792,6 +794,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                 priority={index === 0 || index === 1}
                 restaurantLogo={restaurantInfo?.logo}
                 catalogOnly={catalogOnly}
+                canAddToCart={canOrderFromMenu}
                 tenantContext={tenantSlug ? { 
                   slug: tenantSlug, 
                   name: headerTitle, 
@@ -799,6 +802,8 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   openingHours: restaurantInfo?.openingHours,
                   customDateHours: restaurantInfo?.customDateHours,
                   businessCountry: initialData.businessCountry ?? undefined,
+                  isManuallyClosed: isManuallyClosed ?? undefined,
+                  deactivateUntil: deactivateUntil ?? undefined,
                   deliveryPricingMode: initialData.deliveryPricingMode,
                   deliveryFeeMin: initialData.deliveryFeeMin,
                   deliveryFeeMax: initialData.deliveryFeeMax,
@@ -833,6 +838,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
             viewType={isHydrated ? viewType : 'horizontal'}
             restaurantLogo={restaurantInfo?.logo}
             catalogOnly={catalogOnly}
+            canAddToCart={canOrderFromMenu}
                 tenantContext={tenantSlug ? { 
                   slug: tenantSlug, 
                   name: headerTitle, 
@@ -840,6 +846,8 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   openingHours: restaurantInfo?.openingHours,
                   customDateHours: restaurantInfo?.customDateHours,
                   businessCountry: initialData.businessCountry ?? undefined,
+                  isManuallyClosed: isManuallyClosed ?? undefined,
+                  deactivateUntil: deactivateUntil ?? undefined,
                   deliveryPricingMode: initialData.deliveryPricingMode,
                   deliveryFeeMin: initialData.deliveryFeeMin,
                   deliveryFeeMax: initialData.deliveryFeeMax,
@@ -867,6 +875,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
         layoutPrefix={activeLayoutPrefix}
         restaurantLogo={restaurantInfo?.logo}
         catalogOnly={catalogOnly}
+        canAddToCart={canOrderFromMenu}
                 tenantContext={tenantSlug ? { 
                   slug: tenantSlug, 
                   name: headerTitle, 
@@ -874,6 +883,8 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   openingHours: restaurantInfo?.openingHours,
                   customDateHours: restaurantInfo?.customDateHours,
                   businessCountry: initialData.businessCountry ?? undefined,
+                  isManuallyClosed: isManuallyClosed ?? undefined,
+                  deactivateUntil: deactivateUntil ?? undefined,
                   deliveryPricingMode: initialData.deliveryPricingMode,
                   deliveryFeeMin: initialData.deliveryFeeMin,
                   deliveryFeeMax: initialData.deliveryFeeMax,
@@ -1126,7 +1137,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
       )}
 
       {/* Floating Cart Action - Desktop only; hidden when cart is already open */}
-      {!catalogOnly && totalItems > 0 && !cartOpen && (
+      {canOrderFromMenu && totalItems > 0 && !cartOpen && (
         <div className="fixed bottom-6 left-0 right-0 z-40 px-4 pointer-events-none pb-6 hidden md:block">
           <div className="max-w-md mx-auto pointer-events-auto">
             <Button

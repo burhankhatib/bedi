@@ -22,12 +22,14 @@ interface ProductListItemProps {
   layoutPrefix?: string
   restaurantLogo?: any
   catalogOnly?: boolean
+  /** When true, show add-to-cart. If undefined, falls back to !catalogOnly. */
+  canAddToCart?: boolean
   tenantContext?: CartTenant
   orderTypeOptions?: OrderTypeOptions | null
   catalogHidePrices?: boolean
 }
 
-export function ProductListItem({ product, onClick, layoutPrefix = 'list', restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions, catalogHidePrices = false }: ProductListItemProps) {
+export function ProductListItem({ product, onClick, layoutPrefix = 'list', restaurantLogo, catalogOnly = false, canAddToCart, tenantContext, orderTypeOptions, catalogHidePrices = false }: ProductListItemProps) {
   const { lang, t } = useLanguage()
   const { addToCart } = useCart()
 
@@ -156,7 +158,7 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
                 </>
               )}
             </div>
-            {!catalogOnly && !unavailable && (
+            {(canAddToCart ?? !catalogOnly) && !unavailable && (
             <Button
               size="sm"
               onClick={handleAddToCart}

@@ -162,10 +162,21 @@ export async function POST(request: NextRequest) {
         )
       }
       if (tenant && isTenantDeactivated(tenant)) {
-        return NextResponse.json(
-          { error: 'This business is temporarily closed. Orders are not accepted right now.' },
-          { status: 403 }
-        )
+        // When manually closed, only scheduled orders are allowed
+        const scheduledTime = scheduledFor ? new Date(scheduledFor) : null
+        const reopenAt = tenant.deactivateUntil ? new Date(tenant.deactivateUntil) : null
+        if (!scheduledTime || isNaN(scheduledTime.getTime()) || scheduledTime <= new Date()) {
+          return NextResponse.json(
+            { error: 'This business is temporarily closed. Please schedule your order for when we reopen.' },
+            { status: 403 }
+          )
+        }
+        if (reopenAt && scheduledTime < reopenAt) {
+          return NextResponse.json(
+            { error: `This business reopens on ${reopenAt.toLocaleDateString()}. Please schedule your order for that time or later.` },
+            { status: 403 }
+          )
+        }
       }
       const tenantId = tenant?._id ?? await getTenantIdBySlug(tenantSlug)
       if (tenantId) siteRef = { _type: 'reference', _ref: tenantId }
@@ -207,11 +218,28 @@ export async function POST(request: NextRequest) {
       `*[_type == "tenant" && _id == $id][0]{ blockedBySuperAdmin, deactivated, deactivateUntil, requiresPersonalShopper, supportsDriverPickup }`,
       { id: siteRef._ref }
     )
-    if (!targetTenant || targetTenant.blockedBySuperAdmin || isTenantDeactivated(targetTenant)) {
+    if (!targetTenant || targetTenant.blockedBySuperAdmin) {
       return NextResponse.json(
         { error: 'This business is currently unavailable. Orders are not accepted.' },
         { status: 403 }
       )
+    }
+    // When manually closed, only scheduled orders are allowed (first check above already validated if tenantSlug path)
+    if (isTenantDeactivated(targetTenant)) {
+      const scheduledTime = scheduledFor ? new Date(scheduledFor) : null
+      const reopenAt = targetTenant.deactivateUntil ? new Date(targetTenant.deactivateUntil) : null
+      if (!scheduledTime || isNaN(scheduledTime.getTime()) || scheduledTime <= new Date()) {
+        return NextResponse.json(
+          { error: 'This business is temporarily closed. Please schedule your order for when we reopen.' },
+          { status: 403 }
+        )
+      }
+      if (reopenAt && scheduledTime < reopenAt) {
+        return NextResponse.json(
+          { error: `This business reopens on ${reopenAt.toLocaleDateString()}. Please schedule your order for that time or later.` },
+          { status: 403 }
+        )
+      }
     }
 
     // Create order document

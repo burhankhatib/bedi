@@ -24,12 +24,14 @@ interface ProductCardProps {
   priority?: boolean
   restaurantLogo?: any
   catalogOnly?: boolean
+  /** When true, show add-to-cart. If undefined, falls back to !catalogOnly. */
+  canAddToCart?: boolean
   tenantContext?: CartTenant
   orderTypeOptions?: OrderTypeOptions | null
   catalogHidePrices?: boolean
 }
 
-export function ProductCard({ product, onClick, layoutPrefix = 'product', priority = false, restaurantLogo, catalogOnly = false, tenantContext, orderTypeOptions, catalogHidePrices = false }: ProductCardProps) {
+export function ProductCard({ product, onClick, layoutPrefix = 'product', priority = false, restaurantLogo, catalogOnly = false, canAddToCart, tenantContext, orderTypeOptions, catalogHidePrices = false }: ProductCardProps) {
   const { lang, t } = useLanguage()
   const { addToCart } = useCart()
   const [isHovered, setIsHovered] = useState(false)
@@ -50,7 +52,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (catalogOnly || unavailable) return
+    if ((canAddToCart === false || (canAddToCart === undefined && catalogOnly)) || unavailable) return
     if (product.addOns && product.addOns.length > 0) onClick(product)
     else if (product.variants && product.variants.length > 0) onClick(product)
     else addToCart(product, undefined, undefined, tenantContext, orderTypeOptions ?? undefined)
@@ -148,7 +150,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
           </div>
         )}
         {/* M3 FAB - Add to Cart */}
-        {!catalogOnly && !unavailable && (
+        {(canAddToCart ?? !catalogOnly) && !unavailable && (
         <div
           className="absolute bottom-3 right-3 z-20 opacity-100 md:opacity-0 md:group-hover:opacity-100 pointer-events-auto transition-opacity duration-200"
         >
