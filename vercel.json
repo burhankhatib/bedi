@@ -27,6 +27,10 @@
     {
       "path": "/api/cron/scheduled-order-reminders",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/delivery-tier-escalation",
+      "schedule": "* * * * *"
     }
   ]
 }

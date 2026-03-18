@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { X, Package, Truck, UtensilsCrossed, Clock, User, Phone, MapPin, ChefHat, CheckCircle2, XCircle, MessageCircle, Edit2, Plus, Trash2, Save, RotateCcw, Settings, Flag, HandHelping, CreditCard, Check } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
-import { googleMapsNavigationUrl, wazeNavigationUrl } from '@/lib/maps-utils'
+import { googleMapsNavigationUrl, wazeNavigationUrl, distanceKm } from '@/lib/maps-utils'
 import { client } from '@/sanity/lib/client'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
@@ -247,7 +247,7 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
   const [saving, setSaving] = useState(false)
   const [confirmAction, setConfirmAction] = useState<'cancelled' | 'refunded' | null>(null)
   const [preparePrompt, setPreparePrompt] = useState<{ newScheduleDate: string } | null>(null)
-  const [businessLocation, setBusinessLocation] = useState<{ country?: string; city?: string; mapsLink?: string } | null>(null)
+  const [businessLocation, setBusinessLocation] = useState<{ country?: string; city?: string; mapsLink?: string; lat?: number; lng?: number } | null>(null)
   const [loadingBusinessLocation, setLoadingBusinessLocation] = useState(false)
   const [reportTarget, setReportTarget] = useState<'driver' | 'customer' | null>(null)
 
@@ -334,12 +334,18 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
     setLoadingBusinessLocation(true)
     fetch(`/api/tenants/${tenantSlug}/business`, { credentials: 'include' })
       .then((r) => r.json())
-      .then((data: { tenant?: { country?: string; city?: string }; restaurantInfo?: { mapsLink?: string } }) => {
+      .then((data: { tenant?: { country?: string; city?: string; locationLat?: number; locationLng?: number }; restaurantInfo?: { mapsLink?: string } }) => {
         const tenant = data?.tenant
         const mapsLink = data?.restaurantInfo?.mapsLink
         setBusinessLocation(
           tenant
-            ? { country: tenant.country ?? '', city: tenant.city ?? '', mapsLink: mapsLink ?? undefined }
+            ? {
+                country: tenant.country ?? '',
+                city: tenant.city ?? '',
+                mapsLink: mapsLink ?? undefined,
+                lat: tenant.locationLat ?? undefined,
+                lng: tenant.locationLng ?? undefined,
+              }
             : null
         )
       })
@@ -1837,35 +1843,67 @@ Please deliver this order to the customer.
                             <p className="text-center text-slate-500 py-4 text-sm">{t('Loading...', 'جارٍ التحميل...')}</p>
                           ) : (
                             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                              {drivers.filter(d => showOfflineDrivers || d.isOnline).map((driver) => {
-                                const canServeArea = !localOrder.deliveryArea || !driver.deliveryAreas || driver.deliveryAreas.length === 0 || driver.deliveryAreas.some(area => area._id === localOrder.deliveryArea?._id)
-                                return (
-                                  <div key={driver._id} className={`flex items-center justify-between p-3 rounded-xl border ${canServeArea ? 'border-slate-200' : 'border-orange-200 bg-orange-50'}`}>
-                                    <div>
-                                      <div className="flex items-center gap-2">
-                                        <p className="font-bold text-sm">{getDriverDisplayNameForBusiness(driver)}</p>
-                                        {driver.isOnline ? (
-                                          <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                                        ) : (
-                                          <span className="w-2 h-2 rounded-full bg-slate-300"></span>
-                                        )}
-                                      </div>
-                                      <p className="text-xs text-slate-500">{driver.phoneNumber}</p>
-                                    </div>
-                                    <div className="flex gap-1">
-                                      <Button onClick={() => sendWhatsAppToDriver(driver)} size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600">
-                                        <MessageCircle className="w-4 h-4" />
-                                      </Button>
-                                      <Button onClick={() => assignDriver(driver._id)} disabled={assigningDriverId !== null} size="sm" className="h-8 px-3 rounded-lg text-xs font-bold">
-                                        {t('Assign', 'تعيين')}
-                                      </Button>
-                                    </div>
-                                  </div>
+                              {(() => {
+                                const hasBusinessGps = businessLocation?.lat != null && businessLocation?.lng != null
+                                const filtered = drivers.filter(d => showOfflineDrivers || d.isOnline)
+                                const withDist = filtered.map(d => {
+                                  const dist = hasBusinessGps && d.lastKnownLat != null && d.lastKnownLng != null
+                                    ? distanceKm(
+                                        { lat: businessLocation!.lat!, lng: businessLocation!.lng! },
+                                        { lat: d.lastKnownLat, lng: d.lastKnownLng }
+                                      )
+                                    : null
+                                  return { driver: d, dist }
+                                })
+                                // Online drivers sorted by distance (closest first), then offline drivers
+                                withDist.sort((a, b) => {
+                                  if (a.driver.isOnline && !b.driver.isOnline) return -1
+                                  if (!a.driver.isOnline && b.driver.isOnline) return 1
+                                  if (a.dist != null && b.dist != null) return a.dist - b.dist
+                                  if (a.dist != null) return -1
+                                  if (b.dist != null) return 1
+                                  return 0
+                                })
+                                if (withDist.length === 0) return (
+                                  <p className="text-center text-slate-500 py-4 text-sm">{t('No drivers found.', 'لم يتم العثور على سائقين.')}</p>
                                 )
-                              })}
-                              {drivers.filter(d => showOfflineDrivers || d.isOnline).length === 0 && (
-                                <p className="text-center text-slate-500 py-4 text-sm">{t('No drivers found.', 'لم يتم العثور على سائقين.')}</p>
-                              )}
+                                return withDist.map(({ driver, dist }) => {
+                                  const canServeArea = !localOrder.deliveryArea || !driver.deliveryAreas || driver.deliveryAreas.length === 0 || driver.deliveryAreas.some(area => area._id === localOrder.deliveryArea?._id)
+                                  const distLabel = dist != null
+                                    ? dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`
+                                    : null
+                                  return (
+                                    <div key={driver._id} className={`flex items-center justify-between p-3 rounded-xl border ${canServeArea ? 'border-slate-200' : 'border-orange-200 bg-orange-50'}`}>
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <p className="font-bold text-sm">{getDriverDisplayNameForBusiness(driver)}</p>
+                                          {driver.isOnline ? (
+                                            <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                          ) : (
+                                            <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-xs text-slate-500">{driver.phoneNumber}</p>
+                                          {distLabel && (
+                                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-md ${dist! <= 1 ? 'bg-green-100 text-green-700' : dist! <= 2 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                                              {distLabel}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <Button onClick={() => sendWhatsAppToDriver(driver)} size="sm" variant="ghost" className="h-8 w-8 p-0 text-green-600">
+                                          <MessageCircle className="w-4 h-4" />
+                                        </Button>
+                                        <Button onClick={() => assignDriver(driver._id)} disabled={assigningDriverId !== null} size="sm" className="h-8 px-3 rounded-lg text-xs font-bold">
+                                          {t('Assign', 'تعيين')}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )
+                                })
+                              })()}
                             </div>
                           )}
                           <Button onClick={() => setShowDriverSelector(false)} variant="ghost" size="sm" className="w-full mt-2 text-slate-500 hover:text-slate-700">
