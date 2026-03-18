@@ -1,8 +1,16 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import dynamic from 'next/dynamic'
 import { useLanguage } from '@/components/LanguageContext'
 import { usePusherStream } from '@/lib/usePusherStream'
+import { usePusherSubscription } from '@/hooks/usePusherSubscription'
+
+// Dynamically imported — Leaflet requires window; avoids SSR crash
+const CustomerTrackingMap = dynamic(
+  () => import('@/components/Orders/CustomerTrackingMap'),
+  { ssr: false }
+)
 import { getWhatsAppUrl, normalizePhoneForWhatsApp } from '@/lib/whatsapp'
 import { formatCurrency } from '@/lib/currency'
 import Link from 'next/link'
@@ -91,6 +99,8 @@ type TrackData = {
     tipIncludedInTotal?: boolean
     tipRemovedByDriver?: boolean
     driverArrivedAt?: string | null
+    deliveryLat?: number | null
+    deliveryLng?: number | null
     customerRequestedAt?: string | null
     customerRequestAcknowledgedAt?: string | null
     scheduledFor?: string | null
@@ -115,8 +125,9 @@ type TrackData = {
     }>
   }
   restaurant: { name_en?: string; name_ar?: string; whatsapp?: string } | null
-  driver: { _id: string; name: string; phoneNumber: string } | null
+  driver: { _id: string; name: string; phoneNumber: string; lat: number | null; lng: number | null } | null
   country?: string
+  businessLocation: { lat: number; lng: number } | null
 }
 
 /** Allows customer to share GPS location so driver can navigate to their address. */
@@ -1389,6 +1400,8 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   const [orderSelectedProductId, setOrderSelectedProductId] = useState<string | null>(null)
   const [editOrderSaving, setEditOrderSaving] = useState(false)
   const [showBrowseMenu, setShowBrowseMenu] = useState(false)
+  // Real-time driver GPS received directly from Pusher — overrides Sanity data while active
+  const [liveDriverLocation, setLiveDriverLocation] = useState<{ lat: number; lng: number } | null>(null)
 
   const fetchTrack = useCallback(async (isRefetch = false) => {
     if (!slug || !token?.trim()) return
@@ -1761,10 +1774,25 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
     }
   }
 
+  // Order status updates — triggers a full Sanity refetch for authoritative data
   usePusherStream(
     data?.order?._id ? `order-${data.order._id}` : null,
     'order-update',
     () => fetchTrack(true)
+  )
+
+  // Live driver GPS — data arrives directly from Pusher, no Sanity round-trip.
+  // Only active when driver is en-route (driver_on_the_way or out-for-delivery).
+  const isDriverEnRoute =
+    data?.order?.status === 'driver_on_the_way' || data?.order?.status === 'out-for-delivery'
+
+  const isLive = usePusherSubscription<{ lat: number; lng: number }>(
+    data?.order?._id ? `driver-location-${data.order._id}` : null,
+    'location-update',
+    useCallback((coords) => {
+      setLiveDriverLocation(coords)
+    }, []),
+    { enabled: isDriverEnRoute }
   )
 
   const trackUrl =
@@ -1886,8 +1914,14 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
             {statusLabel}
           </h1>
         </div>
-        <p className="mt-2 text-center text-white/90">
+        <p className="mt-2 text-center text-white/90 flex items-center justify-center gap-2">
           {t('Order', 'الطلب')} #{data.order.orderNumber ?? data.order._id?.slice(-6)}
+          {isDriverEnRoute && isLive && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-xs font-semibold text-white backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />
+              {t('Live', 'مباشر')}
+            </span>
+          )}
         </p>
         {isDineIn && tableNumber && (
           <p className="mt-1 text-center text-white/70 text-sm font-medium">
@@ -1900,6 +1934,24 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
           </p>
         )}
       </div>
+
+      {/* Live driver tracking map — shown during delivery for any delivery order with a driver assigned */}
+      {isDelivery && isDriverEnRoute && data.driver && (
+        <CustomerTrackingMap
+          orderId={data.order._id}
+          driverLat={liveDriverLocation?.lat ?? data.driver.lat ?? null}
+          driverLng={liveDriverLocation?.lng ?? data.driver.lng ?? null}
+          deliveryLat={data.order.deliveryLat ?? null}
+          deliveryLng={data.order.deliveryLng ?? null}
+          restaurantLat={data.businessLocation?.lat ?? null}
+          restaurantLng={data.businessLocation?.lng ?? null}
+          driverName={data.driver.name}
+          restaurantName={restaurantName}
+          orderStatus={data.order.status as 'driver_on_the_way' | 'out-for-delivery'}
+          isLive={isLive}
+          lang={lang as 'en' | 'ar'}
+        />
+      )}
 
       {/* Delivery ETA / Countdown + Price + Tip unified box */}
       <DeliveryETABox

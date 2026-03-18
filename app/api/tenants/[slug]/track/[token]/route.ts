@@ -55,6 +55,8 @@ export async function GET(
     customerRequestedAt?: string | null
     customerRequestAcknowledgedAt?: string | null
     estimatedDeliveryMinutes?: number | null
+    deliveryLat?: number | null
+    deliveryLng?: number | null
     scheduledFor?: string | null
     scheduleEditHistory?: Array<{
       previousScheduledFor: string
@@ -133,6 +135,8 @@ export async function GET(
       customerItemChangePreviousSubtotal,
       customerItemChangePreviousTotalAmount,
       customerItemChangeSummary,
+      deliveryLat,
+      deliveryLng,
       "site": site,
       "assignedDriver": assignedDriver
     }`,
@@ -144,15 +148,28 @@ export async function GET(
   }
 
   const driverRef = order.assignedDriver?._ref
-  let driver: { _id: string; name: string; phoneNumber: string } | null = null
+  let driver: { _id: string; name: string; phoneNumber: string; lat: number | null; lng: number | null } | null = null
   if (driverRef) {
-    const driverDoc = await freshClient.fetch<{ _id: string; name: string; nickname?: string; phoneNumber: string } | null>(
-      `*[_type == "driver" && _id == $driverId][0]{ _id, name, nickname, phoneNumber }`,
+    const driverDoc = await freshClient.fetch<{
+      _id: string
+      name: string
+      nickname?: string
+      phoneNumber: string
+      lastKnownLat?: number | null
+      lastKnownLng?: number | null
+    } | null>(
+      `*[_type == "driver" && _id == $driverId][0]{ _id, name, nickname, phoneNumber, lastKnownLat, lastKnownLng }`,
       { driverId: driverRef }
     )
     if (driverDoc) {
       const displayName = (driverDoc.nickname && driverDoc.nickname.trim()) || driverDoc.name
-      driver = { _id: driverDoc._id, name: displayName, phoneNumber: driverDoc.phoneNumber }
+      driver = {
+        _id: driverDoc._id,
+        name: displayName,
+        phoneNumber: driverDoc.phoneNumber,
+        lat: driverDoc.lastKnownLat ?? null,
+        lng: driverDoc.lastKnownLng ?? null,
+      }
     }
   }
 
@@ -165,8 +182,13 @@ export async function GET(
     { tenantId }
   )
 
-  const tenant = await freshClient.fetch<{ country?: string; city?: string } | null>(
-    `*[_type == "tenant" && _id == $tenantId][0]{ country, city }`,
+  const tenant = await freshClient.fetch<{
+    country?: string
+    city?: string
+    locationLat?: number | null
+    locationLng?: number | null
+  } | null>(
+    `*[_type == "tenant" && _id == $tenantId][0]{ country, city, locationLat, locationLng }`,
     { tenantId }
   )
 
@@ -214,6 +236,8 @@ export async function GET(
       customerItemChangePreviousSubtotal: order.customerItemChangePreviousSubtotal ?? null,
       customerItemChangePreviousTotalAmount: order.customerItemChangePreviousTotalAmount ?? null,
       customerItemChangeSummary: order.customerItemChangeSummary ?? [],
+      deliveryLat: order.deliveryLat ?? null,
+      deliveryLng: order.deliveryLng ?? null,
     },
     restaurant: restaurantInfo
       ? {
@@ -224,6 +248,9 @@ export async function GET(
       : null,
     driver,
     country: tenant?.country ?? undefined,
+    businessLocation: (tenant?.locationLat && tenant?.locationLng)
+      ? { lat: tenant.locationLat, lng: tenant.locationLng }
+      : null,
   },
     {
       headers: {
