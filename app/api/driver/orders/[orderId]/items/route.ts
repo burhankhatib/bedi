@@ -5,6 +5,7 @@ import { token } from '@/sanity/lib/token'
 import { pusherServer } from '@/lib/pusher'
 import { getShopperFeeByItemCount } from '@/lib/shopper-fee'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
+import { isDriverAtBusiness } from '@/lib/driver-items-lock'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -52,8 +53,8 @@ export async function PATCH(
     return NextResponse.json({ error: 'At least one item is required' }, { status: 400 })
   }
 
-  const driver = await client.fetch<{ _id: string } | null>(
-    `*[_type == "driver" && clerkUserId == $userId][0]{ _id }`,
+  const driver = await client.fetch<{ _id: string; lastKnownLat?: number; lastKnownLng?: number } | null>(
+    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, lastKnownLat, lastKnownLng }`,
     { userId }
   )
   if (!driver) return NextResponse.json({ error: 'Driver profile not found' }, { status: 404 })
@@ -68,6 +69,7 @@ export async function PATCH(
     subtotal?: number
     totalAmount?: number
     status?: string
+    driverPickedUpAt?: string
   } | null>(
     `*[_type == "order" && _id == $orderId][0]{
       _id,
@@ -78,7 +80,8 @@ export async function PATCH(
       requiresPersonalShopper,
       subtotal,
       totalAmount,
-      status
+      status,
+      driverPickedUpAt
     }`,
     { orderId }
   )
@@ -86,6 +89,25 @@ export async function PATCH(
   if (order.assignedDriverRef !== driver._id) return NextResponse.json({ error: 'Order is not assigned to you' }, { status: 403 })
   if (order.orderType !== 'delivery') return NextResponse.json({ error: 'Only delivery orders can be updated' }, { status: 400 })
   if (!order.siteRef) return NextResponse.json({ error: 'Order business is missing' }, { status: 400 })
+
+  if (order.status !== 'out-for-delivery' && !order.driverPickedUpAt) {
+    const tenant = await client.fetch<{ locationLat?: number; locationLng?: number } | null>(
+      `*[_type == "tenant" && _id == $id][0]{ locationLat, locationLng }`,
+      { id: order.siteRef }
+    )
+    const hasLocation = tenant?.locationLat != null && tenant?.locationLng != null
+    if (hasLocation && !isDriverAtBusiness(driver.lastKnownLat, driver.lastKnownLng, tenant?.locationLat, tenant?.locationLng)) {
+      const restaurant = await client.fetch<{ name_en?: string; name_ar?: string } | null>(
+        `*[_type == "restaurantInfo" && site._ref == $id][0]{ name_en, name_ar }`,
+        { id: order.siteRef }
+      )
+      const businessName = restaurant?.name_ar || restaurant?.name_en || 'المتجر'
+      return NextResponse.json(
+        { error: `يجب أن تكون في ${businessName} لتحديث العناصر.`, errorEn: `You must be at ${businessName} to update items.` },
+        { status: 403 }
+      )
+    }
+  }
 
   const productIds = [
     ...new Set(

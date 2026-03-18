@@ -8,7 +8,7 @@ import {
   Store, MapPin, Navigation, Flag, Wallet, Receipt, Truck,
   User, Smartphone, CircleAlert, RefreshCw, ArrowDown, History,
   ChevronDown, Package, Calculator, Phone, Trash2, ShieldCheck, Heart, X,
-  LayoutGrid,
+  LayoutGrid, Lock,
 } from 'lucide-react'
 import { SiWaze, SiGooglemaps } from 'react-icons/si'
 import { useToast } from '@/components/ui/ToastProvider'
@@ -87,6 +87,12 @@ type DriverOrder = {
   customerItemChangeSummary?: Array<{ type?: string; fromName?: string; toName?: string; fromQuantity?: number; toQuantity?: number; note?: string }>
   /** True when business manually assigned and driver has not confirmed yet. */
   needsConfirmation?: boolean
+  /** True when items are hidden until driver is within 50m of business. */
+  itemsLocked?: boolean
+  /** Business name shown when items are locked. */
+  itemsLockedBusinessName?: string
+  /** True when order is in pending pool (unclaimed). */
+  isPending?: boolean
 }
 
 type ReplacementProduct = {
@@ -2001,28 +2007,51 @@ function DriverOrdersV2Content() {
                   )}
                 </div>
 
-                {(activeOrder.items?.length ?? 0) > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => openOrderDetails(activeOrder)}
-                    className={`w-full mb-4 rounded-2xl font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md flex items-center justify-center gap-2 touch-manipulation ${
-                      detailsOrderId === activeOrder.orderId
-                        ? 'bg-amber-400 text-slate-950 border-2 border-amber-300'
-                        : 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-amber-500/20'
-                    }`}
-                  >
-                    <Receipt className="h-5 w-5 shrink-0" />
-                    {detailsOrderId === activeOrder.orderId
-                      ? t('Hide order details', 'إخفاء تفاصيل الطلب')
-                      : t('Order Details', 'تفاصيل الطلب')}
-                    {activeOrder.requiresPersonalShopper && (
-                      <span className="text-slate-700/80 text-xs font-semibold">
-                        ({t('Personal Shopper', 'متسوق شخصي')})
-                      </span>
-                    )}
-                  </button>
+                {(activeOrder.itemsLocked || (activeOrder.items?.length ?? 0) > 0) && (
+                  activeOrder.itemsLocked ? (
+                    <div className="w-full mb-4 rounded-2xl border border-slate-600/60 bg-slate-800/50 p-4 opacity-75">
+                      <div className="flex items-center gap-2 text-slate-400 mb-2">
+                        <Lock className="h-5 w-5 shrink-0" />
+                        <span className="font-black text-slate-400">
+                          {t("Order's list locked", 'قائمة الطلب مقفلة')}
+                        </span>
+                      </div>
+                      <p className="text-slate-500 text-sm leading-relaxed">
+                        {t(
+                          'You have to be at',
+                          'يجب أن تكون في'
+                        )} {activeOrder.itemsLockedBusinessName || activeOrder.businessName}{' '}
+                        {t(
+                          'to be able to view the items you need to collect.',
+                          'لعرض العناصر التي تحتاج لجمعها.'
+                        )}
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => openOrderDetails(activeOrder)}
+                        className={`w-full mb-4 rounded-2xl font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md flex items-center justify-center gap-2 touch-manipulation ${
+                          detailsOrderId === activeOrder.orderId
+                            ? 'bg-amber-400 text-slate-950 border-2 border-amber-300'
+                            : 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-amber-500/20'
+                        }`}
+                      >
+                        <Receipt className="h-5 w-5 shrink-0" />
+                        {detailsOrderId === activeOrder.orderId
+                          ? t('Hide order details', 'إخفاء تفاصيل الطلب')
+                          : t('Order Details', 'تفاصيل الطلب')}
+                        {activeOrder.requiresPersonalShopper && (
+                          <span className="text-slate-700/80 text-xs font-semibold">
+                            ({t('Personal Shopper', 'متسوق شخصي')})
+                          </span>
+                        )}
+                      </button>
+                      {renderOrderDetailsPanel(activeOrder)}
+                    </>
+                  )
                 )}
-                {renderOrderDetailsPanel(activeOrder)}
 
                 {(activeOrder.customerName || activeOrder.customerPhone) && (
                   <div className="rounded-3xl bg-slate-800/40 border border-slate-700/50 p-4 mb-4">
@@ -2668,28 +2697,49 @@ function DriverOrdersV2Content() {
                     )}
                   </div>
 
-                  {(o.items?.length ?? 0) > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => openOrderDetails(o)}
-                      className={`w-full mb-4 rounded-2xl font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md flex items-center justify-center gap-2 touch-manipulation ${
-                        detailsOrderId === o.orderId
-                          ? 'bg-amber-400 text-slate-950 border-2 border-amber-300'
-                          : 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-amber-500/20'
-                      }`}
-                    >
-                      <Receipt className="h-5 w-5 shrink-0" />
-                      {detailsOrderId === o.orderId
-                        ? t('Hide order details', 'إخفاء تفاصيل الطلب')
-                        : t('Order Details', 'تفاصيل الطلب')}
-                      {o.requiresPersonalShopper && (
-                        <span className="text-slate-700/80 text-xs font-semibold">
-                          ({t('Personal Shopper', 'متسوق شخصي')})
-                        </span>
-                      )}
-                    </button>
+                  {(o.itemsLocked || (o.items?.length ?? 0) > 0) && (
+                    o.itemsLocked ? (
+                      <div className="w-full mb-4 rounded-2xl border border-slate-600/60 bg-slate-800/50 p-4 opacity-75">
+                        <div className="flex items-center gap-2 text-slate-400 mb-2">
+                          <Lock className="h-5 w-5 shrink-0" />
+                          <span className="font-black text-slate-400">
+                            {t("Order's list locked", 'قائمة الطلب مقفلة')}
+                          </span>
+                        </div>
+                        <p className="text-slate-500 text-sm leading-relaxed">
+                          {o.isPending
+                            ? t(
+                                'Accept the order and go to the business to view items.',
+                                'اقبل الطلب واذهب إلى المتجر لعرض العناصر.'
+                              )
+                            : `${t('You have to be at', 'يجب أن تكون في')} ${o.itemsLockedBusinessName || o.businessName} ${t('to be able to view the items you need to collect.', 'لعرض العناصر التي تحتاج لجمعها.')}`}
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openOrderDetails(o)}
+                          className={`w-full mb-4 rounded-2xl font-black py-3.5 px-4 text-sm min-h-[52px] shadow-md flex items-center justify-center gap-2 touch-manipulation ${
+                            detailsOrderId === o.orderId
+                              ? 'bg-amber-400 text-slate-950 border-2 border-amber-300'
+                              : 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-amber-500/20'
+                          }`}
+                        >
+                          <Receipt className="h-5 w-5 shrink-0" />
+                          {detailsOrderId === o.orderId
+                            ? t('Hide order details', 'إخفاء تفاصيل الطلب')
+                            : t('Order Details', 'تفاصيل الطلب')}
+                          {o.requiresPersonalShopper && (
+                            <span className="text-slate-700/80 text-xs font-semibold">
+                              ({t('Personal Shopper', 'متسوق شخصي')})
+                            </span>
+                          )}
+                        </button>
+                        {renderOrderDetailsPanel(o)}
+                      </>
+                    )
                   )}
-                  {renderOrderDetailsPanel(o)}
 
                   {/* ── Financial Summary ─────────────────── */}
                   <div className="rounded-3xl border border-slate-700/60 bg-slate-800/30 p-4 mb-4 space-y-3">

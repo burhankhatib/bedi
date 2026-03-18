@@ -418,6 +418,13 @@ export const orderType = defineType({
       description: 'When the driver picked up the order (out for delivery)',
     }),
     defineField({
+      name: 'driverArrivedAtBusinessAt',
+      title: 'Driver Arrived At Business At',
+      type: 'datetime',
+      description: 'When the driver first entered 50m of the business. Used for FCM (send once) and items unlock.',
+      hidden: ({ parent }) => parent?.orderType !== 'delivery',
+    }),
+    defineField({
       name: 'estimatedDeliveryMinutes',
       title: 'Estimated Delivery Minutes',
       type: 'number',

@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { urlFor } from '@/sanity/lib/image'
+import { isDriverAtBusiness } from '@/lib/driver-items-lock'
 
 const freshClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -50,11 +51,17 @@ type DriverOrderView = {
   requiresPersonalShopper?: boolean
   shopperFee?: number
   items?: Array<{ productId?: string; productName?: string; quantity?: number; saleUnit?: string; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
+  /** True when items are hidden until driver is within 50m of business. */
+  itemsLocked?: boolean
+  /** Business name shown when items are locked (for explanatory message). */
+  itemsLockedBusinessName?: string
   customerItemChangeStatus?: 'pending' | 'approved' | 'contact_requested' | 'driver_declined' | null
   customerRequestedItemChanges?: boolean
   customerItemChangeSummary?: Array<{ type?: string; fromName?: string; toName?: string; fromQuantity?: number; toQuantity?: number; note?: string }>
   /** True when business manually assigned and driver has not confirmed yet. */
   needsConfirmation?: boolean
+  /** True when order is in pending pool (no driver assigned yet). */
+  isPending?: boolean
 }
 
 export async function GET() {
@@ -67,8 +74,8 @@ export async function GET() {
   }
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const driver = await freshClient.fetch<{ _id: string; country?: string; city?: string; isOnline?: boolean; blockedBySuperAdmin?: boolean } | null>(
-    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, country, city, isOnline, blockedBySuperAdmin }`,
+  const driver = await freshClient.fetch<{ _id: string; country?: string; city?: string; isOnline?: boolean; blockedBySuperAdmin?: boolean; lastKnownLat?: number; lastKnownLng?: number } | null>(
+    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, country, city, isOnline, blockedBySuperAdmin, lastKnownLat, lastKnownLng }`,
     { userId }
   )
   if (!driver) return NextResponse.json({ pending: [], myDeliveries: [], myCompletedToday: [] })
@@ -224,7 +231,7 @@ export async function GET() {
     })
   )
 
-  const toView = (o: (typeof ordersWithSite)[0]): DriverOrderView => {
+  const toView = (o: (typeof ordersWithSite)[0], opts: { isPending: boolean }): DriverOrderView => {
     const total = o.totalAmount ?? 0
     const fee = o.deliveryFee ?? 0
     const shopperFee = o.shopperFee ?? 0
@@ -232,12 +239,32 @@ export async function GET() {
     const areaName = o.deliveryArea?.name_en || o.deliveryArea?.name_ar || ''
     const areaNameAr = o.deliveryArea?.name_ar || ''
     const needsConfirmation = !!(o.manualAssignmentAt && !o.driverAcceptedAt)
+    const businessName = site?.businessName ?? 'Business'
+    const businessLat = site?.businessLocationLat
+    const businessLng = site?.businessLocationLng
+
+    let itemsLocked = false
+    let displayItems = o.items ?? []
+    if (opts.isPending) {
+      itemsLocked = true
+      displayItems = []
+    } else if (o.status !== 'out-for-delivery' && !o.driverPickedUpAt) {
+      const hasBusinessLocation = businessLat != null && businessLng != null && Number.isFinite(businessLat) && Number.isFinite(businessLng)
+      if (hasBusinessLocation) {
+        const atBusiness = isDriverAtBusiness(driver.lastKnownLat, driver.lastKnownLng, businessLat, businessLng)
+        if (!atBusiness) {
+          itemsLocked = true
+          displayItems = []
+        }
+      }
+    }
+
     return {
       orderId: o._id,
       orderNumber: o.orderNumber,
       customerName: o.customerName ?? '',
       customerPhone: o.customerPhone ?? '',
-      businessName: site?.businessName ?? 'Business',
+      businessName,
       businessAddress: site?.businessAddress ?? '',
       businessAddressAr: site?.businessAddressAr,
       businessMapsLink: site?.businessMapsLink,
@@ -270,7 +297,7 @@ export async function GET() {
       driverArrivedAt: o.driverArrivedAt,
       requiresPersonalShopper: o.requiresPersonalShopper,
       shopperFee: o.shopperFee,
-      items: (o.items ?? []).map((it) => {
+      items: displayItems.map((it) => {
         const { productImage, ...rest } = it
         let imageUrl = ''
         if (productImage) {
@@ -282,6 +309,9 @@ export async function GET() {
         }
         return { ...rest, imageUrl } as { productId?: string; productName?: string; quantity?: number; saleUnit?: string; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }
       }),
+      itemsLocked: itemsLocked || undefined,
+      itemsLockedBusinessName: itemsLocked ? businessName : undefined,
+      isPending: opts.isPending,
       customerItemChangeStatus: o.customerItemChangeStatus ?? null,
       customerRequestedItemChanges: o.customerRequestedItemChanges ?? false,
       customerItemChangeSummary: o.customerItemChangeSummary ?? [],
@@ -317,18 +347,18 @@ export async function GET() {
         isOrderWithin24h(o) &&
         !driverDeclinedOrder(o)
       ) {
-        pending.push(toView(o))
+        pending.push(toView(o, { isPending: true }))
       }
       continue
     }
     if (o.status === 'completed') {
       if (o.completedAt && o.completedAt >= startOfTodayISO) {
-        myCompletedToday.push(toView(o))
+        myCompletedToday.push(toView(o, { isPending: false }))
       }
       continue
     }
     if (isOrderWithin24h(o)) {
-      myDeliveries.push(toView(o))
+      myDeliveries.push(toView(o, { isPending: false }))
     }
   }
 

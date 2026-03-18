@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
 import { getVariantOptionModifier } from '@/lib/cart-price'
+import { isDriverAtBusiness } from '@/lib/driver-items-lock'
 
 type VariantOption = {
   label_en?: string
@@ -49,18 +50,37 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { orderId } = await params
-  const driver = await client.fetch<{ _id: string } | null>(
-    `*[_type == "driver" && clerkUserId == $userId][0]{ _id }`,
+  const driver = await client.fetch<{ _id: string; lastKnownLat?: number; lastKnownLng?: number } | null>(
+    `*[_type == "driver" && clerkUserId == $userId][0]{ _id, lastKnownLat, lastKnownLng }`,
     { userId }
   )
   if (!driver) return NextResponse.json({ error: 'Driver profile not found' }, { status: 404 })
 
-  const order = await client.fetch<{ assignedDriverRef?: string; siteRef?: string } | null>(
-    `*[_type == "order" && _id == $orderId][0]{ "assignedDriverRef": assignedDriver._ref, "siteRef": site._ref }`,
+  const order = await client.fetch<{ assignedDriverRef?: string; siteRef?: string; status?: string; driverPickedUpAt?: string } | null>(
+    `*[_type == "order" && _id == $orderId][0]{ "assignedDriverRef": assignedDriver._ref, "siteRef": site._ref, status, driverPickedUpAt }`,
     { orderId }
   )
   if (!order?.siteRef) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
   if (order.assignedDriverRef !== driver._id) return NextResponse.json({ error: 'Order not assigned to you' }, { status: 403 })
+
+  if (order.status !== 'out-for-delivery' && !order.driverPickedUpAt) {
+    const tenant = await client.fetch<{ locationLat?: number; locationLng?: number } | null>(
+      `*[_type == "tenant" && _id == $id][0]{ locationLat, locationLng }`,
+      { id: order.siteRef }
+    )
+    const hasLocation = tenant?.locationLat != null && tenant?.locationLng != null
+    if (hasLocation && !isDriverAtBusiness(driver.lastKnownLat, driver.lastKnownLng, tenant?.locationLat, tenant?.locationLng)) {
+      const restaurant = await client.fetch<{ name_en?: string; name_ar?: string } | null>(
+        `*[_type == "restaurantInfo" && site._ref == $id][0]{ name_en, name_ar }`,
+        { id: order.siteRef }
+      )
+      const businessName = restaurant?.name_ar || restaurant?.name_en || 'المتجر'
+      return NextResponse.json(
+        { error: `يجب أن تكون في ${businessName} لعرض القائمة.`, errorEn: `You must be at ${businessName} to view the menu.` },
+        { status: 403 }
+      )
+    }
+  }
 
   const siteId = order.siteRef
 
