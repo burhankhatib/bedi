@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { client } from '@/sanity/lib/client'
+import { sanityFetch } from '@/sanity/lib/fetch'
 import { urlFor } from '@/sanity/lib/image'
 
 /** Cached per URL (city) for 60s to reduce Sanity API usage. */
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const city = searchParams.get('city') ?? ''
 
-  const { categories, tenants } = await client.fetch<{
+  const { categories, tenants } = await sanityFetch<{
     categories: Array<{
       _id: string
       value: string
@@ -35,7 +35,8 @@ export async function GET(req: NextRequest) {
       },
       "tenants": *[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now())))]{ businessType }
     }`,
-    { city }
+    { city },
+    { revalidate: 60, tag: 'home-categories' }
   )
 
   const tenantCounts = new Map<string, number>()

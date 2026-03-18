@@ -9,6 +9,7 @@ import { useLanguage } from '@/components/LanguageContext'
 const REFRESH_THRESHOLD = 80
 const FORCE_RELOAD_THRESHOLD = 150
 const MAX_PULL = 180
+const MIN_REFRESH_INTERVAL_MS = 30_000
 
 function isAtTop(): boolean {
   if (typeof window === 'undefined') return true
@@ -43,6 +44,7 @@ export function DriverPullToRefresh({ children }: { children: React.ReactNode })
   const [isForceReloading, setIsForceReloading] = useState(false)
   const startYRef = useRef<number | null>(null)
   const setPullDistanceRef = useRef((n: number) => setPullDistance(n))
+  const lastRefreshAtRef = useRef<number>(0)
 
   const isOrdersPage = pathname?.startsWith?.('/driver/orders') ?? false
   if (isOrdersPage || isIOSStandalonePWA()) return <>{children}</>
@@ -100,9 +102,16 @@ export function DriverPullToRefresh({ children }: { children: React.ReactNode })
   const handleTouchEnd = useCallback(async () => {
     if (pullDistance > REFRESH_THRESHOLD && !isRefreshing) {
       const forceReload = pullDistance >= FORCE_RELOAD_THRESHOLD
+      const now = Date.now()
+      if (now - lastRefreshAtRef.current < MIN_REFRESH_INTERVAL_MS && !forceReload) {
+        setPullDistance(0)
+        setStartY(null)
+        return
+      }
       setIsRefreshing(true)
       setIsForceReloading(forceReload)
       setPullDistance(REFRESH_THRESHOLD)
+      lastRefreshAtRef.current = now
       if (forceReload) {
         window.location.reload()
         return

@@ -1,5 +1,6 @@
 import { cache } from 'react'
 import { client, clientNoCdn } from '@/sanity/lib/client'
+import { sanityFetch } from '@/sanity/lib/fetch'
 
 export type Tenant = {
   _id: string
@@ -145,7 +146,7 @@ export function isTenantSubscriptionExpired(tenant: {
   return false
 }
 
-/** Get tenant by URL slug (e.g. from /t/[slug]). Uses no-CDN for fresh data on menu pages. Cached per request so metadata + page share one fetch. */
+/** Get tenant by URL slug (e.g. from /t/[slug]). Uses CDN by default. Cached per request so metadata + page share one fetch. */
 export const getTenantBySlug = cache(async function getTenantBySlug(
   slug: string,
   options?: { useCdn?: boolean }
@@ -154,6 +155,64 @@ export const getTenantBySlug = cache(async function getTenantBySlug(
   const c = options?.useCdn === false ? clientNoCdn : client
   const t = await c.fetch<Tenant | null>(TENANT_QUERY, { slug })
   return t ?? null
+})
+
+/** Combined tenant + restaurantInfo for store page metadata. One query instead of two. */
+const TENANT_WITH_RESTAURANT_QUERY = `*[_type == "tenant" && slug.current == $slug][0] {
+  _id,
+  "slug": slug.current,
+  name,
+  businessType,
+  clerkUserId,
+  clerkUserEmail,
+  coOwnerEmails,
+  subscriptionStatus,
+  subscriptionPlan,
+  createdAt,
+  businessCreatedAt,
+  subscriptionExpiresAt,
+  subscriptionLastPaymentAt,
+  paypalSubscriptionId,
+  deactivated,
+  deactivateUntil,
+  defaultLanguage,
+  supportsDineIn,
+  supportsReceiveInPerson,
+  supportsDelivery,
+  supportsDriverPickup,
+  deliveryPricingMode,
+  deliveryFeeMin,
+  deliveryFeeMax,
+  deliveryMaxDistanceKm,
+  country,
+  city,
+  blockedBySuperAdmin,
+  catalogHidePrices,
+  locationLat,
+  locationLng,
+  requiresPersonalShopper,
+  shopperFee,
+  "restaurantInfo": *[_type == "restaurantInfo" && site._ref == ^._id][0]{ name_en, name_ar, tagline_en, tagline_ar }
+}`
+
+export type TenantWithRestaurant = Tenant & {
+  restaurantInfo?: { name_en?: string; name_ar?: string; tagline_en?: string; tagline_ar?: string } | null
+}
+
+/** Tenant + restaurantInfo in one request. Use for store page metadata + initial page load. */
+export const getTenantWithRestaurant = cache(async function getTenantWithRestaurant(
+  slug: string,
+  options?: { useCdn?: boolean }
+): Promise<TenantWithRestaurant | null> {
+  if (!slug) return null
+  if (options?.useCdn === false) {
+    const t = await clientNoCdn.fetch<TenantWithRestaurant | null>(TENANT_WITH_RESTAURANT_QUERY, { slug })
+    return t ?? null
+  }
+  return sanityFetch<TenantWithRestaurant | null>(TENANT_WITH_RESTAURANT_QUERY, { slug }, {
+    revalidate: 3600,
+    tag: 'store-tenant',
+  }) ?? null
 })
 
 /** Get all tenants for this user (by Clerk user ID and optionally by owner email so same email = same list). */

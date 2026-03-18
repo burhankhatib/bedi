@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { client } from '@/sanity/lib/client'
+import { sanityFetch } from '@/sanity/lib/fetch'
 import { urlFor } from '@/sanity/lib/image'
 import { normalizeSectionKey } from '@/lib/section-key'
 
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
     ...(subcategory ? { subcategory } : {}),
   }
 
-  const rawTenants = await client.fetch<
+  const rawTenants = await sanityFetch<
     Array<{
       _id: string
       name: string
@@ -109,7 +109,8 @@ export async function GET(req: NextRequest) {
       "popularProducts": *[_type == "product" && (site._ref == ^._id || !defined(site)) && isPopular == true && ((isAvailable == true || isAvailable == null) || (isAvailable == false && availableAgainAt != null && now() > availableAgainAt))] | order(sortOrder asc) [0...3] { title_en, title_ar },
       "areas": *[_type == "area" && site._ref == ^._id && isActive == true] | order(sortOrder asc) { name_en, name_ar }
     }`,
-    params
+    params,
+    { revalidate: 60, tag: 'home-tenants' }
   )
 
   let tenants = rawTenants ?? []

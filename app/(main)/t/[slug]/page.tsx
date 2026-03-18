@@ -1,14 +1,14 @@
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
-import { getTenantBySlug } from '@/lib/tenant'
+import { getTenantWithRestaurant } from '@/lib/tenant'
 import { getSupportsDineIn } from '@/lib/constants'
-import { client } from '@/sanity/lib/client'
+import { sanityFetch } from '@/sanity/lib/fetch'
 import { MENU_QUERY_TENANT } from '@/sanity/lib/queries'
 import { applyProductSortToMenuData } from '@/lib/sort-menu-products'
 import MenuClient from '@/components/Menu/MenuClient'
 import { InitialData } from '@/app/types/menu'
 
-export const revalidate = 60
+export const revalidate = 3600
 
 const defaultData: InitialData = {
   categories: [],
@@ -23,18 +23,10 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>
 }): Promise<Metadata> {
   const { slug } = await params
-  const tenant = await getTenantBySlug(slug)
+  const tenant = await getTenantWithRestaurant(slug)
   if (!tenant) return { title: 'Not found' }
 
-  const restaurantInfo = await client.fetch<{
-    name_en?: string
-    name_ar?: string
-    tagline_en?: string
-    tagline_ar?: string
-  } | null>(
-    `*[_type == "restaurantInfo" && site._ref == $siteId][0]{ name_en, name_ar, tagline_en, tagline_ar }`,
-    { siteId: tenant._id }
-  )
+  const restaurantInfo = tenant.restaurantInfo
   const name = restaurantInfo?.name_en || restaurantInfo?.name_ar || tenant.name || 'Menu'
   const description =
     restaurantInfo?.tagline_en || restaurantInfo?.tagline_ar || `${name} — Menu & order`
@@ -93,7 +85,7 @@ export default async function TenantMenuPage({
   const tableParam = resolvedSearchParams?.table
   const initialTableNumber = typeof tableParam === 'string' ? tableParam.trim() : Array.isArray(tableParam) ? (tableParam[0] ?? '').trim() : null
   const { slug } = await params
-  const tenantFromSlug = await getTenantBySlug(slug)
+  const tenantFromSlug = await getTenantWithRestaurant(slug)
   if (!tenantFromSlug) notFound()
   if (tenantFromSlug.blockedBySuperAdmin) {
     redirect('/suspended?type=business')
@@ -113,7 +105,11 @@ export default async function TenantMenuPage({
   let menuData: InitialData = defaultData
 
   try {
-    const menuResult = await client.fetch<InitialData>(MENU_QUERY_TENANT, { siteId })
+    const menuResult = await sanityFetch<InitialData>(MENU_QUERY_TENANT, { siteId }, {
+      revalidate: 3600,
+      tags: ['bedi-dev.store-page'],
+      tag: 'store-page',
+    })
     menuData = menuResult ?? defaultData
     if (menuData.categories?.length) {
       applyProductSortToMenuData(menuData.categories)

@@ -345,26 +345,25 @@ export function OrderNotifications({
       setNotificationSound(initialSound)
       return
     }
-    // Fetch the selected notification sound from restaurant info (global orders page)
+    // In-memory cache: notification sound is global, rarely changes. Avoid re-fetch on every mount.
+    const cached = (globalThis as unknown as { __orderNotificationSound?: string | null }).__orderNotificationSound
+    if (cached !== undefined) {
+      setNotificationSound(cached || '1.wav')
+      return
+    }
     const fetchNotificationSound = async () => {
       try {
-        console.log('[OrderNotifications] Fetching notification sound setting...')
         const { client } = await import('@/sanity/lib/client')
         const query = `*[_type == "restaurantInfo"][0].notificationSound`
         const sound = await client.fetch(query)
-        if (sound) {
-          console.log('[OrderNotifications] Notification sound set to:', sound)
-          setNotificationSound(sound)
-        } else {
-          console.log('[OrderNotifications] No notification sound found, using default: 1.wav')
-          setNotificationSound('1.wav')
-        }
-      } catch (error) {
-        console.error('[OrderNotifications] Error fetching notification sound:', error)
+        const value = sound || '1.wav'
+        ;(globalThis as unknown as { __orderNotificationSound?: string | null }).__orderNotificationSound = sound || null
+        setNotificationSound(value)
+      } catch {
+        ;(globalThis as unknown as { __orderNotificationSound?: string | null }).__orderNotificationSound = null
         setNotificationSound('1.wav')
       }
     }
-
     fetchNotificationSound()
   }, [initialSound])
 

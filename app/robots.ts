@@ -4,10 +4,8 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://www.bedi.delivery";
 
 /**
- * robots.txt for crawlers. Sitemap URLs:
- * - Primary: /sitemap/sitemap.xml (use this in GSC if /sitemap.xml was cached as failed)
- * - Fallback: /sitemap.xml
- * GSC tip: Submit with trailing slash (e.g. .../sitemap/sitemap.xml/) to force fresh fetch.
+ * robots.txt for crawlers. Sitemaps use Next.js native sitemap.ts (served at /sitemap.xml and /sitemap/sitemap.xml).
+ * GSC tip: If "couldn't fetch" persists, submit /sitemap/sitemap.xml (different path = bypasses GSC cache).
  */
 export default function robots(): MetadataRoute.Robots {
   return {

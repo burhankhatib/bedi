@@ -31,6 +31,24 @@ export interface SitemapEntry {
   priority: number;
 }
 
+/** Convert to Next.js MetadataRoute.Sitemap format for native sitemap.ts */
+export function toMetadataRouteSitemap(entries: SitemapEntry[]): Array<{
+  url: string;
+  lastModified?: string | Date;
+  changeFrequency?: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
+  priority?: number;
+}> {
+  return entries.map((e) => {
+    const entry: { url: string; lastModified?: Date; changeFrequency?: "daily" | "weekly" | "monthly" | "yearly" | "never"; priority?: number } = {
+      url: e.url,
+      changeFrequency: e.changeFrequency as "daily" | "weekly" | "monthly" | "yearly" | "never",
+      priority: e.priority,
+    };
+    if (e.lastModified) entry.lastModified = new Date(e.lastModified);
+    return entry;
+  });
+}
+
 /** Fetch all sitemap entries (static + tenant pages from Sanity). */
 export async function getSitemapEntries(): Promise<SitemapEntry[]> {
   const entries: SitemapEntry[] = [...STATIC_PAGES.map((p) => ({ ...p, lastModified: null }))];

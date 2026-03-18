@@ -9,6 +9,8 @@ import { useLanguage } from '@/components/LanguageContext'
 const REFRESH_THRESHOLD = 80
 const FORCE_RELOAD_THRESHOLD = 150
 const MAX_PULL = 180
+/** Minimum seconds between refresh triggers. Prevents Sanity API spike when user repeatedly pulls. */
+const MIN_REFRESH_INTERVAL_MS = 30_000
 
 function isAtTop(): boolean {
   if (typeof window === 'undefined') return true
@@ -41,6 +43,7 @@ export function CustomerPullToRefresh({ children }: { children: React.ReactNode 
   const [isForceReloading, setIsForceReloading] = useState(false)
   const startYRef = useRef<number | null>(null)
   const setPullDistanceRef = useRef((n: number) => setPullDistance(n))
+  const lastRefreshAtRef = useRef<number>(0)
 
   if (isIOSStandalonePWA()) return <>{children}</>
 
@@ -97,9 +100,18 @@ export function CustomerPullToRefresh({ children }: { children: React.ReactNode 
   const handleTouchEnd = useCallback(async () => {
     if (pullDistance > REFRESH_THRESHOLD && !isRefreshing) {
       const forceReload = pullDistance >= FORCE_RELOAD_THRESHOLD
+      const now = Date.now()
+      const elapsed = now - lastRefreshAtRef.current
+      if (elapsed < MIN_REFRESH_INTERVAL_MS && !forceReload) {
+        // Throttle: skip refresh if we refreshed recently (reduces Sanity API spikes)
+        setPullDistance(0)
+        setStartY(null)
+        return
+      }
       setIsRefreshing(true)
       setIsForceReloading(forceReload)
       setPullDistance(REFRESH_THRESHOLD)
+      lastRefreshAtRef.current = now
       if (forceReload) {
         window.location.reload()
         return
