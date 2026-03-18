@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useLanguage } from '@/components/LanguageContext'
 import { usePusherStream } from '@/lib/usePusherStream'
@@ -1786,13 +1786,23 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
   const isDriverEnRoute =
     data?.order?.status === 'driver_on_the_way' || data?.order?.status === 'out-for-delivery'
 
+  // Auth params for the private Pusher channel.
+  // The tracking token (from the URL) proves the customer owns this order.
+  const pusherAuthParams = useMemo(
+    () =>
+      data?.order?._id
+        ? { tracking_token: token, order_id: data.order._id }
+        : undefined,
+    [token, data?.order?._id]
+  )
+
   const isLive = usePusherSubscription<{ lat: number; lng: number }>(
-    data?.order?._id ? `driver-location-${data.order._id}` : null,
+    data?.order?._id ? `private-driver-location-${data.order._id}` : null,
     'location-update',
     useCallback((coords) => {
       setLiveDriverLocation(coords)
     }, []),
-    { enabled: isDriverEnRoute }
+    { enabled: isDriverEnRoute, authParams: pusherAuthParams }
   )
 
   const trackUrl =

@@ -314,7 +314,7 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
 
     // Wake up online drivers: force them to send a fresh GPS ping immediately.
     // This ensures Tier 2 and Tier 3 have accurate locations.
-    triggerPusherEvent('driver-global', 'refresh-location', { orderId })
+    triggerPusherEvent('private-driver-global', 'refresh-location', { orderId })
 
     const { matching, centralByClerk } = await getEligibleDrivers(ctx)
     const payload = buildPushPayload(ctx)

@@ -142,6 +142,76 @@ const customerIcon = typeof window !== 'undefined' ? L.divIcon({
   iconAnchor: [22, 58],
 }) : null
 
+/* ─── SmoothDriverMarker ──────────────────────────────────────────────── */
+
+/**
+ * Renders the driver's Leaflet marker and animates it smoothly between GPS
+ * pings using requestAnimationFrame + direct setLatLng calls.
+ *
+ * Why not React state?  Calling setState 60 times/second for 2 seconds would
+ * trigger 120 re-renders of the entire MapContainer (tiles, polylines, other
+ * markers).  Direct Leaflet manipulation is zero-cost and imperceptible to
+ * React's diffing.  The ref is typed as L.Marker via react-leaflet's forwardRef.
+ */
+const GLIDE_MS = 2000
+
+function SmoothDriverMarker({ lat, lng, icon }: { lat: number; lng: number; icon: L.DivIcon | null }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markerRef = useRef<any>(null)
+  const animRef = useRef<number | null>(null)
+  // Track the displayed position so each new GPS ping starts from the right spot
+  const displayPos = useRef<[number, number]>([lat, lng])
+
+  useEffect(() => {
+    const toLat = lat
+    const toLng = lng
+    const [fromLat, fromLng] = displayPos.current
+
+    // Cancel any in-progress glide
+    if (animRef.current !== null) {
+      cancelAnimationFrame(animRef.current)
+      animRef.current = null
+    }
+
+    const startTime = performance.now()
+
+    const step = (now: number) => {
+      const t = Math.min((now - startTime) / GLIDE_MS, 1)
+      const curLat = fromLat + (toLat - fromLat) * t
+      const curLng = fromLng + (toLng - fromLng) * t
+
+      // Update Leaflet DOM directly — no React re-render
+      markerRef.current?.setLatLng([curLat, curLng])
+      displayPos.current = [curLat, curLng]
+
+      if (t < 1) {
+        animRef.current = requestAnimationFrame(step)
+      } else {
+        animRef.current = null
+      }
+    }
+
+    animRef.current = requestAnimationFrame(step)
+
+    return () => {
+      if (animRef.current !== null) {
+        cancelAnimationFrame(animRef.current)
+        animRef.current = null
+      }
+    }
+  }, [lat, lng])
+
+  if (!icon) return null
+  return (
+    <Marker
+      ref={markerRef}
+      position={[displayPos.current[0], displayPos.current[1]]}
+      icon={icon}
+      zIndexOffset={300}
+    />
+  )
+}
+
 /* ─── MapBoundsUpdater ────────────────────────────────────────────────── */
 
 function MapBoundsUpdater({
@@ -361,9 +431,9 @@ export default function CustomerTrackingMap({
         </>
       )}
 
-      {/* Driver marker — live-updating */}
-      {hasDriver && driverIcon && (
-        <Marker position={[driverLat!, driverLng!]} icon={driverIcon} zIndexOffset={300} />
+      {/* Driver marker — glides smoothly between GPS pings */}
+      {hasDriver && (
+        <SmoothDriverMarker lat={driverLat!} lng={driverLng!} icon={driverIcon} />
       )}
 
       {/* Restaurant marker */}

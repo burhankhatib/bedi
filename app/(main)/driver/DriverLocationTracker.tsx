@@ -72,7 +72,7 @@ export function DriverLocationTracker() {
   // 4. Listen for 'refresh-location' from Pusher (triggered when a new delivery is requested)
   // This ensures all online drivers submit a fresh location exactly when a tier dispatch is starting.
   usePusherSubscription(
-    'driver-global',
+    'private-driver-global',
     'refresh-location',
     useCallback(() => {
       if (isOnline) {

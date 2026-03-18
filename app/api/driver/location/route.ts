@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   if (driver.activeOrderIds.length > 0) {
     await Promise.all(
       driver.activeOrderIds.map((orderId) =>
-        triggerPusherEvent(`driver-location-${orderId}`, 'location-update', { lat, lng })
+        triggerPusherEvent(`private-driver-location-${orderId}`, 'location-update', { lat, lng })
       )
     )
   }
