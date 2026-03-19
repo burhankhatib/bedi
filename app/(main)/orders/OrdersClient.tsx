@@ -36,6 +36,7 @@ export interface Order {
   }
   deliveryAddress?: string
   deliveryFee?: number
+  deliveryFeePaidByBusiness?: boolean
   assignedDriver?: {
     _id: string
     name: string

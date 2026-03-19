@@ -93,6 +93,9 @@ interface CartContextType {
   clearDeliveryLocation: () => void
   deliveryFee: number
   setDeliveryFee: (fee: number) => void
+  /** True when this delivery fee is paid by the business (customer sees FREE). */
+  deliveryFeePaidByBusiness: boolean
+  setDeliveryFeePaidByBusiness: (value: boolean) => void
   scheduledFor?: string
   setScheduledFor: (dateStr?: string) => void
   toast: ToastMessage | null
@@ -142,6 +145,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [deliveryLat, setDeliveryLat] = useState<number | null>(null)
   const [deliveryLng, setDeliveryLng] = useState<number | null>(null)
   const [deliveryFee, setDeliveryFee] = useState<number>(0)
+  const [deliveryFeePaidByBusiness, setDeliveryFeePaidByBusiness] = useState<boolean>(false)
   const [scheduledFor, setScheduledFor] = useState<string | undefined>(undefined)
   const setDeliveryLocation = useCallback((lat: number, lng: number) => {
     setDeliveryLat(lat)
@@ -210,6 +214,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setDeliveryLat(typeof info.deliveryLat === 'number' ? info.deliveryLat : null)
         setDeliveryLng(typeof info.deliveryLng === 'number' ? info.deliveryLng : null)
         setDeliveryFee(info.deliveryFee || 0)
+        setDeliveryFeePaidByBusiness(info.deliveryFeePaidByBusiness === true)
         setScheduledFor(info.scheduledFor)
       } catch (error) {
         console.error('Failed to load customer info from localStorage:', error)
@@ -254,9 +259,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       deliveryLat: deliveryLat,
       deliveryLng: deliveryLng,
       deliveryFee: deliveryFee,
+      deliveryFeePaidByBusiness: deliveryFeePaidByBusiness,
       scheduledFor: scheduledFor,
     }))
-  }, [customerName, tableNumber, isReady, orderType, customerPhone, deliveryAreaId, deliveryAddress, deliveryLat, deliveryLng, deliveryFee, scheduledFor])
+  }, [customerName, tableNumber, isReady, orderType, customerPhone, deliveryAreaId, deliveryAddress, deliveryLat, deliveryLng, deliveryFee, deliveryFeePaidByBusiness, scheduledFor])
 
   const doAddItem = useCallback((
     product: Product,
@@ -335,6 +341,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setDeliveryAreaId('')
     setDeliveryAddress('')
     setDeliveryFee(0)
+    setDeliveryFeePaidByBusiness(false)
     doAddItem(pending.product, pending.selectedAddOns || [], pending.selectedVariants ?? [], newTenant, pending.quantity ?? 1)
     setConflictState(null)
     setIsOpen(true)
@@ -397,6 +404,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setDeliveryAreaId('')
     setDeliveryAddress('')
     setDeliveryFee(0)
+    setDeliveryFeePaidByBusiness(false)
     setLockedTableNumber(null)
   }, [])
 
@@ -464,6 +472,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         clearDeliveryLocation,
         deliveryFee,
         setDeliveryFee,
+        deliveryFeePaidByBusiness,
+        setDeliveryFeePaidByBusiness,
         scheduledFor,
         setScheduledFor,
         toast,

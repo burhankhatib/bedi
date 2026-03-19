@@ -20,6 +20,7 @@ const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc
   deliveryLat,
   deliveryLng,
   deliveryFee,
+  deliveryFeePaidByBusiness,
   assignedDriver->{
     _id,
     name,

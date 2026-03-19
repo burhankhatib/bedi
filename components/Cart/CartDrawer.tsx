@@ -75,6 +75,8 @@ export function CartDrawer() {
     clearDeliveryLocation,
     deliveryFee,
     setDeliveryFee,
+    deliveryFeePaidByBusiness,
+    setDeliveryFeePaidByBusiness,
     scheduledFor,
     setScheduledFor,
     tenantSlug,
@@ -230,7 +232,9 @@ export function CartDrawer() {
 
     const header = `🍽️ طلب\n${'='.repeat(20)}\n${customerInfo}\n`
     const body = orderLines.join('\n')
-    const isFreeDelivery = orderType === 'delivery' && cartTenant?.freeDeliveryEnabled === true
+    const isFreeDelivery =
+      orderType === 'delivery' &&
+      (deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled === true)
     const shopperFee = orderType === 'delivery' && (cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) ? getShopperFeeByItemCount(totalItems) : 0
     const finalTotal = orderType === 'delivery' ? totalPrice + (isFreeDelivery ? 0 : deliveryFee) + shopperFee : totalPrice
     const total = `\n${'='.repeat(20)}\nالمجموع: ${finalTotal.toFixed(2)} ${formatCurrency(items[0]?.currency)}`
@@ -248,6 +252,7 @@ export function CartDrawer() {
     setCustomerPhone(phone)
     setScheduledFor(scheduleStr)
     setTableNumber('')
+    setDeliveryFeePaidByBusiness(false)
     setOrderType('receive-in-person')
     setIsReady(true)
   }
@@ -257,15 +262,24 @@ export function CartDrawer() {
     setTableNumber(table)
     setCustomerPhone(phone)
     setScheduledFor(scheduleStr)
+    setDeliveryFeePaidByBusiness(false)
     setOrderType('dine-in')
     setIsReady(true)
   }
 
-  const handleDeliverySubmit = (name: string, phone: string, address: string, fee: number, scheduleStr?: string) => {
+  const handleDeliverySubmit = (
+    name: string,
+    phone: string,
+    address: string,
+    fee: number,
+    scheduleStr?: string,
+    paidByBusiness?: boolean
+  ) => {
     setCustomerName(name)
     setCustomerPhone(phone)
     setDeliveryAddress(address)
     setDeliveryFee(fee)
+    setDeliveryFeePaidByBusiness(paidByBusiness === true)
     setScheduledFor(scheduleStr)
     setOrderType('delivery')
     setIsReady(true)
@@ -335,6 +349,9 @@ export function CartDrawer() {
         }
       })
 
+      const isFreeDelivery =
+        orderType === 'delivery' &&
+        (deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled === true)
       const shopperFee = orderType === 'delivery' && (cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup)
         ? getShopperFeeByItemCount(totalItems)
         : 0
@@ -343,7 +360,7 @@ export function CartDrawer() {
         customerName,
         items: orderItems,
         subtotal: totalPrice,
-        totalAmount: orderType === 'delivery' ? totalPrice + deliveryFee + shopperFee : totalPrice,
+        totalAmount: orderType === 'delivery' ? totalPrice + (isFreeDelivery ? 0 : deliveryFee) + shopperFee : totalPrice,
         currency: items[0]?.currency || 'ILS',
       }
       const slugForOrder = tenantSlug ?? cartTenant?.slug
@@ -422,9 +439,10 @@ export function CartDrawer() {
   const handleQRCode = () => {
     setIsOpen(false)
     const orderDataItems = getOrderData()
+    const isFreeDelivery = orderType === 'delivery' && (deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled === true)
     const orderJson = JSON.stringify({
       items: orderDataItems,
-      total: orderType === 'delivery' ? totalPrice + deliveryFee : totalPrice,
+      total: orderType === 'delivery' ? totalPrice + (isFreeDelivery ? 0 : deliveryFee) : totalPrice,
       currency: items[0]?.currency || 'ILS',
       timestamp: new Date().toISOString(),
       customerName: customerName || '',
@@ -452,7 +470,8 @@ export function CartDrawer() {
   }
 
   const shopperFee = orderType === 'delivery' && (cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) ? getShopperFeeByItemCount(totalItems) : 0
-  const finalTotal = orderType === 'delivery' ? totalPrice + (cartTenant?.freeDeliveryEnabled ? 0 : deliveryFee) + shopperFee : totalPrice
+  const isFreeDelivery = orderType === 'delivery' && (deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled === true)
+  const finalTotal = orderType === 'delivery' ? totalPrice + (isFreeDelivery ? 0 : deliveryFee) + shopperFee : totalPrice
 
   return (
     <>
@@ -726,7 +745,7 @@ export function CartDrawer() {
                       )}
 
                       {/* Show subtotal, delivery fee, and shopper fee for delivery orders */}
-                      {orderType === 'delivery' && (deliveryFee > 0 || cartTenant?.freeDeliveryEnabled || cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
+                      {orderType === 'delivery' && (deliveryFee > 0 || isFreeDelivery || cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
                         <div className="space-y-1 text-sm">
                           <div className="flex justify-between items-center">
                             <span className="text-slate-600">{t('Subtotal', 'المجموع الفرعي')}:</span>
@@ -734,10 +753,10 @@ export function CartDrawer() {
                               {totalPrice.toFixed(2)} {formatCurrency(items[0]?.currency)}
                             </span>
                           </div>
-                          {(deliveryFee > 0 || cartTenant?.freeDeliveryEnabled) && (
+                          {(deliveryFee > 0 || isFreeDelivery) && (
                             <div className="flex justify-between items-center">
                               <span className="text-slate-600">{t('Delivery Fee', 'رسوم التوصيل')}:</span>
-                              {cartTenant?.freeDeliveryEnabled ? (
+                              {isFreeDelivery ? (
                                 <span className="font-bold text-emerald-600">{t('FREE', 'مجاناً')}</span>
                               ) : (
                                 <span className="font-bold">
@@ -746,7 +765,7 @@ export function CartDrawer() {
                               )}
                             </div>
                           )}
-                          {cartTenant?.freeDeliveryEnabled && (
+                          {isFreeDelivery && (
                             <p className="text-[11px] text-emerald-700">
                               {t('Business pays this delivery fee.', 'المتجر يدفع رسوم التوصيل هذه.')}
                             </p>

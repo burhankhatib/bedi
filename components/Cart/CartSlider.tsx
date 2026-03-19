@@ -91,6 +91,8 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     clearDeliveryLocation,
     deliveryFee,
     setDeliveryFee,
+    deliveryFeePaidByBusiness,
+    setDeliveryFeePaidByBusiness,
     scheduledFor,
     setScheduledFor,
     tenantSlug,
@@ -242,7 +244,19 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
 
     const header = `🍽️ طلب\n${'='.repeat(20)}\n${customerInfo}\n`
     const body = orderLines.join('\n')
-    const total = `\n${'='.repeat(20)}\nالمجموع: ${totalPrice.toFixed(2)} ${formatCurrency(items[0]?.currency)}`
+    const isFreeDelivery =
+      orderType === 'delivery' &&
+      (deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled === true)
+    const shopperFee =
+      orderType === 'delivery' &&
+      (cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup)
+        ? getShopperFeeByItemCount(totalItems)
+        : 0
+    const finalTotal =
+      orderType === 'delivery'
+        ? totalPrice + (isFreeDelivery ? 0 : deliveryFee) + shopperFee
+        : totalPrice
+    const total = `\n${'='.repeat(20)}\nالمجموع: ${finalTotal.toFixed(2)} ${formatCurrency(items[0]?.currency)}`
 
     return encodeURIComponent(header + body + total)
   }
@@ -260,6 +274,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     setCustomerPhone(phone)
     setScheduledFor(scheduleStr)
     setTableNumber('')
+    setDeliveryFeePaidByBusiness(false)
     setOrderType('receive-in-person')
     setIsReady(true)
   }
@@ -269,15 +284,24 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     setTableNumber(table)
     setCustomerPhone(phone)
     setScheduledFor(scheduleStr)
+    setDeliveryFeePaidByBusiness(false)
     setOrderType('dine-in')
     setIsReady(true)
   }
 
-  const handleDeliverySubmit = (name: string, phone: string, address: string, fee: number, scheduleStr?: string) => {
+  const handleDeliverySubmit = (
+    name: string,
+    phone: string,
+    address: string,
+    fee: number,
+    scheduleStr?: string,
+    paidByBusiness?: boolean
+  ) => {
     setCustomerName(name)
     setCustomerPhone(phone)
     setDeliveryAddress(address)
     setDeliveryFee(fee)
+    setDeliveryFeePaidByBusiness(paidByBusiness === true)
     setScheduledFor(scheduleStr)
     setOrderType('delivery')
     setIsReady(true)
@@ -344,7 +368,9 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         }
       })
 
-      const isFreeDelivery = orderType === 'delivery' && cartTenant?.freeDeliveryEnabled === true
+      const isFreeDelivery =
+        orderType === 'delivery' &&
+        (deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled === true)
       const shopperFee = orderType === 'delivery' && (cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup)
         ? getShopperFeeByItemCount(totalItems)
         : 0
@@ -757,7 +783,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                   </div>
 
                   {/* Show delivery details for delivery orders */}
-                  {orderType === 'delivery' && (deliveryFee > 0 || cartTenant?.freeDeliveryEnabled || cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
+                  {orderType === 'delivery' && (deliveryFee > 0 || deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled || cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
                     <div className="space-y-2 text-sm px-1">
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500">{t('Subtotal', 'المجموع الفرعي')}</span>
@@ -765,10 +791,10 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                           {totalPrice.toFixed(2)} {formatCurrency(items[0]?.currency)}
                         </span>
                       </div>
-                      {(deliveryFee > 0 || cartTenant?.freeDeliveryEnabled) && (
+                      {(deliveryFee > 0 || deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled) && (
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500">{t('Delivery Fee', 'رسوم التوصيل')}</span>
-                          {cartTenant?.freeDeliveryEnabled ? (
+                          {(deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled) ? (
                             <span className="font-bold text-emerald-600">{t('FREE', 'مجاناً')}</span>
                           ) : (
                             <span className="font-bold">
@@ -777,7 +803,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                           )}
                         </div>
                       )}
-                      {cartTenant?.freeDeliveryEnabled && (
+                      {(deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled) && (
                         <p className="text-[11px] text-emerald-700">
                           {t('Business pays this delivery fee.', 'المتجر يدفع رسوم التوصيل هذه.')}
                         </p>
@@ -813,7 +839,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                     <span className="font-black text-slate-400 text-sm uppercase tracking-widest">{t('Total', 'المجموع')}</span>
                     <span className="font-black text-2xl">
                       {(orderType === 'delivery'
-                        ? totalPrice + (cartTenant?.freeDeliveryEnabled ? 0 : deliveryFee) + ((cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) ? getShopperFeeByItemCount(totalItems) : 0)
+                        ? totalPrice + ((deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled) ? 0 : deliveryFee) + ((cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) ? getShopperFeeByItemCount(totalItems) : 0)
                         : totalPrice
                       ).toFixed(2)} {formatCurrency(items[0]?.currency)}
                     </span>

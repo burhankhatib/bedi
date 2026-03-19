@@ -21,6 +21,7 @@ const ORDER_GROQ = `*[_type == "order" && _id == $orderId][0]{
   deliveryLat,
   deliveryLng,
   deliveryFee,
+  deliveryFeePaidByBusiness,
   assignedDriver->{
     _id,
     name,

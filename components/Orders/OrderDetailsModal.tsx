@@ -64,6 +64,7 @@ interface Order {
   deliveryLat?: number
   deliveryLng?: number
   deliveryFee?: number
+  deliveryFeePaidByBusiness?: boolean
   assignedDriver?: {
     _id: string
     name: string
@@ -390,7 +391,7 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
   const calculateTotals = (items: OrderItem[]) => {
     const subtotal = items.reduce((sum, item) => sum + item.total, 0)
     const deliveryFee = localOrder.deliveryFee || 0
-    const totalAmount = subtotal + deliveryFee
+    const totalAmount = subtotal + (localOrder.deliveryFeePaidByBusiness ? 0 : deliveryFee)
     return { subtotal, totalAmount }
   }
 
@@ -679,7 +680,9 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
       .join('\n')
     const deliveryFeeLine =
       localOrder.deliveryFee && localOrder.deliveryFee > 0
-        ? `Delivery fee / رسوم التوصيل: ${localOrder.deliveryFee.toFixed(2)} ${formatCurrency(localOrder.currency)}\n`
+        ? localOrder.deliveryFeePaidByBusiness
+          ? `Delivery fee / رسوم التوصيل: FREE (Paid by business) / مجاني (يدفعه المتجر)\n`
+          : `Delivery fee / رسوم التوصيل: ${localOrder.deliveryFee.toFixed(2)} ${formatCurrency(localOrder.currency)}\n`
         : ''
     const orderDetails = `
 ✅ Order confirmation / تأكيد الطلب
@@ -712,7 +715,9 @@ Thank you! 🙏 شكراً لكم
       .join('\n')
     const deliveryFeeLine =
       localOrder.deliveryFee && localOrder.deliveryFee > 0
-        ? `Delivery fee / رسوم التوصيل: ${localOrder.deliveryFee.toFixed(2)} ${formatCurrency(localOrder.currency)}\n`
+        ? localOrder.deliveryFeePaidByBusiness
+          ? `Delivery fee / رسوم التوصيل: ${localOrder.deliveryFee.toFixed(2)} ${formatCurrency(localOrder.currency)} (Collect from business / يُحصّل من المتجر)\n`
+          : `Delivery fee / رسوم التوصيل: ${localOrder.deliveryFee.toFixed(2)} ${formatCurrency(localOrder.currency)}\n`
         : ''
     const orderDetails = `
 🚗 New delivery request / طلب توصيل جديد
@@ -1396,10 +1401,20 @@ Please deliver this order to the customer.
             </div>
             {localOrder.orderType === 'delivery' && localOrder.deliveryFee !== undefined && localOrder.deliveryFee > 0 && (
               <div className="flex justify-between items-center">
-                <span className="text-slate-300">{t('Delivery Fee', 'رسوم التوصيل')}:</span>
-                <span className="font-bold text-lg">
-                  {localOrder.deliveryFee.toFixed(2)} {formatCurrency(localOrder.currency)}
+                <span className="text-slate-300">
+                  {localOrder.deliveryFeePaidByBusiness
+                    ? t('Delivery Fee (Paid by business)', 'رسوم التوصيل (يدفعها المتجر)')
+                    : t('Delivery Fee', 'رسوم التوصيل')}
                 </span>
+                {localOrder.deliveryFeePaidByBusiness ? (
+                  <span className="font-bold text-lg text-emerald-300">
+                    {t('FREE', 'مجاناً')}
+                  </span>
+                ) : (
+                  <span className="font-bold text-lg">
+                    {localOrder.deliveryFee.toFixed(2)} {formatCurrency(localOrder.currency)}
+                  </span>
+                )}
               </div>
             )}
             {(localOrder.tipAmount ?? 0) > 0 && (

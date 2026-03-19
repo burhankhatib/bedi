@@ -25,7 +25,14 @@ interface UnifiedOrderDialogProps {
   onOpenChange: (open: boolean) => void
   onReceiveInPersonSubmit: (name: string, phone: string, scheduledFor?: string) => void
   onDineInSubmit: (name: string, table: string, phone: string, scheduledFor?: string) => void
-  onDeliverySubmit: (name: string, phone: string, address: string, deliveryFee: number, scheduledFor?: string) => void
+  onDeliverySubmit: (
+    name: string,
+    phone: string,
+    address: string,
+    deliveryFee: number,
+    scheduledFor?: string,
+    deliveryFeePaidByBusiness?: boolean
+  ) => void
   initialName?: string
   /** Prefill phone from Clerk verified phone so user does not re-enter */
   initialPhone?: string
@@ -350,7 +357,14 @@ export function UnifiedOrderDialog({
 
       if (name.trim() && phone.trim()) {
         const addressValue = address.trim() || (hasSharedLocation ? t('Location shared', 'تم مشاركة الموقع') : '')
-        onDeliverySubmit(name.trim(), phone.trim(), addressValue, deliveryFeeValue, finalScheduledFor)
+        onDeliverySubmit(
+          name.trim(),
+          phone.trim(),
+          addressValue,
+          deliveryFeeValue,
+          finalScheduledFor,
+          tenantDeliveryFlags?.freeDeliveryEnabled === true
+        )
         onOpenChange(false)
       }
     }
