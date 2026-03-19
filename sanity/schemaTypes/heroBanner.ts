@@ -139,7 +139,7 @@ export const heroBannerType = defineType({
     }),
     defineField({
       name: 'height',
-      title: 'Banner Height (fallback)',
+      title: 'Banner Height (legacy)',
       type: 'string',
       options: {
         list: [
@@ -150,34 +150,35 @@ export const heroBannerType = defineType({
         ],
       },
       initialValue: 'medium',
-      description: 'Used when preferred dimensions are not set. Height on desktop. Mobile fallback 420px.',
+      hidden: true,
+      description: 'Legacy. Defaults are now 1130×320 (desktop) and 320×320 (mobile).',
     }),
     defineField({
       name: 'preferredDesktopWidth',
-      title: 'Preferred Desktop Width',
+      title: 'Desktop Width (optional)',
       type: 'number',
-      description: 'Display width in pixels for desktop. Banner is shown at 100% viewport width; this is used for aspect ratio so nothing is cropped.',
+      description: 'Override desktop width in pixels. Default: 1130. Used with height for aspect ratio.',
       validation: (Rule) => Rule.min(1).max(4096),
     }),
     defineField({
       name: 'preferredDesktopHeight',
-      title: 'Preferred Desktop Height',
+      title: 'Desktop Height (optional)',
       type: 'number',
-      description: 'Display height in pixels for desktop. With width, sets aspect ratio (height/width).',
+      description: 'Override desktop height in pixels. Default: 320. With width, sets aspect ratio.',
       validation: (Rule) => Rule.min(1).max(4096),
     }),
     defineField({
       name: 'preferredMobileWidth',
-      title: 'Preferred Mobile Width',
+      title: 'Mobile Width (optional)',
       type: 'number',
-      description: 'Display width in pixels for mobile. Used for aspect ratio on small screens.',
+      description: 'Override mobile width in pixels. Default: 320. Use with height for non-square banners.',
       validation: (Rule) => Rule.min(1).max(2048),
     }),
     defineField({
       name: 'preferredMobileHeight',
-      title: 'Preferred Mobile Height',
+      title: 'Mobile Height (optional)',
       type: 'number',
-      description: 'Display height in pixels for mobile. With width, sets aspect ratio.',
+      description: 'Override mobile height in pixels. Default: 320. With width, sets aspect ratio.',
       validation: (Rule) => Rule.min(1).max(2048),
     }),
     defineField({

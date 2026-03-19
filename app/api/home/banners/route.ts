@@ -84,6 +84,11 @@ export async function GET(req: NextRequest) {
     return urlFor(img).width(w).height(h).url()
   }
 
+  // Default banner dimensions: Desktop 1130×320, Mobile 320×320. Sanity preferred* fields override.
+  const DESKTOP_WIDTH = 1130
+  const DESKTOP_HEIGHT = 320
+  const MOBILE_SIZE = 320
+
   const cityFiltered = (banners ?? []).filter((b) => {
     if (b.cities && b.cities.length > 0) {
       if (!city || !b.cities.includes(city)) return false
@@ -145,11 +150,10 @@ export async function GET(req: NextRequest) {
       b.videoDesktopEnUrl ??
       null
 
-    const heightMap: Record<string, number> = { small: 420, medium: 560, large: 780, full: 1080 }
-    const desktopW = b.preferredDesktopWidth ?? 1920
-    const desktopH = b.preferredDesktopHeight ?? heightMap[(b.height as string) || 'medium'] ?? 560
-    const mobileW = b.preferredMobileWidth ?? 768
-    const mobileH = b.preferredMobileHeight ?? 420
+    const desktopW = b.preferredDesktopWidth ?? DESKTOP_WIDTH
+    const desktopH = b.preferredDesktopHeight ?? DESKTOP_HEIGHT
+    const mobileW = b.preferredMobileWidth ?? MOBILE_SIZE
+    const mobileH = b.preferredMobileHeight ?? MOBILE_SIZE
 
     const imageUrlDesktop = toUrl(desktopImg, desktopW, desktopH)
     const imageUrlMobile = toUrl(mobileImg, mobileW, mobileH)

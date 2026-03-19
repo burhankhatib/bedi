@@ -45,15 +45,15 @@ export function PopularProductsSection() {
   if (loading) {
     return (
       <section className="py-12">
-        <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-white md:text-2xl tracking-tight">
-          <Flame className="size-6 text-brand-yellow" />
+        <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-[#E6E1E5] md:text-2xl tracking-tight">
+          <Flame className="size-6 text-amber-400" />
           {t('Popular dishes', 'أطباق شائعة')}
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {[...Array(8)].map((_, i) => (
             <div
               key={i}
-              className="aspect-[4/3] animate-pulse rounded-[20px] bg-neutral-800"
+              className="aspect-[4/3] animate-pulse rounded-[20px] bg-[#2B2930]"
             />
           ))}
         </div>
@@ -64,8 +64,8 @@ export function PopularProductsSection() {
 
   return (
     <section className="py-12">
-      <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-white md:text-2xl tracking-tight">
-        <Flame className="size-6 text-brand-yellow" />
+      <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-[#E6E1E5] md:text-2xl tracking-tight">
+        <Flame className="size-6 text-amber-400" />
         {t('Popular items from businesses', 'أصناف شائعة من الأعمال')}
       </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-2">
@@ -78,9 +78,9 @@ export function PopularProductsSection() {
           >
             <Link
               href={item.restaurant.slug ? `/t/${item.restaurant.slug}` : '#'}
-              className="group flex flex-col overflow-hidden rounded-[20px] bg-neutral-900/80 transition-all duration-300 border border-neutral-700/80 hover:border-brand-yellow/40 hover:bg-neutral-800/80"
+              className="group flex flex-col overflow-hidden rounded-[20px] bg-[#2B2930] transition-all duration-300 border border-[#49454F] hover:border-amber-400/50 hover:bg-[#36343B]"
             >
-              <div className="relative aspect-[4/3] overflow-hidden bg-neutral-800">
+              <div className="relative aspect-[4/3] overflow-hidden bg-[#36343B]">
                 {item.imageUrl ? (
                   <Image
                     src={item.imageUrl}
@@ -90,18 +90,18 @@ export function PopularProductsSection() {
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-neutral-800">
-                    <Flame className="size-16 text-neutral-600" />
+                  <div className="flex h-full w-full items-center justify-center bg-[#36343B]">
+                    <Flame className="size-16 text-[#938F99]" />
                   </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
               </div>
               <div className="flex flex-col gap-2 p-4 bg-transparent z-10">
-                <h3 className="font-bold text-white text-[17px] tracking-tight line-clamp-1 group-hover:text-brand-yellow transition-colors">
+                <h3 className="font-bold text-[#E6E1E5] text-[17px] tracking-tight line-clamp-1 group-hover:text-amber-400 transition-colors">
                   {lang === 'ar' ? item.title_ar || item.title_en : item.title_en || item.title_ar}
                 </h3>
-                <div className="flex items-center gap-2.5 mt-1 text-neutral-400 font-medium">
-                  <div className="relative size-[26px] shrink-0 overflow-hidden rounded-full bg-neutral-700 border border-neutral-600">
+                <div className="flex items-center gap-2.5 mt-1 text-[#CAC4D0] font-medium">
+                  <div className="relative size-[26px] shrink-0 overflow-hidden rounded-full bg-[#36343B] border border-[#49454F]">
                     {item.restaurant.logoUrl ? (
                       <Image
                         src={item.restaurant.logoUrl}
@@ -112,11 +112,11 @@ export function PopularProductsSection() {
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center">
-                        <Store className="size-3.5 text-neutral-500" />
+                        <Store className="size-3.5 text-[#938F99]" />
                       </div>
                     )}
                   </div>
-                  <span className="truncate text-[13px] text-neutral-400">
+                  <span className="truncate text-[13px] text-[#CAC4D0]">
                     {item.restaurant.name}
                   </span>
                 </div>

@@ -1,19 +1,73 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import {
   motion,
   useScroll,
   useTransform,
   useMotionValueEvent,
+  AnimatePresence,
 } from 'motion/react'
 import Image from 'next/image'
 
-const FRAME_COUNT = 61
+const FRAME_COUNT = 31
 const BANNER_FOLDER = 'burger'
 
 function frameSrc(folder: string, i: number) {
-  return `/banners/${folder}/ezgif-frame-${String(i + 1).padStart(3, '0')}.png`
+  return `/banners/${folder}/burger-${String(i + 1).padStart(3, '0')}.jpg`
+}
+
+/** Loading placeholder while frames preload — logo + shimmer */
+function BannerAnimationPlaceholder() {
+  return (
+    <motion.div
+      className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-black/90"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <motion.div
+        className="relative h-16 w-16 sm:h-20 sm:w-20"
+        animate={{
+          scale: [1, 1.05, 1],
+          opacity: [0.9, 1, 0.9],
+        }}
+        transition={{
+          duration: 2,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+      >
+        <Image
+          src="/logo.webp"
+          alt=""
+          fill
+          className="object-contain"
+          sizes="80px"
+          priority
+        />
+      </motion.div>
+      <div className="flex gap-1.5">
+        {[0, 1, 2].map((i) => (
+          <motion.span
+            key={i}
+            className="h-1.5 w-1.5 rounded-full bg-amber-400/80"
+            animate={{
+              scale: [1, 1.3, 1],
+              opacity: [0.5, 1, 0.5],
+            }}
+            transition={{
+              duration: 0.8,
+              repeat: Infinity,
+              delay: i * 0.15,
+              ease: 'easeInOut',
+            }}
+          />
+        ))}
+      </div>
+    </motion.div>
+  )
 }
 
 type ScrollDrivenBannerProps = {
@@ -26,7 +80,7 @@ type ScrollDrivenBannerProps = {
 
 /**
  * Pinned scroll section: viewport stays fixed while user scrolls to drive the
- * animation. Frames advance 0→end. Only when done can user scroll to next section.
+ * animation. Frames advance 0→end. Preloads all frames on mount for smooth UX.
  */
 export function ScrollDrivenBanner({
   folder = BANNER_FOLDER,
@@ -35,6 +89,27 @@ export function ScrollDrivenBanner({
 }: ScrollDrivenBannerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [frameIndex, setFrameIndex] = useState(0)
+  const [framesReady, setFramesReady] = useState(false)
+
+  // Preload all frame images on mount so scrolling is smooth
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    let loaded = 0
+    const target = frameCount
+    const checkReady = () => {
+      loaded++
+      if (loaded >= Math.min(3, target)) {
+        setFramesReady(true)
+      }
+    }
+    for (let i = 0; i < frameCount; i++) {
+      const img = document.createElement('img')
+      img.onload = checkReady
+      img.onerror = checkReady
+      img.src = frameSrc(folder, i)
+    }
+    if (frameCount < 3) setFramesReady(true)
+  }, [folder, frameCount])
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -73,25 +148,30 @@ export function ScrollDrivenBanner({
       className="relative w-full bg-black"
       style={{ height: `${scrollHeight}vh` }}
     >
-      {/* Pinned: stays in viewport while user scrolls through the section */}
-      <div className="sticky top-0 flex min-h-screen w-full items-center justify-center">
+      {/* Pinned: stays in viewport. Pad top for header (~72px) so burger centers in visible black area. */}
+      <div className="sticky top-0 flex min-h-screen w-full items-center justify-center px-2 sm:px-4 md:px-6 pt-[72px] pb-6">
+        {/* Surrounding container: rounded frame, subtle ring, padding */}
         <motion.div
-          className="relative w-full max-w-full"
+          className="relative w-full max-w-4xl overflow-hidden rounded-2xl md:rounded-3xl ring-1 ring-white/10 shadow-2xl"
           style={{
             aspectRatio: '9 / 16',
-            maxHeight: 'min(100vh - 1rem, 100vw * (16 / 9))',
+            maxHeight: 'min(calc(100vh - 6rem), 100vw * (16 / 9))',
             opacity,
             filter,
           }}
         >
+          <AnimatePresence>
+            {!framesReady && <BannerAnimationPlaceholder />}
+          </AnimatePresence>
           <Image
             src={frameSrc(folder, frameIndex)}
             alt=""
             fill
             className="object-contain"
-            sizes="100vw"
+            sizes="(min-width: 768px) 896px, 100vw"
             priority
             unoptimized
+            onLoad={() => setFramesReady(true)}
           />
         </motion.div>
       </div>

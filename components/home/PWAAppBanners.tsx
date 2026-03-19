@@ -97,8 +97,8 @@ export function PWAAppBanners() {
                   className="group flex items-center gap-4 rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-0.5"
                   style={{
                     borderColor: `${color}50`,
-                    background: `linear-gradient(to bottom right, ${color}20, transparent)`,
-                    boxShadow: `0 10px 40px -10px ${color}25`,
+                    background: `linear-gradient(135deg, ${color}25 0%, #2B2930 100%)`,
+                    boxShadow: `0 10px 40px -10px ${color}20`,
                   }}
                 >
                   <div
@@ -108,16 +108,16 @@ export function PWAAppBanners() {
                     <Icon className="size-7" strokeWidth={2} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-bold text-white text-lg">{config.name}</h3>
-                    <p className="mt-0.5 text-sm text-neutral-400">
+                    <h3 className="font-bold text-[#E6E1E5] text-lg">{config.name}</h3>
+                    <p className="mt-0.5 text-sm text-[#CAC4D0]">
                       {app === 'driver'
                         ? t('Install for drivers — orders & notifications', 'تثبيت للسائقين — طلبات وإشعارات')
                         : t('Install for businesses — menus & orders', 'تثبيت للأعمال — قوائم وطلبات')}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <Download className="size-5 text-neutral-500 group-hover:text-neutral-300" />
-                    <span className="text-sm font-semibold text-neutral-300 group-hover:text-white">
+                    <Download className="size-5 text-[#938F99] group-hover:text-[#CAC4D0]" />
+                    <span className="text-sm font-semibold text-[#CAC4D0] group-hover:text-[#E6E1E5] transition-colors">
                       {ctaLabel}
                     </span>
                   </div>

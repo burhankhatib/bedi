@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, lazy, useState } from 'react'
+import { Suspense, lazy, useState, useEffect } from 'react'
 import { motion } from 'motion/react'
 import { useLanguage } from '@/components/LanguageContext'
 import { SiteHeader } from '@/components/global/SiteHeader'
@@ -16,6 +16,23 @@ import { FeaturedTenants } from '@/components/home/FeaturedTenants'
 import { PWAAppBanners } from '@/components/home/PWAAppBanners'
 import { ScrollDrivenBanner } from '@/components/home/ScrollDrivenBanner'
 
+const FRAME_COUNT = 31
+function frameSrc(folder: string, i: number) {
+  return `/banners/${folder}/burger-${String(i + 1).padStart(3, '0')}.jpg`
+}
+
+/** Starts preloading scroll-banner frames as soon as the homepage mounts */
+function PreloadScrollBannerFrames() {
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    for (let i = 0; i < FRAME_COUNT; i++) {
+      const img = document.createElement('img')
+      img.src = frameSrc('burger', i)
+    }
+  }, [])
+  return null
+}
+
 const HeroBanner = lazy(() =>
   import('@/components/home/HeroBanner').then((m) => ({ default: m.HeroBanner }))
 )
@@ -27,6 +44,7 @@ export function HomePageNew() {
 
   return (
     <div className="min-h-screen bg-slate-50" dir={isRtl ? 'rtl' : 'ltr'}>
+      <PreloadScrollBannerFrames />
       <SiteHeader variant="home" />
       <LocationGate>
         <main className="container mx-auto px-0 md:px-4 py-4 md:py-6 max-w-[1440px]">
@@ -46,7 +64,7 @@ export function HomePageNew() {
                 <CategoryIconsBar category={activeCategory} className="py-2.5" />
               </motion.section>
 
-              {/* Banners */}
+              {/* Banners — hidden when no hero banners published */}
               <motion.section
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}

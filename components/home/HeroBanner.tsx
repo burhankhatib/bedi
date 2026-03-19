@@ -129,7 +129,7 @@ function BannerMedia({
         alt=""
         fill
         className="object-cover"
-        sizes="100vw"
+        sizes="(min-width: 768px) 1130px, 100vw"
         priority
         onLoad={() => setMediaLoaded(true)}
       />
@@ -137,13 +137,9 @@ function BannerMedia({
   )
 }
 
-const HEIGHT_MAP: Record<string, number> = {
-  small: 420,
-  medium: 560,
-  large: 780,
-  full: 1080,
-}
-const MOBILE_HEIGHT = 420
+// Default dimensions: Desktop 1130×320, Mobile 320×320. Sanity preferred* overrides when set.
+const DESKTOP_ASPECT = 1130 / 320
+const MOBILE_ASPECT = 320 / 320 // 1 (square)
 
 type Banner = {
   _id: string
@@ -236,14 +232,13 @@ export function HeroBanner() {
     setIndex((i) => (i + 1) % banners.length)
   }, [banners.length])
 
-  const defaultHeight = HEIGHT_MAP.medium
-
-  if (loading || banners.length === 0) {
+  if (loading) {
+    const aspect = isMobile ? MOBILE_ASPECT : DESKTOP_ASPECT
     return (
       <section className="relative w-full bg-black">
         <motion.div
           className="relative w-full overflow-hidden"
-          style={{ height: isMobile ? MOBILE_HEIGHT : HEIGHT_MAP.medium }}
+          style={{ aspectRatio: `${aspect}` }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.4 }}
@@ -253,36 +248,27 @@ export function HeroBanner() {
       </section>
     )
   }
+  if (banners.length === 0) return null
 
   const current = banners[index]!
-  const hasPreferredDesktop =
-    current.preferredDesktopWidth != null &&
-    current.preferredDesktopHeight != null &&
-    current.preferredDesktopWidth > 0 &&
-    current.preferredDesktopHeight > 0
-  const hasPreferredMobile =
-    current.preferredMobileWidth != null &&
-    current.preferredMobileHeight != null &&
-    current.preferredMobileWidth > 0 &&
-    current.preferredMobileHeight > 0
-  const aspectRatio =
-    isMobile && hasPreferredMobile
-      ? current.preferredMobileWidth! / current.preferredMobileHeight!
-      : hasPreferredDesktop
-        ? current.preferredDesktopWidth! / current.preferredDesktopHeight!
-        : null
-  const heightPx = isMobile ? MOBILE_HEIGHT : (HEIGHT_MAP[current.height ?? 'medium'] ?? defaultHeight)
+  const preferredW = isMobile
+    ? (current.preferredMobileWidth ?? 0)
+    : (current.preferredDesktopWidth ?? 0)
+  const preferredH = isMobile
+    ? (current.preferredMobileHeight ?? 0)
+    : (current.preferredDesktopHeight ?? 0)
+  const usePreferred = preferredW > 0 && preferredH > 0
+  const aspect = usePreferred
+    ? preferredW / preferredH
+    : isMobile
+      ? MOBILE_ASPECT
+      : DESKTOP_ASPECT
 
   return (
     <section className="relative w-full bg-black">
       <motion.div
         className="relative w-full overflow-hidden"
-        style={
-          aspectRatio != null
-            ? { aspectRatio: `${aspectRatio}`, maxHeight: 'none' }
-            : undefined
-        }
-        animate={aspectRatio == null ? { height: heightPx } : {}}
+        style={{ aspectRatio: `${aspect}` }}
         transition={{ duration: 0.35, ease: 'easeInOut' }}
       >
         <AnimatePresence mode="wait">
@@ -361,7 +347,7 @@ export function HeroBanner() {
 export function HeroBannerFallback() {
   return (
     <section className="relative w-full bg-black">
-      <div className="relative w-full overflow-hidden" style={{ height: 420 }}>
+      <div className="relative w-full overflow-hidden" style={{ aspectRatio: `${DESKTOP_ASPECT}` }}>
         <BannerLoadingPlaceholder />
       </div>
     </section>
