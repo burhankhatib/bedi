@@ -1,12 +1,85 @@
 import Pusher from 'pusher'
 
-export const pusherServer = new Pusher({
-  appId: process.env.PUSHER_APP_ID!,
-  key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
-  secret: process.env.PUSHER_SECRET!,
-  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-  useTLS: true,
-})
+type PusherTriggerData = Record<string, unknown>
+
+let pusherInstance: Pusher | null | undefined
+let missingConfigWarned = false
+let lastInitErrorMessage: string | null = null
+
+function getMissingPusherEnvKeys(): string[] {
+  const missing: string[] = []
+  if (!process.env.PUSHER_APP_ID) missing.push('PUSHER_APP_ID')
+  if (!process.env.NEXT_PUBLIC_PUSHER_KEY) missing.push('NEXT_PUBLIC_PUSHER_KEY')
+  if (!process.env.PUSHER_SECRET) missing.push('PUSHER_SECRET')
+  if (!process.env.NEXT_PUBLIC_PUSHER_CLUSTER) missing.push('NEXT_PUBLIC_PUSHER_CLUSTER')
+  return missing
+}
+
+function isPusherConfigured(): boolean {
+  return getMissingPusherEnvKeys().length === 0
+}
+
+export function getPusherServerHealth() {
+  const missingEnvKeys = getMissingPusherEnvKeys()
+  return {
+    configured: missingEnvKeys.length === 0,
+    missingEnvKeys,
+    initialized: pusherInstance !== undefined,
+    available: pusherInstance !== undefined && pusherInstance !== null,
+    lastInitErrorMessage,
+  }
+}
+
+function getPusherInstance(): Pusher | null {
+  if (pusherInstance !== undefined) return pusherInstance
+
+  if (!isPusherConfigured()) {
+    if (!missingConfigWarned) {
+      missingConfigWarned = true
+      console.warn('[pusher] Server not configured; realtime events are disabled')
+    }
+    pusherInstance = null
+    return pusherInstance
+  }
+
+  try {
+    pusherInstance = new Pusher({
+      appId: process.env.PUSHER_APP_ID as string,
+      key: process.env.NEXT_PUBLIC_PUSHER_KEY as string,
+      secret: process.env.PUSHER_SECRET as string,
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER as string,
+      useTLS: true,
+    })
+    lastInitErrorMessage = null
+  } catch (err) {
+    lastInitErrorMessage = err instanceof Error ? err.message : String(err)
+    console.warn('[pusher] Failed to initialize server client', err)
+    pusherInstance = null
+  }
+
+  return pusherInstance
+}
+
+export const pusherServer = {
+  async trigger(channel: string, event: string, data: PusherTriggerData): Promise<boolean> {
+    const pusher = getPusherInstance()
+    if (!pusher) return false
+    try {
+      await pusher.trigger(channel, event, data)
+      return true
+    } catch (err) {
+      console.warn(`[pusher] trigger failed — channel=${channel} event=${event}`, err)
+      return false
+    }
+  },
+  authorizeChannel(socketId: string, channelName: string): ReturnType<Pusher['authorizeChannel']> {
+    const pusher = getPusherInstance()
+    if (!pusher) {
+      throw new Error('Pusher server is not configured')
+    }
+    return pusher.authorizeChannel(socketId, channelName)
+  },
+}
 
 /**
  * Reusable server-side Pusher trigger.
@@ -20,11 +93,7 @@ export const pusherServer = new Pusher({
 export async function triggerPusherEvent(
   channel: string,
   event: string,
-  data: Record<string, unknown>
+  data: PusherTriggerData
 ): Promise<void> {
-  try {
-    await pusherServer.trigger(channel, event, data)
-  } catch (err) {
-    console.warn(`[pusher] trigger failed — channel=${channel} event=${event}`, err)
-  }
+  await pusherServer.trigger(channel, event, data)
 }

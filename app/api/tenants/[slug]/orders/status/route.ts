@@ -109,10 +109,13 @@ export async function PATCH(
 
   await patch.set(updateData).commit()
 
+  // Realtime/push notification failures should not block tenant status updates.
   await NotificationService.onOrderStatusUpdated({
     orderId,
     status,
     isScheduleUpdate: !!newScheduledFor && newScheduledFor !== orderBefore?.scheduledFor
+  }).catch((notifyError) => {
+    console.warn('[tenant/orders/status] Notification dispatch failed:', notifyError)
   })
 
   return NextResponse.json({ success: true, orderId, status })

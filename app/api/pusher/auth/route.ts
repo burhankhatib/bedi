@@ -47,8 +47,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const authResponse = pusherServer.authorizeChannel(socketId, channelName)
-    return NextResponse.json(authResponse)
+    try {
+      const authResponse = pusherServer.authorizeChannel(socketId, channelName)
+      return NextResponse.json(authResponse)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Pusher auth failed'
+      return NextResponse.json({ error: message }, { status: 503 })
+    }
   }
 
   // ── private-driver-location-{orderId} ────────────────────────────────────
@@ -74,8 +79,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const authResponse = pusherServer.authorizeChannel(socketId, channelName)
-    return NextResponse.json(authResponse)
+    try {
+      const authResponse = pusherServer.authorizeChannel(socketId, channelName)
+      return NextResponse.json(authResponse)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Pusher auth failed'
+      return NextResponse.json({ error: message }, { status: 503 })
+    }
   }
 
   return NextResponse.json({ error: 'Unknown channel' }, { status: 400 })

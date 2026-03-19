@@ -111,10 +111,13 @@ export async function PATCH(request: Request) {
     // Update the order
     const result = await patch.set(updateData).commit()
 
+    // Realtime/push notification failures should never fail status updates.
     await NotificationService.onOrderStatusUpdated({
       orderId,
       status,
       isScheduleUpdate: !!newScheduledFor && newScheduledFor !== existingOrder.scheduledFor
+    }).catch((notifyError) => {
+      console.warn('Order status updated, but notification dispatch failed:', notifyError)
     })
 
     console.log('Order updated successfully:', {

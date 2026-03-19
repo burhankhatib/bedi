@@ -11,7 +11,7 @@ import { compressImageForUpload } from '@/lib/compress-image'
 import { getCountryNameAr, getCityNameAr } from '@/lib/registration-translations'
 import { toEnglishDigits } from '@/lib/phone'
 import { detectCityAndCountry } from '@/lib/geofencing-utils'
-import { Upload, ImageIcon, Volume2, Play, AlertTriangle, Trash2, Store, UtensilsCrossed, Clock, MapPin, Save, LocateFixed, RefreshCw } from 'lucide-react'
+import { Upload, ImageIcon, Volume2, Play, AlertTriangle, Trash2, Store, UtensilsCrossed, Clock, MapPin, Save, LocateFixed, RefreshCw, Activity, CheckCircle2, XCircle } from 'lucide-react'
 import { TenantQRCode } from '@/components/TenantQRCode'
 import { useTenantBusiness } from '../TenantBusinessContext'
 import { isAbortError } from '@/lib/abort-utils'
@@ -305,6 +305,24 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
   const [setAllOpen, setSetAllOpen] = useState('')
   const [setAllClose, setSetAllClose] = useState('')
   const [cityMapCenter, setCityMapCenter] = useState<{ lat: number; lng: number } | null>(null)
+  const [realtimeHealthLoading, setRealtimeHealthLoading] = useState(false)
+  const [realtimeHealth, setRealtimeHealth] = useState<{
+    ok: boolean
+    checkedAt?: string
+    pusher?: {
+      configured?: boolean
+      initialized?: boolean
+      available?: boolean
+      triggerOk?: boolean
+      missingEnvKeys?: string[]
+      lastInitErrorMessage?: string | null
+    }
+    notifications?: {
+      fcmConfigured?: boolean
+      webPushConfigured?: boolean
+    }
+    error?: string
+  } | null>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const mountedRef = useRef(false)
   const countriesAbortRef = useRef<AbortController | null>(null)
@@ -594,6 +612,40 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     audio.volume = 0.7
     audio.play().catch(() => {})
   }
+
+  const runRealtimeHealthCheck = useCallback(async () => {
+    setRealtimeHealthLoading(true)
+    try {
+      const res = await fetch('/api/health/realtime', {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+      })
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+      if (!res.ok) {
+        const message = typeof data?.error === 'string' ? data.error : 'Realtime health check failed'
+        setRealtimeHealth({ ok: false, error: message })
+        showToast(message, 'فشل فحص حالة التحديث الفوري.', 'error')
+        return
+      }
+      setRealtimeHealth({
+        ok: Boolean(data.ok),
+        checkedAt: typeof data.checkedAt === 'string' ? data.checkedAt : undefined,
+        pusher: typeof data.pusher === 'object' && data.pusher ? (data.pusher as any) : undefined,
+        notifications: typeof data.notifications === 'object' && data.notifications ? (data.notifications as any) : undefined,
+      })
+      showToast(
+        Boolean(data.ok) ? 'Realtime health check passed.' : 'Realtime health check found issues.',
+        Boolean(data.ok) ? 'فحص التحديث الفوري ناجح.' : 'فحص التحديث الفوري اكتشف مشاكل.',
+        Boolean(data.ok) ? 'success' : 'error'
+      )
+    } catch {
+      setRealtimeHealth({ ok: false, error: 'Network error while checking realtime health' })
+      showToast('Network error while checking realtime health.', 'خطأ شبكة أثناء فحص التحديث الفوري.', 'error')
+    } finally {
+      setRealtimeHealthLoading(false)
+    }
+  }, [showToast])
 
   const NOTIFICATION_SOUNDS = [
     { label: 'Sound 1 (Default)', labelAr: 'الصوت 1 (افتراضي)', value: '1.wav' },
@@ -1647,6 +1699,90 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                 </Button>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="dashboard-section pt-6 border-t border-slate-800">
+          <h2 className="mb-2 font-bold text-white text-lg md:text-xl tracking-tight flex items-center gap-2">
+            <Activity className="size-5 text-cyan-400" />
+            {t('Realtime diagnostics (admin)', 'تشخيص التحديث الفوري (للإدارة)')}
+          </h2>
+          <p className="mb-5 text-sm text-slate-400">
+            {t(
+              'Use this when order status actions fail. It verifies Pusher runtime and push stack configuration without exposing secrets.',
+              'استخدم هذا عند فشل تغيير حالة الطلب. يفحص Pusher والإشعارات بدون عرض أي أسرار.'
+            )}
+          </p>
+          <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 rounded-xl px-5 font-semibold border-cyan-500/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
+                onClick={runRealtimeHealthCheck}
+                disabled={realtimeHealthLoading}
+              >
+                <Activity className={`mr-2 size-4 ${realtimeHealthLoading ? 'animate-pulse' : ''}`} />
+                {realtimeHealthLoading
+                  ? t('Running check…', 'جارٍ الفحص…')
+                  : t('Run realtime health check', 'تشغيل فحص التحديث الفوري')}
+              </Button>
+
+              {realtimeHealth && (
+                <div className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold ${
+                  realtimeHealth.ok
+                    ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
+                }`}>
+                  {realtimeHealth.ok ? <CheckCircle2 className="size-4" /> : <XCircle className="size-4" />}
+                  {realtimeHealth.ok ? t('Healthy', 'سليم') : t('Issues detected', 'تم اكتشاف مشاكل')}
+                </div>
+              )}
+            </div>
+
+            {realtimeHealth && (
+              <div className="mt-4 space-y-2 text-xs text-slate-300">
+                <p>
+                  <span className="text-slate-400">{t('Pusher configured:', 'إعداد Pusher:')} </span>
+                  {realtimeHealth.pusher?.configured ? t('Yes', 'نعم') : t('No', 'لا')}
+                </p>
+                <p>
+                  <span className="text-slate-400">{t('Pusher trigger test:', 'اختبار الإرسال عبر Pusher:')} </span>
+                  {realtimeHealth.pusher?.triggerOk ? t('Passed', 'ناجح') : t('Failed', 'فشل')}
+                </p>
+                <p>
+                  <span className="text-slate-400">{t('FCM configured:', 'إعداد FCM:')} </span>
+                  {realtimeHealth.notifications?.fcmConfigured ? t('Yes', 'نعم') : t('No', 'لا')}
+                </p>
+                <p>
+                  <span className="text-slate-400">{t('Web Push configured:', 'إعداد Web Push:')} </span>
+                  {realtimeHealth.notifications?.webPushConfigured ? t('Yes', 'نعم') : t('No', 'لا')}
+                </p>
+                {!!realtimeHealth.pusher?.missingEnvKeys?.length && (
+                  <p className="text-amber-300">
+                    <span className="text-slate-400">{t('Missing env keys:', 'مفاتيح البيئة المفقودة:')} </span>
+                    {realtimeHealth.pusher.missingEnvKeys.join(', ')}
+                  </p>
+                )}
+                {realtimeHealth.pusher?.lastInitErrorMessage && (
+                  <p className="text-rose-300">
+                    <span className="text-slate-400">{t('Init error:', 'خطأ التهيئة:')} </span>
+                    {realtimeHealth.pusher.lastInitErrorMessage}
+                  </p>
+                )}
+                {realtimeHealth.error && (
+                  <p className="text-rose-300">
+                    <span className="text-slate-400">{t('Error:', 'خطأ:')} </span>
+                    {realtimeHealth.error}
+                  </p>
+                )}
+                {realtimeHealth.checkedAt && (
+                  <p className="text-slate-500">
+                    {t('Checked at', 'وقت الفحص')}: {new Date(realtimeHealth.checkedAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

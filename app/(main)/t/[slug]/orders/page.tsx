@@ -14,6 +14,7 @@ import { TenantOrdersLive, type TableRequest } from './TenantOrdersLive'
 import { BusinessPushStatusCard } from '@/components/push/BusinessPushStatusCard'
 import { PWAManager } from '@/components/pwa/PWAManager'
 import { OrdersPushGateWrapper } from './OrdersPushGateWrapper'
+import { OrdersRealtimeHealthChip } from './OrdersRealtimeHealthChip'
 import { enforcePhoneVerification } from '@/lib/enforce-phone'
 import { SubscriptionBanner } from '../manage/SubscriptionBanner'
 
@@ -136,19 +137,22 @@ export default async function TenantOrdersPage({
         <main className="mx-auto max-w-[100vw] px-4 py-4 sm:container sm:py-6">
           <SubscriptionBanner slug={slug} initialData={subscriptionBannerData} />
           <PWAManager role="business-orders" slug={slug} variant="inline" />
-          <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2 sm:mb-6 sm:gap-4">
-          <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:text-white">
-            <Link href="/dashboard">
-              <ArrowLeft className="mr-1.5 size-4 shrink-0" />
-              Dashboard
-            </Link>
-          </Button>
-          <span className="shrink-0 text-slate-600">/</span>
-          <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:text-white">
-            <Link href={`/t/${slug}/manage`}>Manage</Link>
-          </Button>
-          <span className="shrink-0 text-slate-600">/</span>
-          <span className="min-w-0 truncate font-medium text-white">Orders</span>
+        <div className="mb-4 flex min-w-0 flex-col gap-3 sm:mb-6">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4">
+            <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:text-white">
+              <Link href="/dashboard">
+                <ArrowLeft className="mr-1.5 size-4 shrink-0" />
+                Dashboard
+              </Link>
+            </Button>
+            <span className="shrink-0 text-slate-600">/</span>
+            <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:text-white">
+              <Link href={`/t/${slug}/manage`}>Manage</Link>
+            </Button>
+            <span className="shrink-0 text-slate-600">/</span>
+            <span className="min-w-0 truncate font-medium text-white">Orders</span>
+          </div>
+          <OrdersRealtimeHealthChip />
         </div>
 
         <TenantOrdersLive
