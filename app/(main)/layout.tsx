@@ -28,7 +28,7 @@ export default function MainLayout({
   return (
     <LanguageProvider>
       <PortalContainerProvider>
-        <div className="min-h-screen overflow-x-hidden">
+        <div className="min-h-screen overflow-x-clip">
           <StandaloneDriverRedirect />
           <StandaloneTenantRedirect />
           <Suspense fallback={<PageSkeleton />}>

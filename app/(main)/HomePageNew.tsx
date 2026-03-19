@@ -14,6 +14,7 @@ import { HomePageAuthSections } from '@/components/home/HomePageAuthSections'
 import { StoreTypeSidebar } from '@/components/home/StoreTypeSidebar'
 import { FeaturedTenants } from '@/components/home/FeaturedTenants'
 import { PWAAppBanners } from '@/components/home/PWAAppBanners'
+import { ScrollDrivenBanner } from '@/components/home/ScrollDrivenBanner'
 
 const HeroBanner = lazy(() =>
   import('@/components/home/HeroBanner').then((m) => ({ default: m.HeroBanner }))
@@ -59,8 +60,14 @@ export function HomePageNew() {
             </div>
           </div>
 
-          {/* 3. Full Width Content Feed (Below Sidebar & Banner) */}
-          <div className="flex flex-col gap-8 md:gap-10 px-4 md:px-0 pb-16 w-full">
+          {/* Apple-style scroll-driven banner — full viewport, no white gaps */}
+          <div className="relative left-1/2 w-screen max-w-none -translate-x-1/2">
+            <ScrollDrivenBanner folder="burger" scrollHeight={400} />
+          </div>
+
+          {/* 3. Full Width Content Feed (Below animation) — dark background */}
+          <div className="relative left-1/2 w-screen max-w-none -translate-x-1/2 bg-black">
+            <div className="container mx-auto flex max-w-[1440px] flex-col gap-8 px-4 py-12 md:gap-10 md:px-6 md:py-16 pb-16 w-full">
             {/* Featured Stores Feed for selected Category */}
             <FeaturedTenants category={activeCategory} />
             
@@ -78,11 +85,12 @@ export function HomePageNew() {
 
             {/* Dedicated Auth CTA Sections */}
             <HomePageAuthSections />
+            </div>
           </div>
         </main>
 
-        {/* Footer — full width, outside container */}
-        <div className="mt-8 border-t border-slate-200">
+        {/* Footer — dark, full width */}
+        <div className="border-t border-neutral-800 bg-black">
           <PublicFooter />
         </div>
       </LocationGate>

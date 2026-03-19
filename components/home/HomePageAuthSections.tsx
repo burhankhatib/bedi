@@ -79,10 +79,10 @@ export function HomePageAuthSections() {
               <Store className="size-4" />
               {t('For businesses', 'للأعمال')}
             </span>
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight text-white md:text-4xl">
               {t('Get your menu online. Accept orders in minutes.', 'انشر قائمتك أونلاين. استقبل الطلبات خلال دقائق.')}
             </h2>
-            <p className="max-w-xl text-slate-600">
+            <p className="max-w-xl text-neutral-400">
               {t(
                 'Restaurants, cafes, salons and more — one link, dine-in and delivery orders, no app store.',
                 'مطاعم، مقاهي، صالونات والمزيد — رابط واحد، طلبات جلوس وتوصيل، بدون متجر تطبيقات.'
@@ -91,14 +91,14 @@ export function HomePageAuthSections() {
           </motion.div>
 
           <motion.div variants={item}>
-            <Card className="overflow-hidden transition-shadow hover:shadow-xl" style={{ borderColor: `${BUSINESS_BRAND}40`, background: `linear-gradient(to bottom right, ${BUSINESS_BRAND}12, white)`, boxShadow: `0 10px 40px -10px ${BUSINESS_BRAND}30` }}>
+            <Card className="overflow-hidden transition-shadow hover:shadow-xl" style={{ borderColor: `${BUSINESS_BRAND}50`, background: `linear-gradient(to bottom right, ${BUSINESS_BRAND}20, transparent)`, boxShadow: `0 10px 40px -10px ${BUSINESS_BRAND}30` }}>
               <CardHeader className="pb-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <CardTitle className="text-xl text-slate-900 md:text-2xl">
+                    <CardTitle className="text-xl text-white md:text-2xl">
                       {t('Create your business account', 'إنشاء حساب أعمال')}
                     </CardTitle>
-                    <CardDescription className="mt-1.5 text-slate-600">
+                    <CardDescription className="mt-1.5 text-neutral-400">
                       {t('Sign up or sign in to manage your menu and orders.', 'سجّل أو ادخل لإدارة قائمتك وطلباتك.')}
                     </CardDescription>
                   </div>
@@ -124,25 +124,25 @@ export function HomePageAuthSections() {
                     <motion.li
                       key={i}
                       variants={item}
-                      className="flex items-center gap-3 rounded-xl border bg-white/60 px-4 py-3"
-                      style={{ borderColor: `${BUSINESS_BRAND}25` }}
+                      className="flex items-center gap-3 rounded-xl border bg-neutral-800/60 px-4 py-3"
+                      style={{ borderColor: `${BUSINESS_BRAND}40` }}
                     >
                       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg text-white" style={{ backgroundColor: BUSINESS_BRAND }}>
                         <Icon className="size-4" />
                       </div>
-                      <span className="text-sm font-medium text-slate-700">{isRtl ? textAr : text}</span>
+                      <span className="text-sm font-medium text-neutral-300">{isRtl ? textAr : text}</span>
                     </motion.li>
                   ))}
                 </ul>
               </CardContent>
-              <CardFooter className="flex flex-wrap gap-3 border-t pt-6" style={{ borderColor: `${BUSINESS_BRAND}30`, backgroundColor: `${BUSINESS_BRAND}08` }}>
+              <CardFooter className="flex flex-wrap gap-3 border-t pt-6" style={{ borderColor: `${BUSINESS_BRAND}40`, backgroundColor: `${BUSINESS_BRAND}15` }}>
                 <Button asChild size="lg" className="gap-2 rounded-xl text-white shadow-md hover:opacity-90" style={{ backgroundColor: BUSINESS_BRAND }}>
                   <Link href="/sign-up?redirect_url=/onboarding">
                     <UserPlus className="size-5" />
                     {t('Sign up (Business)', 'تسجيل (أعمال)')}
                   </Link>
                 </Button>
-                <Button asChild size="lg" variant="outline" className="gap-2 rounded-xl border bg-white text-slate-900 hover:bg-slate-50" style={{ borderColor: `${BUSINESS_BRAND}60` }}>
+                <Button asChild size="lg" variant="outline" className="gap-2 rounded-xl border bg-transparent text-white hover:bg-neutral-800/80" style={{ borderColor: `${BUSINESS_BRAND}60` }}>
                   <Link href="/sign-in?redirect_url=/">
                     <LogIn className="size-5" />
                     {t('Sign in (Business)', 'دخول (أعمال)')}
@@ -175,10 +175,10 @@ export function HomePageAuthSections() {
               <Truck className="size-4" />
               {t('For drivers', 'للسائقين')}
             </span>
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight text-white md:text-4xl">
               {t('Deliver orders. Earn on your schedule.', 'وصّل الطلبات. اربح حسب وقتك.')}
             </h2>
-            <p className="max-w-xl text-slate-600">
+            <p className="max-w-xl text-neutral-400">
               {t(
                 'Join the driver app, get orders in your area, and get paid. Enable notifications to receive new orders.',
                 'انضم لتطبيق السائقين، استلم طلبات في منطقتك واربح. فعّل الإشعارات لاستقبال طلبات جديدة.'
@@ -187,14 +187,14 @@ export function HomePageAuthSections() {
           </motion.div>
 
           <motion.div variants={item}>
-            <Card className="overflow-hidden transition-shadow hover:shadow-xl" style={{ borderColor: `${DRIVER_BRAND}40`, background: `linear-gradient(to bottom right, ${DRIVER_BRAND}12, white)`, boxShadow: `0 10px 40px -10px ${DRIVER_BRAND}30` }}>
+            <Card className="overflow-hidden transition-shadow hover:shadow-xl" style={{ borderColor: `${DRIVER_BRAND}50`, background: `linear-gradient(to bottom right, ${DRIVER_BRAND}20, transparent)`, boxShadow: `0 10px 40px -10px ${DRIVER_BRAND}30` }}>
               <CardHeader className="pb-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <CardTitle className="text-xl text-slate-900 md:text-2xl">
+                    <CardTitle className="text-xl text-white md:text-2xl">
                       {t('Join as a driver', 'انضم كسائق')}
                     </CardTitle>
-                    <CardDescription className="mt-1.5 text-slate-600">
+                    <CardDescription className="mt-1.5 text-neutral-400">
                       {t('Sign up or sign in to the driver app and start receiving orders.', 'سجّل أو ادخل لتطبيق السائقين وابدأ باستقبال الطلبات.')}
                     </CardDescription>
                   </div>
@@ -220,25 +220,25 @@ export function HomePageAuthSections() {
                     <motion.li
                       key={i}
                       variants={item}
-                      className="flex items-center gap-3 rounded-xl border bg-white/60 px-4 py-3"
-                      style={{ borderColor: `${DRIVER_BRAND}25` }}
+                      className="flex items-center gap-3 rounded-xl border bg-neutral-800/60 px-4 py-3"
+                      style={{ borderColor: `${DRIVER_BRAND}40` }}
                     >
                       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg text-white" style={{ backgroundColor: DRIVER_BRAND }}>
                         <Icon className="size-4" />
                       </div>
-                      <span className="text-sm font-medium text-slate-700">{isRtl ? textAr : text}</span>
+                      <span className="text-sm font-medium text-neutral-300">{isRtl ? textAr : text}</span>
                     </motion.li>
                   ))}
                 </ul>
               </CardContent>
-              <CardFooter className="flex flex-wrap gap-3 border-t pt-6" style={{ borderColor: `${DRIVER_BRAND}30`, backgroundColor: `${DRIVER_BRAND}08` }}>
+              <CardFooter className="flex flex-wrap gap-3 border-t pt-6" style={{ borderColor: `${DRIVER_BRAND}40`, backgroundColor: `${DRIVER_BRAND}15` }}>
                 <Button asChild size="lg" className="gap-2 rounded-xl text-white shadow-md hover:opacity-90" style={{ backgroundColor: DRIVER_BRAND }}>
                   <Link href="/sign-up?redirect_url=/driver">
                     <UserPlus className="size-5" />
                     {t('Sign up (Driver)', 'تسجيل (سائق)')}
                   </Link>
                 </Button>
-                <Button asChild size="lg" variant="outline" className="gap-2 rounded-xl border bg-white text-slate-900 hover:bg-slate-50" style={{ borderColor: `${DRIVER_BRAND}60` }}>
+                <Button asChild size="lg" variant="outline" className="gap-2 rounded-xl border bg-transparent text-white hover:bg-neutral-800/80" style={{ borderColor: `${DRIVER_BRAND}60` }}>
                   <Link href="/sign-in?redirect_url=/driver">
                     <LogIn className="size-5" />
                     {t('Sign in (Driver)', 'دخول (سائق)')}

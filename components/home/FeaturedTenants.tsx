@@ -54,14 +54,14 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
   if (!isChosen || (loading && tenants.length === 0)) {
     return (
       <section className="pt-2 pb-8">
-        <h2 className="mb-6 text-xl font-bold text-slate-900 md:text-2xl tracking-tight">
+        <h2 className="mb-6 text-xl font-bold text-white md:text-2xl tracking-tight">
           {t('Featured places', 'أماكن مميزة')}
         </h2>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {[...Array(8)].map((_, i) => (
             <div
               key={i}
-              className="h-[200px] animate-pulse rounded-[20px] bg-slate-200/60"
+              className="h-[200px] animate-pulse rounded-[20px] bg-neutral-800"
             />
           ))}
         </div>
@@ -72,9 +72,9 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
   if (tenants.length === 0) {
     return (
       <section className="pt-2 pb-8">
-        <div className="rounded-3xl border border-slate-100 bg-white p-12 text-center shadow-sm">
-          <Store className="mx-auto size-16 text-slate-200" />
-          <p className="mt-4 text-slate-600 font-medium text-lg">
+        <div className="rounded-3xl border border-neutral-700 bg-neutral-900/80 p-12 text-center">
+          <Store className="mx-auto size-16 text-neutral-600" />
+          <p className="mt-4 text-neutral-400 font-medium text-lg">
             {t('No businesses found here yet.', 'لا توجد أعمال هنا بعد.')}
           </p>
         </div>
@@ -85,7 +85,7 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
   return (
     <section className="pt-2 pb-8">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-slate-900 md:text-2xl tracking-tight">
+        <h2 className="text-xl font-bold text-white md:text-2xl tracking-tight">
           {t('Featured places to order', 'أماكن مميزة للطلب')}
         </h2>
         <Link href={`/search?category=${category}`} className="text-sm font-semibold text-brand-yellow hover:text-brand-yellow/80 hidden sm:block">
@@ -103,10 +103,9 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
           >
             <Link
               href={tStore.slug ? `/t/${tStore.slug}` : '#'}
-              className="group flex flex-col items-center overflow-hidden rounded-[20px] bg-white p-4 pb-5 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
+              className="group flex flex-col items-center overflow-hidden rounded-[20px] bg-neutral-900/80 p-4 pb-5 transition-all duration-300 border border-neutral-700/80 hover:border-brand-yellow/40 hover:bg-neutral-800/80"
             >
-              {/* Logo - Top, centered */}
-              <div className="relative size-[80px] sm:size-[88px] shrink-0 overflow-hidden rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300 mb-3">
+              <div className="relative size-[80px] sm:size-[88px] shrink-0 overflow-hidden rounded-2xl bg-neutral-800 border border-neutral-700/60 group-hover:scale-[1.03] transition-transform duration-300 mb-3">
                 {tStore.logoUrl ? (
                   <Image
                     src={tStore.logoUrl}
@@ -117,18 +116,16 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center">
-                    <Store className="size-9 text-slate-300" />
+                    <Store className="size-9 text-neutral-600" />
                   </div>
                 )}
               </div>
 
-              {/* Business name - bold, big font */}
-              <h2 className="font-bold text-slate-900 text-[17px] sm:text-[19px] tracking-tight text-center line-clamp-2 group-hover:text-brand-yellow transition-colors w-full">
+              <h2 className="font-bold text-white text-[17px] sm:text-[19px] tracking-tight text-center line-clamp-2 group-hover:text-brand-yellow transition-colors w-full">
                 {(lang === 'ar' ? tStore.name_ar : tStore.name_en) || tStore.name}
               </h2>
 
-              {/* Category */}
-              <p className="mt-1 text-[13px] text-slate-500 capitalize font-medium">
+              <p className="mt-1 text-[13px] text-neutral-400 capitalize font-medium">
                 {lang === 'ar'
                   ? BUSINESS_TYPES.find((b) => b.value === tStore.businessType)?.labelAr ??
                     tStore.businessType
@@ -136,9 +133,8 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
                     tStore.businessType}
               </p>
 
-              {/* Specialty */}
               {tStore.sections.length > 0 && (
-                <p className="mt-1 text-[12px] text-slate-500 line-clamp-2 text-center">
+                <p className="mt-1 text-[12px] text-neutral-500 line-clamp-2 text-center">
                   {tStore.sections
                     .map((s) => (lang === 'ar' ? s.ar || s.en : s.en || s.ar))
                     .filter(Boolean)
@@ -151,7 +147,7 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
       </div>
 
       <div className="mt-6 flex justify-center sm:hidden">
-         <Link href={`/search?category=${category}`} className="w-full flex items-center justify-center h-12 rounded-full border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 transition">
+         <Link href={`/search?category=${category}`} className="w-full flex items-center justify-center h-12 rounded-full border border-neutral-700 font-semibold text-neutral-300 hover:bg-neutral-800/80 transition">
             {t('See all stores', 'عرض جميع المتاجر')}
          </Link>
       </div>

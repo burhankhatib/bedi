@@ -45,7 +45,7 @@ export function PopularProductsSection() {
   if (loading) {
     return (
       <section className="py-12">
-        <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-900 md:text-2xl tracking-tight">
+        <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-white md:text-2xl tracking-tight">
           <Flame className="size-6 text-brand-yellow" />
           {t('Popular dishes', 'أطباق شائعة')}
         </h2>
@@ -53,7 +53,7 @@ export function PopularProductsSection() {
           {[...Array(8)].map((_, i) => (
             <div
               key={i}
-              className="aspect-[4/3] animate-pulse rounded-[20px] bg-slate-200/60"
+              className="aspect-[4/3] animate-pulse rounded-[20px] bg-neutral-800"
             />
           ))}
         </div>
@@ -64,7 +64,7 @@ export function PopularProductsSection() {
 
   return (
     <section className="py-12">
-      <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-900 md:text-2xl tracking-tight">
+      <h2 className="mb-6 flex items-center gap-2 text-xl font-bold text-white md:text-2xl tracking-tight">
         <Flame className="size-6 text-brand-yellow" />
         {t('Popular items from businesses', 'أصناف شائعة من الأعمال')}
       </h2>
@@ -78,9 +78,9 @@ export function PopularProductsSection() {
           >
             <Link
               href={item.restaurant.slug ? `/t/${item.restaurant.slug}` : '#'}
-              className="group flex flex-col overflow-hidden rounded-[20px] bg-white transition-all duration-300 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
+              className="group flex flex-col overflow-hidden rounded-[20px] bg-neutral-900/80 transition-all duration-300 border border-neutral-700/80 hover:border-brand-yellow/40 hover:bg-neutral-800/80"
             >
-              <div className="relative aspect-[4/3] overflow-hidden bg-slate-50">
+              <div className="relative aspect-[4/3] overflow-hidden bg-neutral-800">
                 {item.imageUrl ? (
                   <Image
                     src={item.imageUrl}
@@ -90,19 +90,18 @@ export function PopularProductsSection() {
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-slate-100">
-                    <Flame className="size-16 text-slate-300" />
+                  <div className="flex h-full w-full items-center justify-center bg-neutral-800">
+                    <Flame className="size-16 text-neutral-600" />
                   </div>
                 )}
-                {/* Subtle gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
               </div>
-              <div className="flex flex-col gap-2 p-4 bg-white z-10">
-                <h3 className="font-bold text-slate-900 text-[17px] tracking-tight line-clamp-1 group-hover:text-brand-yellow transition-colors">
+              <div className="flex flex-col gap-2 p-4 bg-transparent z-10">
+                <h3 className="font-bold text-white text-[17px] tracking-tight line-clamp-1 group-hover:text-brand-yellow transition-colors">
                   {lang === 'ar' ? item.title_ar || item.title_en : item.title_en || item.title_ar}
                 </h3>
-                <div className="flex items-center gap-2.5 mt-1 text-slate-500 font-medium">
-                  <div className="relative size-[26px] shrink-0 overflow-hidden rounded-full bg-slate-50 border border-slate-100/60 shadow-sm">
+                <div className="flex items-center gap-2.5 mt-1 text-neutral-400 font-medium">
+                  <div className="relative size-[26px] shrink-0 overflow-hidden rounded-full bg-neutral-700 border border-neutral-600">
                     {item.restaurant.logoUrl ? (
                       <Image
                         src={item.restaurant.logoUrl}
@@ -113,11 +112,11 @@ export function PopularProductsSection() {
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center">
-                        <Store className="size-3.5 text-slate-300" />
+                        <Store className="size-3.5 text-neutral-500" />
                       </div>
                     )}
                   </div>
-                  <span className="truncate text-[13px] text-slate-500">
+                  <span className="truncate text-[13px] text-neutral-400">
                     {item.restaurant.name}
                   </span>
                 </div>

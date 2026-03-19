@@ -94,30 +94,30 @@ export function PWAAppBanners() {
                 <a
                   href={config.href}
                   onClick={(e) => handleCtaClick(e, app)}
-                  className="group flex items-center gap-4 rounded-2xl border p-5 shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5"
+                  className="group flex items-center gap-4 rounded-2xl border p-5 transition-all duration-300 hover:-translate-y-0.5"
                   style={{
-                    borderColor: `${color}40`,
-                    background: `linear-gradient(to bottom right, ${color}15, white)`,
-                    boxShadow: `0 10px 40px -10px ${color}20`,
+                    borderColor: `${color}50`,
+                    background: `linear-gradient(to bottom right, ${color}20, transparent)`,
+                    boxShadow: `0 10px 40px -10px ${color}25`,
                   }}
                 >
                   <div
                     className="flex size-14 shrink-0 items-center justify-center rounded-2xl transition-transform group-hover:scale-105"
-                    style={{ backgroundColor: `${color}25`, color }}
+                    style={{ backgroundColor: `${color}30`, color }}
                   >
                     <Icon className="size-7" strokeWidth={2} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-bold text-slate-900 text-lg">{config.name}</h3>
-                    <p className="mt-0.5 text-sm text-slate-600">
+                    <h3 className="font-bold text-white text-lg">{config.name}</h3>
+                    <p className="mt-0.5 text-sm text-neutral-400">
                       {app === 'driver'
                         ? t('Install for drivers — orders & notifications', 'تثبيت للسائقين — طلبات وإشعارات')
                         : t('Install for businesses — menus & orders', 'تثبيت للأعمال — قوائم وطلبات')}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <Download className="size-5 text-slate-400 group-hover:text-slate-600" />
-                    <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900">
+                    <Download className="size-5 text-neutral-500 group-hover:text-neutral-300" />
+                    <span className="text-sm font-semibold text-neutral-300 group-hover:text-white">
                       {ctaLabel}
                     </span>
                   </div>

@@ -74,7 +74,7 @@ export function PublicFooter({ tagline }: PublicFooterProps) {
     icon?: React.ComponentType<{ className?: string }>
   }) => (
     <div className="flex flex-col gap-4">
-      <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+      <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
         {TitleIcon && <TitleIcon className="size-3.5 shrink-0" />}
         {title}
       </h3>
@@ -83,7 +83,7 @@ export function PublicFooter({ tagline }: PublicFooterProps) {
           <li key={href}>
             <Link
               href={href}
-              className="inline-flex items-center gap-1 text-sm text-slate-400 transition-colors hover:text-amber-400 focus:text-amber-400 focus:outline-none"
+              className="inline-flex items-center gap-1 text-sm text-neutral-400 transition-colors hover:text-amber-400 focus:text-amber-400 focus:outline-none"
             >
               {label}
               <ChevronRight
@@ -98,7 +98,7 @@ export function PublicFooter({ tagline }: PublicFooterProps) {
   )
 
   return (
-    <footer className="w-full min-w-full max-w-[100vw] border-t border-slate-800/60 bg-slate-950" role="contentinfo">
+    <footer className="w-full min-w-full max-w-[100vw] border-t border-neutral-800 bg-black" role="contentinfo">
       <div className="w-full px-4 py-14 md:px-6 md:py-16 lg:px-8">
         <div className="mx-auto grid max-w-7xl grid-cols-2 gap-10 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
           {/* Brand */}
@@ -110,7 +110,7 @@ export function PublicFooter({ tagline }: PublicFooterProps) {
               <Store className="size-6 shrink-0 text-amber-400" aria-hidden />
               Bedi Delivery
             </Link>
-            <p className="mt-3 max-w-xs text-sm text-slate-500">
+            <p className="mt-3 max-w-xs text-sm text-neutral-500">
               {t(
                 'One link. Your menu. Orders that just work.',
                 'رابط واحد. قائمتك. طلبات تعمل ببساطة.'
@@ -141,7 +141,7 @@ export function PublicFooter({ tagline }: PublicFooterProps) {
 
           {/* Login / Register — prominent on desktop */}
           <div className="flex flex-col gap-4 sm:col-span-2 lg:col-span-1">
-            <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">
               <Menu className="size-3.5 shrink-0" />
               {t('Account', 'الحساب')}
             </h3>
@@ -149,7 +149,7 @@ export function PublicFooter({ tagline }: PublicFooterProps) {
               <Button
                 asChild
                 size="sm"
-                className="w-full border border-slate-600 bg-slate-800 text-white hover:bg-slate-700 focus-visible:ring-slate-500"
+                className="w-full border border-neutral-700 bg-neutral-800 text-white hover:bg-neutral-700 focus-visible:ring-neutral-500"
               >
                 <Link href="/sign-in?redirect_url=/" className="inline-flex items-center justify-center gap-2">
                   <LogIn className="size-4 shrink-0" />
@@ -177,21 +177,21 @@ export function PublicFooter({ tagline }: PublicFooterProps) {
           />
         </div>
 
-        <div className="mx-auto mt-12 flex max-w-7xl flex-col items-center justify-between gap-4 border-t border-slate-800/50 pt-8 md:flex-row md:gap-0">
-          <p className="text-center text-xs text-slate-500 md:text-left">
+        <div className="mx-auto mt-12 flex max-w-7xl flex-col items-center justify-between gap-4 border-t border-neutral-800 pt-8 md:flex-row md:gap-0">
+          <p className="text-center text-xs text-neutral-500 md:text-left">
             {tagline ?? defaultTagline}
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-xs text-slate-500">
-            <Link href="/terms" className="hover:text-slate-400">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-xs text-neutral-500">
+            <Link href="/terms" className="hover:text-neutral-400">
               {t('Terms', 'الشروط')}
             </Link>
-            <Link href="/privacy" className="hover:text-slate-400">
+            <Link href="/privacy" className="hover:text-neutral-400">
               {t('Privacy', 'الخصوصية')}
             </Link>
-            <Link href="/privacy#business-details" className="hover:text-slate-400">
+            <Link href="/privacy#business-details" className="hover:text-neutral-400">
               {t('Business details', 'بيانات الأعمال')}
             </Link>
-            <Link href="/refund-policy" className="hover:text-slate-400">
+            <Link href="/refund-policy" className="hover:text-neutral-400">
               {t('Refunds', 'الاسترداد')}
             </Link>
           </div>
