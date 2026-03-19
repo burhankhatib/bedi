@@ -240,6 +240,7 @@ function DriverOrdersV2Content() {
   const [expandedDetailsByOrder, setExpandedDetailsByOrder] = useState<Record<string, Set<number>>>({})
   const [addProductFormOpenByOrder, setAddProductFormOpenByOrder] = useState<Record<string, boolean>>({})
   const [pendingPickupManualConfirmOrderId, setPendingPickupManualConfirmOrderId] = useState<string | null>(null)
+  const [pendingPickupUnsentChangesOrderId, setPendingPickupUnsentChangesOrderId] = useState<string | null>(null)
   const [tipCelebration, setTipCelebration] = useState<{
     orderId: string
     tipAmount: number
@@ -678,9 +679,31 @@ function DriverOrdersV2Content() {
     }
   }
 
+  const hasUnsentChangesAffectingTotal = (order: DriverOrder) => {
+    const edited = editingItemsByOrder[order.orderId]
+    if (!edited?.length) return false
+    const server = order.items || []
+    if (edited.length !== server.length) return true
+    for (let i = 0; i < edited.length; i++) {
+      const e = edited[i]
+      const s = server[i]
+      if (!s) return true
+      if ((e.isPicked !== false) !== (s.isPicked !== false)) return true
+      if ((e.quantity ?? 1) !== (s.quantity ?? 1)) return true
+      const eKey = (e.productId || e.productName || '').trim()
+      const sKey = ((s as { productId?: string; productName?: string }).productId || (s as { productId?: string; productName?: string }).productName || '').trim()
+      if (eKey !== sKey) return true
+    }
+    return false
+  }
+
   const pickUp = async (orderId: string, manualCustomerChangeConfirm = false): Promise<boolean> => {
     const order = myDeliveries.find((x) => x.orderId === orderId)
     if (!order) return false
+    if (hasUnsentChangesAffectingTotal(order) && !manualCustomerChangeConfirm) {
+      setPendingPickupUnsentChangesOrderId(orderId)
+      return false
+    }
     if (order.customerItemChangeStatus === 'pending' && !manualCustomerChangeConfirm) {
       setPendingPickupManualConfirmOrderId(orderId)
       return false
@@ -717,6 +740,7 @@ function DriverOrdersV2Content() {
         'success',
       )
       setPendingPickupManualConfirmOrderId(null)
+      setPendingPickupUnsentChangesOrderId(null)
       pushDriverLocation()
       // Delayed refetch — give Sanity time to propagate the write before
       // we replace the optimistic state with server data.
@@ -1147,11 +1171,11 @@ function DriverOrdersV2Content() {
     setBrowseMenuOrderId(null)
   }
 
-  const saveDriverItemChanges = async (order: DriverOrder) => {
+  const saveDriverItemChanges = async (order: DriverOrder, opts?: { manualCustomerConfirm?: boolean }) => {
     const edited = editingItemsByOrder[order.orderId] || []
     if (!edited.length) {
       showToast(t('Order must contain at least one item.', 'يجب أن يحتوي الطلب على صنف واحد على الأقل.'), t('Order must contain at least one item.', 'يجب أن يحتوي الطلب على صنف واحد على الأقل.'), 'error')
-      return
+      return false
     }
 
     const original = order.items || []
@@ -1214,14 +1238,17 @@ function DriverOrdersV2Content() {
             }
           }),
           changeSummary,
+          manualCustomerConfirm: opts?.manualCustomerConfirm ?? false,
         }),
       })
       if (!res.ok) throw new Error('Failed')
-      showToast(
-        t('Items updated. Customer was notified to confirm changes.', 'تم تحديث الأصناف. تم إشعار العميل لتأكيد التغييرات.'),
-        t('Items updated. Customer was notified to confirm changes.', 'تم تحديث الأصناف. تم إشعار العميل لتأكيد التغييرات.'),
-        'success'
-      )
+      if (!opts?.manualCustomerConfirm) {
+        showToast(
+          t('Items updated. Customer was notified to confirm changes.', 'تم تحديث الأصناف. تم إشعار العميل لتأكيد التغييرات.'),
+          t('Items updated. Customer was notified to confirm changes.', 'تم تحديث الأصناف. تم إشعار العميل لتأكيد التغييرات.'),
+          'success'
+        )
+      }
       setDetailsOrderId(null)
       fetchOrders()
     } catch {
@@ -1230,8 +1257,52 @@ function DriverOrdersV2Content() {
         t(`Could not save changes.`, `تعذر حفظ التغييرات.`),
         'error'
       )
+      return false
     } finally {
       setSavingItemsOrderId(null)
+    }
+    return true
+  }
+
+  const handleUnsentChangesSendToCustomer = async () => {
+    if (!pendingPickupUnsentChangesOrderId) return
+    const order = myDeliveries.find((x) => x.orderId === pendingPickupUnsentChangesOrderId)
+    if (!order) {
+      setPendingPickupUnsentChangesOrderId(null)
+      return
+    }
+    const ok = await saveDriverItemChanges(order)
+    setPendingPickupUnsentChangesOrderId(null)
+    if (ok) {
+      showToast(
+        t('Changes sent. Wait for customer confirmation or confirm by phone.', 'تم إرسال التغييرات. انتظر تأكيد العميل أو أكّد هاتفياً.'),
+        t('Changes sent. Wait for customer confirmation or confirm by phone.', 'تم إرسال التغييرات. انتظر تأكيد العميل أو أكّد هاتفياً.'),
+        'success'
+      )
+    }
+  }
+
+  const handleUnsentChangesConfirmedByPhone = async () => {
+    if (!pendingPickupUnsentChangesOrderId) return
+    const order = myDeliveries.find((x) => x.orderId === pendingPickupUnsentChangesOrderId)
+    if (!order) {
+      setPendingPickupUnsentChangesOrderId(null)
+      return
+    }
+    setActionId(order.orderId)
+    try {
+      const ok = await saveDriverItemChanges(order, { manualCustomerConfirm: true })
+      if (!ok) return
+      setPendingPickupUnsentChangesOrderId(null)
+      await pickUp(order.orderId, true)
+    } catch {
+      showToast(
+        t('Could not complete. Try again.', 'تعذر الإكمال. حاول مرة أخرى.'),
+        t('Could not complete. Try again.', 'تعذر الإكمال. حاول مرة أخرى.'),
+        'error'
+      )
+    } finally {
+      setActionId(null)
     }
   }
 
@@ -2175,6 +2246,65 @@ function DriverOrdersV2Content() {
                   )}
                 </div>
 
+                <AnimatePresence>
+                  {pendingPickupUnsentChangesOrderId === activeOrder.orderId && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+                      onClick={() => setPendingPickupUnsentChangesOrderId(null)}
+                    >
+                      <motion.div
+                        initial={{ scale: 0.95, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.95, opacity: 0 }}
+                        transition={{ type: 'spring', stiffness: 350, damping: 26 }}
+                        className="relative w-full max-w-sm rounded-3xl bg-slate-900 border border-amber-500/40 shadow-2xl p-5"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <h3 className="text-white text-base font-black mb-2">
+                          {t("Item changes not sent to customer", 'تغييرات الأصناف لم تُرسل للعميل')}
+                        </h3>
+                        <p className="text-sm text-slate-300 mb-4 leading-relaxed">
+                          {t(
+                            'You marked items as not available or changed the order. The total has changed. Send these changes to the customer or confirm you agreed with them by phone.',
+                            'قمت بتحديد أصنافاً غير متوفرة أو غيرت الطلب. المجموع تغيّر. أرسل التغييرات للعميل أو أكّد أنك اتّفقت معه هاتفياً.'
+                          )}
+                        </p>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleUnsentChangesSendToCustomer()}
+                            disabled={savingItemsOrderId === activeOrder.orderId}
+                            className="w-full rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold py-2.5 disabled:opacity-60"
+                          >
+                            {savingItemsOrderId === activeOrder.orderId
+                              ? t('Sending...', 'جاري الإرسال...')
+                              : t('Send changes to customer', 'إرسال التغييرات للعميل')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleUnsentChangesConfirmedByPhone()}
+                            disabled={!!actionId}
+                            className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 disabled:opacity-60"
+                          >
+                            {actionId === activeOrder.orderId
+                              ? t('Saving & picking up...', 'جاري الحفظ والاستلام...')
+                              : t('I confirmed with customer by phone', 'تأكدت مع العميل هاتفياً')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPendingPickupUnsentChangesOrderId(null)}
+                            className="w-full rounded-xl border border-slate-600 bg-slate-800 text-slate-100 font-bold py-2.5"
+                          >
+                            {t('Cancel', 'إلغاء')}
+                          </button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <AnimatePresence>
                   {pendingPickupManualConfirmOrderId === activeOrder.orderId && (
                     <motion.div

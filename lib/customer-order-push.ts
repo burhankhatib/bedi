@@ -23,6 +23,7 @@ const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
   driver_arrived_at_business: { en: 'Driver reached the store', ar: 'وصل السائق إلى المتجر' },
   items_changed: { en: 'Order items updated — review required', ar: 'تم تحديث عناصر الطلب — يلزم المراجعة' },
   items_change_declined: { en: 'Driver declined your order changes', ar: 'السائق رفض تعديلات الطلب' },
+  order_total_updated: { en: 'Order total updated', ar: 'تم تحديث المجموع' },
   completed: { en: 'Completed', ar: 'مكتمل' },
   served: { en: 'Served', ar: 'تم التقديم' },
   cancelled: { en: 'Cancelled', ar: 'ملغى' },
@@ -137,6 +138,12 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
     const driverDisplay = (driverName && String(driverName).trim()) || 'السائق'
     label = `Driver ${driverDisplay} has reached ${businessNameEn}`
     labelAr = `السائق ${driverDisplay} وصل إلى ${businessName}`
+  } else if (newStatus === 'order_total_updated') {
+    const cur = (order?.currency ?? '').trim().toUpperCase() || 'ILS'
+    const sym = cur === 'ILS' ? '₪' : cur
+    const total = typeof order?.totalAmount === 'number' ? order.totalAmount : 0
+    label = `Driver confirmed changes by phone. New total: ${total.toFixed(2)} ${sym}`
+    labelAr = `السائق أكّد التغييرات هاتفياً. المجموع الجديد: ${total.toFixed(2)} ${sym}`
   }
 
   const title = `${customerName}, your order at ${businessNameEn}`

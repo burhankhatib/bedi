@@ -42,12 +42,15 @@ export async function PATCH(
       toQuantity?: number
       note?: string
     }>
+    manualCustomerConfirm?: boolean
   }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
   }
+
+  const manualCustomerConfirm = body.manualCustomerConfirm === true
 
   if (!Array.isArray(body.items) || body.items.length === 0) {
     return NextResponse.json({ error: 'At least one item is required' }, { status: 400 })
@@ -157,23 +160,37 @@ export async function PATCH(
   const totalAmount = subtotal + deliveryFee + shopperFee
   const now = new Date().toISOString()
 
-  await writeClient
-    .patch(orderId)
-    .set({
-      items: normalizedItems,
-      subtotal,
-      shopperFee,
-      totalAmount,
-      itemsUpdatedAt: now,
-      customerItemChangeStatus: 'pending',
-      customerItemChangeRequestedAt: now,
-      customerItemChangeResolvedAt: null,
-      customerItemChangeResponseNote: null,
-      customerItemChangePreviousSubtotal: order.subtotal ?? 0,
-      customerItemChangePreviousTotalAmount: order.totalAmount ?? 0,
-      customerItemChangeSummary: Array.isArray(body.changeSummary) ? body.changeSummary : [],
-    })
-    .commit()
+  const patchPayload = manualCustomerConfirm
+    ? {
+        items: normalizedItems,
+        subtotal,
+        shopperFee,
+        totalAmount,
+        itemsUpdatedAt: now,
+        customerItemChangeStatus: 'approved',
+        customerItemChangeRequestedAt: now,
+        customerItemChangeResolvedAt: now,
+        customerItemChangeResponseNote: 'تم التأكيد هاتفياً',
+        customerItemChangePreviousSubtotal: order.subtotal ?? 0,
+        customerItemChangePreviousTotalAmount: order.totalAmount ?? 0,
+        customerItemChangeSummary: Array.isArray(body.changeSummary) ? body.changeSummary : [],
+      }
+    : {
+        items: normalizedItems,
+        subtotal,
+        shopperFee,
+        totalAmount,
+        itemsUpdatedAt: now,
+        customerItemChangeStatus: 'pending',
+        customerItemChangeRequestedAt: now,
+        customerItemChangeResolvedAt: null,
+        customerItemChangeResponseNote: null,
+        customerItemChangePreviousSubtotal: order.subtotal ?? 0,
+        customerItemChangePreviousTotalAmount: order.totalAmount ?? 0,
+        customerItemChangeSummary: Array.isArray(body.changeSummary) ? body.changeSummary : [],
+      }
+
+  await writeClient.patch(orderId).set(patchPayload).commit()
 
   pusherServer
     .trigger(`order-${orderId}`, 'order-update', { type: 'items-changed-by-driver', orderId })
@@ -182,13 +199,23 @@ export async function PATCH(
     .trigger('driver-global', 'order-update', { type: 'items-changed-by-driver', orderId })
     .catch(() => {})
 
-  sendCustomerOrderStatusPush({
-    orderId,
-    newStatus: 'items_changed',
-    baseUrl: process.env.NEXT_PUBLIC_APP_URL,
-  }).catch((e) => {
-    console.warn('[customer-order-push] items_changed', e)
-  })
+  if (manualCustomerConfirm) {
+    sendCustomerOrderStatusPush({
+      orderId,
+      newStatus: 'order_total_updated',
+      baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+    }).catch((e) => {
+      console.warn('[customer-order-push] order_total_updated', e)
+    })
+  } else {
+    sendCustomerOrderStatusPush({
+      orderId,
+      newStatus: 'items_changed',
+      baseUrl: process.env.NEXT_PUBLIC_APP_URL,
+    }).catch((e) => {
+      console.warn('[customer-order-push] items_changed', e)
+    })
+  }
 
   return NextResponse.json({
     success: true,
