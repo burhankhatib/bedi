@@ -16,19 +16,20 @@ import { FeaturedTenants } from '@/components/home/FeaturedTenants'
 import { PWAAppBanners } from '@/components/home/PWAAppBanners'
 import { ScrollDrivenBanner } from '@/components/home/ScrollDrivenBanner'
 
-const FRAME_COUNT = 31
-function frameSrc(folder: string, i: number) {
-  return `/banners/${folder}/burger-${String(i + 1).padStart(3, '0')}.jpg`
-}
-
 /** Starts preloading scroll-banner frames as soon as the homepage mounts */
 function PreloadScrollBannerFrames() {
   useEffect(() => {
     if (typeof document === 'undefined') return
-    for (let i = 0; i < FRAME_COUNT; i++) {
-      const img = document.createElement('img')
-      img.src = frameSrc('burger', i)
-    }
+    fetch('/api/banners/frames?folder=burger')
+      .then((r) => r.json())
+      .then((data: { frames?: string[] }) => {
+        const urls = Array.isArray(data?.frames) ? data.frames : []
+        urls.forEach((url) => {
+          const img = document.createElement('img')
+          img.src = url
+        })
+      })
+      .catch(() => {})
   }, [])
   return null
 }

@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
   const city = searchParams.get('city') ?? ''
   const lang = searchParams.get('lang') ?? 'ar'
 
+  type Dimensions = { width: number; height: number; aspectRatio?: number } | null
   type BannerDoc = {
     _id: string
     image: { asset?: { _ref: string } }
@@ -37,6 +38,8 @@ export async function GET(req: NextRequest) {
     videoDesktopEnUrl?: string | null
     videoMobileArUrl?: string | null
     videoMobileEnUrl?: string | null
+    desktopDimensions?: Dimensions
+    mobileDimensions?: Dimensions
   }
 
   const { banners: rawBanners, settings: bannerSettings } = await client.fetch<{
@@ -63,6 +66,18 @@ export async function GET(req: NextRequest) {
         preferredDesktopHeight,
         preferredMobileWidth,
         preferredMobileHeight,
+        "desktopDimensions": coalesce(
+          imageDesktopAr.asset->metadata.dimensions,
+          imageDesktopEn.asset->metadata.dimensions,
+          image.asset->metadata.dimensions
+        ),
+        "mobileDimensions": coalesce(
+          imageMobileAr.asset->metadata.dimensions,
+          imageMobileEn.asset->metadata.dimensions,
+          imageDesktopAr.asset->metadata.dimensions,
+          imageDesktopEn.asset->metadata.dimensions,
+          image.asset->metadata.dimensions
+        ),
         "videoDesktopArUrl": videoDesktopAr.asset->url,
         "videoDesktopEnUrl": videoDesktopEn.asset->url,
         "videoMobileArUrl": videoMobileAr.asset->url,
@@ -79,15 +94,16 @@ export async function GET(req: NextRequest) {
       ? bannerSettings.imageDurationSeconds
       : 10
 
-  function toUrl(img: { asset?: { _ref: string } } | null | undefined, w: number, h: number): string | null {
+  // High-quality URLs: preserve aspect ratio (fit max), 2x for retina, quality 90
+  const DESKTOP_MAX = 1920
+  const MOBILE_MAX = 768
+  function toUrl(
+    img: { asset?: { _ref: string } } | null | undefined,
+    maxWidth: number
+  ): string | null {
     if (!img?.asset?._ref) return null
-    return urlFor(img).width(w).height(h).url()
+    return urlFor(img).width(maxWidth).fit('max').quality(90).url()
   }
-
-  // Default banner dimensions: Desktop 1130×320, Mobile 320×320. Sanity preferred* fields override.
-  const DESKTOP_WIDTH = 1130
-  const DESKTOP_HEIGHT = 320
-  const MOBILE_SIZE = 320
 
   const cityFiltered = (banners ?? []).filter((b) => {
     if (b.cities && b.cities.length > 0) {
@@ -150,22 +166,21 @@ export async function GET(req: NextRequest) {
       b.videoDesktopEnUrl ??
       null
 
-    const desktopW = b.preferredDesktopWidth ?? DESKTOP_WIDTH
-    const desktopH = b.preferredDesktopHeight ?? DESKTOP_HEIGHT
-    const mobileW = b.preferredMobileWidth ?? MOBILE_SIZE
-    const mobileH = b.preferredMobileHeight ?? MOBILE_SIZE
+    const urlFromDesktopField = toUrl(desktopImg, DESKTOP_MAX)
+    const urlFromMobileField = toUrl(mobileImg, MOBILE_MAX)
 
-    const imageUrlDesktop = toUrl(desktopImg, desktopW, desktopH)
-    const imageUrlMobile = toUrl(mobileImg, mobileW, mobileH)
-
-    const imageUrlDesktopResolved = imageUrlDesktop ?? imageUrlMobile
-    const imageUrlMobileResolved = imageUrlMobile ?? imageUrlDesktop
+    // Fix: Desktop viewport → Desktop Image (1130×320), mobile viewport → Mobile Image (320×320)
+    const imageUrlDesktopResolved = urlFromDesktopField ?? urlFromMobileField
+    const imageUrlMobileResolved = urlFromMobileField ?? urlFromDesktopField
 
     const videoUrlDesktop = videoDesktop && videoDesktop.length > 0 ? videoDesktop : null
     const videoUrlMobile = videoMobile && videoMobile.length > 0 ? videoMobile : null
 
     if (!imageUrlDesktopResolved && !imageUrlMobileResolved && !videoUrlDesktop && !videoUrlMobile)
       return null
+
+    const desktopDims = b.desktopDimensions
+    const mobileDims = b.mobileDimensions
 
     return {
       _id: b._id,
@@ -174,11 +189,14 @@ export async function GET(req: NextRequest) {
       videoUrlDesktop: videoUrlDesktop ?? null,
       videoUrlMobile: videoUrlMobile ?? null,
       href,
-      height: (b.height as string) || 'medium',
-      preferredDesktopWidth: b.preferredDesktopWidth ?? null,
-      preferredDesktopHeight: b.preferredDesktopHeight ?? null,
-      preferredMobileWidth: b.preferredMobileWidth ?? null,
-      preferredMobileHeight: b.preferredMobileHeight ?? null,
+      desktopAspect:
+        desktopDims?.width && desktopDims?.height
+          ? desktopDims.width / desktopDims.height
+          : null,
+      mobileAspect:
+        mobileDims?.width && mobileDims?.height
+          ? mobileDims.width / mobileDims.height
+          : null,
     }
   }).filter((x): x is NonNullable<typeof x> => x != null)
 

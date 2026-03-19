@@ -1,21 +1,16 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import {
   motion,
   useScroll,
   useTransform,
-  useMotionValueEvent,
   AnimatePresence,
 } from 'motion/react'
 import Image from 'next/image'
+import type { MotionValue } from 'motion/react'
 
-const FRAME_COUNT = 31
 const BANNER_FOLDER = 'burger'
-
-function frameSrc(folder: string, i: number) {
-  return `/banners/${folder}/burger-${String(i + 1).padStart(3, '0')}.jpg`
-}
 
 /** Loading placeholder while frames preload — logo + shimmer */
 function BannerAnimationPlaceholder() {
@@ -70,46 +65,154 @@ function BannerAnimationPlaceholder() {
   )
 }
 
+/**
+ * Canvas-based frame renderer. Apple-style: no React state during scroll,
+ * draws directly in requestAnimationFrame for 60fps smoothness.
+ */
+function ScrollCanvas({
+  frameUrls,
+  progressMotionValue,
+  onFirstFrameReady,
+}: {
+  frameUrls: string[]
+  progressMotionValue: MotionValue<number>
+  onFirstFrameReady: () => void
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const imagesRef = useRef<HTMLImageElement[]>([])
+  const loadedCountRef = useRef(0)
+  const rafRef = useRef<number>(0)
+  const frameCount = frameUrls.length
+
+  // Preload images from URLs
+  useEffect(() => {
+    loadedCountRef.current = 0
+    const imgs: HTMLImageElement[] = []
+    for (const url of frameUrls) {
+      const img = document.createElement('img')
+      img.onload = () => {
+        loadedCountRef.current++
+        if (loadedCountRef.current >= 1) onFirstFrameReady()
+      }
+      img.onerror = () => {
+        loadedCountRef.current++
+        if (loadedCountRef.current >= 1) onFirstFrameReady()
+      }
+      img.src = url
+      imgs.push(img)
+    }
+    imagesRef.current = imgs
+    if (frameUrls.length === 0) onFirstFrameReady()
+    return () => {
+      imgs.length = 0
+    }
+  }, [frameUrls, onFirstFrameReady])
+
+  // requestAnimationFrame loop: read scroll, draw frame. No React state.
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d', { alpha: false })
+    if (!ctx) return
+
+    const draw = () => {
+      const imgs = imagesRef.current
+      if (imgs.length === 0) {
+        rafRef.current = requestAnimationFrame(draw)
+        return
+      }
+
+      const progress = progressMotionValue.get()
+      const frameIndex = Math.round(
+        Math.max(0, Math.min(frameCount - 1, progress))
+      )
+      const img = imgs[frameIndex]
+
+      if (img && img.complete && img.naturalWidth > 0) {
+        const dpr = Math.min(window.devicePixelRatio ?? 1, 2)
+        const rect = canvas.getBoundingClientRect()
+        const w = rect.width
+        const h = rect.height
+
+        if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+          canvas.width = w * dpr
+          canvas.height = h * dpr
+          ctx.scale(dpr, dpr)
+        }
+
+        ctx.fillStyle = '#000'
+        ctx.fillRect(0, 0, w, h)
+
+        const imgAspect = img.naturalWidth / img.naturalHeight
+        const containerAspect = w / h
+        let drawW: number, drawH: number, drawX: number, drawY: number
+
+        if (imgAspect > containerAspect) {
+          drawH = h
+          drawW = h * imgAspect
+          drawX = (w - drawW) / 2
+          drawY = 0
+        } else {
+          drawW = w
+          drawH = w / imgAspect
+          drawX = 0
+          drawY = (h - drawH) / 2
+        }
+
+        ctx.drawImage(img, drawX, drawY, drawW, drawH)
+      }
+
+      rafRef.current = requestAnimationFrame(draw)
+    }
+
+    rafRef.current = requestAnimationFrame(draw)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [frameCount, progressMotionValue])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 h-full w-full object-contain"
+      style={{ objectFit: 'contain' }}
+    />
+  )
+}
+
 type ScrollDrivenBannerProps = {
-  /** Folder under /public/banners/ (e.g. 'burger') */
   folder?: string
-  frameCount?: number
-  /** Scroll height in vh — how much scroll to complete the animation (more = slower) */
   scrollHeight?: number
 }
 
 /**
- * Pinned scroll section: viewport stays fixed while user scrolls to drive the
- * animation. Frames advance 0→end. Preloads all frames on mount for smooth UX.
+ * Apple-style pinned scroll section. Auto-discovers frames in
+ * /public/banners/{folder}/ (sorted by number in filename, e.g. 001-0100).
+ * Canvas renders frames in rAF — no React re-renders during scroll.
  */
 export function ScrollDrivenBanner({
   folder = BANNER_FOLDER,
-  frameCount = FRAME_COUNT,
   scrollHeight = 400,
 }: ScrollDrivenBannerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [frameIndex, setFrameIndex] = useState(0)
+  const [frameUrls, setFrameUrls] = useState<string[]>([])
   const [framesReady, setFramesReady] = useState(false)
 
-  // Preload all frame images on mount so scrolling is smooth
+  // Auto-discover frames from folder (sorted by number in filename)
   useEffect(() => {
-    if (typeof document === 'undefined') return
-    let loaded = 0
-    const target = frameCount
-    const checkReady = () => {
-      loaded++
-      if (loaded >= Math.min(3, target)) {
+    fetch(`/api/banners/frames?folder=${encodeURIComponent(folder)}`)
+      .then((r) => r.json())
+      .then((data: { frames?: string[] }) => {
+        const urls = Array.isArray(data?.frames) ? data.frames : []
+        setFrameUrls(urls)
+        if (urls.length === 0) setFramesReady(true)
+      })
+      .catch(() => {
+        setFrameUrls([])
         setFramesReady(true)
-      }
-    }
-    for (let i = 0; i < frameCount; i++) {
-      const img = document.createElement('img')
-      img.onload = checkReady
-      img.onerror = checkReady
-      img.src = frameSrc(folder, i)
-    }
-    if (frameCount < 3) setFramesReady(true)
-  }, [folder, frameCount])
+      })
+  }, [folder])
+
+  const frameCount = Math.max(1, frameUrls.length)
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -135,12 +238,7 @@ export function ScrollDrivenBanner({
   )
   const filter = useTransform(blur, (v) => `blur(${v}px)`)
 
-  useMotionValueEvent(progressToFrame, 'change', (latest) => {
-    const idx = Math.round(
-      Math.max(0, Math.min(frameCount - 1, latest))
-    )
-    setFrameIndex(idx)
-  })
+  const handleFirstFrameReady = useCallback(() => setFramesReady(true), [])
 
   return (
     <section
@@ -148,11 +246,15 @@ export function ScrollDrivenBanner({
       className="relative w-full bg-black"
       style={{ height: `${scrollHeight}vh` }}
     >
-      {/* Pinned: stays in viewport. Pad top for header (~72px) so burger centers in visible black area. */}
-      <div className="sticky top-0 flex min-h-screen w-full items-center justify-center px-2 sm:px-4 md:px-6 pt-[72px] pb-6">
-        {/* Surrounding container: rounded frame, subtle ring, padding */}
+      {/* Center banner in visible viewport: paddingTop = header (72px) + safe-area + pb, so flex centers in (100vh - header) */}
+      <div
+        className="sticky top-0 flex min-h-screen w-full items-center justify-center px-2 sm:px-4 md:px-6 pb-6"
+        style={{
+          paddingTop: 'calc(72px + env(safe-area-inset-top, 0px) + 1.5rem)',
+        }}
+      >
         <motion.div
-          className="relative w-full max-w-4xl overflow-hidden rounded-2xl md:rounded-3xl ring-1 ring-white/10 shadow-2xl"
+          className="relative w-full max-w-4xl overflow-hidden rounded-2xl md:rounded-3xl ring-1 ring-white/10 shadow-2xl bg-black"
           style={{
             aspectRatio: '9 / 16',
             maxHeight: 'min(calc(100vh - 6rem), 100vw * (16 / 9))',
@@ -163,16 +265,13 @@ export function ScrollDrivenBanner({
           <AnimatePresence>
             {!framesReady && <BannerAnimationPlaceholder />}
           </AnimatePresence>
-          <Image
-            src={frameSrc(folder, frameIndex)}
-            alt=""
-            fill
-            className="object-contain"
-            sizes="(min-width: 768px) 896px, 100vw"
-            priority
-            unoptimized
-            onLoad={() => setFramesReady(true)}
-          />
+          {frameUrls.length > 0 && (
+            <ScrollCanvas
+              frameUrls={frameUrls}
+              progressMotionValue={progressToFrame}
+              onFirstFrameReady={handleFirstFrameReady}
+            />
+          )}
         </motion.div>
       </div>
     </section>

@@ -86,6 +86,7 @@ function BannerMedia({
     return () => mq.removeEventListener('change', handler)
   }, [])
 
+  // Desktop viewport → Desktop Image, mobile viewport → Mobile Image (match Sanity field labels)
   const videoUrl = isMobile
     ? (videoUrlMobile ?? videoUrlDesktop)
     : (videoUrlDesktop ?? videoUrlMobile)
@@ -129,7 +130,7 @@ function BannerMedia({
         alt=""
         fill
         className="object-cover"
-        sizes="(min-width: 768px) 1130px, 100vw"
+        sizes="(min-width: 768px) 1920px, 100vw"
         priority
         onLoad={() => setMediaLoaded(true)}
       />
@@ -137,9 +138,9 @@ function BannerMedia({
   )
 }
 
-// Default dimensions: Desktop 1130×320, Mobile 320×320. Sanity preferred* overrides when set.
-const DESKTOP_ASPECT = 1130 / 320
-const MOBILE_ASPECT = 320 / 320 // 1 (square)
+// Fallback aspect ratios when Sanity doesn't return dimensions (legacy images)
+const DESKTOP_ASPECT_FALLBACK = 16 / 9
+const MOBILE_ASPECT_FALLBACK = 1
 
 type Banner = {
   _id: string
@@ -148,11 +149,8 @@ type Banner = {
   videoUrlDesktop: string | null
   videoUrlMobile: string | null
   href: string | null
-  height?: string
-  preferredDesktopWidth?: number | null
-  preferredDesktopHeight?: number | null
-  preferredMobileWidth?: number | null
-  preferredMobileHeight?: number | null
+  desktopAspect?: number | null
+  mobileAspect?: number | null
 }
 
 export function HeroBanner() {
@@ -233,7 +231,7 @@ export function HeroBanner() {
   }, [banners.length])
 
   if (loading) {
-    const aspect = isMobile ? MOBILE_ASPECT : DESKTOP_ASPECT
+    const aspect = isMobile ? MOBILE_ASPECT_FALLBACK : DESKTOP_ASPECT_FALLBACK
     return (
       <section className="relative w-full bg-black">
         <motion.div
@@ -251,18 +249,10 @@ export function HeroBanner() {
   if (banners.length === 0) return null
 
   const current = banners[index]!
-  const preferredW = isMobile
-    ? (current.preferredMobileWidth ?? 0)
-    : (current.preferredDesktopWidth ?? 0)
-  const preferredH = isMobile
-    ? (current.preferredMobileHeight ?? 0)
-    : (current.preferredDesktopHeight ?? 0)
-  const usePreferred = preferredW > 0 && preferredH > 0
-  const aspect = usePreferred
-    ? preferredW / preferredH
-    : isMobile
-      ? MOBILE_ASPECT
-      : DESKTOP_ASPECT
+  const aspect =
+    isMobile
+      ? (current.mobileAspect ?? current.desktopAspect ?? MOBILE_ASPECT_FALLBACK)
+      : (current.desktopAspect ?? current.mobileAspect ?? DESKTOP_ASPECT_FALLBACK)
 
   return (
     <section className="relative w-full bg-black">
@@ -347,7 +337,7 @@ export function HeroBanner() {
 export function HeroBannerFallback() {
   return (
     <section className="relative w-full bg-black">
-      <div className="relative w-full overflow-hidden" style={{ aspectRatio: `${DESKTOP_ASPECT}` }}>
+      <div className="relative w-full overflow-hidden" style={{ aspectRatio: `${DESKTOP_ASPECT_FALLBACK}` }}>
         <BannerLoadingPlaceholder />
       </div>
     </section>
