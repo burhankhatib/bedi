@@ -5,7 +5,7 @@ import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 import { slugify } from '@/lib/slugify'
 import { isVerifiedPhoneForUser } from '@/lib/order-auth'
-import { isAllowedRegistrationCountry } from '@/lib/constants'
+import { BUSINESS_TYPES, isAllowedRegistrationCountry } from '@/lib/constants'
 import { urlFor } from '@/sanity/lib/image'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
@@ -56,6 +56,7 @@ export async function GET(
       supportsDineIn?: boolean
       supportsReceiveInPerson?: boolean
       supportsDelivery?: boolean
+      freeDeliveryEnabled?: boolean
       supportsDriverPickup?: boolean
       catalogHidePrices?: boolean
       prioritizeWhatsapp?: boolean
@@ -68,7 +69,7 @@ export async function GET(
         _id, name, "slug": slug.current, country, city,
         businessType,
         "businessSubcategoryIds": businessSubcategories[]._ref,
-        deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, supportsDriverPickup, catalogHidePrices, prioritizeWhatsapp,
+        deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, freeDeliveryEnabled, supportsDriverPickup, catalogHidePrices, prioritizeWhatsapp,
         ownerPhone, normalizedOwnerPhone, locationLat, locationLng
       }`,
       { tenantId: auth.tenantId }
@@ -203,9 +204,9 @@ export async function PATCH(
 
   if (body.name != null) tenantSet.name = String(body.name)
   if (body.businessType != null) {
-    const validTypes = ['restaurant', 'cafe', 'bakery', 'grocery', 'supermarket', 'greengrocer', 'retail', 'pharmacy', 'other']
+    const validTypes = new Set<string>(BUSINESS_TYPES.map((t) => t.value))
     const bt = String(body.businessType).trim()
-    if (validTypes.includes(bt)) tenantSet.businessType = bt
+    if (validTypes.has(bt)) tenantSet.businessType = bt
   }
   if (body.businessSubcategoryIds !== undefined) {
     const ids = Array.isArray(body.businessSubcategoryIds)
@@ -231,6 +232,7 @@ export async function PATCH(
   if (body.supportsDineIn !== undefined) tenantSet.supportsDineIn = Boolean(body.supportsDineIn)
   if (body.supportsReceiveInPerson !== undefined) tenantSet.supportsReceiveInPerson = Boolean(body.supportsReceiveInPerson)
   if (body.supportsDelivery !== undefined) tenantSet.supportsDelivery = Boolean(body.supportsDelivery)
+  if (body.freeDeliveryEnabled !== undefined) tenantSet.freeDeliveryEnabled = Boolean(body.freeDeliveryEnabled)
   if (body.supportsDriverPickup !== undefined) tenantSet.supportsDriverPickup = Boolean(body.supportsDriverPickup)
   if (body.catalogHidePrices !== undefined) tenantSet.catalogHidePrices = Boolean(body.catalogHidePrices)
   if (body.prioritizeWhatsapp !== undefined) tenantSet.prioritizeWhatsapp = Boolean(body.prioritizeWhatsapp)

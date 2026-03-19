@@ -40,10 +40,11 @@ export async function PATCH(
   const currentOrder = await client.fetch<{
     requiresPersonalShopper?: boolean
     deliveryFee?: number
+    deliveryFeePaidByBusiness?: boolean
     subtotal?: number
     totalAmount?: number
   } | null>(
-    `*[_type == "order" && _id == $orderId][0]{ requiresPersonalShopper, deliveryFee, subtotal, totalAmount }`,
+    `*[_type == "order" && _id == $orderId][0]{ requiresPersonalShopper, deliveryFee, deliveryFeePaidByBusiness, subtotal, totalAmount }`,
     { orderId }
   )
   if (!currentOrder) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
@@ -59,7 +60,7 @@ export async function PATCH(
   }, 0)
   const shopperFee = currentOrder.requiresPersonalShopper ? getShopperFeeByItemCount(itemCount) : 0
   const deliveryFee = typeof currentOrder.deliveryFee === 'number' ? Math.max(0, currentOrder.deliveryFee) : 0
-  const recalculatedTotalAmount = recalculatedSubtotal + deliveryFee + shopperFee
+  const recalculatedTotalAmount = recalculatedSubtotal + (currentOrder.deliveryFeePaidByBusiness ? 0 : deliveryFee) + shopperFee
 
   const itemsUpdatedAt = new Date().toISOString()
   const updateData: Record<string, unknown> = {

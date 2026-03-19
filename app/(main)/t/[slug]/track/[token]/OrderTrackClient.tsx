@@ -78,6 +78,7 @@ type TrackData = {
     tableNumber?: string
     deliveryAddress?: string
     deliveryFee?: number
+    deliveryFeePaidByBusiness?: boolean
     shopperFee?: number
     items?: Array<{ _key?: string; productId?: string; productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
     subtotal?: number
@@ -1890,6 +1891,7 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
     return lang === 'ar' ? statusCfg.labelAr : statusCfg.labelEn
   })()
   const deliveryFee = data.order.deliveryFee ?? 0
+  const deliveryFeePaidByBusiness = data.order.deliveryFeePaidByBusiness === true
   const shopperFee = data.order.shopperFee ?? 0
   const hasPendingItemChangeConfirmation = data.order.customerItemChangeStatus === 'pending'
   const pickedItemsCount = (data.order.items ?? []).filter((item) => item.isPicked !== false).length
@@ -2477,10 +2479,19 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
               <span>{t('Subtotal', 'المجموع الفرعي')}</span>
               <span className="font-medium">{(data.order.subtotal ?? 0).toFixed(2)} {formatCurrency(data.order.currency)}</span>
             </div>
-            {isDelivery && deliveryFee > 0 && (
+            {isDelivery && (deliveryFee > 0 || deliveryFeePaidByBusiness) && (
               <div className="flex justify-between text-slate-600 text-sm">
                 <span>{t('Delivery', 'التوصيل')}</span>
-                <span className="font-medium">{deliveryFee.toFixed(2)} {formatCurrency(data.order.currency)}</span>
+                {deliveryFeePaidByBusiness ? (
+                  <span className="font-medium text-emerald-700">{t('FREE', 'مجاناً')}</span>
+                ) : (
+                  <span className="font-medium">{deliveryFee.toFixed(2)} {formatCurrency(data.order.currency)}</span>
+                )}
+              </div>
+            )}
+            {isDelivery && deliveryFeePaidByBusiness && (
+              <div className="text-[11px] text-emerald-700">
+                {t('Delivery fee is paid by the business.', 'رسوم التوصيل يدفعها المتجر.')}
               </div>
             )}
             {isDelivery && data.order.shopperFee !== undefined && (

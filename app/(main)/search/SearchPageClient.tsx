@@ -10,7 +10,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { SiteHeader } from '@/components/global/SiteHeader'
 import { LocationModal } from '@/components/global/LocationModal'
 import { Button } from '@/components/ui/button'
-import { Store, UtensilsCrossed, Flame, ChevronRight, Search, MapPin, Filter, LayoutGrid, List, Sparkles } from 'lucide-react'
+import { Store, UtensilsCrossed, Flame, ChevronRight, Search, MapPin, Filter, LayoutGrid, List, Sparkles, Truck } from 'lucide-react'
 import { MdRestaurant } from 'react-icons/md'
 import { BUSINESS_TYPES } from '@/lib/constants'
 import { getCityDisplayName } from '@/lib/registration-translations'
@@ -27,6 +27,7 @@ type Tenant = {
   name_ar?: string | null
   slug: string
   businessType: string
+  freeDeliveryEnabled?: boolean
   logoUrl: string | null
   sections: Localized[]
   popularItems: Localized[]
@@ -185,7 +186,7 @@ export function SearchPageClient() {
   const [debouncedQuery, setDebouncedQuery] = useState(urlQuery)
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   const [searchResults, setSearchResults] = useState<{
-    businesses: Array<{ _id: string; name: string; name_en: string | null; name_ar: string | null; slug: string; businessType: string; logoUrl: string | null }>
+    businesses: Array<{ _id: string; name: string; name_en: string | null; name_ar: string | null; slug: string; businessType: string; freeDeliveryEnabled?: boolean; logoUrl: string | null }>
     products: Array<{
       _id: string
       title_en: string | null
@@ -638,6 +639,12 @@ export function SearchPageClient() {
                                     ? BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.labelAr ?? b.businessType
                                     : BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.label ?? b.businessType}
                                 </p>
+                                {b.freeDeliveryEnabled && (
+                                  <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-300/80 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                                    <Truck className="size-3.5" />
+                                    {t('Free Delivery', 'توصيل مجاني')}
+                                  </div>
+                                )}
                               </FullPageLink>
                             </div>
                           ))}
@@ -737,18 +744,18 @@ export function SearchPageClient() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-4">
-                {displayTenants.map((t) => (
-                  <div key={t._id}>
+                {displayTenants.map((tenant) => (
+                  <div key={tenant._id}>
                     <FullPageLink
-                      href={t.slug ? `/t/${t.slug}` : '#'}
+                      href={tenant.slug ? `/t/${tenant.slug}` : '#'}
                       className="group flex flex-col items-center overflow-hidden rounded-[20px] bg-white p-4 pb-5 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
                     >
                       {/* Logo - Top, centered */}
                       <div className="relative size-[80px] sm:size-[88px] shrink-0 overflow-hidden rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300 mb-3">
-                        {t.logoUrl ? (
+                        {tenant.logoUrl ? (
                           <Image
-                            src={t.logoUrl}
-                            alt={(lang === 'ar' ? t.name_ar : t.name_en) || t.name}
+                            src={tenant.logoUrl}
+                            alt={(lang === 'ar' ? tenant.name_ar : tenant.name_en) || tenant.name}
                             fill
                             className="object-contain p-2"
                             sizes="88px"
@@ -761,18 +768,24 @@ export function SearchPageClient() {
                       </div>
                       {/* Business name - bold, big font */}
                       <h2 className="font-bold text-slate-900 text-[17px] sm:text-[19px] tracking-tight text-center line-clamp-2 group-hover:text-brand-yellow transition-colors w-full">
-                        {(lang === 'ar' ? t.name_ar : t.name_en) || t.name}
+                        {(lang === 'ar' ? tenant.name_ar : tenant.name_en) || tenant.name}
                       </h2>
                       {/* Category */}
                       <p className="mt-1 text-[13px] text-slate-500 capitalize font-medium">
                         {lang === 'ar'
-                          ? BUSINESS_TYPES.find((b) => b.value === t.businessType)?.labelAr ?? t.businessType
-                          : BUSINESS_TYPES.find((b) => b.value === t.businessType)?.label ?? t.businessType}
+                          ? BUSINESS_TYPES.find((b) => b.value === tenant.businessType)?.labelAr ?? tenant.businessType
+                          : BUSINESS_TYPES.find((b) => b.value === tenant.businessType)?.label ?? tenant.businessType}
                       </p>
+                      {tenant.freeDeliveryEnabled && (
+                        <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-300/80 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                          <Truck className="size-3.5" />
+                          {t('Free Delivery', 'توصيل مجاني')}
+                        </div>
+                      )}
                       {/* Specialty */}
-                      {t.sections.length > 0 && (
+                      {tenant.sections.length > 0 && (
                         <p className="mt-1 text-[12px] text-slate-500 line-clamp-2 text-center">
-                          {t.sections
+                          {tenant.sections
                             .map((s) => (lang === 'ar' ? s.ar || s.en : s.en || s.ar))
                             .filter(Boolean)
                             .join(' • ')}

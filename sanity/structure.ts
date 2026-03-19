@@ -7,13 +7,14 @@ export const structure: StructureResolver = (S) => {
   const defaultListItems = S.documentTypeListItems()
   const customerItem = defaultListItems.find((item) => item.getId() === 'customer')
   const heroBannerItem = defaultListItems.find((item) => item.getId() === 'heroBanner')
+  const scrollAnimationItem = defaultListItems.find((item) => item.getId() === 'scrollAnimation')
   const businessCategoryItem = defaultListItems.find((item) => item.getId() === 'businessCategory')
   const businessSubcategoryItem = defaultListItems.find((item) => item.getId() === 'businessSubcategory')
   const catalogCategoryItem = defaultListItems.find((item) => item.getId() === 'catalogCategory')
   const catalogProductItem = defaultListItems.find((item) => item.getId() === 'catalogProduct')
   const masterCatalogProductItem = defaultListItems.find((item) => item.getId() === 'masterCatalogProduct')
   const rest = defaultListItems.filter(
-    (item) => !['customer', 'heroBanner', 'bannerSettings', 'businessCategory', 'businessSubcategory', 'catalogCategory', 'catalogProduct', 'masterCatalogProduct'].includes(item.getId() ?? '')
+    (item) => !['customer', 'heroBanner', 'scrollAnimation', 'bannerSettings', 'businessCategory', 'businessSubcategory', 'catalogCategory', 'catalogProduct', 'masterCatalogProduct'].includes(item.getId() ?? '')
   )
 
   const bannerSettingsItem = S.listItem()
@@ -24,7 +25,7 @@ export const structure: StructureResolver = (S) => {
   const catalogItems = [catalogCategoryItem, catalogProductItem, masterCatalogProductItem].filter(
     (x): x is NonNullable<typeof x> => x != null
   )
-  const homepageItems = [heroBannerItem, bannerSettingsItem, businessCategoryItem, businessSubcategoryItem].filter(
+  const homepageItems = [heroBannerItem, scrollAnimationItem, bannerSettingsItem, businessCategoryItem, businessSubcategoryItem].filter(
     (x): x is NonNullable<typeof x> => x != null
   )
 

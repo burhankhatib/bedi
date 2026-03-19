@@ -8,6 +8,10 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
 
+// Fallback aspect ratios when Sanity doesn't return dimensions (legacy images)
+const DESKTOP_ASPECT_FALLBACK = 16 / 9
+const MOBILE_ASPECT_FALLBACK = 1
+
 /** Creative loading placeholder for hero banner: logo + Motion shimmer */
 function BannerLoadingPlaceholder() {
   return (
@@ -68,6 +72,7 @@ function BannerMedia({
   videoUrlMobile,
   onVideoEnded,
   loopVideo,
+  aspect,
 }: {
   imageUrlDesktop: string | null
   imageUrlMobile: string | null
@@ -75,6 +80,8 @@ function BannerMedia({
   videoUrlMobile: string | null
   onVideoEnded?: () => void
   loopVideo?: boolean
+  /** Width/height ratio for responsive image (natural height = width/aspect). */
+  aspect: number
 }) {
   const [isMobile, setIsMobile] = useState(false)
   const [mediaLoaded, setMediaLoaded] = useState(false)
@@ -94,12 +101,20 @@ function BannerMedia({
     ? (imageUrlMobile ?? imageUrlDesktop)
     : (imageUrlDesktop ?? imageUrlMobile)
 
-  // Video is priority when available; use image as poster; object-cover + full width; loop when single banner
+  const imgBaseW = 1920
+  const safeAspect = aspect > 0 ? aspect : (isMobile ? MOBILE_ASPECT_FALLBACK : DESKTOP_ASPECT_FALLBACK)
+  const imgBaseH = Math.max(1, Math.round(imgBaseW / safeAspect))
+
+  // Video is priority when available; full width, height follows media
   if (videoUrl) {
     return (
-      <div className="relative h-full w-full">
+      <div className="relative w-full bg-black">
         <AnimatePresence>
-          {!mediaLoaded && <BannerLoadingPlaceholder />}
+          {!mediaLoaded && (
+            <div className="absolute inset-0 z-[1] min-h-[200px]">
+              <BannerLoadingPlaceholder />
+            </div>
+          )}
         </AnimatePresence>
         <video
           src={videoUrl}
@@ -108,7 +123,7 @@ function BannerMedia({
           autoPlay
           playsInline
           loop={loopVideo}
-          className="h-full w-full object-cover"
+          className="block h-auto w-full"
           aria-hidden
           onEnded={loopVideo ? undefined : onVideoEnded}
           onLoadedData={() => setMediaLoaded(true)}
@@ -118,29 +133,30 @@ function BannerMedia({
     )
   }
 
-  if (!imageUrl) return <div className="h-full w-full bg-black" />
+  if (!imageUrl) return <div className="min-h-[120px] w-full bg-black" />
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative w-full bg-black">
       <AnimatePresence>
-        {!mediaLoaded && <BannerLoadingPlaceholder />}
+        {!mediaLoaded && (
+          <div className="absolute inset-0 z-[1] flex min-h-[200px] items-center justify-center bg-black">
+            <BannerLoadingPlaceholder />
+          </div>
+        )}
       </AnimatePresence>
       <Image
         src={imageUrl}
         alt=""
-        fill
-        className="object-cover"
-        sizes="(min-width: 768px) 1920px, 100vw"
+        width={imgBaseW}
+        height={imgBaseH}
+        className="h-auto w-full object-cover"
+        sizes="100vw"
         priority
         onLoad={() => setMediaLoaded(true)}
       />
     </div>
   )
 }
-
-// Fallback aspect ratios when Sanity doesn't return dimensions (legacy images)
-const DESKTOP_ASPECT_FALLBACK = 16 / 9
-const MOBILE_ASPECT_FALLBACK = 1
 
 type Banner = {
   _id: string
@@ -231,12 +247,10 @@ export function HeroBanner() {
   }, [banners.length])
 
   if (loading) {
-    const aspect = isMobile ? MOBILE_ASPECT_FALLBACK : DESKTOP_ASPECT_FALLBACK
     return (
       <section className="relative w-full bg-black">
         <motion.div
-          className="relative w-full overflow-hidden"
-          style={{ aspectRatio: `${aspect}` }}
+          className="relative h-[320px] w-full overflow-hidden"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.4 }}
@@ -256,22 +270,18 @@ export function HeroBanner() {
 
   return (
     <section className="relative w-full bg-black">
-      <motion.div
-        className="relative w-full overflow-hidden"
-        style={{ aspectRatio: `${aspect}` }}
-        transition={{ duration: 0.35, ease: 'easeInOut' }}
-      >
+      <div className="relative w-full overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={current._id}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-            className="absolute inset-0"
+            transition={{ duration: 0.35, ease: [0.2, 0, 0, 1] }}
+            className="relative w-full"
           >
             {current.href ? (
-              <Link href={current.href} className="block h-full w-full">
+              <Link href={current.href} className="block w-full">
                 <BannerMedia
                   imageUrlDesktop={current.imageUrlDesktop}
                   imageUrlMobile={current.imageUrlMobile}
@@ -279,6 +289,7 @@ export function HeroBanner() {
                   videoUrlMobile={current.videoUrlMobile}
                   onVideoEnded={banners.length > 1 ? advanceToNext : undefined}
                   loopVideo={banners.length === 1}
+                  aspect={aspect}
                 />
               </Link>
             ) : (
@@ -289,6 +300,7 @@ export function HeroBanner() {
                 videoUrlMobile={current.videoUrlMobile}
                 onVideoEnded={banners.length > 1 ? advanceToNext : undefined}
                 loopVideo={banners.length === 1}
+                aspect={aspect}
               />
             )}
           </motion.div>
@@ -328,7 +340,7 @@ export function HeroBanner() {
             </div>
           </>
         )}
-      </motion.div>
+      </div>
     </section>
   )
 }
@@ -337,7 +349,7 @@ export function HeroBanner() {
 export function HeroBannerFallback() {
   return (
     <section className="relative w-full bg-black">
-      <div className="relative w-full overflow-hidden" style={{ aspectRatio: `${DESKTOP_ASPECT_FALLBACK}` }}>
+      <div className="relative h-[320px] w-full overflow-hidden bg-black">
         <BannerLoadingPlaceholder />
       </div>
     </section>

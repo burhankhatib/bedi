@@ -44,11 +44,12 @@ export function PWAInstallIcon({ config, className = '' }: PWAInstallIconProps) 
   const isDev = typeof process !== 'undefined' && process.env?.NODE_ENV === 'development'
   const effectiveDismissExpired = isDev || dismissExpired
 
-  // Show on mobile (Android/iOS) when installable, and on desktop for discoverability (browser install hint)
+  // Mobile / tablet only — desktop header hides this control; install UX targets add-to-home on phones
   const visible =
     !os.isStandalone &&
     effectiveDismissExpired &&
-    (canInstall || os.isIOS || os.isDesktop)
+    !os.isDesktop &&
+    (canInstall || os.isIOS)
 
   const handleClick = () => {
     if (os.isIOS) {

@@ -135,7 +135,7 @@ function ClosedBanner({
 }
 
 export default function MenuLayout({ initialData, tenantSlug, initialTableNumber }: MenuLayoutProps) {
-  const { categories, popularProducts, restaurantInfo, aboutUs, storeName, supportsDineIn, supportsReceiveInPerson, hasDelivery, isManuallyClosed, deactivateUntil, locationLat, locationLng } = initialData
+  const { categories, popularProducts, restaurantInfo, aboutUs, storeName, supportsDineIn, supportsReceiveInPerson, hasDelivery, freeDeliveryEnabled, isManuallyClosed, deactivateUntil, locationLat, locationLng } = initialData
   const catalogOnlyBySettings = supportsDineIn === false && supportsReceiveInPerson === false && hasDelivery === false
   /** When true, allow add-to-cart and checkout. False only when business has no order types (truly catalog only). */
   const canOrderFromMenu = !catalogOnlyBySettings
@@ -807,6 +807,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   deliveryPricingMode: initialData.deliveryPricingMode,
                   deliveryFeeMin: initialData.deliveryFeeMin,
                   deliveryFeeMax: initialData.deliveryFeeMax,
+                  freeDeliveryEnabled: freeDeliveryEnabled ?? false,
                   requiresPersonalShopper: initialData.requiresPersonalShopper,
                   supportsDriverPickup: initialData.supportsDriverPickup,
                   shopperFee: initialData.shopperFee
@@ -851,6 +852,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   deliveryPricingMode: initialData.deliveryPricingMode,
                   deliveryFeeMin: initialData.deliveryFeeMin,
                   deliveryFeeMax: initialData.deliveryFeeMax,
+                  freeDeliveryEnabled: freeDeliveryEnabled ?? false,
                   requiresPersonalShopper: initialData.requiresPersonalShopper,
                   supportsDriverPickup: initialData.supportsDriverPickup,
                   shopperFee: initialData.shopperFee
@@ -888,6 +890,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   deliveryPricingMode: initialData.deliveryPricingMode,
                   deliveryFeeMin: initialData.deliveryFeeMin,
                   deliveryFeeMax: initialData.deliveryFeeMax,
+                  freeDeliveryEnabled: freeDeliveryEnabled ?? false,
                   requiresPersonalShopper: initialData.requiresPersonalShopper,
                   supportsDriverPickup: initialData.supportsDriverPickup,
                   shopperFee: initialData.shopperFee

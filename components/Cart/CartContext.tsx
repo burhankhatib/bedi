@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Product, ProductAddOn } from '@/app/types/menu'
+import { Product, DayHours, CustomDateHours } from '@/app/types/menu'
 import {
   Dialog,
   DialogContent,
@@ -12,16 +12,15 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/components/LanguageContext'
-import Link from 'next/link'
-import { Store, ArrowRight, RotateCcw } from 'lucide-react'
+import { Store, RotateCcw } from 'lucide-react'
 import { getVariantOptionModifier } from '@/lib/cart-price'
 
 export interface CartTenant {
   slug: string
   name: string
   logoRef?: string
-  openingHours?: any[] | null
-  customDateHours?: any[] | null
+  openingHours?: DayHours[] | null
+  customDateHours?: CustomDateHours[] | null
   businessCountry?: string
   /** When true, business is manually closed. With opening hours, used to compute schedule-only checkout. */
   isManuallyClosed?: boolean
@@ -30,6 +29,7 @@ export interface CartTenant {
   deliveryPricingMode?: 'areas' | 'distance'
   deliveryFeeMin?: number
   deliveryFeeMax?: number
+  freeDeliveryEnabled?: boolean
   requiresPersonalShopper?: boolean
   supportsDriverPickup?: boolean
   shopperFee?: number
@@ -125,7 +125,7 @@ const CART_TENANT_KEY = 'cartTenant'
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { t, lang } = useLanguage()
+  const { t } = useLanguage()
   const [items, setItems] = useState<CartItem[]>([])
   const [cartTenant, setCartTenant] = useState<CartTenant | null>(null)
   const [orderTypeOptions, setOrderTypeOptions] = useState<OrderTypeOptions | null>(null)
@@ -154,8 +154,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [tenantSlug, setTenantSlug] = useState<string | null>(null)
 
+  const showToast = useCallback((message: string, productName: string) => {
+    const id = Date.now().toString()
+    setToast({ id, message, productName })
+    setTimeout(() => {
+      setToast(null)
+    }, 3000)
+  }, [])
+
+  const hideToast = useCallback(() => {
+    setToast(null)
+  }, [])
+
   // Load cart + cartTenant from localStorage on mount
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time client hydration from localStorage */
     const savedCart = localStorage.getItem('cart')
     if (savedCart) {
       try {
@@ -202,6 +215,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         console.error('Failed to load customer info from localStorage:', error)
       }
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
   // Save cart to localStorage (array for backwards compat)
@@ -277,7 +291,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     })
     if (tenant) setCartTenant(tenant)
     showToast(t('Item added to cart!', 'تمت إضافة الصنف للسلة'), product.title_en || product.title_ar || 'Item')
-  }, [t])
+  }, [t, showToast])
 
   const addToCart = (product: Product, selectedAddOns?: string[], selectedVariants?: (number | undefined)[], tenantContext?: CartTenant, orderTypeOptionsParam?: OrderTypeOptions, quantity?: number) => {
     const addons = selectedAddOns || []
@@ -287,7 +301,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     // Single-business rule: if cart has items from a different business, show conflict modal
     if (items.length > 0 && tenantContext && cartTenant) {
       if (cartTenant.slug === tenantContext.slug) {
-        doAddItem(product, addons, variants, null, qty) // tenant already set
+        // Same business: still refresh tenant flags (e.g. free delivery toggled recently)
+        doAddItem(product, addons, variants, tenantContext, qty)
         if (orderTypeOptionsParam) setOrderTypeOptions(orderTypeOptionsParam)
         return
       }
@@ -304,7 +319,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (tenantContext && orderTypeOptionsParam) setOrderTypeOptions(orderTypeOptionsParam)
   }
 
-  const   resolveConflictReplace = useCallback(() => {
+  const resolveConflictReplace = useCallback(() => {
     if (!conflictState) return
     const { newTenant, pending } = conflictState
     setItems([])
@@ -334,19 +349,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const resolveConflictCancel = useCallback(() => {
     setConflictState(null)
   }, [])
-
-  const showToast = (message: string, productName: string) => {
-    const id = Date.now().toString()
-    setToast({ id, message, productName })
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
-      setToast(null)
-    }, 3000)
-  }
-
-  const hideToast = () => {
-    setToast(null)
-  }
 
   const removeFromCart = (cartItemId: string) => {
     setItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))

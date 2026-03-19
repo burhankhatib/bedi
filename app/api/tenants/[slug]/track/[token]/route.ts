@@ -32,6 +32,7 @@ export async function GET(
     customerPhone?: string
     deliveryAddress?: string
     deliveryFee?: number
+    deliveryFeePaidByBusiness?: boolean
     shopperFee?: number
     items?: Array<{ productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string; isPicked?: boolean; notPickedReason?: string; imageUrl?: string }>
     subtotal?: number
@@ -90,6 +91,7 @@ export async function GET(
       customerPhone,
       deliveryAddress,
       deliveryFee,
+      deliveryFeePaidByBusiness,
       shopperFee,
       "items": items[]{
         _key,
@@ -203,6 +205,7 @@ export async function GET(
       customerPhone: order.customerPhone,
       deliveryAddress: order.deliveryAddress,
       deliveryFee: order.deliveryFee,
+      deliveryFeePaidByBusiness: order.deliveryFeePaidByBusiness ?? false,
       shopperFee: order.shopperFee,
       items: order.items,
       subtotal: order.subtotal,

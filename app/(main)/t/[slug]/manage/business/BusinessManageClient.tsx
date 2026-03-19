@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
-import { BUSINESS_TYPES } from '@/lib/constants'
+import { BUSINESS_CATEGORY_OPTIONS, BUSINESS_TYPES, STORE_BUSINESS_TYPES } from '@/lib/constants'
 import { compressImageForUpload } from '@/lib/compress-image'
 import { getCountryNameAr, getCityNameAr } from '@/lib/registration-translations'
 import { toEnglishDigits } from '@/lib/phone'
@@ -38,6 +38,7 @@ type BusinessData = {
     supportsDineIn?: boolean
     supportsReceiveInPerson?: boolean
     supportsDelivery?: boolean
+    freeDeliveryEnabled?: boolean
     supportsDriverPickup?: boolean
     prioritizeWhatsapp?: boolean
     locationLat?: number
@@ -183,6 +184,7 @@ type FormState = {
   supportsDineIn: boolean
   supportsReceiveInPerson: boolean
   supportsDelivery: boolean
+  freeDeliveryEnabled: boolean
   supportsDriverPickup: boolean
   prioritizeWhatsapp: boolean
   openingHours: Array<{ open: string; close: string; shifts: { open: string; close: string }[] }>
@@ -224,6 +226,7 @@ function formSnapshotFromData(d: BusinessData, currentSlug: string): FormState {
     supportsDineIn: tenant?.supportsDineIn ?? true,
     supportsReceiveInPerson: tenant?.supportsReceiveInPerson ?? true,
     supportsDelivery: tenant?.supportsDelivery ?? true,
+    freeDeliveryEnabled: tenant?.freeDeliveryEnabled ?? false,
     supportsDriverPickup: tenant?.supportsDriverPickup ?? false,
     prioritizeWhatsapp: tenant?.prioritizeWhatsapp ?? false,
     openingHours: Array.isArray(r?.openingHours) && r.openingHours.length > 0
@@ -245,6 +248,7 @@ function formSnapshotFromData(d: BusinessData, currentSlug: string): FormState {
 }
 
 export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?: string }) {
+  const isStoreBusinessType = (value: string) => (STORE_BUSINESS_TYPES as readonly string[]).includes(value)
   const [data, setData] = useState<BusinessData | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -253,6 +257,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
   const [citiesLoading, setCitiesLoading] = useState(false)
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
   const [subcategoriesLoading, setSubcategoriesLoading] = useState(false)
+  const [businessCategory, setBusinessCategory] = useState<'restaurant' | 'stores'>('restaurant')
   const [form, setForm] = useState({
     name: '',
     slug: '',
@@ -286,6 +291,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     supportsDineIn: true as boolean,
     supportsReceiveInPerson: true as boolean,
     supportsDelivery: true as boolean,
+    freeDeliveryEnabled: false as boolean,
     supportsDriverPickup: false as boolean,
     prioritizeWhatsapp: false as boolean,
     openingHours: Array.from({ length: 7 }, () => ({ open: '', close: '', shifts: [] as { open: string; close: string }[] })),
@@ -374,11 +380,13 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           supportsDineIn: d.tenant!.supportsDineIn ?? true,
           supportsReceiveInPerson: d.tenant!.supportsReceiveInPerson ?? true,
           supportsDelivery: d.tenant!.supportsDelivery ?? true,
+          freeDeliveryEnabled: d.tenant!.freeDeliveryEnabled ?? false,
           supportsDriverPickup: d.tenant!.supportsDriverPickup ?? false,
           prioritizeWhatsapp: d.tenant!.prioritizeWhatsapp ?? false,
           locationLat: d.tenant!.locationLat ?? null,
           locationLng: d.tenant!.locationLng ?? null,
         }))
+        setBusinessCategory(isStoreBusinessType(d.tenant!.businessType || '') ? 'stores' : 'restaurant')
       } else if (geo?.countryCode) {
         setForm((f) => ({ ...f, country: geo.countryCode ?? '' }))
       }
@@ -538,7 +546,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
 
   useEffect(() => {
     subcategoriesAbortRef.current?.abort()
-    if (!form.businessType) {
+    if (!form.businessType || businessCategory === 'stores') {
       setSubcategories([])
       setSubcategoriesLoading(false)
       return
@@ -560,9 +568,10 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
       .finally(() => {
         if (mountedRef.current && !ac.signal.aborted) setSubcategoriesLoading(false)
       })
-  }, [form.businessType])
+  }, [form.businessType, businessCategory])
 
   const setBusinessType = (value: string) => {
+    setBusinessCategory(isStoreBusinessType(value) ? 'stores' : 'restaurant')
     setForm((f) => ({ ...f, businessType: value, businessSubcategoryIds: [] }))
   }
 
@@ -662,6 +671,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           supportsDineIn: form.catalogMode ? false : form.supportsDineIn,
           supportsReceiveInPerson: form.catalogMode ? false : form.supportsReceiveInPerson,
           supportsDelivery: form.catalogMode ? false : form.supportsDelivery,
+          freeDeliveryEnabled: form.catalogMode ? false : (form.supportsDelivery ? form.freeDeliveryEnabled : false),
           supportsDriverPickup: form.catalogMode ? false : form.supportsDriverPickup,
           catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false,
           prioritizeWhatsapp: form.prioritizeWhatsapp,
@@ -688,7 +698,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
         showToast('Business saved successfully.', 'تم حفظ البيانات بنجاح.', 'success')
         lastSavedRef.current = JSON.parse(JSON.stringify(form))
         skipNextApplyRef.current = true
-        setData((prev) => prev ? { ...prev, tenant: { ...prev.tenant, name: form.name, slug: form.slug, businessType: form.businessType, businessSubcategoryIds: form.businessSubcategoryIds, country: form.country, city: form.city, ownerPhone: form.ownerPhone, catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false, supportsDriverPickup: form.catalogMode ? false : form.supportsDriverPickup } } : null)
+        setData((prev) => prev ? { ...prev, tenant: { ...prev.tenant, name: form.name, slug: form.slug, businessType: form.businessType, businessSubcategoryIds: form.businessSubcategoryIds, country: form.country, city: form.city, ownerPhone: form.ownerPhone, catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false, freeDeliveryEnabled: form.catalogMode ? false : (form.supportsDelivery ? form.freeDeliveryEnabled : false), supportsDriverPickup: form.catalogMode ? false : form.supportsDriverPickup } } : null)
         businessContext.refetch()
         if (resData?.redirectTo) {
           window.location.assign(resData.redirectTo)
@@ -1177,13 +1187,31 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                       <input
                         type="checkbox"
                         checked={form.supportsDelivery}
-                        onChange={(e) => setForm((f) => ({ ...f, supportsDelivery: e.target.checked, supportsDriverPickup: e.target.checked ? f.supportsDriverPickup : false }))}
+                        onChange={(e) => setForm((f) => ({ ...f, supportsDelivery: e.target.checked, freeDeliveryEnabled: e.target.checked ? f.freeDeliveryEnabled : false, supportsDriverPickup: e.target.checked ? f.supportsDriverPickup : false }))}
                         className="size-5 rounded border-slate-600 bg-slate-800 accent-amber-500"
                       />
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400">
                         <MapPin className="size-4" />
                       </div>
                       <span className="text-sm font-semibold text-white">{t('Delivery', 'التوصيل')}</span>
+                    </label>
+                    <label className={`flex items-start gap-3 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3.5 transition-colors ${form.supportsDelivery ? 'cursor-pointer hover:bg-slate-800' : 'opacity-60 cursor-not-allowed'}`}>
+                      <input
+                        type="checkbox"
+                        checked={form.freeDeliveryEnabled}
+                        disabled={!form.supportsDelivery}
+                        onChange={(e) => setForm((f) => ({ ...f, freeDeliveryEnabled: e.target.checked }))}
+                        className="mt-0.5 size-5 rounded border-slate-600 bg-slate-800 accent-amber-500 disabled:opacity-60"
+                      />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
+                        <MapPin className="size-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white">{t('Free Delivery (business pays driver)', 'توصيل مجاني (المتجر يدفع للسائق)')}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {t('Customer sees "Free Delivery". Driver still receives delivery fee from your business.', 'العميل يرى "توصيل مجاني". السائق يستلم رسوم التوصيل من متجرك.')}
+                        </p>
+                      </div>
                     </label>
                     <label className={`flex items-center gap-3 rounded-xl border border-slate-700/80 bg-slate-900 px-4 py-3.5 transition-colors ${form.supportsDelivery ? 'cursor-pointer hover:bg-slate-800' : 'opacity-60 cursor-not-allowed'}`}>
                       <input
@@ -1285,21 +1313,57 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
             <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5">
               <label className="block text-sm font-semibold text-slate-300 mb-2">{t('Business category', 'التصنيف الرئيسي')} *</label>
               <select
-                value={form.businessType}
-                onChange={(e) => setBusinessType(e.target.value)}
+                value={businessCategory}
+                onChange={(e) => {
+                  const next = e.target.value === 'stores' ? 'stores' : 'restaurant'
+                  setBusinessCategory(next)
+                  if (next === 'restaurant') {
+                    setForm((f) => ({ ...f, businessType: 'restaurant', businessSubcategoryIds: [] }))
+                    return
+                  }
+                  setForm((f) => ({ ...f, businessType: '', businessSubcategoryIds: [] }))
+                }}
                 className="w-full sm:max-w-md h-14 rounded-xl border border-slate-600 bg-slate-900 text-white px-4 text-base focus:ring-2 focus:ring-amber-500/50 outline-none"
                 required
               >
-                <option value="">{t('Select category', 'اختر التصنيف')}</option>
-                {BUSINESS_TYPES.map((opt) => (
+                {BUSINESS_CATEGORY_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {lang === 'ar' ? opt.labelAr : opt.label}
                   </option>
                 ))}
               </select>
-              <p className="mt-2 text-xs text-slate-400">{t('Restaurant, Cafe, Bakery, etc. Used for discovery and filters.', 'مطعم، مقهى، مخبز، إلخ. يُستخدم للاستكشاف والفلاتر.')}</p>
+              <p className="mt-2 text-xs text-slate-400">{t('Choose Restaurant or Store. Then choose the matching sub-category.', 'اختر مطعم أو متجر، ثم اختر التصنيف الفرعي المناسب.')}</p>
+
+              {businessCategory === 'stores' && (
+                <div className="mt-5 pt-5 border-t border-slate-700/60">
+                  <label className="block text-sm font-semibold text-slate-300 mb-3">{t('Store sub-categories', 'تصنيفات المتجر')}</label>
+                  <div className="flex flex-wrap gap-2">
+                    {STORE_BUSINESS_TYPES.filter((value) =>
+                      ['grocery', 'greengrocer', 'pharmacy', 'bakery', 'butcher', 'water', 'gas', 'supermarket', 'retail', 'other'].includes(value)
+                    ).map((value) => {
+                      const labels = BUSINESS_TYPES.find((x) => x.value === value)
+                      const checked = form.businessType === value
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setBusinessType(value)}
+                          className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+                            checked
+                              ? 'border-amber-500/60 bg-amber-500/20 text-amber-300'
+                              : 'border-slate-600 bg-slate-900 text-slate-300 hover:border-slate-500 hover:bg-slate-800'
+                          }`}
+                        >
+                          {lang === 'ar' ? labels?.labelAr ?? value : labels?.label ?? value}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="mt-3 text-xs text-slate-400">{t('Choose one: Grocery, Greengrocery, Pharmacy, Bakery, Butcher, Water, Gas, etc.', 'اختر واحداً: بقالة، خضار وفواكه، صيدلية، مخبز، ملحمة، ماء، غاز...')}</p>
+                </div>
+              )}
               
-              {form.businessType && (
+              {businessCategory === 'restaurant' && form.businessType && (
                 <div className="mt-5 pt-5 border-t border-slate-700/60">
                   <label className="block text-sm font-semibold text-slate-300 mb-3">{t('Sub-categories (specialties)', 'التصنيفات الفرعية (التخصصات)')}</label>
                   {subcategoriesLoading ? (

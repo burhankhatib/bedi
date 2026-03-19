@@ -218,8 +218,9 @@ export async function POST(request: NextRequest) {
       deactivateUntil?: string | null
       requiresPersonalShopper?: boolean
       supportsDriverPickup?: boolean
+      freeDeliveryEnabled?: boolean
     } | null>(
-      `*[_type == "tenant" && _id == $id][0]{ blockedBySuperAdmin, deactivated, deactivateUntil, requiresPersonalShopper, supportsDriverPickup }`,
+      `*[_type == "tenant" && _id == $id][0]{ blockedBySuperAdmin, deactivated, deactivateUntil, requiresPersonalShopper, supportsDriverPickup, freeDeliveryEnabled }`,
       { id: siteRef._ref }
     )
     if (!targetTenant || targetTenant.blockedBySuperAdmin) {
@@ -282,13 +283,15 @@ export async function POST(request: NextRequest) {
       orderDoc.deliveryAddress = deliveryAddress
       const safeDeliveryFee = typeof deliveryFee === 'number' && Number.isFinite(deliveryFee) ? Math.max(0, deliveryFee) : 0
       orderDoc.deliveryFee = safeDeliveryFee
+      const deliveryFeePaidByBusiness = targetTenant?.freeDeliveryEnabled === true
+      orderDoc.deliveryFeePaidByBusiness = deliveryFeePaidByBusiness
       const tenantRequiresPersonalShopper = targetTenant?.requiresPersonalShopper === true || targetTenant?.supportsDriverPickup === true || requiresPersonalShopper === true
       const shopperFee = tenantRequiresPersonalShopper ? getShopperFeeByItemCount(totalItemCount) : 0
       if (tenantRequiresPersonalShopper) {
         orderDoc.requiresPersonalShopper = true
         orderDoc.shopperFee = shopperFee
       }
-      orderDoc.totalAmount = computedSubtotal + safeDeliveryFee + shopperFee
+      orderDoc.totalAmount = computedSubtotal + (deliveryFeePaidByBusiness ? 0 : safeDeliveryFee) + shopperFee
       const shouldAutoDispatchDriverPickup =
         targetTenant?.supportsDriverPickup === true &&
         !scheduledFor

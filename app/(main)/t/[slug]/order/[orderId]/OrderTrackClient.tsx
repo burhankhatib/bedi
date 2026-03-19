@@ -43,6 +43,7 @@ type TrackData = {
     tableNumber?: string
     deliveryAddress?: string
     deliveryFee?: number
+    deliveryFeePaidByBusiness?: boolean
     items?: Array<{ productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string }>
     subtotal?: number
     totalAmount?: number
@@ -342,6 +343,7 @@ export function OrderTrackClient({
         ? statusCfg.labelAr
         : statusCfg.labelEn
   const deliveryFee = data.order.deliveryFee ?? 0
+  const deliveryFeePaidByBusiness = data.order.deliveryFeePaidByBusiness === true
 
   return (
     <div className="mx-auto max-w-lg pb-24">
@@ -403,10 +405,14 @@ export function OrderTrackClient({
               <span>{t('Subtotal', 'المجموع الفرعي')}</span>
               <span>{(data.order.subtotal ?? 0).toFixed(2)} {formatCurrency(data.order.currency)}</span>
             </div>
-            {isDelivery && deliveryFee > 0 && (
+            {isDelivery && (deliveryFee > 0 || deliveryFeePaidByBusiness) && (
               <div className="flex justify-between text-slate-700">
                 <span>{t('Delivery', 'التوصيل')}</span>
-                <span>{deliveryFee.toFixed(2)} {formatCurrency(data.order.currency)}</span>
+                {deliveryFeePaidByBusiness ? (
+                  <span className="font-semibold text-emerald-700">{t('FREE', 'مجاناً')}</span>
+                ) : (
+                  <span>{deliveryFee.toFixed(2)} {formatCurrency(data.order.currency)}</span>
+                )}
               </div>
             )}
             <div className="flex justify-between font-semibold text-slate-800 pt-1">

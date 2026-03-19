@@ -65,6 +65,9 @@ export const tenantType = defineType({
           { title: 'Grocery / Market', value: 'grocery' },
           { title: 'Supermarket', value: 'supermarket' },
           { title: 'Greengrocer', value: 'greengrocer' },
+          { title: 'Butcher', value: 'butcher' },
+          { title: 'Gas', value: 'gas' },
+          { title: 'Water', value: 'water' },
           { title: 'Retail / Shop', value: 'retail' },
           { title: 'Pharmacy', value: 'pharmacy' },
           { title: 'Other', value: 'other' },
@@ -280,6 +283,13 @@ export const tenantType = defineType({
       type: 'boolean',
       initialValue: true,
       description: 'When on and you have at least one delivery area, customers see the Delivery option. When off, customers never see Delivery even if you have areas. When on but no delivery areas, Delivery is still hidden until you add areas.',
+    }),
+    defineField({
+      name: 'freeDeliveryEnabled',
+      title: 'Free Delivery (Business Pays Driver)',
+      type: 'boolean',
+      initialValue: false,
+      description: 'When enabled, customers see Free Delivery. Driver delivery fee is paid by the business, not collected from the customer.',
     }),
     defineField({
       name: 'supportsDriverPickup',

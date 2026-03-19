@@ -9,10 +9,8 @@ import {
 } from 'motion/react'
 import Image from 'next/image'
 import type { MotionValue } from 'motion/react'
+import { useLocation } from '@/components/LocationContext'
 
-const BANNER_FOLDER = 'burger'
-
-/** Loading placeholder while frames preload — logo + shimmer */
 function BannerAnimationPlaceholder() {
   return (
     <motion.div
@@ -84,7 +82,6 @@ function ScrollCanvas({
   const rafRef = useRef<number>(0)
   const frameCount = frameUrls.length
 
-  // Preload images from URLs
   useEffect(() => {
     loadedCountRef.current = 0
     const imgs: HTMLImageElement[] = []
@@ -108,7 +105,6 @@ function ScrollCanvas({
     }
   }, [frameUrls, onFirstFrameReady])
 
-  // requestAnimationFrame loop: read scroll, draw frame. No React state.
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -173,45 +169,52 @@ function ScrollCanvas({
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 h-full w-full object-contain"
-      style={{ objectFit: 'contain' }}
+      className="absolute inset-0 size-full"
     />
   )
 }
 
-type ScrollDrivenBannerProps = {
-  folder?: string
-  scrollHeight?: number
+type ScrollAnimationData = {
+  _id: string
+  title: string
+  scrollHeight: number
+  frameCount: number
+  frames: string[]
 }
 
 /**
- * Apple-style pinned scroll section. Auto-discovers frames in
- * /public/banners/{folder}/ (sorted by number in filename, e.g. 001-0100).
+ * Apple-style pinned scroll section. Fetches the best-matching scroll
+ * animation from Sanity (filtered by user city, expiry, enabled).
  * Canvas renders frames in rAF — no React re-renders during scroll.
  */
-export function ScrollDrivenBanner({
-  folder = BANNER_FOLDER,
-  scrollHeight = 400,
-}: ScrollDrivenBannerProps) {
+export function ScrollDrivenBanner() {
   const containerRef = useRef<HTMLDivElement>(null)
+  const [animationData, setAnimationData] = useState<ScrollAnimationData | null>(null)
   const [frameUrls, setFrameUrls] = useState<string[]>([])
   const [framesReady, setFramesReady] = useState(false)
+  const [noAnimation, setNoAnimation] = useState(false)
+  const { city } = useLocation()
 
-  // Auto-discover frames from folder (sorted by number in filename)
   useEffect(() => {
-    fetch(`/api/banners/frames?folder=${encodeURIComponent(folder)}`)
+    const params = new URLSearchParams()
+    if (city) params.set('city', city)
+
+    fetch(`/api/home/scroll-animations?${params.toString()}`)
       .then((r) => r.json())
-      .then((data: { frames?: string[] }) => {
-        const urls = Array.isArray(data?.frames) ? data.frames : []
-        setFrameUrls(urls)
-        if (urls.length === 0) setFramesReady(true)
+      .then((data: { animation: ScrollAnimationData | null }) => {
+        if (data.animation && data.animation.frames.length >= 2) {
+          setAnimationData(data.animation)
+          setFrameUrls(data.animation.frames)
+        } else {
+          setNoAnimation(true)
+        }
       })
       .catch(() => {
-        setFrameUrls([])
-        setFramesReady(true)
+        setNoAnimation(true)
       })
-  }, [folder])
+  }, [city])
 
+  const scrollHeight = animationData?.scrollHeight ?? 400
   const frameCount = Math.max(1, frameUrls.length)
 
   const { scrollYProgress } = useScroll({
@@ -240,28 +243,35 @@ export function ScrollDrivenBanner({
 
   const handleFirstFrameReady = useCallback(() => setFramesReady(true), [])
 
+  if (noAnimation) return null
+
   return (
     <section
       ref={containerRef}
       className="relative w-full bg-black"
       style={{ height: `${scrollHeight}vh` }}
     >
-      {/* Center banner in visible viewport: paddingTop = header (72px) + safe-area + pb, so flex centers in (100vh - header) */}
-      <div
-        className="sticky top-0 flex min-h-screen w-full items-center justify-center px-2 sm:px-4 md:px-6 pb-6"
-        style={{
-          paddingTop: 'calc(72px + env(safe-area-inset-top, 0px) + 1.5rem)',
-        }}
-      >
-        <motion.div
-          className="relative w-full max-w-4xl overflow-hidden rounded-2xl md:rounded-3xl ring-1 ring-white/10 shadow-2xl bg-black"
-          style={{
-            aspectRatio: '9 / 16',
-            maxHeight: 'min(calc(100vh - 6rem), 100vw * (16 / 9))',
-            opacity,
-            filter,
-          }}
+      <div className="relative sticky top-0 h-screen w-full bg-black">
+        {/* Available area: from header bottom to viewport bottom, centered */}
+        <div
+          className="absolute inset-x-0 bottom-0 flex items-center justify-center overflow-hidden"
+          style={{ top: 'calc(72px + env(safe-area-inset-top, 0px))' }}
         >
+          {/*
+            Explicit square: same expression for both axes (min(100vw, available height)).
+            aspect-ratio + max-* only collapses to 0 inside flex without base size.
+          */}
+          <motion.div
+            className="relative shrink-0 bg-black"
+            style={{
+              width:
+                'min(100vw, calc(100vh - 72px - env(safe-area-inset-top, 0px)))',
+              height:
+                'min(100vw, calc(100vh - 72px - env(safe-area-inset-top, 0px)))',
+              opacity,
+              filter,
+            }}
+          >
           <AnimatePresence>
             {!framesReady && <BannerAnimationPlaceholder />}
           </AnimatePresence>
@@ -272,7 +282,8 @@ export function ScrollDrivenBanner({
               onFirstFrameReady={handleFirstFrameReady}
             />
           )}
-        </motion.div>
+          </motion.div>
+        </div>
       </div>
     </section>
   )

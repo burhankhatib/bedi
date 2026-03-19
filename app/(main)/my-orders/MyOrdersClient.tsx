@@ -2,9 +2,22 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { CustomerProfileAvatarLink } from '@/components/customer/CustomerProfileAvatarLink'
 import { useLanguage } from '@/components/LanguageContext'
-import { Package, ChevronRight, Clock, CheckCircle2, Store } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Package, ChevronRight, Clock, Store } from 'lucide-react'
+import {
+  CustomerM3Card,
+  CustomerM3Content,
+  CustomerM3FilledLink,
+  CustomerM3MotionSection,
+  CustomerM3OutlinedLink,
+  CustomerM3PageScaffold,
+  CustomerM3TopAppBar,
+  CustomerM3TonalLink,
+} from '@/components/customer/CustomerM3AccountChrome'
+
+const BROWSE_RESTAURANTS = '/search?category=restaurant'
+const BROWSE_STORES = '/search?category=stores'
 
 export type MyOrderRow = {
   _id: string
@@ -21,7 +34,14 @@ export type MyOrderRow = {
   scheduledFor?: string
 }
 
-const ACTIVE_STATUSES = new Set(['new', 'acknowledged', 'preparing', 'waiting_for_delivery', 'driver_on_the_way', 'out-for-delivery'])
+const ACTIVE_STATUSES = new Set([
+  'new',
+  'acknowledged',
+  'preparing',
+  'waiting_for_delivery',
+  'driver_on_the_way',
+  'out-for-delivery',
+])
 
 const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
   new: { en: 'Received', ar: 'مستلم' },
@@ -35,7 +55,6 @@ const STATUS_LABELS: Record<string, { en: string; ar: string }> = {
   refunded: { en: 'Refunded', ar: 'مسترد' },
 }
 
-/** DD-MM-YYYY with English numerals only (e.g. 22-02-2026). */
 function formatDate(iso: string | undefined): string {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -53,6 +72,7 @@ function formatAmount(amount: number | undefined, currency: string | undefined):
 
 export function MyOrdersClient({ initialOrders }: { initialOrders: MyOrderRow[] }) {
   const { t, lang } = useLanguage()
+  const isRtl = lang === 'ar'
   const [orders, setOrders] = useState<MyOrderRow[]>(initialOrders)
   const [tab, setTab] = useState<'active' | 'history'>('active')
 
@@ -70,88 +90,202 @@ export function MyOrdersClient({ initialOrders }: { initialOrders: MyOrderRow[] 
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24 md:pb-8">
-      <div className="mx-auto max-w-2xl px-4 py-6">
-        <h1 className="text-2xl font-bold text-slate-900 mb-1">
-          {t('My orders', 'طلباتي')}
-        </h1>
-        <p className="text-slate-500 text-sm mb-6">
-          {t('Active orders and history from all businesses.', 'الطلبات النشطة والسابقة من جميع المتاجر.')}
-        </p>
+    <CustomerM3PageScaffold dir={isRtl ? 'rtl' : 'ltr'}>
+      <CustomerM3TopAppBar
+        title={t('My orders', 'طلباتي')}
+        backHref="/profile"
+        backLabel={t('Back to profile', 'العودة للحساب')}
+        isRtl={isRtl}
+        trailing={
+          <CustomerProfileAvatarLink
+            size="md"
+            ariaLabel={t('My profile', 'حسابي')}
+            className="ring-offset-2 ring-offset-[color:var(--m3-surface-container-high)]"
+          />
+        }
+      />
 
-        <div className="flex rounded-xl bg-slate-200/80 p-1 mb-6">
-          <button
-            type="button"
-            onClick={() => setTab('active')}
-            className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition-colors ${tab === 'active' ? 'bg-white text-slate-900 shadow' : 'text-slate-600'}`}
+      <CustomerM3Content className="space-y-6">
+        <CustomerM3MotionSection>
+          <p className="mb-4 text-sm leading-relaxed md:text-base" style={{ color: 'var(--m3-on-surface-variant)' }}>
+            {t(
+              'Active orders and history from all businesses.',
+              'الطلبات النشطة والسابقة من جميع المتاجر.'
+            )}
+          </p>
+
+          <div
+            className="mb-6 flex h-12 rounded-full p-1 md:h-14 md:p-1.5"
+            style={{ backgroundColor: 'var(--m3-surface-container-low)' }}
+            role="tablist"
+            aria-label={t('Order list', 'قائمة الطلبات')}
           >
-            {t('Active', 'نشطة')} ({active.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('history')}
-            className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition-colors ${tab === 'history' ? 'bg-white text-slate-900 shadow' : 'text-slate-600'}`}
-          >
-            {t('History', 'السابقة')} ({history.length})
-          </button>
-        </div>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'active'}
+              onClick={() => setTab('active')}
+              className="flex-1 rounded-full text-sm font-semibold transition-colors duration-200 md:text-base"
+              style={
+                tab === 'active'
+                  ? {
+                      backgroundColor: 'var(--m3-primary-container)',
+                      color: 'var(--m3-on-primary-container)',
+                      boxShadow: 'var(--m3-elevation-1)',
+                    }
+                  : { color: 'var(--m3-on-surface-variant)' }
+              }
+            >
+              {t('Active', 'نشطة')} ({active.length})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'history'}
+              onClick={() => setTab('history')}
+              className="flex-1 rounded-full text-sm font-semibold transition-colors duration-200 md:text-base"
+              style={
+                tab === 'history'
+                  ? {
+                      backgroundColor: 'var(--m3-primary-container)',
+                      color: 'var(--m3-on-primary-container)',
+                      boxShadow: 'var(--m3-elevation-1)',
+                    }
+                  : { color: 'var(--m3-on-surface-variant)' }
+              }
+            >
+              {t('History', 'السابقة')} ({history.length})
+            </button>
+          </div>
+        </CustomerM3MotionSection>
 
         {tab === 'active' && (
-          <section className="space-y-3">
+          <CustomerM3MotionSection delay={0.03}>
             {active.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500">
-                <Package className="mx-auto h-12 w-12 text-slate-300 mb-3" />
-                <p>{t('No active orders.', 'لا توجد طلبات نشطة.')}</p>
-              </div>
+              <EmptyState
+                icon={Package}
+                title={t('No active orders.', 'لا توجد طلبات نشطة.')}
+                hint={t(
+                  'Browse restaurants and stores to place an order.',
+                  'تصفح المطاعم والمتاجر لإتمام طلب.'
+                )}
+                t={t}
+              />
             ) : (
-              active.map((order) => (
-                <OrderCard
-                  key={order._id}
-                  order={order}
-                  isActive
-                  lang={lang}
-                  t={t}
-                  statusLabel={statusLabel}
-                  formatDate={formatDate}
-                  formatAmount={formatAmount}
-                />
-              ))
+              <ul className="space-y-3 md:space-y-4">
+                {active.map((order) => (
+                  <OrderCard
+                    key={order._id}
+                    order={order}
+                    isActive
+                    locale={lang}
+                    t={t}
+                    statusLabel={statusLabel}
+                    formatDate={formatDate}
+                    formatAmount={formatAmount}
+                  />
+                ))}
+              </ul>
             )}
-          </section>
+          </CustomerM3MotionSection>
         )}
 
         {tab === 'history' && (
-          <section className="space-y-3">
+          <CustomerM3MotionSection delay={0.03}>
             {history.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500">
-                <Clock className="mx-auto h-12 w-12 text-slate-300 mb-3" />
-                <p>{t('No order history yet.', 'لا توجد طلبات سابقة بعد.')}</p>
-              </div>
+              <EmptyState
+                icon={Clock}
+                title={t('No order history yet.', 'لا توجد طلبات سابقة بعد.')}
+                hint={t(
+                  'Completed and cancelled orders appear here.',
+                  'تظهر الطلبات المكتملة والملغاة هنا.'
+                )}
+                t={t}
+              />
             ) : (
-              history.map((order) => (
-                <OrderCard
-                  key={order._id}
-                  order={order}
-                  isActive={false}
-                  lang={lang}
-                  t={t}
-                  statusLabel={statusLabel}
-                  formatDate={formatDate}
-                  formatAmount={formatAmount}
-                />
-              ))
+              <ul className="space-y-3 md:space-y-4">
+                {history.map((order) => (
+                  <OrderCard
+                    key={order._id}
+                    order={order}
+                    isActive={false}
+                    locale={lang}
+                    t={t}
+                    statusLabel={statusLabel}
+                    formatDate={formatDate}
+                    formatAmount={formatAmount}
+                  />
+                ))}
+              </ul>
             )}
-          </section>
+          </CustomerM3MotionSection>
         )}
+
+        <div className="flex flex-wrap items-center justify-center gap-4 pb-6 text-sm font-semibold">
+          <Link
+            href="/profile"
+            className="underline-offset-4 hover:underline"
+            style={{ color: 'var(--m3-primary)' }}
+          >
+            {t('Profile', 'حسابي')}
+          </Link>
+          <span style={{ color: 'var(--m3-outline-variant)' }} aria-hidden>
+            ·
+          </span>
+          <Link
+            href="/"
+            className="underline-offset-4 hover:underline"
+            style={{ color: 'var(--m3-primary)' }}
+          >
+            {t('Home', 'الرئيسية')}
+          </Link>
+        </div>
+      </CustomerM3Content>
+    </CustomerM3PageScaffold>
+  )
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  hint,
+  t,
+}: {
+  icon: typeof Package
+  title: string
+  hint: string
+  t: (en: string, ar: string) => string
+}) {
+  return (
+    <CustomerM3Card>
+      <div className="flex flex-col items-center px-2 py-6 text-center md:py-8">
+        <Icon
+          className="mb-4 size-14 opacity-50"
+          style={{ color: 'var(--m3-on-surface-variant)' }}
+        />
+        <p className="text-base font-semibold" style={{ color: 'var(--m3-on-surface)' }}>
+          {title}
+        </p>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed" style={{ color: 'var(--m3-on-surface-variant)' }}>
+          {hint}
+        </p>
+        <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          <CustomerM3FilledLink href={BROWSE_RESTAURANTS}>
+            {t('Browse restaurants', 'تصفح المطاعم')}
+          </CustomerM3FilledLink>
+          <CustomerM3TonalLink href={BROWSE_STORES}>
+            {t('Browse stores', 'تصفح المتاجر')}
+          </CustomerM3TonalLink>
+        </div>
       </div>
-    </div>
+    </CustomerM3Card>
   )
 }
 
 function OrderCard({
   order,
   isActive,
-  lang,
+  locale,
   t,
   statusLabel,
   formatDate: fmtDate,
@@ -159,54 +293,65 @@ function OrderCard({
 }: {
   order: MyOrderRow
   isActive: boolean
-  lang: string
+  locale: 'en' | 'ar'
   t: (en: string, ar: string) => string
   statusLabel: (s: string | undefined) => string
   formatDate: (iso: string | undefined) => string
   formatAmount: (a: number | undefined, c: string | undefined) => string
 }) {
-  const trackHref = order.siteSlug && order.trackingToken ? `/t/${order.siteSlug}/track/${order.trackingToken}` : null
+  const trackHref =
+    order.siteSlug && order.trackingToken
+      ? `/t/${order.siteSlug}/track/${order.trackingToken}`
+      : null
   const businessName = order.siteName?.trim() || order.siteSlug || t('Order', 'طلب')
 
   return (
-    <div
-      className={`rounded-2xl border p-4 shadow-sm ${
-        isActive
-          ? 'border-emerald-300 border-l-4 border-l-emerald-500 bg-emerald-50/70 animate-pulse'
-          : 'border-slate-200 bg-white'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-slate-500 text-sm mb-0.5">
-            <Store className="h-4 w-4 shrink-0" />
-            <span className="truncate">{businessName}</span>
-          </div>
-          <p className="font-semibold text-slate-900">
-            #{order.orderNumber || order._id.slice(-6)}
-          </p>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {statusLabel(order.status)} · {fmtDate(order.createdAt)}
-          </p>
-          {order.scheduledFor && (
-            <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-2 py-1 text-xs font-semibold text-purple-700 border border-purple-200">
-              <Clock className="h-3.5 w-3.5" />
-              {new Date(order.scheduledFor).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+    <li>
+      <CustomerM3Card
+        className={isActive ? 'ring-2 ring-[color:var(--m3-primary)]/25' : undefined}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div
+              className="mb-1 flex items-center gap-2 text-sm font-medium"
+              style={{ color: 'var(--m3-on-surface-variant)' }}
+            >
+              <Store className="size-4 shrink-0" />
+              <span className="truncate">{businessName}</span>
             </div>
-          )}
-          <p className="text-sm font-medium text-slate-700 mt-1">
-            {fmtAmount(order.totalAmount, order.currency)}
-          </p>
-        </div>
-        {trackHref && (
-          <Link href={trackHref}>
-            <Button variant="outline" size="sm" className="shrink-0 gap-1">
+            <p className="text-lg font-bold tracking-tight" style={{ color: 'var(--m3-on-surface)' }}>
+              #{order.orderNumber || order._id.slice(-6)}
+            </p>
+            <p className="mt-0.5 text-sm" style={{ color: 'var(--m3-on-surface-variant)' }}>
+              {statusLabel(order.status)} · {fmtDate(order.createdAt)}
+            </p>
+            {order.scheduledFor && (
+              <div
+                className="mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold"
+                style={{
+                  backgroundColor: 'var(--m3-secondary-container)',
+                  color: 'var(--m3-on-secondary-container)',
+                }}
+              >
+                <Clock className="size-3.5" />
+                {new Date(order.scheduledFor).toLocaleString(locale === 'ar' ? 'ar' : 'en-US', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}
+              </div>
+            )}
+            <p className="mt-2 text-sm font-semibold" style={{ color: 'var(--m3-on-surface)' }}>
+              {fmtAmount(order.totalAmount, order.currency)}
+            </p>
+          </div>
+          {trackHref ? (
+            <CustomerM3OutlinedLink href={trackHref} className="h-9 shrink-0 gap-1 px-3 text-xs">
               {t('Track', 'تتبع')}
-              <ChevronRight className="h-4 w-4 rtl:rotate-180" />
-            </Button>
-          </Link>
-        )}
-      </div>
-    </div>
+              <ChevronRight className="size-3.5 rtl:rotate-180" />
+            </CustomerM3OutlinedLink>
+          ) : null}
+        </div>
+      </CustomerM3Card>
+    </li>
   )
 }

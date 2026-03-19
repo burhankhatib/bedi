@@ -23,6 +23,7 @@ type HistoryOrder = {
   deliveryLat?: number
   deliveryLng?: number
   deliveryFee: number
+  deliveryFeePaidByBusiness?: boolean
   shopperFee?: number
   totalAmount: number
   tipAmount: number
@@ -172,8 +173,13 @@ export function DriverHistoryClient() {
               )}
               <p className="text-slate-400 text-sm mt-2">
                 {t('Total', 'المجموع')} {o.totalAmount.toFixed(2)} {o.currency}
-                {o.deliveryFee > 0 && (
-                  <span className="text-slate-500"> · {t('Delivery fee', 'سعر التوصيل')}: {o.deliveryFee.toFixed(2)}</span>
+                {(o.deliveryFee > 0 || o.deliveryFeePaidByBusiness) && (
+                  <span className={o.deliveryFeePaidByBusiness ? 'text-amber-400/90' : 'text-slate-500'}>
+                    {' · '}
+                    {o.deliveryFeePaidByBusiness
+                      ? `💼 ${t('Delivery fee (paid by business)', 'رسوم التوصيل (يدفعها المتجر)')}: ${o.deliveryFee.toFixed(2)}`
+                      : `${t('Delivery fee', 'سعر التوصيل')}: ${o.deliveryFee.toFixed(2)}`}
+                  </span>
                 )}
                 {(o.shopperFee ?? 0) > 0 && (
                   <span className="text-fuchsia-400/90"> · 🛍️ {t('Save Time', 'توفير الوقت')}: {(o.shopperFee ?? 0).toFixed(2)}</span>

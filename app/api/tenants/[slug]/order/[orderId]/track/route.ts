@@ -31,6 +31,7 @@ export async function GET(
     customerPhone?: string
     deliveryAddress?: string
     deliveryFee?: number
+    deliveryFeePaidByBusiness?: boolean
     items?: Array<{ productName?: string; quantity?: number; price?: number; total?: number; notes?: string; addOns?: string }>
     subtotal?: number
     totalAmount?: number
@@ -53,6 +54,7 @@ export async function GET(
       customerPhone,
       deliveryAddress,
       deliveryFee,
+      deliveryFeePaidByBusiness,
       items,
       subtotal,
       totalAmount,
@@ -104,6 +106,7 @@ export async function GET(
       customerPhone: order.customerPhone,
       deliveryAddress: order.deliveryAddress,
       deliveryFee: order.deliveryFee,
+      deliveryFeePaidByBusiness: order.deliveryFeePaidByBusiness ?? false,
       items: order.items,
       subtotal: order.subtotal,
       totalAmount: order.totalAmount,

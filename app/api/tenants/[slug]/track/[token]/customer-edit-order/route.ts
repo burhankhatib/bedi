@@ -55,6 +55,7 @@ export async function PATCH(
     orderNumber?: string
     orderType?: string
     deliveryFee?: number
+    deliveryFeePaidByBusiness?: boolean
     requiresPersonalShopper?: boolean
     items?: Array<{ productName?: string; quantity?: number; productId?: string }>
     subtotal?: number
@@ -67,6 +68,7 @@ export async function PATCH(
       orderNumber,
       orderType,
       deliveryFee,
+      deliveryFeePaidByBusiness,
       requiresPersonalShopper,
       items,
       subtotal,
@@ -168,7 +170,7 @@ export async function PATCH(
   const deliveryFee = typeof order.deliveryFee === 'number' ? Math.max(0, order.deliveryFee) : 0
   const itemCount = normalizedItems.reduce((sum, item) => sum + (item.quantity ?? 0), 0)
   const shopperFee = order.requiresPersonalShopper ? getShopperFeeByItemCount(itemCount) : 0
-  const totalAmount = subtotal + deliveryFee + shopperFee
+  const totalAmount = subtotal + (order.deliveryFeePaidByBusiness ? 0 : deliveryFee) + shopperFee
   const now = new Date().toISOString()
 
   await writeClient

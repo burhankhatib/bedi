@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { sanityFetch } from '@/sanity/lib/fetch'
 import { urlFor } from '@/sanity/lib/image'
 import { normalizeSectionKey } from '@/lib/section-key'
+import { BUSINESS_TYPES, STORE_BUSINESS_TYPES } from '@/lib/constants'
 
 /** Cache 60s per (city, category, section, area) to reduce Sanity API calls. */
 export const revalidate = 60
@@ -61,9 +62,18 @@ export async function GET(req: NextRequest) {
   const section = searchParams.get('section') ?? ''
   const area = searchParams.get('area') ?? ''
 
-  const subcategoryFilter = subcategory ? '&& $subcategory in businessSubcategories[]._ref' : ''
-  // "stores" = everything except restaurant and cafe (markets, pharmacies, retail, bakery, other)
   const isStoresCategory = category === 'stores'
+  const isStoreTypeSubcategory = isStoresCategory && subcategory.startsWith('storetype:')
+  const selectedStoreType = isStoreTypeSubcategory ? subcategory.replace('storetype:', '').trim() : ''
+  const validStoreType = (STORE_BUSINESS_TYPES as readonly string[]).includes(selectedStoreType)
+    ? selectedStoreType
+    : ''
+  const subcategoryFilter = subcategory
+    ? isStoreTypeSubcategory
+      ? (validStoreType ? '&& businessType == $storeType' : '&& false')
+      : '&& $subcategory in businessSubcategories[]._ref'
+    : ''
+  // "stores" = everything except restaurant and cafe (markets, pharmacies, retail, bakery, other)
   const categoryFilter = category
     ? isStoresCategory
       ? '&& businessType != "restaurant" && businessType != "cafe"'
@@ -72,7 +82,8 @@ export async function GET(req: NextRequest) {
   const params: Record<string, string> = {
     city,
     ...(category && !isStoresCategory ? { category } : {}),
-    ...(subcategory ? { subcategory } : {}),
+    ...(subcategory && !isStoreTypeSubcategory ? { subcategory } : {}),
+    ...(validStoreType ? { storeType: validStoreType } : {}),
   }
 
   const rawTenants = await sanityFetch<
@@ -83,6 +94,7 @@ export async function GET(req: NextRequest) {
       name_ar?: string | null
       slug: { current?: string }
       businessType: string
+      freeDeliveryEnabled?: boolean
       city?: string
       country?: string
       businessLogo?: LogoSource
@@ -100,6 +112,7 @@ export async function GET(req: NextRequest) {
       "name_ar": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_ar,
       "slug": slug.current,
       businessType,
+      freeDeliveryEnabled,
       city,
       country,
       businessLogo,
@@ -153,18 +166,27 @@ export async function GET(req: NextRequest) {
   }
   if (storesCount > 0) categoryCounts['stores'] = storesCount
 
-  const availableSubcategories = new Map<
-    string,
-    { _id: string; en: string; ar: string }
-  >()
-  for (const t of rawTenants ?? []) {
-    for (const s of t.businessSubcategories ?? []) {
-      if (!s?._id) continue
-      const en = (s.title_en ?? '').trim()
-      const ar = (s.title_ar ?? '').trim()
-      if (en || ar) {
-        if (!availableSubcategories.has(s._id)) {
-          availableSubcategories.set(s._id, { _id: s._id, en, ar })
+  const availableSubcategories = new Map<string, { _id: string; en: string; ar: string }>()
+  if (isStoresCategory) {
+    for (const type of STORE_BUSINESS_TYPES) {
+      if ((categoryCounts[type] ?? 0) <= 0) continue
+      const labels = BUSINESS_TYPES.find((b) => b.value === type)
+      availableSubcategories.set(`storetype:${type}`, {
+        _id: `storetype:${type}`,
+        en: labels?.label ?? type,
+        ar: labels?.labelAr ?? type,
+      })
+    }
+  } else {
+    for (const t of rawTenants ?? []) {
+      for (const s of t.businessSubcategories ?? []) {
+        if (!s?._id) continue
+        const en = (s.title_en ?? '').trim()
+        const ar = (s.title_ar ?? '').trim()
+        if (en || ar) {
+          if (!availableSubcategories.has(s._id)) {
+            availableSubcategories.set(s._id, { _id: s._id, en, ar })
+          }
         }
       }
     }
@@ -207,6 +229,7 @@ export async function GET(req: NextRequest) {
       name_ar: t.name_ar ?? null,
       slug: slug ?? '',
       businessType: t.businessType,
+      freeDeliveryEnabled: t.freeDeliveryEnabled === true,
       logoUrl,
       sections,
       popularItems,

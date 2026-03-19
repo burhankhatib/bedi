@@ -8,6 +8,9 @@ import { defineField, defineType } from 'sanity'
  * Cafe: coffee, tea, smoothies, desserts, light-meals, breakfast.
  * Bakery: bread, pastries, cakes, oriental-sweets, savory.
  * Grocery / Supermarket / Greengrocer: supermarket, mini-market, organic, dairy, fruits-vegetables.
+ * Butcher: meat, chicken, frozen.
+ * Gas: gas-cylinders, camping-gas.
+ * Water: water-bottles, water-gallons.
  * Retail: clothing, electronics, gifts, other.
  * Pharmacy: full, mini, other.
  */
@@ -57,6 +60,9 @@ export const businessSubcategoryType = defineType({
           { title: 'Grocery / Market', value: 'grocery' },
           { title: 'Supermarket', value: 'supermarket' },
           { title: 'Greengrocer (Vegetables & Fruits)', value: 'greengrocer' },
+          { title: 'Butcher', value: 'butcher' },
+          { title: 'Gas', value: 'gas' },
+          { title: 'Water', value: 'water' },
           { title: 'Retail / Shop', value: 'retail' },
           { title: 'Pharmacy', value: 'pharmacy' },
           { title: 'Other', value: 'other' },

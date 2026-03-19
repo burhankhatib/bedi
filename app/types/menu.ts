@@ -149,6 +149,8 @@ export interface InitialData {
   supportsReceiveInPerson?: boolean
   /** When true, tenant has at least one active delivery area (show Delivery option). */
   hasDelivery?: boolean
+  /** When true, customer sees free delivery and the business pays the driver delivery fee. */
+  freeDeliveryEnabled?: boolean
   /** When true, business is manually closed (deactivated until deactivateUntil). Customer can still browse catalog. */
   isManuallyClosed?: boolean
   /** When set with isManuallyClosed, business reopens at this ISO date/time. For banner "We will open again on...". */

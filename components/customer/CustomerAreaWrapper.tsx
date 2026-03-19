@@ -26,12 +26,13 @@ function useScrollToTopOnNavigate() {
   }, [pathname])
 }
 
-/** Paths where the customer bottom nav is shown (home, search, tenant menu, order flow, my orders, track page). */
+/** Paths where the customer bottom nav is shown (home, search, tenant menu, order flow, my orders, profile, track page). */
 function isCustomerPath(pathname: string): boolean {
   if (!pathname) return false
   if (pathname === '/') return true
   if (pathname === '/search') return true
   if (pathname === '/my-orders') return true
+  if (pathname === '/profile') return true
   if (pathname === '/my-questions') return true
   if (pathname.startsWith('/order')) return true
   if (pathname.startsWith('/resolve')) return true
@@ -52,6 +53,7 @@ function isCustomerPWAPath(pathname: string): boolean {
   if (pathname === '/') return true
   if (pathname === '/search') return true
   if (pathname === '/my-orders') return true
+  if (pathname === '/profile') return true
   if (pathname === '/my-questions') return true
   if (pathname.startsWith('/order')) return true
   if (pathname.startsWith('/resolve')) return true

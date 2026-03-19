@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
     name_ar?: string | null
     slug: string | { current?: string }
     businessType: string
+    freeDeliveryEnabled?: boolean
     businessLogo?: LogoSource
     restaurantLogo?: LogoSource
     subcategoryTitles?: SubcategoryTitle[]
@@ -91,6 +92,7 @@ export async function GET(req: NextRequest) {
       "name_ar": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_ar,
       "slug": slug.current,
       businessType,
+      freeDeliveryEnabled,
       businessLogo,
       "restaurantLogo": *[_type == "restaurantInfo" && site._ref == ^._id][0].logo,
       "subcategoryTitles": *[_type == "businessSubcategory" && _id in ^.businessSubcategories[]._ref]{title_en, title_ar}
@@ -156,6 +158,7 @@ export async function GET(req: NextRequest) {
       name_ar: t.name_ar ?? null,
       slug,
       businessType: t.businessType,
+      freeDeliveryEnabled: t.freeDeliveryEnabled === true,
       logoUrl,
     }
   })

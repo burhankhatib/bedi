@@ -136,6 +136,7 @@ export default async function TenantMenuPage({
     supportsDineIn,
     supportsReceiveInPerson,
     hasDelivery,
+    freeDeliveryEnabled: tenant.freeDeliveryEnabled ?? false,
     isManuallyClosed,
     deactivateUntil: tenant.deactivateUntil ?? null,
     businessCountry: tenant.country ?? null,

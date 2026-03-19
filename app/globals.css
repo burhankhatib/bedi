@@ -50,17 +50,35 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-/* Material Design 3 tokens for catalog / product UI */
+/* Material Design 3 tokens: catalog, verify flow, customer account (/profile, /my-orders) */
 :root {
   --m3-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --m3-ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
   --m3-duration-short: 200ms;
   --m3-duration-medium: 280ms;
   --m3-duration-long: 400ms;
-  --m3-surface-container: oklch(0.985 0 0);
+  --m3-surface: oklch(0.97 0.004 85);
+  --m3-surface-container: oklch(0.985 0.008 85);
   --m3-surface-container-high: oklch(1 0 0);
-  --m3-outline-variant: oklch(0.92 0 0);
-  --m3-on-surface-variant: oklch(0.45 0 0);
+  --m3-surface-container-low: oklch(0.955 0.012 85);
+  --m3-outline: oklch(0.75 0.02 85);
+  --m3-outline-variant: oklch(0.92 0.01 85);
+  --m3-on-surface: oklch(0.18 0.02 265);
+  --m3-on-surface-variant: oklch(0.45 0.02 265);
+  /* Primary (amber / brand-adjacent) — filled buttons, active tab */
+  --m3-primary: oklch(0.58 0.16 75);
+  --m3-on-primary: oklch(0.99 0.005 85);
+  --m3-primary-container: oklch(0.93 0.06 88);
+  --m3-on-primary-container: oklch(0.28 0.09 75);
+  --m3-secondary-container: oklch(0.93 0.03 280);
+  --m3-on-secondary-container: oklch(0.28 0.06 280);
+  /* Order status: active / on-the-way */
+  --m3-tertiary-container: oklch(0.92 0.05 155);
+  --m3-on-tertiary-container: oklch(0.22 0.06 155);
+  /* Error / destructive containers */
+  --m3-error: oklch(0.55 0.2 25);
+  --m3-error-container: oklch(0.95 0.03 25);
+  --m3-on-error-container: oklch(0.35 0.11 25);
   --m3-elevation-1: 0 1px 2px rgba(0,0,0,0.04), 0 2px 6px rgba(0,0,0,0.04);
   --m3-elevation-2: 0 2px 6px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
   --m3-elevation-3: 0 4px 12px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.05);

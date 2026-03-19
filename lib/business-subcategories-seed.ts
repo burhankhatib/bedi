@@ -67,6 +67,15 @@ export const RESTAURANT_SUBCATEGORIES: SubcategoryRow[] = [
   { slug: 'spanish', title_en: 'Spanish', title_ar: 'إسباني', sortOrder: 58 },
   { slug: 'pakistani', title_en: 'Pakistani', title_ar: 'باكستاني', sortOrder: 59 },
   { slug: 'caribbean', title_en: 'Caribbean', title_ar: 'كاريبي', sortOrder: 60 },
+  { slug: 'persian', title_en: 'Persian', title_ar: 'فارسي', sortOrder: 61 },
+  { slug: 'german', title_en: 'German', title_ar: 'ألماني', sortOrder: 62 },
+  { slug: 'brazilian', title_en: 'Brazilian', title_ar: 'برازيلي', sortOrder: 63 },
+  { slug: 'ethiopian', title_en: 'Ethiopian', title_ar: 'إثيوبي', sortOrder: 64 },
+  { slug: 'argentinian', title_en: 'Argentinian', title_ar: 'أرجنتيني', sortOrder: 65 },
+  { slug: 'filipino', title_en: 'Filipino', title_ar: 'فلبيني', sortOrder: 66 },
+  { slug: 'nepalese', title_en: 'Nepalese', title_ar: 'نيبالي', sortOrder: 67 },
+  { slug: 'moroccan', title_en: 'Moroccan', title_ar: 'مغربي', sortOrder: 68 },
+  { slug: 'syrian', title_en: 'Syrian', title_ar: 'سوري', sortOrder: 69 },
 ]
 
 export const CAFE_SUBCATEGORIES: SubcategoryRow[] = [
@@ -114,6 +123,22 @@ export const PHARMACY_SUBCATEGORIES: SubcategoryRow[] = [
   { slug: 'other', title_en: 'Other', title_ar: 'أخرى', sortOrder: 2 },
 ]
 
+export const BUTCHER_SUBCATEGORIES: SubcategoryRow[] = [
+  { slug: 'meat', title_en: 'Meat', title_ar: 'لحوم', sortOrder: 0 },
+  { slug: 'chicken', title_en: 'Chicken', title_ar: 'دجاج', sortOrder: 1 },
+  { slug: 'frozen', title_en: 'Frozen', title_ar: 'مجمّدات', sortOrder: 2 },
+]
+
+export const GAS_SUBCATEGORIES: SubcategoryRow[] = [
+  { slug: 'gas-cylinders', title_en: 'Gas cylinders', title_ar: 'اسطوانات غاز', sortOrder: 0 },
+  { slug: 'camping-gas', title_en: 'Camping gas', title_ar: 'غاز رحلات', sortOrder: 1 },
+]
+
+export const WATER_SUBCATEGORIES: SubcategoryRow[] = [
+  { slug: 'water-bottles', title_en: 'Water bottles', title_ar: 'عبوات مياه', sortOrder: 0 },
+  { slug: 'water-gallons', title_en: 'Water gallons', title_ar: 'جالونات مياه', sortOrder: 1 },
+]
+
 export const OTHER_SUBCATEGORIES: SubcategoryRow[] = [
   { slug: 'other', title_en: 'Other', title_ar: 'أخرى', sortOrder: 0 },
 ]
@@ -125,6 +150,9 @@ export const BY_BUSINESS_TYPE: Record<string, SubcategoryRow[]> = {
   grocery: GROCERY_SUBCATEGORIES,
   supermarket: GROCERY_SUBCATEGORIES,
   greengrocer: GROCERY_SUBCATEGORIES,
+  butcher: BUTCHER_SUBCATEGORIES,
+  gas: GAS_SUBCATEGORIES,
+  water: WATER_SUBCATEGORIES,
   retail: RETAIL_SUBCATEGORIES,
   pharmacy: PHARMACY_SUBCATEGORIES,
   other: OTHER_SUBCATEGORIES,

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
 import { normalizeSectionKey, canonicalSectionKey } from '@/lib/section-key'
+import { STORE_BUSINESS_TYPES } from '@/lib/constants'
 
 /** Cached per URL (city + category) for 60s to reduce Sanity API usage. */
 export const revalidate = 60
@@ -28,8 +29,6 @@ function pickFreshImage(candidates: ImageSource[]): ImageSource | null {
  * Uses subcategory image when available; otherwise category or product image from a tenant.
  * Rotates between multiple restaurants' images for freshness.
  */
-const STORE_BUSINESS_TYPES = ['grocery', 'supermarket', 'greengrocer', 'retail', 'pharmacy', 'bakery', 'other']
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const city = searchParams.get('city') ?? ''

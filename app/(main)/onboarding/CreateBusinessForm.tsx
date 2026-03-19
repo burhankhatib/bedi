@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AppNav } from '@/components/saas/AppNav'
 import { useLanguage } from '@/components/LanguageContext'
-import { BUSINESS_TYPES } from '@/lib/constants'
+import { BUSINESS_CATEGORY_OPTIONS, BUSINESS_TYPES, STORE_BUSINESS_TYPES } from '@/lib/constants'
 import { slugify } from '@/lib/slugify'
 import { Loader2, Store, ArrowRight, Sparkles } from 'lucide-react'
 
@@ -18,7 +18,8 @@ export function CreateBusinessForm() {
   const { t, lang } = useLanguage()
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
-  const [businessType, setBusinessType] = useState('')
+  const [businessCategory, setBusinessCategory] = useState<'restaurant' | 'stores'>('restaurant')
+  const [businessType, setBusinessType] = useState('restaurant')
   const [ownerPhone, setOwnerPhone] = useState('')
   const [businessSubcategoryIds, setBusinessSubcategoryIds] = useState<string[]>([])
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
@@ -34,6 +35,11 @@ export function CreateBusinessForm() {
         setBusinessSubcategoryIds([])
         return
       }
+      if (businessCategory === 'stores') {
+        setSubcategories([])
+        setBusinessSubcategoryIds([])
+        return
+      }
       setSubcategoriesLoading(true)
       setBusinessSubcategoryIds([])
       fetch(`/api/business-subcategories?businessType=${encodeURIComponent(businessType)}`, { cache: 'no-store' })
@@ -43,7 +49,7 @@ export function CreateBusinessForm() {
         .finally(() => setSubcategoriesLoading(false))
     }, 0)
     return () => clearTimeout(timer)
-  }, [businessType])
+  }, [businessType, businessCategory])
 
   const handleNameChange = (value: string) => {
     setName(value)
@@ -117,24 +123,68 @@ export function CreateBusinessForm() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-300">
-                  {t('Business type', 'نوع العمل')}
+                  {t('Business category', 'فئة النشاط')}
                 </label>
                 <select
-                  value={businessType}
-                  onChange={(e) => setBusinessType(e.target.value)}
+                  value={businessCategory}
+                  onChange={(e) => {
+                    const next = e.target.value === 'stores' ? 'stores' : 'restaurant'
+                    setBusinessCategory(next)
+                    setBusinessSubcategoryIds([])
+                    if (next === 'restaurant') {
+                      setBusinessType('restaurant')
+                      return
+                    }
+                    setBusinessType('')
+                  }}
                   className="dashboard-select w-full border border-slate-600 bg-slate-800/50 text-white focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
                   required
                 >
-                  <option value="">{t('Select type', 'اختر النوع')}</option>
-                  {BUSINESS_TYPES.map((opt) => (
+                  {BUSINESS_CATEGORY_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
-                      {t(opt.label, opt.labelAr)}
+                      {lang === 'ar' ? opt.labelAr : opt.label}
                     </option>
                   ))}
                 </select>
+                <p className="mt-1.5 text-xs text-slate-500">
+                  {t('Choose Restaurant or Store first.', 'اختر مطعم أو متجر أولاً.')}
+                </p>
               </div>
 
-              {businessType && (
+              {businessCategory === 'stores' && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-300">
+                    {t('Store sub-category', 'تصنيف المتجر الفرعي')}
+                  </label>
+                  <p className="mb-2 text-xs text-slate-500">
+                    {t('Pick one type for your store.', 'اختر نوعاً واحداً لمتجرك.')}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {STORE_BUSINESS_TYPES.filter((value) =>
+                      ['grocery', 'greengrocer', 'pharmacy', 'bakery', 'butcher', 'water', 'gas', 'supermarket', 'retail', 'other'].includes(value)
+                    ).map((value) => {
+                      const labels = BUSINESS_TYPES.find((x) => x.value === value)
+                      const checked = businessType === value
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setBusinessType(value)}
+                          className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                            checked
+                              ? 'border-amber-500/60 bg-amber-500/20 text-amber-100'
+                              : 'border-slate-600 bg-slate-800/50 text-slate-300 hover:border-slate-500'
+                          }`}
+                        >
+                          {lang === 'ar' ? labels?.labelAr ?? value : labels?.label ?? value}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {businessCategory === 'restaurant' && businessType && (
                 <div>
                   <label className="mb-2 block text-sm font-medium text-slate-300">
                     {t('Specialties / Sub-categories', 'التخصصات / التصنيفات الفرعية')} <span className="text-slate-500">({t('Optional', 'اختياري')})</span>

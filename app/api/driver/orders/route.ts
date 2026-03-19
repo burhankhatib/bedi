@@ -32,6 +32,7 @@ type DriverOrderView = {
   deliveryLat?: number
   deliveryLng?: number
   deliveryFee: number
+  deliveryFeePaidByBusiness?: boolean
   totalAmount: number
   amountToPayTenant: number
   currency: string
@@ -100,6 +101,7 @@ export async function GET() {
       deliveryLat?: number
       deliveryLng?: number
       deliveryFee?: number
+      deliveryFeePaidByBusiness?: boolean
       totalAmount?: number
       currency?: string
       status: string
@@ -142,6 +144,7 @@ export async function GET() {
       deliveryLat,
       deliveryLng,
       deliveryFee,
+      deliveryFeePaidByBusiness,
       totalAmount,
       currency,
       status,
@@ -279,8 +282,9 @@ export async function GET() {
       deliveryLat: o.deliveryLat,
       deliveryLng: o.deliveryLng,
       deliveryFee: fee,
+      deliveryFeePaidByBusiness: o.deliveryFeePaidByBusiness === true,
       totalAmount: total,
-      amountToPayTenant: Math.max(0, total - fee - shopperFee),
+      amountToPayTenant: Math.max(0, total - (o.deliveryFeePaidByBusiness ? 0 : fee) - shopperFee),
       currency: o.currency ?? 'ILS',
       status: o.status,
       deliveryRequestedAt: o.deliveryRequestedAt,

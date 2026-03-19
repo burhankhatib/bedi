@@ -64,6 +64,7 @@ type DriverOrder = {
   deliveryLat?: number
   deliveryLng?: number
   deliveryFee: number
+  deliveryFeePaidByBusiness?: boolean
   totalAmount: number
   amountToPayTenant: number
   currency: string
@@ -2187,14 +2188,25 @@ function DriverOrdersV2Content() {
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl bg-sky-500/10 border border-sky-500/20 p-3.5 flex flex-col gap-1">
-                      <span className="text-sky-200/80 text-xs font-semibold flex items-center gap-1.5">
-                        <Truck className="h-3.5 w-3.5 text-sky-400" />
-                        {t('Delivery fee', 'سعر التوصيل')}
+                    <div className={`rounded-2xl p-3.5 flex flex-col gap-1 ${activeOrder.deliveryFeePaidByBusiness ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-sky-500/10 border border-sky-500/20'}`}>
+                      <span className={`text-xs font-semibold flex items-center gap-1.5 ${activeOrder.deliveryFeePaidByBusiness ? 'text-amber-200/90' : 'text-sky-200/80'}`}>
+                        {activeOrder.deliveryFeePaidByBusiness ? (
+                          <Store className="h-3.5 w-3.5 text-amber-400" />
+                        ) : (
+                          <Truck className="h-3.5 w-3.5 text-sky-400" />
+                        )}
+                        {activeOrder.deliveryFeePaidByBusiness
+                          ? t('Delivery fee (business pays)', 'رسوم التوصيل (المتجر يدفع)')
+                          : t('Delivery fee', 'سعر التوصيل')}
                       </span>
-                      <span className="font-black text-sky-400 text-lg">
+                      <span className={`font-black text-lg ${activeOrder.deliveryFeePaidByBusiness ? 'text-amber-300' : 'text-sky-400'}`}>
                         {activeOrder.deliveryFee.toFixed(2)} {fmtCurrency(activeOrder.currency)}
                       </span>
+                      {activeOrder.deliveryFeePaidByBusiness && (
+                        <span className="text-[11px] font-semibold text-amber-200/90">
+                          {t('Collect this amount from the business, not the customer.', 'استلم هذا المبلغ من المتجر وليس من العميل.')}
+                        </span>
+                      )}
                     </div>
                     <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-3.5 flex flex-col gap-1">
                       <span className="text-emerald-200/80 text-xs font-semibold flex items-center gap-1.5">
@@ -2902,16 +2914,27 @@ function DriverOrdersV2Content() {
                     )}
                     {/* Driver Fee + Total from Customer */}
                     <div className="grid grid-cols-12 gap-3">
-                      <div className="col-span-6 rounded-2xl bg-sky-500/10 border border-sky-500/20 p-3.5 flex flex-col gap-1">
+                      <div className={`col-span-6 rounded-2xl p-3.5 flex flex-col gap-1 ${o.deliveryFeePaidByBusiness ? 'bg-amber-500/10 border border-amber-500/30' : 'bg-sky-500/10 border border-sky-500/20'}`}>
                         <div className="flex items-center gap-2 mb-1">
-                          <Truck className="h-4 w-4 text-sky-400 shrink-0" />
-                          <span className="text-sky-200/80 text-xs font-semibold">
-                            {t('Delivery fee', 'سعر التوصيل')}
+                          {o.deliveryFeePaidByBusiness ? (
+                            <Store className="h-4 w-4 text-amber-400 shrink-0" />
+                          ) : (
+                            <Truck className="h-4 w-4 text-sky-400 shrink-0" />
+                          )}
+                          <span className={`text-xs font-semibold ${o.deliveryFeePaidByBusiness ? 'text-amber-200/90' : 'text-sky-200/80'}`}>
+                            {o.deliveryFeePaidByBusiness
+                              ? t('Delivery fee (business pays)', 'رسوم التوصيل (المتجر يدفع)')
+                              : t('Delivery fee', 'سعر التوصيل')}
                           </span>
                         </div>
-                        <span className="font-black text-sky-400 text-lg">
+                        <span className={`font-black text-lg ${o.deliveryFeePaidByBusiness ? 'text-amber-300' : 'text-sky-400'}`}>
                           {o.deliveryFee.toFixed(2)} {fmtCurrency(o.currency)}
                         </span>
+                        {o.deliveryFeePaidByBusiness && (
+                          <span className="text-[11px] font-semibold text-amber-200/90">
+                            {t('Collect from business', 'يُحصّل من المتجر')}
+                          </span>
+                        )}
                       </div>
                       <div className="col-span-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-3.5 flex flex-col gap-1">
                         <div className="flex items-center gap-2 mb-1">

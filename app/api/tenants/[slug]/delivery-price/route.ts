@@ -16,6 +16,7 @@ export async function GET(
   const flags = {
     requiresPersonalShopper: tenant.requiresPersonalShopper === true,
     supportsDriverPickup: tenant.supportsDriverPickup === true,
+    freeDeliveryEnabled: tenant.freeDeliveryEnabled === true,
   }
 
   // Allow reading tenant delivery flags even before location is selected.

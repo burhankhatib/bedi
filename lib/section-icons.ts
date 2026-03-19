@@ -39,6 +39,8 @@ import {
   MdPets,
   MdCleaningServices,
   MdSpa,
+  MdLocalGasStation,
+  MdWaterDrop,
 } from 'react-icons/md'
 
 import {
@@ -58,6 +60,7 @@ import {
   FaShoppingCart,
   FaUtensils,
   FaFireAlt,
+  FaStoreAlt,
 } from 'react-icons/fa'
 
 const SECTION_ICON_MAP: Record<string, IconType> = {
@@ -192,6 +195,11 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
 
   // Groceries & Retail & Pharmacy
   grocery: MdLocalGroceryStore,
+  greengrocer: FaCarrot,
+  greengrocery: FaCarrot,
+  butcher: FaStoreAlt,
+  gas: MdLocalGasStation,
+  water: MdWaterDrop,
   supermarket: MdLocalGroceryStore,
   'mini-market': MdStore,
   'mini market': MdStore,

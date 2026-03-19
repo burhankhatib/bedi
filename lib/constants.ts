@@ -21,12 +21,35 @@ export const BUSINESS_TYPES = [
   { value: 'grocery', label: 'Grocery / Market', labelAr: 'بقالة', supportsDineIn: false },
   { value: 'supermarket', label: 'Supermarket', labelAr: 'سوبرماركت', supportsDineIn: false },
   { value: 'greengrocer', label: 'Greengrocer', labelAr: 'خضار وفواكه', supportsDineIn: false },
+  { value: 'butcher', label: 'Butcher', labelAr: 'ملحمة', supportsDineIn: false },
+  { value: 'gas', label: 'Gas', labelAr: 'غاز', supportsDineIn: false },
+  { value: 'water', label: 'Water', labelAr: 'مياه', supportsDineIn: false },
   { value: 'retail', label: 'Retail / Shop', labelAr: 'متجر', supportsDineIn: false },
   { value: 'pharmacy', label: 'Pharmacy', labelAr: 'صيدلية', supportsDineIn: false },
   { value: 'other', label: 'Other', labelAr: 'أخرى', supportsDineIn: false },
 ] as const
 
 export type BusinessType = (typeof BUSINESS_TYPES)[number]['value']
+
+/** UX-level top categories for discovery and onboarding. */
+export const BUSINESS_CATEGORY_OPTIONS = [
+  { value: 'restaurant', label: 'Restaurant', labelAr: 'مطعم' },
+  { value: 'stores', label: 'Store', labelAr: 'متجر' },
+] as const
+
+/** Business types grouped under customer-facing "Store". */
+export const STORE_BUSINESS_TYPES = [
+  'grocery',
+  'supermarket',
+  'greengrocer',
+  'butcher',
+  'gas',
+  'water',
+  'retail',
+  'pharmacy',
+  'bakery',
+  'other',
+] as const
 
 /** Whether this business type shows the "Dine-in" (table) order option. Others get "Receive in Person" (pickup) only. */
 export function getSupportsDineIn(businessType: string): boolean {

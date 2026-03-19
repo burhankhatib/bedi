@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { sanityFetch } from '@/sanity/lib/fetch'
 import { urlFor } from '@/sanity/lib/image'
+import { STORE_BUSINESS_TYPES } from '@/lib/constants'
 
 /** Cached per URL (city) for 60s to reduce Sanity API usage. */
 export const revalidate = 60
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
   // Inject "stores" when there are store-type businesses (supermarket, grocery, pharmacy, etc.)
   if (storesCount > 0) {
     const storesImage = (categories ?? []).find((c) =>
-      ['grocery', 'supermarket', 'greengrocer', 'retail', 'pharmacy', 'bakery'].includes(c.value ?? '')
+      (STORE_BUSINESS_TYPES as readonly string[]).includes(c.value ?? '')
     )?.image
     result.push({
       _id: 'stores',

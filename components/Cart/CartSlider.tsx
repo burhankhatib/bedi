@@ -344,11 +344,12 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         }
       })
 
+      const isFreeDelivery = orderType === 'delivery' && cartTenant?.freeDeliveryEnabled === true
       const shopperFee = orderType === 'delivery' && (cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup)
         ? getShopperFeeByItemCount(totalItems)
         : 0
       const finalTotal = orderType === 'delivery'
-        ? totalPrice + deliveryFee + shopperFee
+        ? totalPrice + (isFreeDelivery ? 0 : deliveryFee) + shopperFee
         : totalPrice
 
       const orderPayload: Record<string, unknown> = {
@@ -756,7 +757,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                   </div>
 
                   {/* Show delivery details for delivery orders */}
-                  {orderType === 'delivery' && (deliveryFee > 0 || cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
+                  {orderType === 'delivery' && (deliveryFee > 0 || cartTenant?.freeDeliveryEnabled || cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
                     <div className="space-y-2 text-sm px-1">
                       <div className="flex justify-between items-center">
                         <span className="text-slate-500">{t('Subtotal', 'المجموع الفرعي')}</span>
@@ -764,13 +765,22 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                           {totalPrice.toFixed(2)} {formatCurrency(items[0]?.currency)}
                         </span>
                       </div>
-                      {deliveryFee > 0 && (
+                      {(deliveryFee > 0 || cartTenant?.freeDeliveryEnabled) && (
                         <div className="flex justify-between items-center">
                           <span className="text-slate-500">{t('Delivery Fee', 'رسوم التوصيل')}</span>
-                          <span className="font-bold">
-                            {deliveryFee.toFixed(2)} {formatCurrency(items[0]?.currency)}
-                          </span>
+                          {cartTenant?.freeDeliveryEnabled ? (
+                            <span className="font-bold text-emerald-600">{t('FREE', 'مجاناً')}</span>
+                          ) : (
+                            <span className="font-bold">
+                              {deliveryFee.toFixed(2)} {formatCurrency(items[0]?.currency)}
+                            </span>
+                          )}
                         </div>
+                      )}
+                      {cartTenant?.freeDeliveryEnabled && (
+                        <p className="text-[11px] text-emerald-700">
+                          {t('Business pays this delivery fee.', 'المتجر يدفع رسوم التوصيل هذه.')}
+                        </p>
                       )}
                       {(cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
                         <div className="rounded-xl border border-amber-200/60 bg-amber-50/70 p-2.5 space-y-1">
@@ -803,7 +813,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                     <span className="font-black text-slate-400 text-sm uppercase tracking-widest">{t('Total', 'المجموع')}</span>
                     <span className="font-black text-2xl">
                       {(orderType === 'delivery'
-                        ? totalPrice + deliveryFee + ((cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) ? getShopperFeeByItemCount(totalItems) : 0)
+                        ? totalPrice + (cartTenant?.freeDeliveryEnabled ? 0 : deliveryFee) + ((cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) ? getShopperFeeByItemCount(totalItems) : 0)
                         : totalPrice
                       ).toFixed(2)} {formatCurrency(items[0]?.currency)}
                     </span>

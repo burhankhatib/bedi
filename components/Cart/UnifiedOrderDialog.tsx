@@ -114,6 +114,7 @@ export function UnifiedOrderDialog({
   const [tenantDeliveryFlags, setTenantDeliveryFlags] = useState<{
     requiresPersonalShopper: boolean
     supportsDriverPickup: boolean
+    freeDeliveryEnabled: boolean
   } | null>(null)
 
   // Fetch distance price when location changes
@@ -130,6 +131,7 @@ export function UnifiedOrderDialog({
         setTenantDeliveryFlags({
           requiresPersonalShopper: data.requiresPersonalShopper === true,
           supportsDriverPickup: data.supportsDriverPickup === true,
+          freeDeliveryEnabled: data.freeDeliveryEnabled === true,
         })
       })
       .catch(err => console.error('Failed to fetch delivery price', err))
@@ -145,6 +147,7 @@ export function UnifiedOrderDialog({
         setTenantDeliveryFlags({
           requiresPersonalShopper: data.requiresPersonalShopper === true,
           supportsDriverPickup: data.supportsDriverPickup === true,
+          freeDeliveryEnabled: data.freeDeliveryEnabled === true,
         })
       })
       .catch(() => {})
@@ -787,8 +790,17 @@ export function UnifiedOrderDialog({
                       <div className="flex flex-col gap-1">
                         <div className="flex justify-between items-center">
                           <span className="font-bold text-green-900">{t('Delivery Fee', 'رسوم التوصيل')}</span>
-                          <span className="font-black text-green-700 text-lg">{Number(distanceFee).toFixed(2)} {formatCurrency(items[0]?.currency ?? 'ILS')}</span>
+                          <span className="font-black text-green-700 text-lg">
+                            {tenantDeliveryFlags?.freeDeliveryEnabled
+                              ? t('FREE', 'مجاناً')
+                              : `${Number(distanceFee).toFixed(2)} ${formatCurrency(items[0]?.currency ?? 'ILS')}`}
+                          </span>
                         </div>
+                        {tenantDeliveryFlags?.freeDeliveryEnabled && (
+                          <span className="text-xs font-semibold text-emerald-700">
+                            {t('Business covers delivery fee.', 'المتجر يتحمل رسوم التوصيل.')}
+                          </span>
+                        )}
                         <span className="text-xs font-medium text-green-600">
                           {t('Distance:', 'المسافة:')} ~{distanceKm.toFixed(1)} {t('km', 'كم')}
                         </span>

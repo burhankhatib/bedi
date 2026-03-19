@@ -68,6 +68,7 @@ export async function PATCH(
     siteRef?: string
     orderType?: string
     deliveryFee?: number
+    deliveryFeePaidByBusiness?: boolean
     requiresPersonalShopper?: boolean
     subtotal?: number
     totalAmount?: number
@@ -80,6 +81,7 @@ export async function PATCH(
       "siteRef": site._ref,
       orderType,
       deliveryFee,
+      deliveryFeePaidByBusiness,
       requiresPersonalShopper,
       subtotal,
       totalAmount,
@@ -157,7 +159,7 @@ export async function PATCH(
   const deliveryFee = typeof order.deliveryFee === 'number' ? Math.max(0, order.deliveryFee) : 0
   const itemCount = normalizedItems.reduce((sum, item) => sum + (item.isPicked !== false ? (item.quantity || 0) : 0), 0)
   const shopperFee = order.requiresPersonalShopper ? getShopperFeeByItemCount(itemCount) : 0
-  const totalAmount = subtotal + deliveryFee + shopperFee
+  const totalAmount = subtotal + (order.deliveryFeePaidByBusiness ? 0 : deliveryFee) + shopperFee
   const now = new Date().toISOString()
 
   const patchPayload = manualCustomerConfirm

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion } from 'motion/react'
-import { Store } from 'lucide-react'
+import { Store, Truck } from 'lucide-react'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
 import { BUSINESS_TYPES } from '@/lib/constants'
@@ -18,6 +18,7 @@ type Tenant = {
   name_ar?: string | null
   slug: string
   businessType: string
+  freeDeliveryEnabled?: boolean
   logoUrl: string | null
   sections: Localized[]
   popularItems: Localized[]
@@ -132,6 +133,12 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
                   : BUSINESS_TYPES.find((b) => b.value === tStore.businessType)?.label ??
                     tStore.businessType}
               </p>
+              {tStore.freeDeliveryEnabled && (
+                <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
+                  <Truck className="size-3.5" />
+                  {t('Free Delivery', 'توصيل مجاني')}
+                </div>
+              )}
 
               {tStore.sections.length > 0 && (
                 <p className="mt-1 text-[12px] text-[#938F99] line-clamp-2 text-center">

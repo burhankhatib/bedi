@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { urlFor } from '@/sanity/lib/image'
+import { BUSINESS_TYPES, STORE_BUSINESS_TYPES } from '@/lib/constants'
 
 /** Cache 60s per (city, category) to reduce Sanity API calls. */
 export const revalidate = 60
@@ -17,16 +18,72 @@ export async function GET(req: NextRequest) {
   const city = searchParams.get('city') ?? ''
   const categoryParam = searchParams.get('category') ?? ''
 
-  // "stores" = grocery, supermarket, greengrocer, retail, pharmacy, bakery, other
-  const STORE_BUSINESS_TYPES = ['grocery', 'supermarket', 'greengrocer', 'retail', 'pharmacy', 'bakery', 'other']
   const isStores = categoryParam === 'stores'
   const category =
     isStores ? '' // no single businessType; subcatFilter will use stores list
     : categoryParam || ''
 
-  const subcatFilter = isStores
-    ? '&& businessType in $storeTypes'
-    : category ? '&& businessType == $category' : ''
+  // For category=stores we show store-type categories (Grocery, Pharmacy, Butcher...) instead of tenant specialties.
+  if (isStores) {
+    const displayOrder = ['grocery', 'greengrocer', 'pharmacy', 'bakery', 'butcher', 'water', 'gas', 'supermarket', 'retail', 'other']
+    const storeTypes = [...STORE_BUSINESS_TYPES]
+
+    const tenants = await client.fetch<Array<{ businessType: string }>>(
+      `*[_type == "tenant" && (city == $city || lower(city) == lower($city)) && !deactivated && ((subscriptionExpiresAt != null && subscriptionExpiresAt > now()) || (subscriptionExpiresAt == null && (!defined(createdAt) || dateTime(createdAt) + 2592000 > now()))) && businessType in $storeTypes]{
+        businessType
+      }`,
+      { city, storeTypes }
+    )
+
+    if (!tenants || tenants.length === 0) return Response.json([])
+
+    const counts = new Map<string, number>()
+    for (const t of tenants) {
+      const type = (t?.businessType ?? '').trim()
+      if (!type) continue
+      counts.set(type, (counts.get(type) ?? 0) + 1)
+    }
+
+    const categoryDocs = await client.fetch<
+      Array<{ _id: string; value: string; name_en: string; name_ar: string; image?: ImageSource; sortOrder?: number }>
+    >(
+      `*[_type == "businessCategory" && value in $storeTypes] | order(sortOrder asc) {
+        _id,
+        value,
+        name_en,
+        name_ar,
+        image,
+        sortOrder
+      }`,
+      { storeTypes }
+    )
+
+    const byType = new Map<string, { _id: string; value: string; name_en: string; name_ar: string; image?: ImageSource; sortOrder?: number }>()
+    for (const doc of categoryDocs ?? []) {
+      if (doc?.value) byType.set(doc.value, doc)
+    }
+
+    const result = displayOrder
+      .filter((type) => (counts.get(type) ?? 0) > 0)
+      .map((type) => {
+        const doc = byType.get(type)
+        const fallback = BUSINESS_TYPES.find((b) => b.value === type)
+        const image = doc?.image
+        return {
+          _id: `storetype:${type}`,
+          slug: type,
+          title_en: doc?.name_en ?? fallback?.label ?? type,
+          title_ar: doc?.name_ar ?? fallback?.labelAr ?? type,
+          businessType: type,
+          imageUrl: image?.asset?._ref ? urlFor(image).width(400).height(400).url() : null,
+          tenantCount: counts.get(type) ?? 0,
+        }
+      })
+
+    return Response.json(result)
+  }
+
+  const subcatFilter = category ? '&& businessType == $category' : ''
 
   // Get tenant IDs in city that have businessSubcategories
   const tenants = await client.fetch<
@@ -77,7 +134,6 @@ export async function GET(req: NextRequest) {
     {
       ids: Array.from(usedSubcategoryIds),
       ...(category ? { category } : {}),
-      ...(isStores ? { storeTypes: STORE_BUSINESS_TYPES } : {}),
     }
   )
 

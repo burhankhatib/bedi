@@ -125,6 +125,28 @@ Based on DoorDash, Talabat, Jahez, and popular MENA food delivery apps.
 | mini | Mini pharmacy | صيدلية مصغرة | 1 |
 | other | Other | أخرى | 2 |
 
+## Butcher (businessType: `butcher`)
+
+| Slug | Title (English) | Title (Arabic) | SortOrder |
+|------|-----------------|----------------|-----------|
+| meat | Meat | لحوم | 0 |
+| chicken | Chicken | دجاج | 1 |
+| frozen | Frozen | مجمّدات | 2 |
+
+## Gas (businessType: `gas`)
+
+| Slug | Title (English) | Title (Arabic) | SortOrder |
+|------|-----------------|----------------|-----------|
+| gas-cylinders | Gas cylinders | اسطوانات غاز | 0 |
+| camping-gas | Camping gas | غاز رحلات | 1 |
+
+## Water (businessType: `water`)
+
+| Slug | Title (English) | Title (Arabic) | SortOrder |
+|------|-----------------|----------------|-----------|
+| water-bottles | Water bottles | عبوات مياه | 0 |
+| water-gallons | Water gallons | جالونات مياه | 1 |
+
 ## Other (businessType: `other`)
 
 | Slug | Title (English) | Title (Arabic) | SortOrder |

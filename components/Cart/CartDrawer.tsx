@@ -230,8 +230,9 @@ export function CartDrawer() {
 
     const header = `🍽️ طلب\n${'='.repeat(20)}\n${customerInfo}\n`
     const body = orderLines.join('\n')
+    const isFreeDelivery = orderType === 'delivery' && cartTenant?.freeDeliveryEnabled === true
     const shopperFee = orderType === 'delivery' && (cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) ? getShopperFeeByItemCount(totalItems) : 0
-    const finalTotal = orderType === 'delivery' ? totalPrice + deliveryFee + shopperFee : totalPrice
+    const finalTotal = orderType === 'delivery' ? totalPrice + (isFreeDelivery ? 0 : deliveryFee) + shopperFee : totalPrice
     const total = `\n${'='.repeat(20)}\nالمجموع: ${finalTotal.toFixed(2)} ${formatCurrency(items[0]?.currency)}`
 
     // Always send in Arabic (RTL)
@@ -451,7 +452,7 @@ export function CartDrawer() {
   }
 
   const shopperFee = orderType === 'delivery' && (cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) ? getShopperFeeByItemCount(totalItems) : 0
-  const finalTotal = orderType === 'delivery' ? totalPrice + deliveryFee + shopperFee : totalPrice
+  const finalTotal = orderType === 'delivery' ? totalPrice + (cartTenant?.freeDeliveryEnabled ? 0 : deliveryFee) + shopperFee : totalPrice
 
   return (
     <>
@@ -725,7 +726,7 @@ export function CartDrawer() {
                       )}
 
                       {/* Show subtotal, delivery fee, and shopper fee for delivery orders */}
-                      {orderType === 'delivery' && (deliveryFee > 0 || cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
+                      {orderType === 'delivery' && (deliveryFee > 0 || cartTenant?.freeDeliveryEnabled || cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
                         <div className="space-y-1 text-sm">
                           <div className="flex justify-between items-center">
                             <span className="text-slate-600">{t('Subtotal', 'المجموع الفرعي')}:</span>
@@ -733,13 +734,22 @@ export function CartDrawer() {
                               {totalPrice.toFixed(2)} {formatCurrency(items[0]?.currency)}
                             </span>
                           </div>
-                          {deliveryFee > 0 && (
+                          {(deliveryFee > 0 || cartTenant?.freeDeliveryEnabled) && (
                             <div className="flex justify-between items-center">
                               <span className="text-slate-600">{t('Delivery Fee', 'رسوم التوصيل')}:</span>
-                              <span className="font-bold">
-                                {deliveryFee.toFixed(2)} {formatCurrency(items[0]?.currency)}
-                              </span>
+                              {cartTenant?.freeDeliveryEnabled ? (
+                                <span className="font-bold text-emerald-600">{t('FREE', 'مجاناً')}</span>
+                              ) : (
+                                <span className="font-bold">
+                                  {deliveryFee.toFixed(2)} {formatCurrency(items[0]?.currency)}
+                                </span>
+                              )}
                             </div>
+                          )}
+                          {cartTenant?.freeDeliveryEnabled && (
+                            <p className="text-[11px] text-emerald-700">
+                              {t('Business pays this delivery fee.', 'المتجر يدفع رسوم التوصيل هذه.')}
+                            </p>
                           )}
                           {(cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) && (
                             <div className="rounded-xl border border-amber-200/60 bg-amber-50/70 p-2.5 space-y-1">

@@ -32,6 +32,7 @@ export type Tenant = {
   supportsDineIn?: boolean
   supportsReceiveInPerson?: boolean
   supportsDelivery?: boolean
+  freeDeliveryEnabled?: boolean
   supportsDriverPickup?: boolean
   deliveryPricingMode?: 'areas' | 'distance'
   deliveryFeeMin?: number
@@ -69,6 +70,7 @@ const TENANT_QUERY = `*[_type == "tenant" && slug.current == $slug][0] {
   supportsDineIn,
   supportsReceiveInPerson,
   supportsDelivery,
+  freeDeliveryEnabled,
   supportsDriverPickup,
   deliveryPricingMode,
   deliveryFeeMin,
@@ -179,6 +181,7 @@ const TENANT_WITH_RESTAURANT_QUERY = `*[_type == "tenant" && slug.current == $sl
   supportsDineIn,
   supportsReceiveInPerson,
   supportsDelivery,
+  freeDeliveryEnabled,
   supportsDriverPickup,
   deliveryPricingMode,
   deliveryFeeMin,

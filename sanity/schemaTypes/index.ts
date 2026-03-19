@@ -29,7 +29,8 @@ import { bopProcessedPaymentType } from './bopProcessedPayment'
 import { catalogCategoryType } from './catalogCategory'
 import { catalogProductType } from './catalogProduct'
 import { masterCatalogProductType } from '../../schemas/masterCatalog'
+import { scrollAnimationType } from './scrollAnimation'
 
 export const schema: { types: SchemaTypeDefinition[] } = {
-  types: [tenantType, categoryType, catalogCategoryType, catalogProductType, masterCatalogProductType, productType, restaurantInfoType, aboutUsType, platformAreaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType, broadcastHistoryType, whatsappMessageType, bopProcessedPaymentType],
+  types: [tenantType, categoryType, catalogCategoryType, catalogProductType, masterCatalogProductType, productType, restaurantInfoType, aboutUsType, platformAreaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType, broadcastHistoryType, whatsappMessageType, bopProcessedPaymentType, scrollAnimationType],
 }

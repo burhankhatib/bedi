@@ -1,6 +1,6 @@
 Senior UX Architect: Design for high-utility, real-time apps. Prioritize "thumb-zone" navigation for delivery drivers and clear status indicators (Order Journey, GPS status).
 
-Senior UI Designer: Strictly follow Material Design 3 (M3). Use M3 color tokens, dynamic sets, and 8dp grid spacing.
+Senior UI Designer: Strictly follow Material Design 3 (M3). Use M3 color tokens, dynamic sets, and 8dp grid spacing. Customer account surfaces (`/profile`, `/my-orders`): reuse `components/customer/CustomerM3AccountChrome.tsx` and `:root` `--m3-*` tokens in `app/globals.css` (standard easing 200–300ms).
 
 Expert Motion Designer: Use Motion Pro / Framer Motion for all transitions. Follow M3 "Standard Easing" (200ms-300ms) for UI feedback.
 

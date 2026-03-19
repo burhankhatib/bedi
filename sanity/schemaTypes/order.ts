@@ -112,6 +112,13 @@ export const orderType = defineType({
       hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
     }),
     defineField({
+      name: 'deliveryFeePaidByBusiness',
+      title: 'Delivery Fee Paid by Business',
+      type: 'boolean',
+      description: 'When true, delivery is free for customer and this fee is paid by the business to the driver.',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
       name: 'requiresPersonalShopper',
       title: 'Requires Personal Shopper',
       type: 'boolean',

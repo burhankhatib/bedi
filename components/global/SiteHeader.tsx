@@ -11,13 +11,13 @@ import { getCityDisplayName } from '@/lib/registration-translations'
 import { useLanguage } from '@/components/LanguageContext'
 import { Button } from '@/components/ui/button'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
-import { UserButton } from '@clerk/nextjs'
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet'
 import { PREFER_DRIVER_KEY, PREFER_TENANT_KEY } from '@/components/StandaloneDriverRedirect'
 import { useCart } from '@/components/Cart/CartContext'
 import { PWAInstallIcon } from '@/components/pwa/PWAInstallIcon'
 import { getCustomerPWAConfig } from '@/lib/pwa/configs'
 import { UniversalSearch } from '@/components/search/UniversalSearch'
+import { CustomerProfileAvatar, CustomerProfileAvatarLink } from '@/components/customer/CustomerProfileAvatarLink'
 
 interface SiteHeaderProps {
   /** For homepage: show location + auth. For other pages: optional overrides. */
@@ -170,6 +170,14 @@ export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderPr
       {isSignedIn ? (
         <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/50 px-5 py-4">
           <Link
+            href="/profile"
+            onClick={() => setMenuOpen(false)}
+            className="flex items-center gap-3 rounded-lg py-3 px-3 text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            <CustomerProfileAvatar size="md" />
+            <span className="font-medium">{t('My profile', 'حسابي')}</span>
+          </Link>
+          <Link
             href="/my-orders"
             onClick={() => setMenuOpen(false)}
             className="flex items-center gap-3 rounded-lg py-3 px-3 text-slate-700 hover:bg-slate-100 transition-colors"
@@ -185,18 +193,6 @@ export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderPr
             <Sparkles className="w-5 h-5 text-slate-500" />
             {t('Search history', 'سجل البحث')}
           </Link>
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-slate-600">{t('Account', 'الحساب')}</span>
-            <UserButton
-              afterSignOutUrl="/"
-              appearance={{
-                elements: {
-                  avatarBox: 'size-10',
-                  userButtonPopoverCard: 'z-[100]',
-                },
-              }}
-            />
-          </div>
           <p className="text-xs text-slate-500">{t('Switch to', 'التبديل إلى')}</p>
           <div className="flex flex-wrap gap-2">
             <a
@@ -320,17 +316,20 @@ export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderPr
               <div className="hidden md:flex items-center gap-2 ms-2">
                 <LanguageSwitcher />
                 {isSignedIn ? (
-                  <UserButton
-                    afterSignOutUrl="/"
-                    appearance={{ elements: { avatarBox: 'size-[42px]' } }}
+                  <CustomerProfileAvatarLink
+                    size="md"
+                    ariaLabel={t('My profile', 'حسابي')}
+                    className="ring-offset-2 ring-offset-white"
                   />
                 ) : (
                   <AuthEntryButton t={t} isRtl={isRtl} />
                 )}
               </div>
 
-              {/* 4. PWA Install Icon – subtle, icon-only install CTA */}
-              <PWAInstallIcon config={getCustomerPWAConfig()} className="text-emerald-600 ring-emerald-400/30 hover:bg-emerald-500/25" />
+              {/* PWA install: mobile only — not shown on md+ viewports */}
+              <div className="md:hidden">
+                <PWAInstallIcon config={getCustomerPWAConfig()} className="text-emerald-600 ring-emerald-400/30 hover:bg-emerald-500/25" />
+              </div>
 
               {/* 5. Notification Placeholder (Visually hidden pending feature) */}
               <button type="button" className="hidden relative p-2 text-slate-600 hover:text-slate-900 transition-colors" aria-label="Notifications">
