@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion } from 'motion/react'
-import { Store, Truck } from 'lucide-react'
+import { Store } from 'lucide-react'
+import { FreeDeliveryLogoFrame } from '@/components/home/FreeDeliveryLogoFrame'
+import { FreeDeliveryCardBadge } from '@/components/home/FreeDeliveryCardBadge'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
 import { BUSINESS_TYPES } from '@/lib/constants'
@@ -104,21 +106,33 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
           >
             <Link
               href={tStore.slug ? `/t/${tStore.slug}` : '#'}
-              className="group flex flex-col items-center overflow-hidden rounded-[20px] bg-[#2B2930] p-4 pb-5 transition-all duration-300 border border-[#49454F] hover:border-amber-400/50 hover:bg-[#36343B]"
+              className={`group flex flex-col items-center rounded-[20px] bg-[#2B2930] p-4 pb-5 transition-all duration-300 border border-[#49454F] hover:border-amber-400/50 hover:bg-[#36343B] ${
+                tStore.freeDeliveryEnabled ? 'overflow-visible' : 'overflow-hidden'
+              }`}
             >
-              <div className="relative size-[80px] sm:size-[88px] shrink-0 overflow-hidden rounded-2xl bg-[#36343B] border border-[#49454F] group-hover:scale-[1.03] transition-transform duration-300 mb-3">
-                {tStore.logoUrl ? (
-                  <Image
-                    src={tStore.logoUrl}
-                    alt={(lang === 'ar' ? tStore.name_ar : tStore.name_en) || tStore.name}
-                    fill
-                    className="object-contain p-2"
-                    sizes="88px"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <Store className="size-9 text-[#938F99]" />
-                  </div>
+              <div className="relative mb-3 shrink-0">
+                <FreeDeliveryLogoFrame
+                  active={tStore.freeDeliveryEnabled === true}
+                  variant="dark"
+                  ariaLabel={t('Free Delivery', 'توصيل مجاني')}
+                  className="size-[80px] sm:size-[88px] rounded-2xl bg-[#36343B] border border-[#49454F] group-hover:scale-[1.03] transition-transform duration-300"
+                >
+                  {tStore.logoUrl ? (
+                    <Image
+                      src={tStore.logoUrl}
+                      alt={(lang === 'ar' ? tStore.name_ar : tStore.name_en) || tStore.name}
+                      fill
+                      className="object-contain p-2"
+                      sizes="88px"
+                    />
+                  ) : (
+                    <div className="relative flex h-full w-full items-center justify-center">
+                      <Store className="size-9 text-[#938F99]" />
+                    </div>
+                  )}
+                </FreeDeliveryLogoFrame>
+                {tStore.freeDeliveryEnabled && (
+                  <FreeDeliveryCardBadge label={t('Free Delivery', 'توصيل مجاني')} variant="dark" />
                 )}
               </div>
 
@@ -133,12 +147,6 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
                   : BUSINESS_TYPES.find((b) => b.value === tStore.businessType)?.label ??
                     tStore.businessType}
               </p>
-              {tStore.freeDeliveryEnabled && (
-                <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
-                  <Truck className="size-3.5" />
-                  {t('Free Delivery', 'توصيل مجاني')}
-                </div>
-              )}
 
               {tStore.sections.length > 0 && (
                 <p className="mt-1 text-[12px] text-[#938F99] line-clamp-2 text-center">

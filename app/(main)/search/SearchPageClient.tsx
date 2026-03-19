@@ -10,12 +10,14 @@ import { useLanguage } from '@/components/LanguageContext'
 import { SiteHeader } from '@/components/global/SiteHeader'
 import { LocationModal } from '@/components/global/LocationModal'
 import { Button } from '@/components/ui/button'
-import { Store, UtensilsCrossed, Flame, ChevronRight, Search, MapPin, Filter, LayoutGrid, List, Sparkles, Truck } from 'lucide-react'
+import { Store, UtensilsCrossed, Flame, ChevronRight, Search, MapPin, Filter, LayoutGrid, List, Sparkles } from 'lucide-react'
 import { MdRestaurant } from 'react-icons/md'
 import { BUSINESS_TYPES } from '@/lib/constants'
 import { getCityDisplayName } from '@/lib/registration-translations'
 import { UniversalSearch } from '@/components/search/UniversalSearch'
 import { CategoryIconsBar } from '@/components/home/CategoryIconsBar'
+import { FreeDeliveryLogoFrame } from '@/components/home/FreeDeliveryLogoFrame'
+import { FreeDeliveryCardBadge } from '@/components/home/FreeDeliveryCardBadge'
 import { isLikelyQuestion } from '@/lib/ai/question-detection'
 
 type Localized = { en: string; ar: string }
@@ -620,15 +622,27 @@ export function SearchPageClient() {
                             <div key={b._id}>
                               <FullPageLink
                                 href={b.slug ? `/t/${b.slug}` : '#'}
-                                className="group flex flex-col items-center overflow-hidden rounded-[20px] bg-white p-4 pb-5 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
+                                className={`group flex flex-col items-center rounded-[20px] bg-white p-4 pb-5 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30 ${
+                                  b.freeDeliveryEnabled ? 'overflow-visible' : 'overflow-hidden'
+                                }`}
                               >
-                                <div className="relative size-[80px] sm:size-[88px] shrink-0 overflow-hidden rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300 mb-3">
-                                  {b.logoUrl ? (
-                                    <Image src={b.logoUrl} alt={(lang === 'ar' ? b.name_ar : b.name_en) || b.name} fill className="object-contain p-2" sizes="88px" />
-                                  ) : (
-                                    <div className="flex h-full w-full items-center justify-center">
-                                      <Store className="size-9 text-slate-300" />
-                                    </div>
+                                <div className="relative mb-3 shrink-0">
+                                  <FreeDeliveryLogoFrame
+                                    active={b.freeDeliveryEnabled === true}
+                                    variant="light"
+                                    ariaLabel={t('Free Delivery', 'توصيل مجاني')}
+                                    className="size-[80px] sm:size-[88px] rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300"
+                                  >
+                                    {b.logoUrl ? (
+                                      <Image src={b.logoUrl} alt={(lang === 'ar' ? b.name_ar : b.name_en) || b.name} fill className="object-contain p-2" sizes="88px" />
+                                    ) : (
+                                      <div className="relative flex h-full w-full items-center justify-center">
+                                        <Store className="size-9 text-slate-300" />
+                                      </div>
+                                    )}
+                                  </FreeDeliveryLogoFrame>
+                                  {b.freeDeliveryEnabled && (
+                                    <FreeDeliveryCardBadge label={t('Free Delivery', 'توصيل مجاني')} variant="light" />
                                   )}
                                 </div>
                                 <h3 className="font-bold text-slate-900 text-[17px] sm:text-[19px] tracking-tight text-center line-clamp-2 group-hover:text-brand-yellow transition-colors w-full">
@@ -639,12 +653,6 @@ export function SearchPageClient() {
                                     ? BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.labelAr ?? b.businessType
                                     : BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.label ?? b.businessType}
                                 </p>
-                                {b.freeDeliveryEnabled && (
-                                  <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-300/80 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-                                    <Truck className="size-3.5" />
-                                    {t('Free Delivery', 'توصيل مجاني')}
-                                  </div>
-                                )}
                               </FullPageLink>
                             </div>
                           ))}
@@ -748,22 +756,34 @@ export function SearchPageClient() {
                   <div key={tenant._id}>
                     <FullPageLink
                       href={tenant.slug ? `/t/${tenant.slug}` : '#'}
-                      className="group flex flex-col items-center overflow-hidden rounded-[20px] bg-white p-4 pb-5 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30"
+                      className={`group flex flex-col items-center rounded-[20px] bg-white p-4 pb-5 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30 ${
+                        tenant.freeDeliveryEnabled ? 'overflow-visible' : 'overflow-hidden'
+                      }`}
                     >
-                      {/* Logo - Top, centered */}
-                      <div className="relative size-[80px] sm:size-[88px] shrink-0 overflow-hidden rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300 mb-3">
-                        {tenant.logoUrl ? (
-                          <Image
-                            src={tenant.logoUrl}
-                            alt={(lang === 'ar' ? tenant.name_ar : tenant.name_en) || tenant.name}
-                            fill
-                            className="object-contain p-2"
-                            sizes="88px"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center">
-                            <Store className="size-9 text-slate-300" />
-                          </div>
+                      {/* Logo + floating badge (badge does not add layout height) */}
+                      <div className="relative mb-3 shrink-0">
+                        <FreeDeliveryLogoFrame
+                          active={tenant.freeDeliveryEnabled === true}
+                          variant="light"
+                          ariaLabel={t('Free Delivery', 'توصيل مجاني')}
+                          className="size-[80px] sm:size-[88px] rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300"
+                        >
+                          {tenant.logoUrl ? (
+                            <Image
+                              src={tenant.logoUrl}
+                              alt={(lang === 'ar' ? tenant.name_ar : tenant.name_en) || tenant.name}
+                              fill
+                              className="object-contain p-2"
+                              sizes="88px"
+                            />
+                          ) : (
+                            <div className="relative flex h-full w-full items-center justify-center">
+                              <Store className="size-9 text-slate-300" />
+                            </div>
+                          )}
+                        </FreeDeliveryLogoFrame>
+                        {tenant.freeDeliveryEnabled && (
+                          <FreeDeliveryCardBadge label={t('Free Delivery', 'توصيل مجاني')} variant="light" />
                         )}
                       </div>
                       {/* Business name - bold, big font */}
@@ -776,12 +796,6 @@ export function SearchPageClient() {
                           ? BUSINESS_TYPES.find((b) => b.value === tenant.businessType)?.labelAr ?? tenant.businessType
                           : BUSINESS_TYPES.find((b) => b.value === tenant.businessType)?.label ?? tenant.businessType}
                       </p>
-                      {tenant.freeDeliveryEnabled && (
-                        <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-emerald-300/80 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-                          <Truck className="size-3.5" />
-                          {t('Free Delivery', 'توصيل مجاني')}
-                        </div>
-                      )}
                       {/* Specialty */}
                       {tenant.sections.length > 0 && (
                         <p className="mt-1 text-[12px] text-slate-500 line-clamp-2 text-center">
