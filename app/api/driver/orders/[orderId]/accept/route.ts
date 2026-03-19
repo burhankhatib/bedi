@@ -4,6 +4,7 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
 import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
+import { cancelOrderJobs } from '@/lib/delivery-job-scheduler'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -72,6 +73,7 @@ export async function POST(
     })
     .unset(['deliveryRequestedAt'])
     .commit()
+  await cancelOrderJobs(orderId)
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL
 

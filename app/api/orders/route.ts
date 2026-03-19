@@ -7,6 +7,10 @@ import { toEnglishDigits } from '@/lib/phone'
 import { isVerifiedPhoneForUser } from '@/lib/order-auth'
 import { NotificationService } from '@/lib/notifications/NotificationService'
 import { getShopperFeeByItemCount } from '@/lib/shopper-fee'
+import {
+  scheduleDeliveryLifecycleJobs,
+  scheduleOrderUnacceptedWhatsapp,
+} from '@/lib/delivery-job-scheduler'
 
 function isTenantDeactivated(tenant: { deactivated?: boolean; deactivateUntil?: string | null }): boolean {
   if (!tenant?.deactivated) return false
@@ -389,11 +393,13 @@ export async function POST(request: NextRequest) {
         if (orderType === 'delivery' && targetTenant?.supportsDriverPickup === true && !scheduledFor) {
           const { notifyDriversOfDeliveryOrder } = await import('@/lib/notify-drivers-for-order')
           await notifyDriversOfDeliveryOrder(result._id)
+          await scheduleDeliveryLifecycleJobs(result._id, Date.now())
           console.info('[API] Auto-dispatched driver pickup order:', {
             orderId: result._id,
             tenantId: siteRef._ref,
           })
         }
+        await scheduleOrderUnacceptedWhatsapp(result._id, Date.now())
       } catch (e) {
         console.error('[API] Tenant pusher trigger or push notification on new order failed:', e)
       }

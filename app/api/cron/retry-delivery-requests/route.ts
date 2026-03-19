@@ -32,6 +32,37 @@ export async function GET(req: Request) {
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
+  const url = new URL(req.url)
+  const singleOrderId = url.searchParams.get('orderId')?.trim()
+  if (singleOrderId) {
+    const eligible = await writeClient.fetch<PendingOrder | null>(
+      `*[
+        _type == "order" &&
+        _id == $orderId &&
+        defined(deliveryRequestedAt) &&
+        !defined(assignedDriver) &&
+        status in ["new", "preparing", "waiting_for_delivery"]
+      ][0]{
+        _id,
+        deliveryRequestedAt,
+        lastDeliveryRequestPingAt
+      }`,
+      { orderId: singleOrderId }
+    )
+    if (!eligible?._id) {
+      return NextResponse.json({ ok: true, retriedCount: 0, skipped: true })
+    }
+    const nowIso = new Date().toISOString()
+    await notifyDriversOfDeliveryOrder(singleOrderId)
+    await writeClient.patch(singleOrderId).set({ lastDeliveryRequestPingAt: nowIso }).commit()
+    return NextResponse.json({ ok: true, retriedCount: 1, orderId: singleOrderId })
+  }
+
+  const allowLegacyScan = process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true'
+  if (!allowLegacyScan) {
+    return NextResponse.json({ ok: true, retriedCount: 0, skipped: true, reason: 'legacy-scan-disabled' })
+  }
+
   // Orders still waiting for a driver (deliveryRequestedAt set, no assignedDriver)
   const cutoffIso = new Date(Date.now() - RETRY_INTERVAL_MS).toISOString()
   const pendingOrders = await writeClient.fetch<PendingOrder[]>(

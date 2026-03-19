@@ -4,6 +4,7 @@ import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
+import { scheduleDeliveryLifecycleJobs } from '@/lib/delivery-job-scheduler'
 
 async function checkOrderOwnership(slug: string, orderId: string) {
   const auth = await checkTenantAuth(slug)
@@ -45,6 +46,7 @@ export async function POST(
   // CRITICAL: Notify online drivers in same country/city via FCM or Web Push. Use writeClient (with token) so we can read all drivers.
   const { notifyDriversOfDeliveryOrder } = await import('@/lib/notify-drivers-for-order')
   await notifyDriversOfDeliveryOrder(orderId)
+  await scheduleDeliveryLifecycleJobs(orderId, new Date(now).getTime())
 
   return NextResponse.json({ success: true })
 }

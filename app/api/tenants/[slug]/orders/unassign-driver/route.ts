@@ -4,6 +4,7 @@ import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
 import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
+import { scheduleDeliveryLifecycleJobs } from '@/lib/delivery-job-scheduler'
 
 async function checkOrderOwnership(slug: string, orderId: string) {
   const auth = await checkTenantAuth(slug)
@@ -35,6 +36,7 @@ export async function POST(
     .set({ status: 'preparing', deliveryRequestedAt: now })
     .unset(['assignedDriver'])
     .commit()
+  await scheduleDeliveryLifecycleJobs(orderId, new Date(now).getTime())
 
   sendCustomerOrderStatusPush({
     orderId,

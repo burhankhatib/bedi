@@ -3,34 +3,5 @@
   "buildCommand": "next build --webpack",
   "devCommand": "next dev",
   "installCommand": "npm install",
-  "crons": [
-    {
-      "path": "/api/cron/driver-auto-offline",
-      "schedule": "*/15 * * * *"
-    },
-    {
-      "path": "/api/cron/retry-delivery-requests",
-      "schedule": "*/3 * * * *"
-    },
-    {
-      "path": "/api/cron/subscription-reminders",
-      "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/cron/daily-morning-message",
-      "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/cron/unaccepted-orders-whatsapp",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/scheduled-order-reminders",
-      "schedule": "* * * * *"
-    },
-    {
-      "path": "/api/cron/delivery-tier-escalation",
-      "schedule": "* * * * *"
-    }
-  ]
+  "crons": []
 }

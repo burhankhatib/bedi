@@ -20,6 +20,37 @@ export async function GET(req: Request) {
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
+  const orderIdParam = url.searchParams.get('orderId')?.trim()
+  const tierParam = Number(url.searchParams.get('tier') || '')
+  if (orderIdParam && (tierParam === 2 || tierParam === 3)) {
+    const order = await writeClient.fetch<{ _id: string } | null>(
+      `*[
+        _type == "order" &&
+        _id == $orderId &&
+        defined(deliveryRequestedAt) &&
+        !defined(assignedDriver) &&
+        status in ["new", "preparing", "waiting_for_delivery"]
+      ][0]{ _id }`,
+      { orderId: orderIdParam }
+    )
+    if (!order?._id) {
+      return NextResponse.json({ ok: true, tier2Count: 0, tier3Count: 0, skipped: true })
+    }
+    if (tierParam === 2) {
+      await notifyDriversEscalationTier(orderIdParam, 2)
+      await writeClient.patch(orderIdParam).set({ deliveryTier2SentAt: new Date().toISOString() }).commit()
+      return NextResponse.json({ ok: true, tier2Count: 1, tier3Count: 0, orderId: orderIdParam })
+    }
+    await notifyDriversEscalationTier(orderIdParam, 3)
+    await writeClient.patch(orderIdParam).set({ deliveryTier3SentAt: new Date().toISOString() }).commit()
+    return NextResponse.json({ ok: true, tier2Count: 0, tier3Count: 1, orderId: orderIdParam })
+  }
+
+  const allowLegacyScan = process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true'
+  if (!allowLegacyScan) {
+    return NextResponse.json({ ok: true, tier2Count: 0, tier3Count: 0, skipped: true, reason: 'legacy-scan-disabled' })
+  }
+
   const nowMs = Date.now()
   const cutoff60s = new Date(nowMs - 60_000).toISOString()
   

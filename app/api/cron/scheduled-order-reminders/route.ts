@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { NotificationService } from '@/lib/notifications/NotificationService'
+import { scheduleOrderUnacceptedWhatsapp } from '@/lib/delivery-job-scheduler'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,54 @@ export async function GET(request: Request) {
 
     const writeClient = client.withConfig({ token, useCdn: false })
     const now = new Date().toISOString()
+    const url = new URL(request.url)
+    const singleOrderId = url.searchParams.get('orderId')?.trim()
+
+    if (singleOrderId) {
+      const order = await writeClient.fetch<{
+        _id: string
+        orderNumber: string
+        tenantId: string
+        tenantPhone?: string
+        tenantName?: string
+        tenantNameAr?: string
+        tenantSlug: string
+        prioritizeWhatsapp?: boolean
+      } | null>(
+        `*[_type == "order" && _id == $orderId && status == "acknowledged" && defined(notifyAt) && notifyAt <= $now && reminderSent != true][0]{
+          _id,
+          orderNumber,
+          "tenantId": site._ref,
+          "tenantPhone": site->ownerPhone,
+          "tenantName": site->name,
+          "tenantNameAr": site->name_ar,
+          "tenantSlug": site->slug.current,
+          "prioritizeWhatsapp": site->prioritizeWhatsapp
+        }`,
+        { orderId: singleOrderId, now }
+      )
+      if (!order?._id) {
+        return NextResponse.json({ success: true, processed: 0, skipped: true })
+      }
+      await writeClient.patch(order._id).set({ reminderSent: true, status: 'new' }).unset(['businessWhatsappNotifiedAt']).commit()
+      await NotificationService.onNewOrder({
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        tenantId: order.tenantId,
+        tenantSlug: order.tenantSlug,
+        tenantName: order.tenantName,
+        tenantNameAr: order.tenantNameAr,
+        tenantPhone: order.tenantPhone,
+        prioritizeWhatsapp: order.prioritizeWhatsapp,
+      })
+      await scheduleOrderUnacceptedWhatsapp(order._id, Date.now())
+      return NextResponse.json({ success: true, processed: 1, orderId: singleOrderId })
+    }
+
+    const allowLegacyScan = process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true'
+    if (!allowLegacyScan) {
+      return NextResponse.json({ success: true, processed: 0, skipped: true, reason: 'legacy-scan-disabled' })
+    }
 
     // Find orders that are acknowledged, have a notifyAt time that is now or in the past, and haven't had a reminder sent
     const query = `*[_type == "order" && status == "acknowledged" && defined(notifyAt) && notifyAt <= $now && reminderSent != true]{
@@ -73,6 +122,7 @@ export async function GET(request: Request) {
           tenantPhone: order.tenantPhone,
           prioritizeWhatsapp: order.prioritizeWhatsapp
         })
+        await scheduleOrderUnacceptedWhatsapp(order._id, Date.now())
 
         results.push({ orderId: order._id, success: true })
       } catch (err) {

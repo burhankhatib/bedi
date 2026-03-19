@@ -3,6 +3,12 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 import { NotificationService } from '@/lib/notifications/NotificationService'
+import {
+  cancelOrderJobs,
+  scheduleDeliveryLifecycleJobs,
+  scheduleOrderUnacceptedWhatsapp,
+  scheduleScheduledOrderReminder,
+} from '@/lib/delivery-job-scheduler'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -74,20 +80,31 @@ export async function PATCH(
     if (notifyAt) {
       updateData.notifyAt = notifyAt
       updateData.reminderSent = false
+      await scheduleScheduledOrderReminder(orderId, notifyAt)
     }
   }
   if (status === 'preparing' || status === 'waiting_for_delivery') {
     updateData.preparedAt = new Date().toISOString()
     if (orderBefore?.assignedDriver) {
-      updateData.deliveryRequestedAt = new Date().toISOString()
+      const reqAt = new Date().toISOString()
+      updateData.deliveryRequestedAt = reqAt
       patch.unset(['assignedDriver'])
+      await scheduleDeliveryLifecycleJobs(orderId, new Date(reqAt).getTime())
     }
   }
   if (status === 'out-for-delivery') {
     updateData.driverPickedUpAt = new Date().toISOString()
+    await cancelOrderJobs(orderId)
   }
   if (status === 'cancelled' || status === 'refunded') {
     updateData.cancelledAt = new Date().toISOString()
+    await cancelOrderJobs(orderId)
+  }
+  if (status === 'completed' || status === 'served') {
+    await cancelOrderJobs(orderId)
+  }
+  if (status === 'new') {
+    await scheduleOrderUnacceptedWhatsapp(orderId, Date.now())
   }
 
   await patch.set(updateData).commit()

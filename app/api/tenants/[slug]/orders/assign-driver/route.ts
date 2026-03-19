@@ -7,6 +7,7 @@ import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
 import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
 import { getManualAssignmentPushAr } from '@/lib/driver-push-messages'
+import { cancelOrderJobs } from '@/lib/delivery-job-scheduler'
 
 async function checkOrderOwnership(slug: string, orderId: string) {
   const auth = await checkTenantAuth(slug)
@@ -62,6 +63,7 @@ export async function PATCH(
     })
     .unset(['deliveryRequestedAt', 'declinedByDriverIds', 'driverAcceptedAt'])
     .commit()
+  await cancelOrderJobs(orderId)
 
   // Notify the assigned driver via FCM or Web Push — friendly Arabic, ask them to open app to confirm or decline
   const pushReady = isFCMConfigured() || isPushConfigured()

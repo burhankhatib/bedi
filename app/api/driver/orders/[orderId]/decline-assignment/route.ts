@@ -4,6 +4,7 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
+import { scheduleDeliveryLifecycleJobs } from '@/lib/delivery-job-scheduler'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -77,6 +78,7 @@ export async function POST(
 
   const { notifyDriversOfDeliveryOrder } = await import('@/lib/notify-drivers-for-order')
   await notifyDriversOfDeliveryOrder(orderId).catch((e) => console.warn('[notify-drivers]', e))
+  await scheduleDeliveryLifecycleJobs(orderId, new Date(now).getTime())
 
   return NextResponse.json({ success: true })
 }

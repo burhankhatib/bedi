@@ -27,6 +27,107 @@ export async function GET(req: Request) {
   const cutoff3m = new Date(now - 3 * 60 * 1000).toISOString()
   const cutoff2h = new Date(now - 2 * 60 * 60 * 1000).toISOString()
   const cutoff3h = new Date(now - 3 * 60 * 60 * 1000).toISOString()
+  const singleOrderId = url.searchParams.get('orderId')?.trim()
+
+  if (singleOrderId) {
+    try {
+      const order = await writeClient.fetch<{
+        _id: string
+        city?: string
+        tenantName?: string
+        tenantNameAr?: string
+        driversWhatsappNotifiedCount?: number
+      } | null>(
+        `*[
+          _type == "order" &&
+          _id == $orderId &&
+          orderType == "delivery" &&
+          defined(deliveryRequestedAt) &&
+          status in ["new", "preparing", "waiting_for_delivery"] &&
+          !defined(assignedDriver) &&
+          (!defined(driversWhatsappNotifiedCount) || driversWhatsappNotifiedCount < 3)
+        ][0]{
+          _id,
+          "city": site->city,
+          "tenantName": site->name,
+          "tenantNameAr": site->name_ar,
+          driversWhatsappNotifiedCount
+        }`,
+        { orderId: singleOrderId }
+      )
+      if (!order?._id) {
+        return NextResponse.json({ ok: true, notifiedOrdersCount: 0, totalMessagesSent: 0, skipped: true })
+      }
+
+      let messagesSentForOrder = 0
+      const nowIso = new Date().toISOString()
+      if (order.city) {
+        const drivers = await writeClient.fetch<{ _id: string; phoneNumber: string; isOnline: boolean }[]>(
+          `*[
+            _type == "driver" && 
+            isVerifiedByAdmin == true &&
+            city == $city &&
+            defined(phoneNumber) &&
+            (
+              isOnline == true || 
+              (
+                isOnline != true && 
+                receiveOfflineWhatsapp != false && 
+                (!defined(lastOfflineWhatsappAt) || lastOfflineWhatsappAt <= $cutoff3h)
+              )
+            )
+          ]{ _id, phoneNumber, isOnline }`,
+          { city: order.city, cutoff3h }
+        )
+        for (const driver of drivers || []) {
+          const phone = driver.phoneNumber?.trim()
+          if (!phone) continue
+          let result = await sendWhatsAppTemplateMessage(phone, 'new_delivery', [], 'ar_EG')
+          if (!result.success) {
+            let errorStr = ''
+            if (result.error) {
+              if (typeof result.error === 'string') errorStr = result.error
+              else if ((result.error as { error?: { error_data?: { details?: string } } }).error?.error_data?.details) {
+                errorStr = (result.error as { error?: { error_data?: { details?: string } } }).error?.error_data?.details || ''
+              } else if ((result.error as { error?: { message?: string } }).error?.message) {
+                errorStr = (result.error as { error?: { message?: string } }).error?.message || ''
+              } else errorStr = JSON.stringify(result.error)
+            }
+            if (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar')) {
+              result = await sendWhatsAppTemplateMessage(phone, 'new_delivery', [], 'ar')
+            }
+          }
+          if (result.success) {
+            messagesSentForOrder++
+            if (!driver.isOnline) {
+              await writeClient.patch(driver._id).set({ lastOfflineWhatsappAt: nowIso }).commit().catch(() => {})
+            }
+          }
+        }
+      }
+
+      const currentCount = order.driversWhatsappNotifiedCount || 0
+      await writeClient.patch(order._id)
+        .set({ driversWhatsappNotifiedAt: nowIso })
+        .set({ driversWhatsappNotifiedCount: currentCount + 1 })
+        .commit()
+
+      return NextResponse.json({
+        ok: true,
+        notifiedOrdersCount: messagesSentForOrder > 0 ? 1 : 0,
+        totalMessagesSent: messagesSentForOrder,
+        orderId: singleOrderId,
+      })
+    } catch (error) {
+      console.error('[cron/unaccepted-delivery-whatsapp] single order failed:', error)
+      return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    }
+  }
+
+  const allowLegacyScan = process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true'
+  if (!allowLegacyScan) {
+    return NextResponse.json({ ok: true, notifiedOrdersCount: 0, totalMessagesSent: 0, skipped: true, reason: 'legacy-scan-disabled' })
+  }
 
   try {
     const unacceptedOrders = await writeClient.fetch<{
