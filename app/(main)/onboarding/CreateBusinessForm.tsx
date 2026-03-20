@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AppNav } from '@/components/saas/AppNav'
@@ -14,7 +13,6 @@ import { Loader2, Store, ArrowRight, Sparkles } from 'lucide-react'
 type Subcategory = { _id: string; slug: string; title_en: string; title_ar: string; businessType: string }
 
 export function CreateBusinessForm() {
-  const router = useRouter()
   const { t, lang } = useLanguage()
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
@@ -42,7 +40,10 @@ export function CreateBusinessForm() {
       }
       setSubcategoriesLoading(true)
       setBusinessSubcategoryIds([])
-      fetch(`/api/business-subcategories?businessType=${encodeURIComponent(businessType)}`, { cache: 'no-store' })
+      fetch(`/api/business-subcategories?businessType=${encodeURIComponent(businessType)}`, {
+        cache: 'no-store',
+        credentials: 'include',
+      })
         .then((r) => r.json())
         .then((data) => setSubcategories(Array.isArray(data) ? data : []))
         .catch(() => setSubcategories([]))
@@ -85,14 +86,14 @@ export function CreateBusinessForm() {
           ...(businessSubcategoryIds.length ? { businessSubcategoryIds } : {}),
         }),
       })
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(data.error || t('Something went wrong', 'حدث خطأ ما'))
+        setError((data as { error?: string }).error || t('Something went wrong', 'حدث خطأ ما'))
         setLoading(false)
         return
       }
-      router.push('/dashboard')
-      router.refresh()
+      // Full navigation: client router sometimes never completes here while the tenant is already created.
+      window.location.assign('/dashboard')
     } catch {
       setError(t('Network error. Please try again.', 'خطأ في الشبكة. يرجى المحاولة مرة أخرى.'))
       setLoading(false)

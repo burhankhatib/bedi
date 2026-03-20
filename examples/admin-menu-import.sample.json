@@ -1,0 +1,71 @@
+{
+  "categories": [
+    {
+      "title_en": "Hot drinks",
+      "title_ar": "مشروبات ساخنة",
+      "sortOrder": 0,
+      "slug": "hot-drinks",
+      "products": [
+        {
+          "title_en": "Espresso",
+          "title_ar": "إسبريسو",
+          "price": 12,
+          "currency": "ILS",
+          "sortOrder": 0,
+          "description_en": "Single shot.",
+          "description_ar": "جرعة واحدة.",
+          "isPopular": true,
+          "isAvailable": true,
+          "saleUnit": "piece",
+          "hidePrice": false,
+          "ingredients_en": ["Coffee", "Water"],
+          "ingredients_ar": ["قهوة", "ماء"],
+          "dietaryTags": ["vegan"],
+          "specialPrice": 10,
+          "specialPriceExpires": "2026-12-31T23:59:59.000Z",
+          "imageUrl": "https://example.com/espresso.jpg",
+          "additionalImageUrls": ["https://example.com/espresso-2.jpg"],
+          "addOns": [
+            { "name_en": "Extra shot", "name_ar": "جرعة إضافية", "price": 3 }
+          ],
+          "variants": [
+            {
+              "name_en": "Size",
+              "name_ar": "الحجم",
+              "required": true,
+              "options": [
+                {
+                  "label_en": "Small",
+                  "label_ar": "صغير",
+                  "priceModifier": 0,
+                  "isDefault": true
+                },
+                {
+                  "label_en": "Large",
+                  "label_ar": "كبير",
+                  "priceModifier": 5,
+                  "specialPriceModifier": 4,
+                  "specialPriceModifierExpires": "2026-06-01T10:00:00.000Z"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title_en": "Pastries",
+      "title_ar": "معجنات",
+      "sortOrder": 1,
+      "slug": { "current": "pastries" },
+      "products": [
+        {
+          "title_en": "Croissant",
+          "title_ar": "كرواسون",
+          "price": 18,
+          "currency": "ILS"
+        }
+      ]
+    }
+  ]
+}
