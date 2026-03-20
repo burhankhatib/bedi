@@ -328,9 +328,9 @@ export function AdminBusinessTaxonomyClient() {
         <div>
           <h1 className="text-2xl font-bold text-white">Business taxonomy</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-400">
-            Business categories drive homepage tiles and valid tenant types. Sub-categories (specialties) appear in onboarding
-            and business profile for the matching type. Edits apply everywhere; deleting a sub-category removes it from all
-            businesses.
+            Categories are business types (restaurant, grocery, pharmacy...). To add cuisines/specialties like Italian or
+            Burgers, expand a category and use Add under Sub-categories. Edits apply everywhere; deleting a sub-category
+            removes it from all businesses.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -363,7 +363,7 @@ export function AdminBusinessTaxonomyClient() {
             }}
           >
             <Plus className="mr-1 size-4" />
-            Add category
+            Add business type
           </Button>
         </div>
       </div>

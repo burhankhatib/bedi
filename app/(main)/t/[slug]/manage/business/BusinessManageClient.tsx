@@ -421,6 +421,11 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           supportsDelivery: d.tenant!.supportsDelivery ?? true,
           freeDeliveryEnabled: d.tenant!.freeDeliveryEnabled ?? false,
           supportsDriverPickup: d.tenant!.supportsDriverPickup ?? false,
+          defaultAutoDeliveryRequestMinutes:
+            d.tenant!.saveAutoDeliveryRequestPreference === true
+              ? (d.tenant!.defaultAutoDeliveryRequestMinutes === undefined ? 20 : d.tenant!.defaultAutoDeliveryRequestMinutes)
+              : 20,
+          saveAutoDeliveryRequestPreference: d.tenant!.saveAutoDeliveryRequestPreference ?? false,
           prioritizeWhatsapp: d.tenant!.prioritizeWhatsapp ?? false,
           locationLat: d.tenant!.locationLat ?? null,
           locationLng: d.tenant!.locationLng ?? null,

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { Menu, Shield, FileWarning, Building2, Users, Truck, BarChart3, Layout, ArrowRightLeft, MapPin, Megaphone, Package, Zap, Upload, Layers } from 'lucide-react'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
+import { FullPageLink } from '@/components/ui/FullPageLink'
 
 const nav = [
   { href: '/admin/reports', label: 'Reports', icon: FileWarning },
@@ -29,7 +30,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
       {nav.map(({ href, label, icon: Icon }) => {
         const active = pathname === href || (pathname.startsWith(href) && pathname.length > href.length)
         return (
-          <Link
+          <FullPageLink
             key={href}
             href={href}
             onClick={onNavigate}
@@ -39,7 +40,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           >
             <Icon className="size-4 shrink-0" />
             {label}
-          </Link>
+          </FullPageLink>
         )
       })}
       <a

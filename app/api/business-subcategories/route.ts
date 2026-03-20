@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { client, clientNoCdn } from '@/sanity/lib/client'
 import { writeToken } from '@/sanity/lib/write-token'
 import {
@@ -57,22 +56,19 @@ export async function GET(req: NextRequest) {
 
   let items = await fetchSubcategoryRows(businessType)
 
-  /** Logged-in users (onboarding / manage) trigger a one-time align with seed data so new cuisines exist in Sanity. */
+  /** Keep seed rows aligned in Sanity so new specialties appear without manual seeding. */
   const typeKey = businessType.trim().toLowerCase()
   if (typeKey && writeToken) {
-    const { userId } = await auth()
-    if (userId) {
-      const existingSlugs = new Set(
-        items.map((i) => (i.slug || '').trim().toLowerCase()).filter(Boolean)
-      )
-      const missing = missingSubcategoryRowsForType(typeKey, existingSlugs)
-      if (missing.length > 0) {
-        try {
-          await createOrReplaceSubcategoryDocs(writeClient, missing)
-          items = await fetchSubcategoryRows(businessType)
-        } catch (e) {
-          console.error('[business-subcategories] sync missing rows failed:', e)
-        }
+    const existingSlugs = new Set(
+      items.map((i) => (i.slug || '').trim().toLowerCase()).filter(Boolean)
+    )
+    const missing = missingSubcategoryRowsForType(typeKey, existingSlugs)
+    if (missing.length > 0) {
+      try {
+        await createOrReplaceSubcategoryDocs(writeClient, missing)
+        items = await fetchSubcategoryRows(businessType)
+      } catch (e) {
+        console.error('[business-subcategories] sync missing rows failed:', e)
       }
     }
   }

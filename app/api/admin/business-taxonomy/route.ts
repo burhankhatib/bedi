@@ -6,10 +6,33 @@ import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { slugify } from '@/lib/slugify'
 import type { SanityClient } from 'next-sanity'
+import { BUSINESS_TYPES } from '@/lib/constants'
 
 export const dynamic = 'force-dynamic'
 
 const writeClient = client.withConfig({ token: writeToken || undefined, useCdn: false })
+
+async function ensureBaselineBusinessCategories() {
+  const existingValues = await clientNoCdn.fetch<string[]>(
+    `array::unique(*[_type == "businessCategory" && defined(value) && value != ""].value)`
+  )
+  const existing = new Set((existingValues ?? []).map((v) => String(v).trim()).filter(Boolean))
+  let tx = writeClient.transaction()
+  let hasOps = false
+  BUSINESS_TYPES.forEach((row, idx) => {
+    if (existing.has(row.value)) return
+    hasOps = true
+    tx = tx.createIfNotExists({
+      _id: `businessCategory.${row.value}`,
+      _type: 'businessCategory',
+      value: row.value,
+      name_en: row.label,
+      name_ar: row.labelAr,
+      sortOrder: idx,
+    })
+  })
+  if (hasOps) await tx.commit()
+}
 
 async function adminGate(): Promise<NextResponse | null> {
   const { userId, sessionClaims } = await auth()
@@ -96,6 +119,7 @@ type SubRow = {
 export async function GET() {
   const deny = await adminGate()
   if (deny) return deny
+  await ensureBaselineBusinessCategories()
 
   const [categories, subcategories, tenantTypes] = await Promise.all([
     clientNoCdn.fetch<CategoryRow[]>(

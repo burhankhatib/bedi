@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { AppNav } from '@/components/saas/AppNav'
 import { BusinessPushSetup } from '@/components/BusinessPushSetup'
@@ -11,6 +10,7 @@ import { BUSINESS_TYPES } from '@/lib/constants'
 import { Store, ExternalLink, LayoutGrid, Plus, ArrowRight } from 'lucide-react'
 import { PREFER_TENANT_KEY } from '@/components/StandaloneDriverRedirect'
 import { useEffect } from 'react'
+import { FullPageLink } from '@/components/ui/FullPageLink'
 
 export function DashboardClient({
   tenants,
@@ -100,16 +100,16 @@ export function DashboardClient({
                   </a>
                 </Button>
                 <Button asChild size="sm" className="touch-manipulation border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white active:bg-slate-600/80">
-                  <Link href={`/t/${tenant.slug}/manage`} prefetch>
+                  <FullPageLink href={`/t/${tenant.slug}/manage`}>
                     <LayoutGrid className="mr-1.5 size-3.5" />
                     {t('Manage', 'إدارة')}
-                  </Link>
+                  </FullPageLink>
                 </Button>
                 <Button asChild size="sm" className="touch-manipulation bg-amber-500 text-slate-950 hover:bg-amber-400 active:bg-amber-500/90">
-                  <Link href={`/t/${tenant.slug}/orders`} prefetch>
+                  <FullPageLink href={`/t/${tenant.slug}/orders`}>
                     {t('Orders', 'الطلبات')}
                     <ArrowRight className="ml-1.5 size-3.5" />
-                  </Link>
+                  </FullPageLink>
                 </Button>
               </div>
             </div>
@@ -118,10 +118,10 @@ export function DashboardClient({
 
         <div className="mt-10">
           <Button asChild variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-            <Link href="/onboarding">
+            <FullPageLink href="/onboarding">
               <Plus className="mr-2 size-4" />
               {t('Add another site', 'إضافة موقع آخر')}
-            </Link>
+            </FullPageLink>
           </Button>
         </div>
       </main>

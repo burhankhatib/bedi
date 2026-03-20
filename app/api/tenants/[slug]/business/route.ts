@@ -51,6 +51,7 @@ export async function GET(
       country?: string
       city?: string
       businessType?: string
+      businessSubcategoryRefs?: string[] | null
       businessSubcategories?: Array<{ _id: string; slug?: string; businessType?: string }> | null
       deactivated?: boolean
       deactivateUntil?: string | null
@@ -72,6 +73,7 @@ export async function GET(
       `*[_type == "tenant" && _id == $tenantId][0]{
         _id, name, "slug": slug.current, country, city,
         businessType,
+        "businessSubcategoryRefs": businessSubcategories[]._ref,
         "businessSubcategories": businessSubcategories[]->{ _id, "slug": slug.current, businessType },
         deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, freeDeliveryEnabled, supportsDriverPickup,
         defaultAutoDeliveryRequestMinutes, saveAutoDeliveryRequestPreference,
@@ -98,18 +100,25 @@ export async function GET(
 
   // Resolve old subcategory IDs to canonical seeded IDs (e.g. random-uuid → businessSubcategory.burgers-restaurant).
   const rawSubs = (tenantRaw.businessSubcategories ?? []).filter(Boolean)
-  const bt = (tenantRaw.businessType || '').trim().toLowerCase()
+  const rawSubRefs = (tenantRaw.businessSubcategoryRefs ?? []).filter((id): id is string => typeof id === 'string' && id.trim() !== '')
   const resolvedSubIds: string[] = []
   let subcatIdsChanged = false
-  for (const sub of rawSubs) {
+  const count = Math.max(rawSubs.length, rawSubRefs.length)
+  for (let i = 0; i < count; i += 1) {
+    const sub = rawSubs[i]
+    const fallbackRef = rawSubRefs[i]
+    if (!sub) {
+      if (fallbackRef) resolvedSubIds.push(fallbackRef)
+      continue
+    }
     if (!sub.slug || !sub.businessType) {
-      resolvedSubIds.push(sub._id)
+      resolvedSubIds.push(fallbackRef || sub._id)
       continue
     }
     const canon = canonicalSubcategorySlug(sub.slug)
     const canonicalId = `businessSubcategory.${canon}-${sub.businessType.trim().toLowerCase()}`
     resolvedSubIds.push(canonicalId)
-    if (canonicalId !== sub._id) subcatIdsChanged = true
+    if (canonicalId !== (fallbackRef || sub._id)) subcatIdsChanged = true
   }
 
   // Auto-migrate tenant refs to canonical IDs so homepage filtering and future saves match.
