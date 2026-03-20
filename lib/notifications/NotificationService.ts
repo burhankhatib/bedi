@@ -7,6 +7,7 @@ import { isPushConfigured } from '@/lib/push'
 import { isFCMConfigured } from '@/lib/fcm'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
 import { sendTenantOrderUpdatePush, TenantOrderPushStatus } from '@/lib/tenant-order-push'
+import { formatTenantNewOrderWhatsAppSummary } from '@/lib/whatsapp-tenant-order-summary'
 
 const writeClient = client.withConfig({
   token: token,
@@ -105,6 +106,8 @@ export const NotificationService = {
             customerPhone?: string
             orderType?: string
             deliveryAddress?: string
+            deliveryLat?: number
+            deliveryLng?: number
             totalAmount?: number
             currency?: string
             items?: Array<{ productName: string; productNameAr?: string; quantity: number; price: number; total: number }>
@@ -114,6 +117,8 @@ export const NotificationService = {
               customerPhone,
               orderType,
               deliveryAddress,
+              deliveryLat,
+              deliveryLng,
               totalAmount,
               currency,
               items[]{ productName, "productNameAr": product->title_ar, quantity, price, total }
@@ -121,23 +126,17 @@ export const NotificationService = {
             { orderId }
           )
 
-          // Format items list
-          const itemsList = orderDoc?.items?.map(i => {
-            const nameAr = i.productNameAr;
-            const nameEn = i.productName;
-            
-            let itemText = `▪️ *${i.quantity}x* _${nameAr || nameEn || 'منتج غير معروف'}_ (${i.total} ${orderDoc.currency})`;
-            if (nameAr && nameEn && nameAr !== nameEn) {
-              itemText += `\r   └ _${nameEn}_`;
-            }
-            return itemText;
-          }).join('\r\r') || 'لا توجد منتجات'
-          
-          // Format customer details
-          const customerDetails = `👤 *الاسم:* ${orderDoc?.customerName || 'غير معروف'}\r📞 *الهاتف:* ${orderDoc?.customerPhone || 'غير متوفر'}\r🚚 *نوع الطلب:* *${orderDoc?.orderType === 'delivery' ? 'توصيل' : orderDoc?.orderType === 'dine-in' ? 'محلي' : 'استلام'}*${orderDoc?.deliveryAddress ? `\r📍 *العنوان:* _${orderDoc.deliveryAddress}_` : ''}`
-
-          // Format full order summary
-          const orderSummary = `🛒 *تفاصيل الطلب:*\r${itemsList}\r\r➖➖➖➖➖➖➖➖\r💰 *الإجمالي:* *${orderDoc?.totalAmount || 0} ${orderDoc?.currency || 'ILS'}*\r➖➖➖➖➖➖➖➖\r\r📋 *بيانات العميل:*\r${customerDetails}`
+          const orderSummary = formatTenantNewOrderWhatsAppSummary({
+            currency: orderDoc?.currency,
+            items: orderDoc?.items,
+            totalAmount: orderDoc?.totalAmount,
+            customerName: orderDoc?.customerName,
+            customerPhone: orderDoc?.customerPhone,
+            orderType: orderDoc?.orderType,
+            deliveryAddress: orderDoc?.deliveryAddress,
+            deliveryLat: orderDoc?.deliveryLat,
+            deliveryLng: orderDoc?.deliveryLng,
+          })
 
           // Send WhatsApp template
           // Assuming template 'new_order' uses {{1}} for businessName and {{2}} for order details

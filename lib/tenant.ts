@@ -116,6 +116,7 @@ const ALL_TENANTS_QUERY = `*[_type == "tenant"] | order(createdAt desc) {
   clerkUserEmail,
   coOwnerEmails,
   subscriptionStatus,
+  subscriptionPlan,
   createdAt,
   businessCreatedAt,
   subscriptionExpiresAt,

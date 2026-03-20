@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
+import { formatTenantNewOrderWhatsAppSummary } from '@/lib/whatsapp-tenant-order-summary'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,8 @@ export async function GET(req: Request) {
         customerPhone?: string
         orderType?: string
         deliveryAddress?: string
+        deliveryLat?: number
+        deliveryLng?: number
         totalAmount?: number
         currency?: string
         items?: Array<{ productName: string; productNameAr?: string; quantity: number; price: number; total: number }>
@@ -61,6 +64,8 @@ export async function GET(req: Request) {
           customerPhone,
           orderType,
           deliveryAddress,
+          deliveryLat,
+          deliveryLng,
           totalAmount,
           currency,
           items[]{ productName, "productNameAr": product->title_ar, quantity, price, total }
@@ -75,15 +80,7 @@ export async function GET(req: Request) {
       let notified = 0
       if (phone) {
         const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
-        const itemsList = order.items?.map(i => {
-          const nameAr = i.productNameAr
-          const nameEn = i.productName
-          let itemText = `▪️ *${i.quantity}x* _${nameAr || nameEn || 'منتج غير معروف'}_ (${i.total} ${order.currency})`
-          if (nameAr && nameEn && nameAr !== nameEn) itemText += `\r   └ _${nameEn}_`
-          return itemText
-        }).join('\r\r') || 'لا توجد منتجات'
-        const customerDetails = `👤 *الاسم:* ${order.customerName || 'غير معروف'}\r📞 *الهاتف:* ${order.customerPhone || 'غير متوفر'}\r🚚 *نوع الطلب:* *${order.orderType === 'delivery' ? 'توصيل' : order.orderType === 'dine-in' ? 'محلي' : 'استلام'}*${order.deliveryAddress ? `\r📍 *العنوان:* _${order.deliveryAddress}_` : ''}`
-        const orderSummary = `🛒 *تفاصيل الطلب:*\r${itemsList}\r\r➖➖➖➖➖➖➖➖\r💰 *الإجمالي:* *${order.totalAmount || 0} ${order.currency || 'ILS'}*\r➖➖➖➖➖➖➖➖\r\r📋 *بيانات العميل:*\r${customerDetails}`
+        const orderSummary = formatTenantNewOrderWhatsAppSummary(order)
         const result = await sendWhatsAppTemplateMessage(phone, 'new_order', [businessName, orderSummary], 'ar_EG', `${order.tenantSlug}/orders`)
         if (result.success) notified = 1
       }
@@ -111,6 +108,8 @@ export async function GET(req: Request) {
       customerPhone?: string
       orderType?: string
       deliveryAddress?: string
+      deliveryLat?: number
+      deliveryLng?: number
       totalAmount?: number
       currency?: string
       items?: Array<{ productName: string; productNameAr?: string; quantity: number; price: number; total: number }>
@@ -133,6 +132,8 @@ export async function GET(req: Request) {
         customerPhone,
         orderType,
         deliveryAddress,
+        deliveryLat,
+        deliveryLng,
         totalAmount,
         currency,
         items[]{ productName, "productNameAr": product->title_ar, quantity, price, total }
@@ -152,24 +153,7 @@ export async function GET(req: Request) {
         const phone = order.tenantPhone?.trim()
         if (phone) {
           const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
-          
-          // Format items list
-          const itemsList = order.items?.map(i => {
-            const nameAr = i.productNameAr;
-            const nameEn = i.productName;
-            
-            let itemText = `▪️ *${i.quantity}x* _${nameAr || nameEn || 'منتج غير معروف'}_ (${i.total} ${order.currency})`;
-            if (nameAr && nameEn && nameAr !== nameEn) {
-              itemText += `\r   └ _${nameEn}_`;
-            }
-            return itemText;
-          }).join('\r\r') || 'لا توجد منتجات'
-          
-          // Format customer details
-          const customerDetails = `👤 *الاسم:* ${order.customerName || 'غير معروف'}\r📞 *الهاتف:* ${order.customerPhone || 'غير متوفر'}\r🚚 *نوع الطلب:* *${order.orderType === 'delivery' ? 'توصيل' : order.orderType === 'dine-in' ? 'محلي' : 'استلام'}*${order.deliveryAddress ? `\r📍 *العنوان:* _${order.deliveryAddress}_` : ''}`
-
-          // Format full order summary
-          const orderSummary = `🛒 *تفاصيل الطلب:*\r${itemsList}\r\r➖➖➖➖➖➖➖➖\r💰 *الإجمالي:* *${order.totalAmount || 0} ${order.currency || 'ILS'}*\r➖➖➖➖➖➖➖➖\r\r📋 *بيانات العميل:*\r${customerDetails}`
+          const orderSummary = formatTenantNewOrderWhatsAppSummary(order)
 
           const result = await sendWhatsAppTemplateMessage(
             phone,

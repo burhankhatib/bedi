@@ -7,6 +7,7 @@ import { BusinessPushSetup } from '@/components/BusinessPushSetup'
 import { PWAManager } from '@/components/pwa/PWAManager'
 import { useLanguage } from '@/components/LanguageContext'
 import type { Tenant } from '@/lib/tenant'
+import { BUSINESS_TYPES } from '@/lib/constants'
 import { Store, ExternalLink, LayoutGrid, Plus, ArrowRight } from 'lucide-react'
 import { PREFER_TENANT_KEY } from '@/components/StandaloneDriverRedirect'
 import { useEffect } from 'react'
@@ -29,6 +30,29 @@ export function DashboardClient({
       // ignore
     }
   }, [])
+
+  const businessTypeLabel = (bt: string | undefined) => {
+    if (!bt) return ''
+    const row = BUSINESS_TYPES.find((b) => b.value === bt)
+    if (row) return lang === 'ar' ? row.labelAr : row.label
+    return bt
+  }
+
+  const subscriptionLabel = (s: string | undefined) => {
+    const key = (s || '').toLowerCase()
+    const map: Record<string, [string, string]> = {
+      trial: ['Trial', 'تجريبي'],
+      active: ['Active', 'نشط'],
+      past_due: ['Past due', 'متأخر الدفع'],
+      canceled: ['Canceled', 'ملغى'],
+      cancelled: ['Canceled', 'ملغى'],
+      suspended: ['Suspended', 'معلّق'],
+      expired: ['Expired', 'منتهي'],
+    }
+    const pair = map[key]
+    if (pair) return t(pair[0], pair[1])
+    return s || ''
+  }
 
   return (
     <div className="dark min-h-screen overflow-x-hidden bg-slate-950 text-white">
@@ -59,12 +83,12 @@ export function DashboardClient({
                     <h2 className="truncate font-semibold text-white">
                       {(lang === 'ar' ? tenant.name_ar : tenant.name_en) || tenant.name_en || tenant.name_ar || tenant.name}
                     </h2>
-                    <p className="mt-0.5 text-xs capitalize text-slate-500">{tenant.businessType}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{businessTypeLabel(tenant.businessType)}</p>
                     <p className="mt-2 font-mono text-xs text-slate-400">/t/{tenant.slug}</p>
                   </div>
                 </div>
-                <span className="shrink-0 rounded-full border border-slate-600 bg-slate-800/50 px-2.5 py-1 text-xs capitalize text-slate-300">
-                  {tenant.subscriptionStatus}
+                <span className="shrink-0 rounded-full border border-slate-600 bg-slate-800/50 px-2.5 py-1 text-xs text-slate-300">
+                  {subscriptionLabel(tenant.subscriptionStatus)}
                 </span>
               </div>
 

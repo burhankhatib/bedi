@@ -8,6 +8,7 @@ import { slugify, ensureUniqueSlug } from '@/lib/slugify'
 import { getPlatformUser } from '@/lib/platform-user'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { normalizePhoneDigits, getVerifiedPhoneNumbers } from '@/lib/order-auth'
+import { getAllowedBusinessTypeValues } from '@/lib/allowed-business-types'
 
 /** Build E.164 from digits (e.g. 972501234567 -> +972501234567). */
 function digitsToE164(digits: string): string {
@@ -69,6 +70,13 @@ export async function POST(request: NextRequest) {
     if (!name || !businessType) {
       return NextResponse.json(
         { error: 'Missing required fields: name, businessType' },
+        { status: 400 }
+      )
+    }
+    const allowedTypes = await getAllowedBusinessTypeValues()
+    if (!allowedTypes.has(String(businessType).trim())) {
+      return NextResponse.json(
+        { error: 'Invalid or unknown business type. Add it under Admin → Business taxonomy first.' },
         { status: 400 }
       )
     }

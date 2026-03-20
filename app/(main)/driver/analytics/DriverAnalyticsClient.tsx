@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { DollarSign, Package, MapPin, Store, Calendar, TrendingUp } from 'lucide-react'
+import { DollarSign, Package, MapPin, Store, Calendar, TrendingUp, Truck, Download } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
+import { csvCell, downloadCsv } from '@/lib/csv-export'
 import { useLanguage } from '@/components/LanguageContext'
 
 type DriverOrder = {
@@ -11,6 +12,7 @@ type DriverOrder = {
   orderNumber: string
   deliveryFee: number
   tipAmount: number
+  deliveryFeePaidByBusiness?: boolean
   currency: string
   completedAt: string
   areaName: string
@@ -31,7 +33,15 @@ const tEn = {
   topBusinesses: 'Top businesses',
   noData: 'No data for this period.',
   deliveriesCount: 'deliveries',
+  deliverySingular: 'delivery',
   loading: 'Loading…',
+  deliveryBreakdownTitle: 'Delivery breakdown',
+  freeForCustomerBusiness: 'Free for customer (business-sponsored)',
+  customerPaidDelivery: 'Customer paid delivery fee',
+  sponsoredDriverNote:
+    'You still receive the delivery fee on business-sponsored orders; the customer did not pay it on their order total.',
+  exportCsv: 'Export CSV',
+  exportCsvAria: 'Download completed deliveries for the selected period as a spreadsheet',
 }
 const tAr = {
   title: 'تحليلات التوصيل',
@@ -46,8 +56,16 @@ const tAr = {
   topAreas: 'أبرز مناطق التوصيل',
   topBusinesses: 'أبرز الشركات',
   noData: 'لا توجد بيانات لهذه الفترة.',
-  deliveriesCount: 'توصيلة',
+  deliveriesCount: 'توصيلات',
+  deliverySingular: 'توصيلة',
   loading: 'جاري التحميل...',
+  deliveryBreakdownTitle: 'تفاصيل التوصيل',
+  freeForCustomerBusiness: 'مجاني للعميل (الشركة تتحمّل رسوم التوصيل)',
+  customerPaidDelivery: 'دفع العميل رسوم التوصيل',
+  sponsoredDriverNote:
+    'لا تزال تستلم رسوم التوصيل في الطلبات المُموّلة من الشركة؛ العميل لم يدفعها ضمن إجمالي طلبه.',
+  exportCsv: 'تصدير CSV',
+  exportCsvAria: 'تنزيل التوصيلات المكتملة للفترة المحددة كجدول بيانات',
 }
 
 function filterByRange(orders: DriverOrder[], range: 'today' | 'week' | 'month' | 'all'): DriverOrder[] {
@@ -94,6 +112,44 @@ export function DriverAnalyticsClient() {
   const profit = useMemo(() => filtered.reduce((s, o) => s + o.deliveryFee, 0), [filtered])
   const totalTips = useMemo(() => filtered.reduce((s, o) => s + (o.tipAmount ?? 0), 0), [filtered])
   const currency = orders[0]?.currency ?? 'ILS'
+  const freeDeliveryOrders = useMemo(
+    () => filtered.filter((o) => o.deliveryFeePaidByBusiness === true).length,
+    [filtered]
+  )
+  const customerPaidDeliveryFeeOrders = useMemo(
+    () => filtered.filter((o) => o.deliveryFeePaidByBusiness !== true).length,
+    [filtered]
+  )
+
+  const exportDeliveriesCsv = useCallback(() => {
+    if (filtered.length === 0) return
+    const header = [
+      'orderNumber',
+      'completedAt',
+      'business',
+      'area',
+      'deliveryFee',
+      'tip',
+      'currency',
+      'businessSponsoredDelivery',
+    ]
+    const lines = [header.join(',')]
+    for (const o of filtered) {
+      lines.push(
+        [
+          csvCell(o.orderNumber),
+          csvCell(o.completedAt),
+          csvCell(o.businessName),
+          csvCell(o.areaName),
+          csvCell(o.deliveryFee),
+          csvCell(o.tipAmount ?? 0),
+          csvCell(o.currency),
+          csvCell(o.deliveryFeePaidByBusiness ? 'yes' : 'no'),
+        ].join(',')
+      )
+    }
+    downloadCsv(`zonify-driver-deliveries-${dateRange}-${new Date().toISOString().slice(0, 10)}.csv`, lines)
+  }, [filtered, dateRange])
 
   const areas = useMemo(() => {
     const m = new Map<string, number>()
@@ -136,40 +192,55 @@ export function DriverAnalyticsClient() {
         </h1>
         <p className="mt-1 text-slate-400">{t.subtitle}</p>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className={dateRange === 'today' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30' : 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white'}
-            onClick={() => setDateRange('today')}
-          >
-            <Calendar className="mr-1 h-4 w-4" />
-            {t.today}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className={dateRange === 'week' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30' : 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white'}
-            onClick={() => setDateRange('week')}
-          >
-            {t.last7}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className={dateRange === 'month' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30' : 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white'}
-            onClick={() => setDateRange('month')}
-          >
-            {t.last30}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className={dateRange === 'all' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30' : 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white'}
-            onClick={() => setDateRange('all')}
-          >
-            {t.allTime}
-          </Button>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className={dateRange === 'today' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30' : 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white'}
+              onClick={() => setDateRange('today')}
+            >
+              <Calendar className="mr-1 h-4 w-4" />
+              {t.today}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={dateRange === 'week' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30' : 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white'}
+              onClick={() => setDateRange('week')}
+            >
+              {t.last7}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={dateRange === 'month' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30' : 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white'}
+              onClick={() => setDateRange('month')}
+            >
+              {t.last30}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={dateRange === 'all' ? 'border-emerald-500 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30' : 'border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white'}
+              onClick={() => setDateRange('all')}
+            >
+              {t.allTime}
+            </Button>
+          </div>
+          {filtered.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white"
+              onClick={exportDeliveriesCsv}
+              aria-label={t.exportCsvAria}
+            >
+              <Download className="mr-1.5 h-4 w-4 shrink-0" />
+              {t.exportCsv}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -215,6 +286,33 @@ export function DriverAnalyticsClient() {
         </div>
       </div>
 
+      {filtered.length > 0 && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-800/80 p-5 text-white">
+          <h2 className="mb-4 flex items-center gap-2 text-lg font-black">
+            <Truck className="h-5 w-5 text-green-400" />
+            {t.deliveryBreakdownTitle}
+          </h2>
+          <div className="rounded-xl border border-slate-600/60 bg-slate-900/50 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-amber-200/95">{t.freeForCustomerBusiness}</span>
+              <span className="font-black tabular-nums text-white">{freeDeliveryOrders}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-slate-300">{t.customerPaidDelivery}</span>
+              <span className="font-black tabular-nums text-white">{customerPaidDeliveryFeeOrders}</span>
+            </div>
+            {freeDeliveryOrders > 0 && (
+              <p className="text-xs text-slate-400 pt-1">
+                {lang === 'ar'
+                  ? `${Math.round((100 * freeDeliveryOrders) / filtered.length)}٪ من التوصيلات في هذه الفترة مموّلة من الشركة (مجانية للعميل).`
+                  : `${Math.round((100 * freeDeliveryOrders) / filtered.length)}% of deliveries this period were business-sponsored (free to the customer).`}
+              </p>
+            )}
+            <p className="text-xs text-slate-500 pt-2 border-t border-slate-700/80">{t.sponsoredDriverNote}</p>
+          </div>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <p className="rounded-2xl border border-slate-800 bg-slate-800/50 p-6 text-center text-slate-400">{t.noData}</p>
       ) : (
@@ -226,11 +324,11 @@ export function DriverAnalyticsClient() {
                 {t.topAreas}
               </h2>
               <ul className="space-y-2">
-                {areas.map((a, i) => (
+                {areas.map((a) => (
                   <li key={a.name} className="flex items-center justify-between rounded-xl bg-slate-700/50 px-4 py-3">
                     <span className="font-medium">{a.name}</span>
                     <span className="font-black text-green-400">
-                      {a.count} {t.deliveriesCount}
+                      {a.count} {a.count === 1 ? t.deliverySingular : t.deliveriesCount}
                     </span>
                   </li>
                 ))}
@@ -250,7 +348,7 @@ export function DriverAnalyticsClient() {
                     <li key={b.name} className="flex items-center justify-between rounded-xl bg-slate-700/50 px-4 py-3">
                       <span className="font-medium">{b.name}</span>
                       <span className="font-black text-cyan-400">
-                        {b.count} {t.deliveriesCount}
+                        {b.count} {b.count === 1 ? t.deliverySingular : t.deliveriesCount}
                       </span>
                     </li>
                   ))}

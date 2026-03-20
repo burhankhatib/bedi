@@ -14,6 +14,7 @@ import { config } from 'dotenv'
 import { createClient } from 'next-sanity'
 import { apiVersion } from '../sanity/env'
 import { BY_BUSINESS_TYPE, type SubcategoryRow } from '../lib/business-subcategories-seed'
+import { createOrReplaceSubcategoryDocs } from '../lib/ensure-business-subcategories'
 
 config({ path: path.join(process.cwd(), '.env.local') })
 
@@ -46,34 +47,16 @@ async function main() {
     }
   }
 
-  console.log(`\n📦 Seeding ${allRows.length} business sub-categories...\n`)
+  console.log(`\n📦 Seeding ${allRows.length} business sub-categories (batched commits)...\n`)
+  console.log(`   project=${projectId} dataset=${dataset}\n`)
 
-  let success = 0
-  let failed = 0
-
-  for (const row of allRows) {
-    const docId = `businessSubcategory.${row.slug}-${row.businessType}`
-    const doc = {
-      _id: docId,
-      _type: 'businessSubcategory' as const,
-      slug: { _type: 'slug' as const, current: row.slug },
-      title_en: row.title_en,
-      title_ar: row.title_ar,
-      businessType: row.businessType,
-      sortOrder: row.sortOrder,
-    }
-
-    try {
-      await client.createOrReplace(doc)
-      success++
-      process.stdout.write(`  ✓ ${row.slug} (${row.businessType})\n`)
-    } catch (e) {
-      failed++
-      console.error(`  ✗ ${row.slug} (${row.businessType}):`, e)
-    }
+  try {
+    await createOrReplaceSubcategoryDocs(client, allRows)
+    console.log(`\n✅ Done. Created/updated ${allRows.length} documents.\n`)
+  } catch (e) {
+    console.error('\n❌ Seed failed:', e)
+    process.exit(1)
   }
-
-  console.log(`\n✅ Done. Created/Updated: ${success}, Failed: ${failed}\n`)
 }
 
 main().catch((e) => {

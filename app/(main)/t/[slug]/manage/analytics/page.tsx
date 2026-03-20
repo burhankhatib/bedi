@@ -39,13 +39,5 @@ export default async function TenantAnalyticsPage({
     console.error('[Tenant Analytics] Failed to fetch orders:', error)
   }
 
-  return (
-    <AnalyticsClient
-      initialOrders={orders}
-      wrapWithAdmin={false}
-      variant="tenant"
-      title="Analytics"
-      subtitle="Track orders, revenue, and performance for your site"
-    />
-  )
+  return <AnalyticsClient initialOrders={orders} wrapWithAdmin={false} variant="tenant" />
 }

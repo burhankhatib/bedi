@@ -10,24 +10,13 @@ export const businessCategoryType = defineType({
       name: 'value',
       title: 'Value (matches tenant businessType)',
       type: 'string',
-      options: {
-        list: [
-          { title: 'Restaurant', value: 'restaurant' },
-          { title: 'Cafe', value: 'cafe' },
-          { title: 'Bakery', value: 'bakery' },
-          { title: 'Grocery / Market', value: 'grocery' },
-          { title: 'Supermarket', value: 'supermarket' },
-          { title: 'Greengrocer', value: 'greengrocer' },
-          { title: 'Butcher', value: 'butcher' },
-          { title: 'Gas', value: 'gas' },
-          { title: 'Water', value: 'water' },
-          { title: 'Retail / Shop', value: 'retail' },
-          { title: 'Pharmacy', value: 'pharmacy' },
-          { title: 'Other', value: 'other' },
-        ],
-      },
-      validation: (Rule) => Rule.required(),
-      description: 'Must match the businessType tenants choose. Category only shows when businesses exist.',
+      description:
+        'Machine id: lowercase letters, numbers, hyphens — e.g. restaurant, juice_bar. Must match tenant.businessType. Add new types in Admin → Business taxonomy.',
+      validation: (Rule) =>
+        Rule.required().regex(
+          /^[a-z0-9][a-z0-9_-]*$/,
+          'machine id: lowercase start, then letters, numbers, hyphens or underscores'
+        ),
     }),
     defineField({
       name: 'name_en',
@@ -46,8 +35,7 @@ export const businessCategoryType = defineType({
       title: 'Category Image',
       type: 'image',
       options: { hotspot: true },
-      validation: (Rule) => Rule.required(),
-      description: 'Square or landscape recommended. Shown on homepage category grid.',
+      description: 'Square or landscape recommended. Shown on homepage tiles when set.',
     }),
     defineField({
       name: 'sortOrder',

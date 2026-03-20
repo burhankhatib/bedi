@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
       orderNumber: string
       deliveryFee?: number
       tipAmount?: number
+      deliveryFeePaidByBusiness?: boolean
       currency?: string
       completedAt?: string
       siteRef?: string
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
       orderNumber,
       deliveryFee,
       tipAmount,
+      deliveryFeePaidByBusiness,
       currency,
       completedAt,
       "siteRef": site._ref
@@ -65,11 +67,24 @@ export async function GET(req: NextRequest) {
     orderNumber: o.orderNumber,
     deliveryFee: o.deliveryFee ?? 0,
     tipAmount: o.tipAmount ?? 0,
+    deliveryFeePaidByBusiness: o.deliveryFeePaidByBusiness === true,
     currency: o.currency ?? 'ILS',
     completedAt: o.completedAt ?? o._id,
     areaName: '—',
     businessName: o.siteRef ? siteMap.get(o.siteRef) ?? '—' : '—',
   }))
 
-  return NextResponse.json({ orders }, { headers: { 'Cache-Control': 'no-store' } })
+  const businessSponsoredDeliveries = orders.filter((o) => o.deliveryFeePaidByBusiness === true).length
+
+  return NextResponse.json(
+    {
+      orders,
+      summary: {
+        totalCompletedDeliveries: orders.length,
+        businessSponsoredDeliveries,
+        customerPaidDeliveryFeeDeliveries: orders.length - businessSponsoredDeliveries,
+      },
+    },
+    { headers: { 'Cache-Control': 'no-store' } }
+  )
 }

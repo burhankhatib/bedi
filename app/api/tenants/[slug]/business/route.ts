@@ -5,7 +5,8 @@ import { token } from '@/sanity/lib/token'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 import { slugify } from '@/lib/slugify'
 import { isVerifiedPhoneForUser } from '@/lib/order-auth'
-import { BUSINESS_TYPES, isAllowedRegistrationCountry } from '@/lib/constants'
+import { isAllowedRegistrationCountry } from '@/lib/constants'
+import { getAllowedBusinessTypeValues } from '@/lib/allowed-business-types'
 import { urlFor } from '@/sanity/lib/image'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
@@ -204,7 +205,7 @@ export async function PATCH(
 
   if (body.name != null) tenantSet.name = String(body.name)
   if (body.businessType != null) {
-    const validTypes = new Set<string>(BUSINESS_TYPES.map((t) => t.value))
+    const validTypes = await getAllowedBusinessTypeValues()
     const bt = String(body.businessType).trim()
     if (validTypes.has(bt)) tenantSet.businessType = bt
   }

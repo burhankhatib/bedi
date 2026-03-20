@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, Shield, FileWarning, Building2, Users, Truck, BarChart3, Layout, ArrowRightLeft, MapPin, Megaphone, Package, Zap, Upload } from 'lucide-react'
+import { Menu, Shield, FileWarning, Building2, Users, Truck, BarChart3, Layout, ArrowRightLeft, MapPin, Megaphone, Package, Zap, Upload, Layers } from 'lucide-react'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 
@@ -13,6 +13,7 @@ const nav = [
   { href: '/admin/import-menu', label: 'Import menu (JSON)', icon: Upload },
   { href: '/admin/catalog', label: 'Product Catalog', icon: Package },
   { href: '/admin/areas', label: 'Platform Areas', icon: MapPin },
+  { href: '/admin/business-taxonomy', label: 'Business taxonomy', icon: Layers },
   { href: '/admin/seed-subcategories', label: 'Seed Subcategories', icon: Zap },
   { href: '/admin/transfers', label: 'Transfers', icon: ArrowRightLeft },
   { href: '/admin/drivers', label: 'Drivers', icon: Truck },

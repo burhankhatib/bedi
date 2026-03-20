@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { TrendingUp, Package, DollarSign, Users, Star, Truck, UtensilsCrossed, Store, Calendar, Award, BarChart3 } from 'lucide-react'
+import { TrendingUp, Package, DollarSign, Users, Star, Truck, UtensilsCrossed, Store, Calendar, Award, BarChart3, Download } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { formatCurrency } from '@/lib/currency'
+import { csvCell, downloadCsv } from '@/lib/csv-export'
 import { getDriverDisplayNameForBusiness } from '@/lib/driver-display'
 import { AdminProtection } from '@/components/Auth/AdminProtection'
 
@@ -17,6 +18,10 @@ interface OrderStats {
   receiveInPersonOrders: number
   dineInOrders: number
   deliveryOrders: number
+  /** Delivery orders where the business offers free delivery (customer not charged delivery on total). */
+  freeDeliveryOrders: number
+  /** Delivery orders where the customer paid the delivery fee on checkout. */
+  customerPaidDeliveryFeeOrders: number
   completedOrders: number
   cancelledOrders: number
   refundedOrders: number
@@ -49,8 +54,10 @@ interface Order {
   }>
   totalAmount: number
   deliveryFee?: number
+  deliveryFeePaidByBusiness?: boolean
   currency: string
   createdAt: string
+  completedAt?: string
   deliveryArea?: {
     name_en: string
   }
@@ -66,22 +73,57 @@ interface AnalyticsClientProps {
   initialOrders: Order[]
   /** When false, do not wrap with AdminProtection (e.g. tenant dashboard) */
   wrapWithAdmin?: boolean
-  /** Page title (default: "Analytics Dashboard") */
-  title?: string
-  /** Subtitle below title */
-  subtitle?: string
   /** Tenant dashboard: business-focused cards, default Today, top drivers, no delivery "revenue" */
   variant?: 'tenant'
+}
+
+function filterOrdersByAnalyticsPeriod(
+  ordersToCalculate: Order[],
+  dateRange: 'today' | 'week' | 'month' | 'all',
+  startDate: string,
+  endDate: string
+): Order[] {
+  let filteredOrders = ordersToCalculate
+  const now = new Date()
+
+  if (startDate && endDate) {
+    const start = new Date(startDate + 'T00:00:00')
+    const end = new Date(endDate + 'T23:59:59')
+    filteredOrders = filteredOrders.filter((o) => {
+      const orderDate = new Date(o.createdAt)
+      return orderDate >= start && orderDate <= end
+    })
+  } else if (dateRange === 'today') {
+    const startOfDay = new Date(now.setHours(0, 0, 0, 0))
+    filteredOrders = filteredOrders.filter((o) => new Date(o.createdAt) >= startOfDay)
+  } else if (dateRange === 'week') {
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    filteredOrders = filteredOrders.filter((o) => new Date(o.createdAt) >= weekAgo)
+  } else if (dateRange === 'month') {
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    filteredOrders = filteredOrders.filter((o) => new Date(o.createdAt) >= monthAgo)
+  }
+
+  return filteredOrders
 }
 
 export function AnalyticsClient({
   initialOrders,
   wrapWithAdmin = true,
-  title = 'Analytics Dashboard',
-  subtitle = 'Business insights and performance metrics',
   variant,
 }: AnalyticsClientProps) {
   const { t } = useLanguage()
+  const displayTitle =
+    variant === 'tenant'
+      ? t('Analytics', 'التحليلات')
+      : t('Analytics Dashboard', 'لوحة التحليلات')
+  const displaySubtitle =
+    variant === 'tenant'
+      ? t(
+          'Track orders, revenue, and performance for your site.',
+          'تتبّع الطلبات والإيرادات وأداء نشاطك التجاري.'
+        )
+      : t('Business insights and performance metrics.', 'رؤى الأعمال ومؤشرات الأداء.')
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [stats, setStats] = useState<OrderStats | null>(null)
   const [popularProducts, setPopularProducts] = useState<PopularProduct[]>([])
@@ -98,31 +140,13 @@ export function AnalyticsClient({
     setOrders(initialOrders)
   }, [initialOrders])
 
-  const calculateStats = useCallback((ordersToCalculate: Order[]) => {
-    // Filter out cancelled and refunded orders from revenue calculations
-    const activeOrders = ordersToCalculate.filter(o => o.status !== 'cancelled' && o.status !== 'refunded')
+  const filteredOrdersForPeriod = useMemo(
+    () => filterOrdersByAnalyticsPeriod(orders, dateRange, startDate, endDate),
+    [orders, dateRange, startDate, endDate]
+  )
 
-    // Apply date filtering
-    let filteredOrders = ordersToCalculate
-    const now = new Date()
-
-    if (startDate && endDate) {
-      const start = new Date(startDate + 'T00:00:00')
-      const end = new Date(endDate + 'T23:59:59')
-      filteredOrders = filteredOrders.filter(o => {
-        const orderDate = new Date(o.createdAt)
-        return orderDate >= start && orderDate <= end
-      })
-    } else if (dateRange === 'today') {
-      const startOfDay = new Date(now.setHours(0, 0, 0, 0))
-      filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= startOfDay)
-    } else if (dateRange === 'week') {
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-      filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= weekAgo)
-    } else if (dateRange === 'month') {
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-      filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= monthAgo)
-    }
+  const calculateStats = useCallback((periodOrders: Order[]) => {
+    const filteredOrders = periodOrders
 
     const activeFilteredOrders = filteredOrders.filter(o => o.status !== 'cancelled' && o.status !== 'refunded')
 
@@ -137,7 +161,10 @@ export function AnalyticsClient({
     // Order types
     const receiveInPersonOrders = filteredOrders.filter(o => o.orderType === 'receive-in-person').length
     const dineInOrders = filteredOrders.filter(o => o.orderType === 'dine-in').length
-    const deliveryOrders = filteredOrders.filter(o => o.orderType === 'delivery').length
+    const deliveryOrdersList = filteredOrders.filter(o => o.orderType === 'delivery')
+    const deliveryOrders = deliveryOrdersList.length
+    const freeDeliveryOrders = deliveryOrdersList.filter((o) => o.deliveryFeePaidByBusiness === true).length
+    const customerPaidDeliveryFeeOrders = deliveryOrdersList.filter((o) => o.deliveryFeePaidByBusiness !== true).length
 
     // Status
     const completedOrders = filteredOrders.filter(o => o.status === 'completed').length
@@ -160,6 +187,8 @@ export function AnalyticsClient({
       receiveInPersonOrders,
       dineInOrders,
       deliveryOrders,
+      freeDeliveryOrders,
+      customerPaidDeliveryFeeOrders,
       completedOrders,
       cancelledOrders,
       refundedOrders,
@@ -219,15 +248,21 @@ export function AnalyticsClient({
     const driverMap = new Map<string, number>()
     deliveryCompleted.forEach(o => {
       const id = o.assignedDriver!._id
-      const name = o.assignedDriver!.name || 'Driver'
       driverMap.set(id, (driverMap.get(id) ?? 0) + 1)
     })
     const driverNames = new Map<string, string>()
     deliveryCompleted.forEach(o => {
-      if (o.assignedDriver) driverNames.set(o.assignedDriver._id, getDriverDisplayNameForBusiness(o.assignedDriver) || 'Driver')
+      if (o.assignedDriver)
+        driverNames.set(
+          o.assignedDriver._id,
+          getDriverDisplayNameForBusiness(o.assignedDriver) || t('Driver', 'سائق')
+        )
     })
     const topDriversList = Array.from(driverMap.entries())
-      .map(([id, count]) => ({ driverName: driverNames.get(id) || 'Driver', completedDeliveries: count }))
+      .map(([id, count]) => ({
+        driverName: driverNames.get(id) || t('Driver', 'سائق'),
+        completedDeliveries: count,
+      }))
       .sort((a, b) => b.completedDeliveries - a.completedDeliveries)
       .slice(0, 10)
     setTopDrivers(topDriversList)
@@ -252,13 +287,54 @@ export function AnalyticsClient({
     setOrdersByDay(
       Array.from(dayCounts.entries()).map(([day, count]) => ({ day, label: dayLabels[day], count }))
     )
-  }, [dateRange, startDate, endDate, t])
+  }, [t])
 
   useEffect(() => {
-    calculateStats(orders)
-  }, [orders, calculateStats])
+    calculateStats(filteredOrdersForPeriod)
+  }, [filteredOrdersForPeriod, calculateStats])
 
   const currency = orders[0]?.currency || 'ILS'
+
+  const exportOrdersCsv = useCallback(() => {
+    if (filteredOrdersForPeriod.length === 0) return
+    const header = [
+      'orderNumber',
+      'createdAt',
+      'completedAt',
+      'orderType',
+      'status',
+      'customerName',
+      'totalAmount',
+      'currency',
+      'deliveryFee',
+      'businessSponsoredDelivery',
+      'deliveryArea',
+      'driver',
+    ]
+    const lines = [header.join(',')]
+    for (const o of filteredOrdersForPeriod) {
+      const area = o.deliveryArea?.name_en ?? ''
+      const driver = o.assignedDriver ? getDriverDisplayNameForBusiness(o.assignedDriver) || '' : ''
+      lines.push(
+        [
+          csvCell(o.orderNumber),
+          csvCell(o.createdAt),
+          csvCell(o.completedAt ?? ''),
+          csvCell(o.orderType),
+          csvCell(o.status),
+          csvCell(o.customerName),
+          csvCell(o.totalAmount),
+          csvCell(o.currency),
+          csvCell(o.deliveryFee ?? ''),
+          csvCell(o.deliveryFeePaidByBusiness ? 'yes' : 'no'),
+          csvCell(area),
+          csvCell(driver),
+        ].join(',')
+      )
+    }
+    const rangeLabel = startDate && endDate ? `${startDate}_${endDate}` : dateRange
+    downloadCsv(`zonify-analytics-orders-${rangeLabel}-${new Date().toISOString().slice(0, 10)}.csv`, lines)
+  }, [filteredOrdersForPeriod, dateRange, startDate, endDate])
 
   const content = (
     <div className="min-h-screen bg-slate-950 p-4 md:p-8">
@@ -269,11 +345,9 @@ export function AnalyticsClient({
             <div>
               <h1 className="text-3xl font-black mb-1 flex items-center gap-2">
                 <TrendingUp className="w-8 h-8" />
-                {title}
+                {displayTitle}
               </h1>
-              <p className="text-slate-300">
-                {subtitle}
-              </p>
+              <p className="text-slate-300">{displaySubtitle}</p>
             </div>
           </div>
 
@@ -291,7 +365,7 @@ export function AnalyticsClient({
                   className={`rounded-lg ${dateRange === 'today' && !startDate ? 'bg-white text-black' : 'bg-white/10 border-white/20 text-white hover:bg-white/20'}`}
                 >
                   <Calendar className="w-4 h-4 mr-1" />
-                  Today
+                  {t('Today', 'اليوم')}
                 </Button>
                 <Button
                   onClick={() => {
@@ -303,7 +377,7 @@ export function AnalyticsClient({
                   size="sm"
                   className={`rounded-lg ${dateRange === 'week' && !startDate ? 'bg-white text-black' : 'bg-white/10 border-white/20 text-white hover:bg-white/20'}`}
                 >
-                  Last 7 Days
+                  {t('Last 7 days', 'آخر 7 أيام')}
                 </Button>
                 <Button
                   onClick={() => {
@@ -315,7 +389,7 @@ export function AnalyticsClient({
                   size="sm"
                   className={`rounded-lg ${dateRange === 'month' && !startDate ? 'bg-white text-black' : 'bg-white/10 border-white/20 text-white hover:bg-white/20'}`}
                 >
-                  Last 30 Days
+                  {t('Last 30 days', 'آخر 30 يوماً')}
                 </Button>
                 <Button
                   onClick={() => {
@@ -327,13 +401,13 @@ export function AnalyticsClient({
                   size="sm"
                   className={`rounded-lg ${dateRange === 'all' && !startDate ? 'bg-white text-black' : 'bg-white/10 border-white/20 text-white hover:bg-white/20'}`}
                 >
-                  All Time
+                  {t('All time', 'كل الفترات')}
                 </Button>
               </div>
 
               {/* Custom Time Range */}
               <div className="flex gap-2 items-center flex-wrap">
-                <span className="text-sm text-slate-300">Custom Range:</span>
+                <span className="text-sm text-slate-300">{t('Custom range:', 'فترة مخصصة:')}</span>
                 <Input
                   type="date"
                   value={startDate}
@@ -342,9 +416,9 @@ export function AnalyticsClient({
                     setDateRange('all')
                   }}
                   className="w-fit rounded-lg bg-white/10 border-white/20 text-white placeholder:text-slate-400 focus:ring-2 focus:ring-white"
-                  placeholder="Start date"
+                  placeholder={t('Start date', 'من تاريخ')}
                 />
-                <span className="text-slate-300">to</span>
+                <span className="text-slate-300">{t('to', 'إلى')}</span>
                 <Input
                   type="date"
                   value={endDate}
@@ -353,7 +427,7 @@ export function AnalyticsClient({
                     setDateRange('all')
                   }}
                   className="w-fit rounded-lg bg-white/10 border-white/20 text-white placeholder:text-slate-400 focus:ring-2 focus:ring-white"
-                  placeholder="End date"
+                  placeholder={t('End date', 'إلى تاريخ')}
                 />
                 {(startDate || endDate) && (
                   <Button
@@ -366,7 +440,19 @@ export function AnalyticsClient({
                     size="sm"
                     className="rounded-lg bg-white/10 border-white/20 text-white hover:bg-white/20"
                   >
-                    Clear
+                    {t('Clear', 'مسح')}
+                  </Button>
+                )}
+                {filteredOrdersForPeriod.length > 0 && (
+                  <Button
+                    type="button"
+                    onClick={exportOrdersCsv}
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg bg-white/10 border-white/20 text-white hover:bg-white/20"
+                  >
+                    <Download className="w-4 h-4 mr-1 shrink-0" />
+                    {t('Export CSV', 'تصدير CSV')}
                   </Button>
                 )}
               </div>
@@ -384,7 +470,7 @@ export function AnalyticsClient({
                   </div>
                 </div>
                 <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-1">
-                  Total Revenue
+                  {t('Total revenue', 'إجمالي الإيرادات')}
                 </h3>
                 <p className="text-3xl font-black text-white">
                   {stats.totalRevenue.toFixed(2)} {formatCurrency(currency)}
@@ -399,13 +485,17 @@ export function AnalyticsClient({
                   </div>
                 </div>
                 <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-1">
-                  Total Orders
+                  {t('Total orders', 'إجمالي الطلبات')}
                 </h3>
                 <p className="text-3xl font-black text-white">{stats.totalOrders}</p>
                 <p className="text-sm text-slate-400 mt-1">
-                  {stats.completedOrders} completed
-                  {stats.cancelledOrders > 0 ? ` • ${stats.cancelledOrders} cancelled` : ''}
-                  {stats.refundedOrders > 0 ? ` • ${stats.refundedOrders} refunded` : ''}
+                  {stats.completedOrders} {t('completed', 'مكتملة')}
+                  {stats.cancelledOrders > 0
+                    ? ` • ${stats.cancelledOrders} ${t('cancelled', 'ملغاة')}`
+                    : ''}
+                  {stats.refundedOrders > 0
+                    ? ` • ${stats.refundedOrders} ${t('refunded', 'مستردة')}`
+                    : ''}
                 </p>
               </div>
 
@@ -417,7 +507,7 @@ export function AnalyticsClient({
                   </div>
                 </div>
                 <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-1">
-                  Avg Order Value
+                  {t('Avg. order value', 'متوسط قيمة الطلب')}
                 </h3>
                 <p className="text-3xl font-black text-white">
                   {stats.averageOrderValue.toFixed(2)} {formatCurrency(currency)}
@@ -432,7 +522,7 @@ export function AnalyticsClient({
                   </div>
                 </div>
                 <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-1">
-                  Unique Customers
+                  {t('Unique customers', 'عملاء فريدون')}
                 </h3>
                 <p className="text-3xl font-black text-white">{stats.totalCustomers}</p>
               </div>
@@ -499,7 +589,7 @@ export function AnalyticsClient({
               {/* Delivery Stats — for business: delivery fees go to drivers, so we show counts only */}
               <div className="bg-slate-800/80 border border-slate-700 rounded-2xl shadow-lg p-6 text-white">
                 <h3 className="text-lg font-black mb-4 text-white">
-                  {variant === 'tenant' ? t('Delivery Overview', 'نظرة على التوصيل') : 'Delivery Stats'}
+                  {variant === 'tenant' ? t('Delivery Overview', 'نظرة على التوصيل') : t('Delivery stats', 'إحصائيات التوصيل')}
                 </h3>
                 <div className="space-y-4">
                   <div>
@@ -509,15 +599,53 @@ export function AnalyticsClient({
                       <p className="text-xs text-slate-500 mt-1">{t('Fees go to drivers', 'الرسوم تذهب للسائقين')}</p>
                     )}
                   </div>
+                  {stats.deliveryOrders > 0 && (
+                    <div className="rounded-xl border border-slate-600/60 bg-slate-900/50 p-3 space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        {t('Free delivery breakdown', 'تفاصيل التوصيل المجاني')}
+                      </p>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-amber-200/95">
+                          {t(
+                            'Free for customer (you sponsor)',
+                            'مجاني للعميل (أنت تتحمّل رسوم التوصيل)'
+                          )}
+                        </span>
+                        <span className="font-black tabular-nums text-white">{stats.freeDeliveryOrders}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className="text-slate-300">
+                          {t('Customer paid delivery', 'دفع العميل رسوم التوصيل')}
+                        </span>
+                        <span className="font-black tabular-nums text-white">{stats.customerPaidDeliveryFeeOrders}</span>
+                      </div>
+                      {variant === 'tenant' && (
+                        <p className="text-xs text-slate-500 pt-1 border-t border-slate-700/80">
+                          {t(
+                            'Sponsored deliveries still use a delivery fee for the driver; the customer did not pay it on their order total.',
+                            'التوصيل المُعلن «مجاناً» للعميل لا يزال يقترن برسوم توصيل للسائق؛ العميل لم يدفعها ضمن إجمالي طلبه.'
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <div>
-                    <p className="text-sm text-slate-400 mb-1">Avg Delivery Fee</p>
+                    <p className="text-sm text-slate-400 mb-1">{t('Avg. delivery fee', 'متوسط رسوم التوصيل')}</p>
                     <p className="text-2xl font-black text-white">
                       {stats.averageDeliveryFee.toFixed(2)} {formatCurrency(currency)}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {t(
+                        'Average of line-item delivery fees on delivery orders.',
+                        'متوسط رسوم التوصيل المسجّلة على طلبات التوصيل.'
+                      )}
                     </p>
                   </div>
                   {variant !== 'tenant' && (
                     <div>
-                      <p className="text-sm text-slate-400 mb-1">Total Delivery Revenue</p>
+                      <p className="text-sm text-slate-400 mb-1">
+                        {t('Total delivery revenue', 'إيرادات التوصيل')}
+                      </p>
                       <p className="text-2xl font-black text-white">
                         {orders
                           .filter(o => o.orderType === 'delivery' && o.status !== 'cancelled' && o.status !== 'refunded')
@@ -531,7 +659,9 @@ export function AnalyticsClient({
 
               {/* Success Rate */}
               <div className="bg-slate-800/80 border border-slate-700 rounded-2xl shadow-lg p-6 text-white">
-                <h3 className="text-lg font-black mb-4 text-white">Order Completion</h3>
+                <h3 className="text-lg font-black mb-4 text-white">
+                  {t('Order completion', 'إكمال الطلبات')}
+                </h3>
                 <div className="text-center">
                   <div className="inline-flex items-center justify-center w-32 h-32 rounded-full bg-green-500/20 border border-green-500/30 mb-3">
                     <div className="text-center">
@@ -543,12 +673,20 @@ export function AnalyticsClient({
                     </div>
                   </div>
                   <p className="text-sm text-slate-400">
-                    {stats.completedOrders} of {stats.totalOrders - stats.cancelledOrders - stats.refundedOrders} active orders completed
+                    {(() => {
+                      const activeTotal = stats.totalOrders - stats.cancelledOrders - stats.refundedOrders
+                      return t(
+                        `${stats.completedOrders} of ${activeTotal} active orders completed`,
+                        `اكتمل ${stats.completedOrders} من أصل ${activeTotal} طلباً نشطاً`
+                      )
+                    })()}
                     {(stats.cancelledOrders > 0 || stats.refundedOrders > 0) && (
                       <span className="block text-red-400 mt-1">
-                        {stats.cancelledOrders > 0 && `${stats.cancelledOrders} cancelled`}
+                        {stats.cancelledOrders > 0 &&
+                          `${stats.cancelledOrders} ${t('cancelled', 'ملغاة')}`}
                         {stats.cancelledOrders > 0 && stats.refundedOrders > 0 && ' • '}
-                        {stats.refundedOrders > 0 && `${stats.refundedOrders} refunded`}
+                        {stats.refundedOrders > 0 &&
+                          `${stats.refundedOrders} ${t('refunded', 'مستردة')}`}
                       </span>
                     )}
                   </p>
@@ -582,7 +720,11 @@ export function AnalyticsClient({
                     </div>
                     <div className="text-right">
                       <p className="font-black text-2xl text-white">{driver.completedDeliveries}</p>
-                      <p className="text-sm text-slate-400">{t('deliveries', 'توصيلة')}</p>
+                      <p className="text-sm text-slate-400">
+                        {driver.completedDeliveries === 1
+                          ? t('delivery', 'توصيلة')
+                          : t('deliveries', 'توصيلات')}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -606,7 +748,7 @@ export function AnalyticsClient({
                         <div
                           className="w-8 rounded-t bg-cyan-500/80 min-h-[4px]"
                           style={{ height: `${Math.max(4, Math.min(80, count * 12))}px` }}
-                          title={`${count} orders`}
+                          title={`${count} ${count === 1 ? t('order', 'طلب') : t('orders', 'طلبات')}`}
                         />
                         <span className="text-xs font-medium text-white">{count}</span>
                       </div>
@@ -645,10 +787,12 @@ export function AnalyticsClient({
           <div className="bg-slate-800/80 border border-slate-700 rounded-2xl shadow-lg p-6 mb-6 text-white">
             <h3 className="text-xl font-black mb-4 flex items-center gap-2 text-white">
               <Star className="w-6 h-6 text-yellow-400" />
-              Top 10 Most Ordered Products
+              {t('Top 10 most ordered products', 'أكثر 10 أصناف طلباً')}
             </h3>
             {popularProducts.length === 0 ? (
-              <p className="text-center text-slate-400 py-8">No products data available</p>
+              <p className="text-center text-slate-400 py-8">
+                {t('No product data for this period.', 'لا توجد بيانات أصناف لهذه الفترة.')}
+              </p>
             ) : (
               <div className="space-y-3">
                 {popularProducts.map((product, index) => (
@@ -667,7 +811,8 @@ export function AnalyticsClient({
                       <div>
                         <p className="font-bold text-lg text-white">{product.productName}</p>
                         <p className="text-sm text-slate-400">
-                          Ordered {product.orderCount} times
+                          {t('Ordered', 'طُلِبَ')} {product.orderCount}{' '}
+                          {product.orderCount === 1 ? t('time', 'مرة') : t('times', 'مرات')}
                         </p>
                       </div>
                     </div>
@@ -688,7 +833,7 @@ export function AnalyticsClient({
             <div className="bg-slate-800/80 border border-slate-700 rounded-2xl shadow-lg p-6 text-white">
               <h3 className="text-xl font-black mb-4 flex items-center gap-2 text-white">
                 <Truck className="w-6 h-6 text-green-400" />
-                Revenue by Delivery Area
+                {t('Revenue by delivery area', 'الإيرادات حسب منطقة التوصيل')}
               </h3>
               <div className="space-y-3">
                 {revenueByArea.map((area) => (
@@ -699,7 +844,8 @@ export function AnalyticsClient({
                     <div>
                       <p className="font-bold text-lg text-white">{area.areaName}</p>
                       <p className="text-sm text-slate-400">
-                        {area.orderCount} {area.orderCount === 1 ? 'order' : 'orders'}
+                        {area.orderCount}{' '}
+                        {area.orderCount === 1 ? t('order', 'طلب') : t('orders', 'طلبات')}
                       </p>
                     </div>
                     <div className="text-right">
@@ -707,7 +853,8 @@ export function AnalyticsClient({
                         {area.totalRevenue.toFixed(2)} {formatCurrency(currency)}
                       </p>
                       <p className="text-sm text-slate-400">
-                        Avg: {(area.totalRevenue / area.orderCount).toFixed(2)} {formatCurrency(currency)}
+                        {t('Avg.', 'المتوسط:')}{' '}
+                        {(area.totalRevenue / area.orderCount).toFixed(2)} {formatCurrency(currency)}
                       </p>
                     </div>
                   </div>
@@ -720,7 +867,7 @@ export function AnalyticsClient({
   )
 
   if (wrapWithAdmin) {
-    return <AdminProtection pageName={title}>{content}</AdminProtection>
+    return <AdminProtection pageName={displayTitle}>{content}</AdminProtection>
   }
   return content
 }

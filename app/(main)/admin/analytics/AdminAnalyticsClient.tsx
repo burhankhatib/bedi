@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Calendar,
   DollarSign,
+  Download,
 } from 'lucide-react'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -104,6 +105,19 @@ type BusinessStat = {
   completedCount: number
   revenue?: number
   lastOrderAt: string | null
+  deliveryCompleted?: number
+  sponsoredDelivery?: number
+  customerPaidDelivery?: number
+  /** Completed deliveries where completedAt is in range (operations); null when no date filter. */
+  deliveryCompletedOps?: number | null
+  sponsoredDeliveryOps?: number | null
+  customerPaidDeliveryOps?: number | null
+}
+
+type DeliveryAnalytics = {
+  completedDeliveryOrders: number
+  sponsoredDeliveryCompleted: number
+  customerPaidDeliveryCompleted: number
 }
 
 type Stats = {
@@ -115,6 +129,9 @@ type Stats = {
   businessStats?: BusinessStat[]
   ordersWithNoTenant?: number
   totalRevenue?: number
+  deliveryAnalytics?: DeliveryAnalytics
+  /** Deliveries completed in range (by completedAt); null when viewing all time. */
+  deliveryAnalyticsByCompletion?: DeliveryAnalytics | null
   dateFrom?: string | null
   dateTo?: string | null
 }
@@ -179,6 +196,9 @@ export function AdminAnalyticsClient() {
   const statusEntries = Object.entries(ordersByStatus).sort((a, b) => b[1] - a[1])
   const businessStats = stats?.businessStats ?? []
   const totalRevenue = stats?.totalRevenue ?? 0
+  const deliveryAnalytics = stats?.deliveryAnalytics
+  const deliveryAnalyticsByCompletion = stats?.deliveryAnalyticsByCompletion
+  const showOpsDelivery = deliveryAnalyticsByCompletion != null
 
   const formatDate = (iso: string | null) => {
     if (!iso) return '—'
@@ -192,10 +212,23 @@ export function AdminAnalyticsClient() {
     <div className="mt-6 space-y-8">
       {/* Date filter */}
       <div className="rounded-2xl border border-slate-800/60 bg-slate-900/40 p-4 md:p-5">
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-          <Calendar className="size-5 text-slate-400" />
-          Time period
-        </h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Calendar className="size-5 text-slate-400" />
+            Time period
+          </h2>
+          <a
+            href={
+              dateRange
+                ? `/api/admin/stats?${new URLSearchParams({ from: dateRange.from, to: dateRange.to, download: '1' }).toString()}`
+                : '/api/admin/stats?download=1'
+            }
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800/80 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700/80"
+          >
+            <Download className="size-4 shrink-0" />
+            Download JSON
+          </a>
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {(['all', 'today', 'yesterday', 'last3', 'last7', 'lastMonth', 'lastYear', 'custom'] as DatePreset[]).map((preset) => (
             <button
@@ -307,6 +340,65 @@ export function AdminAnalyticsClient() {
         </div>
       )}
 
+      {/* Completed delivery & free-to-customer (business-sponsored) — same date window as orders (by createdAt) */}
+      {stats != null && deliveryAnalytics != null && (
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-6">
+          <div className="flex items-center gap-2">
+            <Truck className="size-6 text-emerald-400" />
+            <h2 className="text-lg font-semibold text-white">Delivery completion &amp; sponsorship</h2>
+          </div>
+          <p className="mt-1 text-sm text-slate-400">
+            Completed delivery orders in this period (order <span className="font-mono text-slate-300">createdAt</span> in range). “Free to
+            customer” means the business covered the delivery fee on the customer&apos;s receipt; the driver fee can still apply.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Completed deliveries</p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-white">{deliveryAnalytics.completedDeliveryOrders}</p>
+            </div>
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-amber-200/80">Free to customer (sponsored)</p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-amber-300">{deliveryAnalytics.sponsoredDeliveryCompleted}</p>
+            </div>
+            <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Customer paid delivery</p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-slate-200">{deliveryAnalytics.customerPaidDeliveryCompleted}</p>
+            </div>
+          </div>
+          {deliveryAnalytics.completedDeliveryOrders === 0 && (
+            <p className="mt-3 text-xs text-slate-500">No completed delivery orders in the selected window.</p>
+          )}
+        </div>
+      )}
+
+      {/* Operations: deliveries completed in period (by completedAt) — only when a date range is selected */}
+      {stats != null && deliveryAnalyticsByCompletion != null && (
+        <div className="rounded-2xl border border-cyan-500/25 bg-cyan-950/15 p-6">
+          <div className="flex items-center gap-2">
+            <Truck className="size-6 text-cyan-400" />
+            <h2 className="text-lg font-semibold text-white">Operations view (by completion time)</h2>
+          </div>
+          <p className="mt-1 text-sm text-slate-400">
+            Completed delivery orders whose <span className="font-mono text-slate-300">completedAt</span> falls in the same range. Use this
+            to reconcile driver payouts and fulfillment; the block above follows order <span className="font-mono text-slate-300">createdAt</span>.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Completed deliveries</p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-white">{deliveryAnalyticsByCompletion.completedDeliveryOrders}</p>
+            </div>
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/5 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-amber-200/80">Free to customer (sponsored)</p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-amber-300">{deliveryAnalyticsByCompletion.sponsoredDeliveryCompleted}</p>
+            </div>
+            <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Customer paid delivery</p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-slate-200">{deliveryAnalyticsByCompletion.customerPaidDeliveryCompleted}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Per-business metrics */}
       <div className="rounded-2xl border border-slate-800/60 bg-slate-900/40 overflow-hidden">
         <div className="border-b border-slate-800/60 px-4 py-3 md:px-6">
@@ -321,6 +413,34 @@ export function AdminAnalyticsClient() {
                 <th className="px-4 py-3 font-medium md:px-6">Slug</th>
                 <th className="px-4 py-3 font-medium md:px-6 text-right">Orders</th>
                 <th className="px-4 py-3 font-medium md:px-6 text-right">Completed</th>
+                <th className="px-4 py-3 font-medium md:px-6 text-right" title="Completed delivery orders (created in period)">
+                  Del. done
+                </th>
+                <th className="px-4 py-3 font-medium md:px-6 text-right text-amber-200/90" title="Business-sponsored: free delivery on customer receipt">
+                  Sponsored
+                </th>
+                <th className="px-4 py-3 font-medium md:px-6 text-right" title="Customer paid delivery fee on receipt">
+                  Cust. paid
+                </th>
+                {showOpsDelivery && (
+                  <>
+                    <th
+                      className="px-4 py-3 font-medium md:px-6 text-right text-cyan-200/85"
+                      title="Completed deliveries with completedAt in range (operations)"
+                    >
+                      Ops del.
+                    </th>
+                    <th
+                      className="px-4 py-3 font-medium md:px-6 text-right text-amber-200/85"
+                      title="Sponsored among ops deliveries"
+                    >
+                      Ops spons.
+                    </th>
+                    <th className="px-4 py-3 font-medium md:px-6 text-right text-cyan-200/85" title="Customer-paid fee among ops deliveries">
+                      Ops cust.
+                    </th>
+                  </>
+                )}
                 <th className="px-4 py-3 font-medium md:px-6 text-right">Revenue</th>
                 <th className="px-4 py-3 font-medium md:px-6">Last order</th>
                 <th className="px-4 py-3 md:px-6 text-right">Actions</th>
@@ -329,7 +449,7 @@ export function AdminAnalyticsClient() {
             <tbody>
               {businessStats.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-slate-500 md:px-6">
+                  <td colSpan={showOpsDelivery ? 13 : 10} className="px-4 py-12 text-center text-slate-500 md:px-6">
                     No businesses or no order data yet.
                   </td>
                 </tr>
@@ -348,6 +468,16 @@ export function AdminAnalyticsClient() {
                     <td className="px-4 py-3 font-mono text-xs text-slate-400 md:px-6">/t/{b.slug}</td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums md:px-6">{b.ordersCount}</td>
                     <td className="px-4 py-3 text-right text-emerald-400 tabular-nums md:px-6">{b.completedCount}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-300 md:px-6">{b.deliveryCompleted ?? 0}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-amber-300 md:px-6">{b.sponsoredDelivery ?? 0}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-300 md:px-6">{b.customerPaidDelivery ?? 0}</td>
+                    {showOpsDelivery && (
+                      <>
+                        <td className="px-4 py-3 text-right tabular-nums text-cyan-200/90 md:px-6">{b.deliveryCompletedOps ?? 0}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-amber-300 md:px-6">{b.sponsoredDeliveryOps ?? 0}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-cyan-200/90 md:px-6">{b.customerPaidDeliveryOps ?? 0}</td>
+                      </>
+                    )}
                     <td className="px-4 py-3 text-right text-amber-400 tabular-nums md:px-6">{formatRevenue(b.revenue ?? 0)}</td>
                     <td className="px-4 py-3 text-slate-400 md:px-6">{formatDate(b.lastOrderAt)}</td>
                     <td className="px-4 py-3 md:px-6">

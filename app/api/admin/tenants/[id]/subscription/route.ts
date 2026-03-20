@@ -7,6 +7,12 @@ import { getEmailForUser } from '@/lib/getClerkEmail'
 
 const writeClient = client.withConfig({ token, useCdn: false })
 
+const SUBSCRIPTION_PLANS = ['basic', 'pro', 'ultra'] as const
+
+function isValidPlan(v: unknown): v is (typeof SUBSCRIPTION_PLANS)[number] {
+  return typeof v === 'string' && (SUBSCRIPTION_PLANS as readonly string[]).includes(v)
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -14,7 +20,7 @@ export async function PATCH(
   const { id } = await params
   const { userId, sessionClaims } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  
+
   let ownerEmail = ''
   try {
     ownerEmail = await getEmailForUser(userId, sessionClaims as Record<string, unknown> | null)
@@ -27,28 +33,40 @@ export async function PATCH(
 
   try {
     const body = await req.json()
-    const { subscriptionExpiresAt, subscriptionStatus } = body
+    const { subscriptionExpiresAt, subscriptionStatus, subscriptionPlan } = body as {
+      subscriptionExpiresAt?: string | null
+      subscriptionStatus?: string
+      subscriptionPlan?: string
+    }
 
-    const updateData: any = {}
+    const updateData: Record<string, unknown> = {}
+
     if (subscriptionExpiresAt !== undefined) {
       updateData.subscriptionExpiresAt = subscriptionExpiresAt
     }
-    if (subscriptionStatus !== undefined) {
+    if (subscriptionStatus !== undefined && typeof subscriptionStatus === 'string') {
       updateData.subscriptionStatus = subscriptionStatus
+    }
+    if (subscriptionPlan !== undefined) {
+      if (!isValidPlan(subscriptionPlan)) {
+        return NextResponse.json(
+          { error: 'Invalid subscriptionPlan; expected basic, pro, or ultra' },
+          { status: 400 }
+        )
+      }
+      updateData.subscriptionPlan = subscriptionPlan
     }
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No data to update' }, { status: 400 })
     }
 
-    const updated = await writeClient
-      .patch(id)
-      .set(updateData)
-      .commit()
+    const updated = await writeClient.patch(id).set(updateData).commit()
 
     return NextResponse.json({ ok: true, updated })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
     console.error('[Admin] Error updating subscription:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

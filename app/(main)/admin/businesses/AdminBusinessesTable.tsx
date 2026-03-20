@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Building2, Mail, ExternalLink, Settings, Plus, Loader2, Calendar, MessageCircle } from 'lucide-react'
+import { Building2, Mail, ExternalLink, Settings, Plus, Loader2, Calendar, MessageCircle, Crown, Zap, Sparkles } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,30 @@ import {
 import { BlockToggle } from '@/components/admin/BlockToggle'
 import { BUSINESS_TYPES } from '@/lib/constants'
 
+const SUBSCRIPTION_PLANS = [
+  {
+    id: 'basic' as const,
+    label: 'Basic',
+    hint: 'Core tools — good for getting started.',
+    icon: Zap,
+    accent: 'border-slate-500 bg-slate-800/40 text-slate-200 ring-amber-400/80',
+  },
+  {
+    id: 'pro' as const,
+    label: 'Pro',
+    hint: 'More capacity and features for growing teams.',
+    icon: Sparkles,
+    accent: 'border-violet-500/50 bg-violet-950/30 text-violet-100 ring-amber-400/80',
+  },
+  {
+    id: 'ultra' as const,
+    label: 'Ultra',
+    hint: 'Full platform — same tier as trial.',
+    icon: Crown,
+    accent: 'border-amber-500/50 bg-amber-950/25 text-amber-100 ring-amber-400/80',
+  },
+]
+
 type Tenant = {
   _id: string
   name: string
@@ -25,6 +49,7 @@ type Tenant = {
   clerkUserEmail?: string
   coOwnerEmails?: string[]
   subscriptionStatus: string
+  subscriptionPlan?: 'basic' | 'pro' | 'ultra' | null
   subscriptionExpiresAt?: string | null
   createdAt?: string
   businessCreatedAt?: string | null
@@ -46,6 +71,7 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
   const [subTenant, setSubTenant] = useState<Tenant | null>(null)
   const [subExpiresAt, setSubExpiresAt] = useState('')
   const [subStatus, setSubStatus] = useState('')
+  const [subPlan, setSubPlan] = useState<'basic' | 'pro' | 'ultra'>('ultra')
   const [submitting, setSubmitting] = useState(false)
 
   const [filterQuery, setFilterQuery] = useState('')
@@ -122,7 +148,21 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
     }
     setSubExpiresAt(initialDate)
     setSubStatus(t.subscriptionStatus || 'trial')
+    setSubPlan(
+      t.subscriptionPlan === 'basic' || t.subscriptionPlan === 'pro' || t.subscriptionPlan === 'ultra'
+        ? t.subscriptionPlan
+        : 'ultra'
+    )
     setSubModalOpen(true)
+  }
+
+  const displayPlanLabel = (t: Tenant) => {
+    const p = t.subscriptionPlan
+    if (p === 'basic') return 'Basic'
+    if (p === 'pro') return 'Pro'
+    if (p === 'ultra') return 'Ultra'
+    if (t.subscriptionStatus === 'trial') return 'Ultra (trial)'
+    return '—'
   }
 
   const [testingWa, setTestingWa] = useState<string | null>(null)
@@ -192,6 +232,7 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
         body: JSON.stringify({
           subscriptionExpiresAt: newExpiresAt,
           subscriptionStatus: newStatus,
+          subscriptionPlan: subPlan,
         })
       })
       if (!res.ok) throw new Error('Update failed')
@@ -255,7 +296,10 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
               Create business
             </Button>
           </DialogTrigger>
-          <DialogContent className="border-slate-700 bg-slate-900 text-white" aria-describedby={undefined}>
+          <DialogContent
+            className="dark max-w-md border-slate-600 bg-slate-900 text-white shadow-xl"
+            aria-describedby={undefined}
+          >
             <DialogHeader>
               <DialogTitle>Create new business</DialogTitle>
               <DialogDescription className="text-sm text-slate-400">The business will be owned by you until you transfer it to the final owner.</DialogDescription>
@@ -296,10 +340,16 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
               </div>
               {createError && <p className="text-sm text-red-400">{createError}</p>}
               <DialogFooter className="gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} disabled={creating} className="border-slate-600 text-slate-300 hover:bg-slate-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCreateOpen(false)}
+                  disabled={creating}
+                  className="border-slate-500 bg-slate-800 text-white hover:bg-slate-700 hover:text-white"
+                >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={creating} className="bg-amber-500 text-slate-950 hover:bg-amber-400">
+                <Button type="submit" disabled={creating} className="bg-amber-500 font-semibold text-slate-950 hover:bg-amber-400">
                   {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
                   {creating ? ' Creating…' : ' Create & transfer'}
                 </Button>
@@ -356,6 +406,7 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
               <th className="px-4 py-3 font-medium md:px-6">Type</th>
               <th className="px-4 py-3 font-medium md:px-6">Owner email(s)</th>
               <th className="px-4 py-3 font-medium md:px-6">Status</th>
+              <th className="px-4 py-3 font-medium md:px-6">Plan</th>
               <th className="px-4 py-3 font-medium md:px-6">Slug</th>
               <th className="px-4 py-3 font-medium md:px-6 text-center">Block</th>
               <th className="px-4 py-3 font-medium md:px-6 text-right">Actions</th>
@@ -364,7 +415,7 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
           <tbody>
             {sortedTenants.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-slate-500 md:px-6">
+                <td colSpan={8} className="px-4 py-12 text-center text-slate-500 md:px-6">
                   No businesses found.
                 </td>
               </tr>
@@ -415,6 +466,11 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
                       {t.subscriptionStatus}
                     </span>
                   </td>
+                  <td className="px-4 py-3 md:px-6">
+                    <span className="rounded-lg border border-slate-600 bg-slate-800/60 px-2 py-1 text-xs font-semibold text-slate-200">
+                      {displayPlanLabel(t)}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-400 md:px-6">/t/{t.slug}</td>
                   <td className="px-4 py-3 md:px-6 text-center">
                     <BlockToggle
@@ -452,54 +508,99 @@ export function AdminBusinessesTable({ tenants }: { tenants: Tenant[] }) {
         </table>
       </div>
       <Dialog open={subModalOpen} onOpenChange={setSubModalOpen}>
-        <DialogContent className="border-slate-700 bg-slate-900 text-white">
+        <DialogContent className="dark max-w-2xl border-slate-600 bg-slate-900 text-white shadow-xl">
           <DialogHeader>
-            <DialogTitle>Manage Subscription</DialogTitle>
+            <DialogTitle className="text-xl">Plan &amp; billing</DialogTitle>
             <DialogDescription className="text-sm text-slate-400">
-              {subTenant?.name} - Currently: <span className="capitalize">{subTenant?.subscriptionStatus}</span>
+              <span className="font-medium text-slate-200">{subTenant?.name}</span>
+              <span className="text-slate-500"> · </span>
+              Status: <span className="capitalize text-slate-300">{subTenant?.subscriptionStatus}</span>
+              <span className="text-slate-500"> · </span>
+              Plan now: <span className="text-slate-200">{subTenant ? displayPlanLabel(subTenant) : '—'}</span>
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={(e) => handleSubSubmit(e, false)} className="space-y-4">
+          <form onSubmit={(e) => handleSubSubmit(e, false)} className="space-y-5">
+            <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2.5 text-sm text-amber-100/90">
+              <strong className="text-amber-200">Bank transfer / manual payment:</strong> choose the package they paid for. This updates
+              their <span className="font-mono text-xs">subscriptionPlan</span> in Sanity (Basic, Pro, or Ultra).
+            </div>
+
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Expiration Date & Time</label>
+              <p className="mb-2 text-sm font-medium text-slate-200">Package purchased</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {SUBSCRIPTION_PLANS.map((plan) => {
+                  const Icon = plan.icon
+                  const selected = subPlan === plan.id
+                  return (
+                    <button
+                      key={plan.id}
+                      type="button"
+                      onClick={() => setSubPlan(plan.id)}
+                      className={`flex flex-col items-start rounded-xl border-2 p-3 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${plan.accent} ${
+                        selected ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-900' : 'opacity-90 hover:opacity-100'
+                      }`}
+                    >
+                      <Icon className="mb-2 size-5 shrink-0 text-amber-300/90" aria-hidden />
+                      <span className="text-base font-black text-white">{plan.label}</span>
+                      <span className="mt-1 text-xs leading-snug text-slate-400">{plan.hint}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-200">Subscription status</label>
+              <select
+                value={subStatus}
+                onChange={(e) => setSubStatus(e.target.value)}
+                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2.5 text-white focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+              >
+                <option value="trial">Trial</option>
+                <option value="active">Active (paid)</option>
+                <option value="past_due">Past due</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <p className="mt-1 text-xs text-slate-500">After confirming their bank payment, set to <strong className="text-slate-400">Active</strong>.</p>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-200">Access until (expires)</label>
               <input
                 type="datetime-local"
                 value={subExpiresAt}
                 onChange={(e) => setSubExpiresAt(e.target.value)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2.5 text-white focus:border-amber-500/50 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Status</label>
-              <select
-                value={subStatus}
-                onChange={(e) => setSubStatus(e.target.value)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-white focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-              >
-                <option value="trial">Trial</option>
-                <option value="active">Active</option>
-                <option value="past_due">Past Due</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-            <DialogFooter className="gap-2 pt-2 flex flex-col sm:flex-row sm:justify-between items-center w-full">
-              <Button 
-                type="button" 
-                variant="secondary"
+
+            <DialogFooter className="flex w-full flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+              <Button
+                type="button"
                 onClick={() => handleSubSubmit(undefined, true)}
-                disabled={submitting} 
-                className="w-full sm:w-auto bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 hover:text-emerald-300 border-0"
+                disabled={submitting}
+                className="w-full border border-emerald-600 bg-emerald-800 font-medium text-white hover:bg-emerald-700 sm:w-auto"
               >
-                {submitting ? <Loader2 className="size-4 animate-spin mr-1.5" /> : null}
-                +3 Days Grace
+                {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
+                +3 days grace
               </Button>
-              <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
-                <Button type="button" variant="outline" onClick={() => setSubModalOpen(false)} disabled={submitting} className="flex-1 sm:flex-none border-slate-600 text-slate-300 hover:bg-slate-800">
+              <div className="flex w-full gap-2 sm:w-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSubModalOpen(false)}
+                  disabled={submitting}
+                  className="flex-1 border-slate-500 bg-slate-800 text-white hover:bg-slate-700 hover:text-white sm:flex-none"
+                >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting} className="flex-1 sm:flex-none bg-amber-500 text-slate-950 hover:bg-amber-400">
-                  {submitting ? <Loader2 className="size-4 animate-spin mr-1.5" /> : null}
-                  Save
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 bg-amber-500 font-semibold text-slate-950 hover:bg-amber-400 sm:flex-none"
+                >
+                  {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Save changes
                 </Button>
               </div>
             </DialogFooter>

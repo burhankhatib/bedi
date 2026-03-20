@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { client, clientNoCdn } from '@/sanity/lib/client'
-import { token } from '@/sanity/lib/token'
-import { createOrReplaceSubcategoryDocs, missingSubcategoryRowsForType } from '@/lib/ensure-business-subcategories'
+import { writeToken } from '@/sanity/lib/write-token'
+import {
+  createOrReplaceSubcategoryDocs,
+  dedupeSubcategoriesPreferSeeded,
+  missingSubcategoryRowsForType,
+} from '@/lib/ensure-business-subcategories'
 
-const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
+const writeClient = client.withConfig({ token: writeToken || undefined, useCdn: false })
 
 /** GET: List business sub-categories, optionally filtered by businessType. Bypasses CDN so newly seeded subcategories appear immediately. */
 export const dynamic = 'force-dynamic'
@@ -55,20 +59,26 @@ export async function GET(req: NextRequest) {
 
   /** Logged-in users (onboarding / manage) trigger a one-time align with seed data so new cuisines exist in Sanity. */
   const typeKey = businessType.trim().toLowerCase()
-  if (typeKey && token) {
+  if (typeKey && writeToken) {
     const { userId } = await auth()
     if (userId) {
-      const existingSlugs = new Set(items.map((i) => i.slug).filter(Boolean))
+      const existingSlugs = new Set(
+        items.map((i) => (i.slug || '').trim().toLowerCase()).filter(Boolean)
+      )
       const missing = missingSubcategoryRowsForType(typeKey, existingSlugs)
       if (missing.length > 0) {
         try {
           await createOrReplaceSubcategoryDocs(writeClient, missing)
           items = await fetchSubcategoryRows(businessType)
         } catch (e) {
-          console.error('[business-subcategories] sync missing rows:', e)
+          console.error('[business-subcategories] sync missing rows failed:', e)
         }
       }
     }
+  }
+
+  if (businessType.trim()) {
+    items = dedupeSubcategoriesPreferSeeded(items, businessType)
   }
 
   return NextResponse.json(items)

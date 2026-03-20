@@ -52,24 +52,12 @@ export const businessSubcategoryType = defineType({
       name: 'businessType',
       title: 'Business Type (main category)',
       type: 'string',
-      options: {
-        list: [
-          { title: 'Restaurant', value: 'restaurant' },
-          { title: 'Cafe', value: 'cafe' },
-          { title: 'Bakery', value: 'bakery' },
-          { title: 'Grocery / Market', value: 'grocery' },
-          { title: 'Supermarket', value: 'supermarket' },
-          { title: 'Greengrocer (Vegetables & Fruits)', value: 'greengrocer' },
-          { title: 'Butcher', value: 'butcher' },
-          { title: 'Gas', value: 'gas' },
-          { title: 'Water', value: 'water' },
-          { title: 'Retail / Shop', value: 'retail' },
-          { title: 'Pharmacy', value: 'pharmacy' },
-          { title: 'Other', value: 'other' },
-        ],
-      },
-      validation: (Rule) => Rule.required(),
-      description: 'This sub-category appears when a tenant chooses this business type.',
+      description: 'Must match a businessCategory.value (e.g. restaurant). Manage types in Admin → Business taxonomy.',
+      validation: (Rule) =>
+        Rule.required().regex(
+          /^[a-z0-9][a-z0-9_-]*$/,
+          'business type id must match a business category value'
+        ),
     }),
     defineField({
       name: 'sortOrder',

@@ -110,9 +110,12 @@ export const ANALYTICS_QUERY = defineQuery(`*[_type == "order"] {
   items,
   totalAmount,
   deliveryFee,
+  deliveryFeePaidByBusiness,
   currency,
   createdAt,
-  deliveryArea->{name_en}
+  completedAt,
+  deliveryArea->{name_en},
+  assignedDriver->{_id, name}
 }`)
 
 export const NEW_ORDERS_QUERY = defineQuery(`*[_type == "order" && status == "new"] | order(createdAt desc) {
@@ -268,8 +271,10 @@ export const ANALYTICS_QUERY_TENANT = defineQuery(`*[_type == "order" && ${siteF
   items,
   totalAmount,
   deliveryFee,
+  deliveryFeePaidByBusiness,
   currency,
   createdAt,
+  completedAt,
   deliveryArea->{name_en},
   assignedDriver->{_id, name}
 }`)

@@ -57,22 +57,7 @@ export const tenantType = defineType({
       name: 'businessType',
       title: 'Business Type',
       type: 'string',
-      options: {
-        list: [
-          { title: 'Restaurant', value: 'restaurant' },
-          { title: 'Cafe', value: 'cafe' },
-          { title: 'Bakery', value: 'bakery' },
-          { title: 'Grocery / Market', value: 'grocery' },
-          { title: 'Supermarket', value: 'supermarket' },
-          { title: 'Greengrocer', value: 'greengrocer' },
-          { title: 'Butcher', value: 'butcher' },
-          { title: 'Gas', value: 'gas' },
-          { title: 'Water', value: 'water' },
-          { title: 'Retail / Shop', value: 'retail' },
-          { title: 'Pharmacy', value: 'pharmacy' },
-          { title: 'Other', value: 'other' },
-        ],
-      },
+      description: 'Matches Business Category value in CMS (e.g. restaurant, cafe).',
       validation: (Rule) => Rule.required(),
     }),
     defineField({
