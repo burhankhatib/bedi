@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
-import { sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
+import { formatMetaWhatsAppApiError, sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,19 +99,8 @@ export async function GET(req: Request) {
             )
             
             if (!waResult.success) {
-              let errorStr = ''
-              if (waResult.error) {
-                if (typeof waResult.error === 'string') {
-                  errorStr = waResult.error
-                } else if (waResult.error.error?.error_data?.details) {
-                  errorStr = waResult.error.error.error_data.details
-                } else if (waResult.error.error?.message) {
-                  errorStr = waResult.error.error.message
-                } else {
-                  errorStr = JSON.stringify(waResult.error)
-                }
-              }
-              
+              const errorStr = formatMetaWhatsAppApiError(waResult.error)
+
               if (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar')) {
                 waResult = await sendWhatsAppTemplateMessage(
                   tenant.ownerPhone,

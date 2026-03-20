@@ -1,5 +1,62 @@
 import { normalizePhoneForWhatsApp } from '@/lib/whatsapp'
 
+function graphApiVersion(): string {
+  const v = (process.env.WHATSAPP_GRAPH_API_VERSION || 'v21.0').trim()
+  return v.startsWith('v') ? v : `v${v}`
+}
+
+async function readJsonOrText(res: Response): Promise<unknown> {
+  const text = await res.text()
+  if (!text) return { status: res.status, empty: true }
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    return { status: res.status, raw: text.slice(0, 2000) }
+  }
+}
+
+/** Template send result; `error` is set when `success` is false. */
+export type WhatsAppTemplateSendResult = {
+  success: boolean
+  error?: unknown
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null
+}
+
+/**
+ * Human-readable string from Meta Graph / template send failures.
+ * Use for logging and checks like "does not exist in ar_EG".
+ */
+export function formatMetaWhatsAppApiError(err: unknown): string {
+  if (err == null) return ''
+  if (typeof err === 'string') return err
+  if (!isRecord(err)) {
+    try {
+      return JSON.stringify(err)
+    } catch {
+      return String(err)
+    }
+  }
+  // Typical Graph body: { error: { message, error_data: { details } } }
+  const nested = err['error']
+  if (isRecord(nested)) {
+    const ed = nested['error_data']
+    if (isRecord(ed) && typeof ed['details'] === 'string') {
+      return ed['details']
+    }
+    if (typeof nested['message'] === 'string') {
+      return nested['message']
+    }
+  }
+  try {
+    return JSON.stringify(err)
+  } catch {
+    return String(err)
+  }
+}
+
 /**
  * Send a WhatsApp template message using Meta's Cloud API.
  * 
@@ -14,7 +71,7 @@ export async function sendWhatsAppTemplateMessage(
   variables: string[] = [],
   languageCode: string = 'ar',
   buttonVariable?: string
-) {
+): Promise<WhatsAppTemplateSendResult> {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
 
@@ -35,7 +92,7 @@ export async function sendWhatsAppTemplateMessage(
     return { success: false, error: 'Invalid phone number provided' }
   }
 
-  const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`
+  const url = `https://graph.facebook.com/${graphApiVersion()}/${phoneNumberId}/messages`
 
   const payload: any = {
     messaging_product: 'whatsapp',
@@ -88,7 +145,7 @@ export async function sendWhatsAppTemplateMessage(
     })
 
     if (!res.ok) {
-      const errorData = await res.json()
+      const errorData = await readJsonOrText(res)
       console.error('[Meta WhatsApp] API error:', JSON.stringify(errorData, null, 2))
       return { success: false, error: errorData }
     }
@@ -118,7 +175,7 @@ export async function sendWhatsAppTextMessage(phone: string, text: string) {
     return { success: false, error: 'Invalid phone number provided' }
   }
 
-  const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`
+  const url = `https://graph.facebook.com/${graphApiVersion()}/${phoneNumberId}/messages`
   const payload = {
     messaging_product: 'whatsapp',
     to,
@@ -137,12 +194,12 @@ export async function sendWhatsAppTextMessage(phone: string, text: string) {
     })
 
     if (!res.ok) {
-      const errorData = await res.json()
+      const errorData = await readJsonOrText(res)
       console.error('[Meta WhatsApp Text] API error:', JSON.stringify(errorData, null, 2))
       return { success: false, error: errorData }
     }
 
-    const data = (await res.json()) as { messages?: Array<{ id: string }> }
+    const data = (await readJsonOrText(res)) as { messages?: Array<{ id: string }> }
     return { success: true, messageId: data.messages?.[0]?.id }
   } catch (error) {
     console.error('[Meta WhatsApp Text] Exception:', error)
@@ -171,7 +228,7 @@ export async function sendWhatsAppAuthOTP(phone: string, code: string) {
     return { success: false, error: 'Invalid phone number' }
   }
 
-  const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`
+  const url = `https://graph.facebook.com/${graphApiVersion()}/${phoneNumberId}/messages`
 
   const payload = {
     messaging_product: 'whatsapp',
@@ -218,7 +275,7 @@ export async function sendWhatsAppAuthOTP(phone: string, code: string) {
     })
 
     if (!res.ok) {
-      const errorData = await res.json()
+      const errorData = await readJsonOrText(res)
       console.error('[Meta WhatsApp OTP] API error:', JSON.stringify(errorData, null, 2))
       return { success: false, error: errorData }
     }

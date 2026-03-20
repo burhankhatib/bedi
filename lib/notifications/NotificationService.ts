@@ -1,5 +1,5 @@
 import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
-import { sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
+import { cleanWhatsAppRecipientPhone, sendTenantNewOrderWhatsApp } from '@/lib/send-tenant-new-order-whatsapp'
 import { pusherServer } from '@/lib/pusher'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
@@ -7,7 +7,6 @@ import { isPushConfigured } from '@/lib/push'
 import { isFCMConfigured } from '@/lib/fcm'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
 import { sendTenantOrderUpdatePush, TenantOrderPushStatus } from '@/lib/tenant-order-push'
-import { formatTenantNewOrderWhatsAppSummary } from '@/lib/whatsapp-tenant-order-summary'
 import { appendOrderNotificationDiagnostic } from '@/lib/notification-diagnostics'
 
 const writeClient = client.withConfig({
@@ -129,7 +128,7 @@ export const NotificationService = {
     }
     if (tenantPhone && prioritizeWhatsapp) {
       try {
-        const phone = tenantPhone.trim()
+        const phone = cleanWhatsAppRecipientPhone(tenantPhone)
         if (phone) {
           // Fetch order details for enhanced template
           const orderDoc = await writeClient.fetch<{
@@ -157,29 +156,22 @@ export const NotificationService = {
             { orderId }
           )
 
-          const orderSummary = formatTenantNewOrderWhatsAppSummary({
-            currency: orderDoc?.currency,
-            items: orderDoc?.items,
-            totalAmount: orderDoc?.totalAmount,
-            customerName: orderDoc?.customerName,
-            customerPhone: orderDoc?.customerPhone,
-            orderType: orderDoc?.orderType,
-            deliveryAddress: orderDoc?.deliveryAddress,
-            deliveryLat: orderDoc?.deliveryLat,
-            deliveryLng: orderDoc?.deliveryLng,
-          })
-
-          // Send WhatsApp template
-          // Assuming template 'new_order' uses {{1}} for businessName and {{2}} for order details
-          const targetUrl = tenantSlug ? `${tenantSlug}/orders` : 'orders'
-          
-          const waResult = await sendWhatsAppTemplateMessage(
+          const waResult = await sendTenantNewOrderWhatsApp({
             phone,
-            'new_order',
-            [businessName, orderSummary], 
-            'ar_EG',
-            targetUrl
-          )
+            businessName,
+            tenantSlug: slug,
+            orderSummaryInput: {
+              currency: orderDoc?.currency,
+              items: orderDoc?.items,
+              totalAmount: orderDoc?.totalAmount,
+              customerName: orderDoc?.customerName,
+              customerPhone: orderDoc?.customerPhone,
+              orderType: orderDoc?.orderType,
+              deliveryAddress: orderDoc?.deliveryAddress,
+              deliveryLat: orderDoc?.deliveryLat,
+              deliveryLng: orderDoc?.deliveryLng,
+            },
+          })
 
           if (waResult.success) {
             await writeClient
@@ -187,12 +179,12 @@ export const NotificationService = {
               .set({ businessWhatsappInstantNotifiedAt: new Date().toISOString() })
               .commit()
           } else {
-            console.error(`[NotificationService] Failed to send WhatsApp to ${phone} for order ${orderId}`, waResult.error)
+            console.error(`[NotificationService] Failed to send WhatsApp for order ${orderId}`, waResult.error)
             await appendOrderNotificationDiagnostic(writeClient, orderId, {
               source: 'NotificationService.onNewOrder.whatsapp',
               level: 'error',
-              message: 'Instant WhatsApp template send failed',
-              detail: { template: 'new_order', error: waResult.error },
+              message: 'Instant WhatsApp template send failed (all fallbacks)',
+              detail: { template: 'new_order', error: waResult.error, attempts: waResult.attempts },
             })
           }
         }

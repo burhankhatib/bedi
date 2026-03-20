@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
-import { sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
+import { formatMetaWhatsAppApiError, sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 
@@ -126,19 +126,8 @@ export async function POST(req: Request) {
       )
 
       if (!result.success) {
-        let errorStr = ''
-        if (result.error) {
-          if (typeof result.error === 'string') {
-            errorStr = result.error
-          } else if (result.error.error?.error_data?.details) {
-            errorStr = result.error.error.error_data.details
-          } else if (result.error.error?.message) {
-            errorStr = result.error.error.message
-          } else {
-            errorStr = JSON.stringify(result.error)
-          }
-        }
-        
+        const errorStr = formatMetaWhatsAppApiError(result.error)
+
         if (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar')) {
           result = await sendWhatsAppTemplateMessage(
             phone,

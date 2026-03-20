@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
-import { sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
-import { formatTenantNewOrderWhatsAppSummary } from '@/lib/whatsapp-tenant-order-summary'
+import { cleanWhatsAppRecipientPhone, sendTenantNewOrderWhatsApp } from '@/lib/send-tenant-new-order-whatsapp'
 import { appendOrderNotificationDiagnostic } from '@/lib/notification-diagnostics'
 
 export const dynamic = 'force-dynamic'
@@ -82,12 +81,26 @@ export async function GET(req: Request) {
         return NextResponse.json({ ok: true, notifiedCount: 0, skipped: true })
       }
       const nowIso = new Date().toISOString()
-      const phone = order.tenantPhone?.trim()
+      const phone = cleanWhatsAppRecipientPhone(order.tenantPhone)
       let notified = 0
       if (phone) {
         const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
-        const orderSummary = formatTenantNewOrderWhatsAppSummary(order)
-        const result = await sendWhatsAppTemplateMessage(phone, 'new_order', [businessName, orderSummary], 'ar_EG', `${order.tenantSlug}/orders`)
+        const result = await sendTenantNewOrderWhatsApp({
+          phone,
+          businessName,
+          tenantSlug: order.tenantSlug,
+          orderSummaryInput: {
+            currency: order.currency,
+            items: order.items,
+            totalAmount: order.totalAmount,
+            customerName: order.customerName,
+            customerPhone: order.customerPhone,
+            orderType: order.orderType,
+            deliveryAddress: order.deliveryAddress,
+            deliveryLat: order.deliveryLat,
+            deliveryLng: order.deliveryLng,
+          },
+        })
         if (result.success) {
           notified = 1
           await appendOrderNotificationDiagnostic(writeClient, order._id, {
@@ -101,8 +114,8 @@ export async function GET(req: Request) {
           await appendOrderNotificationDiagnostic(writeClient, order._id, {
             source: 'cron/unaccepted-orders-whatsapp',
             level: 'error',
-            message: 'Unaccepted-order WhatsApp reminder send failed',
-            detail: { mode: 'single-order', error: result.error },
+            message: 'Unaccepted-order WhatsApp reminder send failed (all fallbacks)',
+            detail: { mode: 'single-order', error: result.error, attempts: result.attempts },
           })
         }
       } else {
@@ -185,18 +198,26 @@ export async function GET(req: Request) {
 
     for (const order of unacceptedOrders) {
       try {
-        const phone = order.tenantPhone?.trim()
+        const phone = cleanWhatsAppRecipientPhone(order.tenantPhone)
         if (phone) {
           const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
-          const orderSummary = formatTenantNewOrderWhatsAppSummary(order)
 
-          const result = await sendWhatsAppTemplateMessage(
+          const result = await sendTenantNewOrderWhatsApp({
             phone,
-            'new_order',
-            [businessName, orderSummary],
-            'ar_EG',
-            `${order.tenantSlug}/orders` // Note: this must match your WhatsApp template exact configuration
-          )
+            businessName,
+            tenantSlug: order.tenantSlug,
+            orderSummaryInput: {
+              currency: order.currency,
+              items: order.items,
+              totalAmount: order.totalAmount,
+              customerName: order.customerName,
+              customerPhone: order.customerPhone,
+              orderType: order.orderType,
+              deliveryAddress: order.deliveryAddress,
+              deliveryLat: order.deliveryLat,
+              deliveryLng: order.deliveryLng,
+            },
+          })
 
           if (result.success) {
             notifiedCount++
@@ -211,8 +232,8 @@ export async function GET(req: Request) {
             await appendOrderNotificationDiagnostic(writeClient, order._id, {
               source: 'cron/unaccepted-orders-whatsapp',
               level: 'error',
-              message: 'Unaccepted-order WhatsApp reminder send failed',
-              detail: { mode: 'legacy-scan', error: result.error },
+              message: 'Unaccepted-order WhatsApp reminder send failed (all fallbacks)',
+              detail: { mode: 'legacy-scan', error: result.error, attempts: result.attempts },
             })
           }
         } else {
