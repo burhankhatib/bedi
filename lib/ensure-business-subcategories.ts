@@ -5,6 +5,7 @@
 
 import type { SanityClient } from 'next-sanity'
 import { BY_BUSINESS_TYPE, type SubcategoryRow } from '@/lib/business-subcategories-seed'
+import { defaultLucideKeyForSubcategory } from '@/lib/subcategory-default-lucide'
 
 /** Sanity transactions should stay bounded; several commits still beat N sequential HTTP calls. */
 const TRANSACTION_CHUNK = 55
@@ -16,6 +17,7 @@ export type SubcategoryListItem = {
   title_ar: string
   businessType: string
   sortOrder: number
+  lucideIcon: string
 }
 
 /**
@@ -68,6 +70,8 @@ export async function createOrReplaceSubcategoryDocs(
         title_ar: row.title_ar,
         businessType: row.businessType,
         sortOrder: row.sortOrder,
+        lucideIcon:
+          row.lucideIcon?.trim() || defaultLucideKeyForSubcategory(row.businessType, row.slug),
       })
     }
     await tx.commit()
@@ -84,10 +88,14 @@ export function dedupeSubcategoriesPreferSeeded(
   businessType: string
 ): SubcategoryListItem[] {
   const bt = businessType.trim().toLowerCase()
+  const normalizedIn = items.map((item) => ({
+    ...item,
+    lucideIcon: item.lucideIcon ?? '',
+  }))
   const noSlug: SubcategoryListItem[] = []
   const byCanonSlug = new Map<string, SubcategoryListItem[]>()
 
-  for (const item of items) {
+  for (const item of normalizedIn) {
     const raw = (item.slug || '').trim().toLowerCase()
     if (!raw) {
       noSlug.push(item)
@@ -107,9 +115,13 @@ export function dedupeSubcategoriesPreferSeeded(
     }
     const preferredId = `businessSubcategory.${canonSlug}-${bt}`
     const canonical = group.find((g) => g._id === preferredId)
-    merged.push(
+    const pick =
       canonical ?? group.slice().sort((a, b) => a._id.localeCompare(b._id))[0]
-    )
+    const iconFromGroup = group.map((g) => g.lucideIcon?.trim()).find(Boolean)
+    merged.push({
+      ...pick,
+      lucideIcon: pick.lucideIcon?.trim() || iconFromGroup || '',
+    })
   }
 
   merged.sort((a, b) => {

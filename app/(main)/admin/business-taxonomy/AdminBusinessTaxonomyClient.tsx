@@ -23,6 +23,8 @@ import {
   Loader2,
   Layers,
 } from 'lucide-react'
+import { LucideKebabIcon } from '@/components/icons/LucideKebabIcon'
+import { LucideIconPicker } from '@/components/admin/LucideIconPicker'
 
 type CategoryRow = {
   _id: string
@@ -40,6 +42,7 @@ type SubRow = {
   title_ar: string
   businessType: string
   sortOrder?: number
+  lucideIcon?: string | null
 }
 
 type TaxonomyResponse = {
@@ -282,6 +285,7 @@ export function AdminBusinessTaxonomyClient() {
     title_en: '',
     title_ar: '',
     sortOrder: 0,
+    lucideIcon: '',
   })
 
   const [delSub, setDelSub] = useState<SubRow | null>(null)
@@ -359,6 +363,7 @@ export function AdminBusinessTaxonomyClient() {
         title_en: subForm.title_en,
         title_ar: subForm.title_ar,
         ...(subForm.slug.trim() ? { slug: subForm.slug.trim() } : {}),
+        ...(subForm.lucideIcon.trim() ? { lucideIcon: subForm.lucideIcon.trim() } : {}),
       })
       setBusy(false)
       if (!res.ok) {
@@ -373,6 +378,7 @@ export function AdminBusinessTaxonomyClient() {
         title_en: subForm.title_en,
         title_ar: subForm.title_ar,
         sortOrder: subForm.sortOrder,
+        lucideIcon: subForm.lucideIcon.trim(),
       })
       setBusy(false)
       if (!res.ok) {
@@ -639,6 +645,7 @@ export function AdminBusinessTaxonomyClient() {
                           title_en: '',
                           title_ar: '',
                           sortOrder: subs.length,
+                          lucideIcon: '',
                         })
                         setSubDialog('add')
                       }}
@@ -656,6 +663,14 @@ export function AdminBusinessTaxonomyClient() {
                           key={s._id}
                           className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800/80 bg-slate-950/40 px-2 py-2 text-sm"
                         >
+                          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-900">
+                            <LucideKebabIcon
+                              name={s.lucideIcon}
+                              className="text-amber-300/90"
+                              size={22}
+                              strokeWidth={1.5}
+                            />
+                          </div>
                           <span className="min-w-0 flex-1 font-medium text-slate-200">{s.title_en}</span>
                           <code className="text-xs text-slate-500">{s.slug}</code>
                           <div className="flex items-center gap-0.5">
@@ -693,6 +708,7 @@ export function AdminBusinessTaxonomyClient() {
                                   title_en: s.title_en,
                                   title_ar: s.title_ar,
                                   sortOrder: s.sortOrder ?? si,
+                                  lucideIcon: s.lucideIcon ?? '',
                                 })
                                 setSubDialog('edit')
                               }}
@@ -858,7 +874,7 @@ export function AdminBusinessTaxonomyClient() {
 
       {/* Sub dialog */}
       <Dialog open={subDialog !== null} onOpenChange={(o) => !o && setSubDialog(null)}>
-        <DialogContent className="border-slate-700 bg-slate-900 text-white sm:max-w-md">
+        <DialogContent className="dark max-h-[90vh] overflow-y-auto border-slate-700 bg-slate-900 text-white sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{subDialog === 'add' ? 'Add sub-category' : 'Edit sub-category'}</DialogTitle>
             <DialogDescription className="text-slate-400">
@@ -916,6 +932,11 @@ export function AdminBusinessTaxonomyClient() {
                 />
               </div>
             )}
+            <LucideIconPicker
+              value={subForm.lucideIcon}
+              onChange={(v) => setSubForm((f) => ({ ...f, lucideIcon: v }))}
+              disabled={busy}
+            />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" className="border-slate-600" onClick={() => setSubDialog(null)}>

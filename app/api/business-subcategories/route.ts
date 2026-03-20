@@ -34,6 +34,7 @@ async function fetchSubcategoryRows(businessType: string) {
       title_ar?: string
       businessType?: string
       sortOrder?: number
+      lucideIcon?: string
     }>
   >(
     `*[${filter}] | order(sortOrder asc, title_en asc) {
@@ -42,7 +43,8 @@ async function fetchSubcategoryRows(businessType: string) {
       title_en,
       title_ar,
       businessType,
-      sortOrder
+      sortOrder,
+      lucideIcon
     }`,
     params
   )
@@ -54,6 +56,7 @@ async function fetchSubcategoryRows(businessType: string) {
     title_ar: row.title_ar ?? '',
     businessType: row.businessType ?? '',
     sortOrder: row.sortOrder ?? 0,
+    lucideIcon: row.lucideIcon ?? '',
   }))
 }
 

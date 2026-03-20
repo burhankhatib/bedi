@@ -3,7 +3,14 @@
  * DoorDash/Talabat-style cuisines and specialties.
  */
 
-export type SubcategoryRow = { slug: string; title_en: string; title_ar: string; sortOrder: number }
+export type SubcategoryRow = {
+  slug: string
+  title_en: string
+  title_ar: string
+  sortOrder: number
+  /** Optional Lucide kebab-case key; otherwise assigned uniquely in `subcategory-default-lucide`. */
+  lucideIcon?: string
+}
 
 export const RESTAURANT_SUBCATEGORIES: SubcategoryRow[] = [
   { slug: 'donations', title_en: 'Donations', title_ar: 'تبرع', sortOrder: 0 },

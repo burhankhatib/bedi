@@ -46,7 +46,15 @@ export const businessSubcategoryType = defineType({
       title: 'Image',
       type: 'image',
       options: { hotspot: true },
-      description: 'Image representing this sub-category (e.g. for filters or listing).',
+      description: 'Optional photo tile on the customer home page. If empty, the Lucide icon field below is used.',
+    }),
+    defineField({
+      name: 'lucideIcon',
+      title: 'Lucide icon (kebab-case)',
+      type: 'string',
+      description:
+        'Icon key from lucide.dev (e.g. pizza, chef-hat, coffee). Customer “Browse by specialty” uses this when no image is uploaded.',
+      placeholder: 'pizza',
     }),
     defineField({
       name: 'businessType',

@@ -7,6 +7,8 @@ import { getEmailForUser } from '@/lib/getClerkEmail'
 import { slugify } from '@/lib/slugify'
 import type { SanityClient } from 'next-sanity'
 import { BUSINESS_TYPES } from '@/lib/constants'
+import { defaultLucideKeyForSubcategory } from '@/lib/subcategory-default-lucide'
+import { normalizeLucideIconKey } from '@/lib/lucide-icon-valid'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,6 +118,7 @@ type SubRow = {
   title_ar: string
   businessType: string
   sortOrder?: number
+  lucideIcon?: string | null
 }
 
 /** GET: full taxonomy + tenant counts per businessType */
@@ -133,7 +136,7 @@ export async function GET() {
     ),
     readClient.fetch<SubRow[]>(
       `*[_type == "businessSubcategory"] | order(businessType asc, sortOrder asc, title_en asc) {
-        _id, "slug": slug.current, title_en, title_ar, businessType, sortOrder
+        _id, "slug": slug.current, title_en, title_ar, businessType, sortOrder, lucideIcon
       }`
     ),
     readClient.fetch<string[]>(`*[_type == "tenant" && defined(businessType)].businessType`),
@@ -325,6 +328,25 @@ export async function POST(req: NextRequest) {
             ? body.sortOrder
             : maxSo + 1
 
+        const iconRaw = typeof body.lucideIcon === 'string' ? body.lucideIcon.trim() : ''
+        let lucideIcon = iconRaw ? normalizeLucideIconKey(iconRaw) : null
+        if (iconRaw && !lucideIcon) {
+          return NextResponse.json({ error: 'Invalid lucideIcon — use a kebab-case key from lucide.dev' }, { status: 400 })
+        }
+        if (!lucideIcon) {
+          lucideIcon = defaultLucideKeyForSubcategory(businessType, slug)
+        }
+        const iconDup = await readClient.fetch<string | null>(
+          `*[_type == "businessSubcategory" && lucideIcon == $icon][0]._id`,
+          { icon: lucideIcon }
+        )
+        if (iconDup) {
+          return NextResponse.json(
+            { error: `Icon "${lucideIcon}" is already used by another sub-category. Pick a different icon.` },
+            { status: 409 }
+          )
+        }
+
         await writeClient.createOrReplace({
           _id: docId,
           _type: 'businessSubcategory',
@@ -333,6 +355,7 @@ export async function POST(req: NextRequest) {
           title_ar,
           businessType,
           sortOrder,
+          lucideIcon,
         })
         return NextResponse.json({ ok: true, id: docId, slug })
       }
@@ -341,7 +364,7 @@ export async function POST(req: NextRequest) {
         const id = String(body.id ?? '').trim()
         if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
         const existing = await readClient.fetch<SubRow | null>(
-          `*[_type == "businessSubcategory" && _id == $id][0]{ _id, "slug": slug.current, title_en, title_ar, businessType, sortOrder }`,
+          `*[_type == "businessSubcategory" && _id == $id][0]{ _id, "slug": slug.current, title_en, title_ar, businessType, sortOrder, lucideIcon }`,
           { id }
         )
         if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -356,6 +379,29 @@ export async function POST(req: NextRequest) {
         if (body.title_en !== undefined) patch.title_en = String(body.title_en).trim()
         if (body.title_ar !== undefined) patch.title_ar = String(body.title_ar).trim()
         if (body.sortOrder !== undefined && typeof body.sortOrder === 'number') patch.sortOrder = body.sortOrder
+        if (body.lucideIcon !== undefined) {
+          const raw = String(body.lucideIcon ?? '').trim()
+          const nextIcon = raw
+            ? normalizeLucideIconKey(raw)
+            : defaultLucideKeyForSubcategory(String(existing.businessType ?? ''), String(existing.slug ?? ''))
+          if (raw && !nextIcon) {
+            return NextResponse.json(
+              { error: 'Invalid lucideIcon — use a kebab-case key from lucide.dev' },
+              { status: 400 }
+            )
+          }
+          const iconDup = await readClient.fetch<string | null>(
+            `*[_type == "businessSubcategory" && lucideIcon == $icon && _id != $eid][0]._id`,
+            { icon: nextIcon, eid: id }
+          )
+          if (iconDup) {
+            return NextResponse.json(
+              { error: `Icon "${nextIcon}" is already used by another sub-category.` },
+              { status: 409 }
+            )
+          }
+          patch.lucideIcon = nextIcon
+        }
         if (Object.keys(patch).length === 0) return NextResponse.json({ ok: true, id })
         await writeClient.patch(id).set(patch).commit()
         return NextResponse.json({ ok: true, id })

@@ -7,6 +7,7 @@ import { motion } from 'motion/react'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
 import { UtensilsCrossed } from 'lucide-react'
+import { LucideKebabIcon } from '@/components/icons/LucideKebabIcon'
 
 type SubcategoryItem = {
   _id: string
@@ -15,6 +16,7 @@ type SubcategoryItem = {
   title_ar: string
   tenantCount: number
   imageUrl: string | null
+  lucideIcon?: string | null
 }
 
 export function SubcategoriesSection() {
@@ -100,8 +102,13 @@ export function SubcategoriesSection() {
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-slate-100">
-                    <UtensilsCrossed className="size-12 text-slate-300" />
+                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+                    <LucideKebabIcon
+                      name={s.lucideIcon}
+                      className="size-14 text-emerald-600/90"
+                      size={56}
+                      strokeWidth={1.25}
+                    />
                   </div>
                 )}
               </div>

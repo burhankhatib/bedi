@@ -1,7 +1,13 @@
 import { NextRequest } from 'next/server'
-import { client } from '@/sanity/lib/client'
+import { client, clientNoCdn } from '@/sanity/lib/client'
+import { writeToken } from '@/sanity/lib/write-token'
 import { urlFor } from '@/sanity/lib/image'
 import { BUSINESS_TYPES, STORE_BUSINESS_TYPES } from '@/lib/constants'
+
+/** Canonical `businessSubcategory.*` docs need authenticated reads (same as public specialties API). */
+const subcatReadClient = writeToken
+  ? clientNoCdn.withConfig({ token: writeToken, useCdn: false })
+  : client
 
 /** Cache 60s per (city, category) to reduce Sanity API calls. */
 export const revalidate = 60
@@ -111,7 +117,7 @@ export async function GET(req: NextRequest) {
     return Response.json([])
   }
 
-  const subcategories = await client.fetch<
+  const subcategories = await subcatReadClient.fetch<
     Array<{
       _id: string
       slug: { current?: string }
@@ -120,6 +126,7 @@ export async function GET(req: NextRequest) {
       businessType: string
       image?: ImageSource
       sortOrder?: number
+      lucideIcon?: string
     }>
   >(
     `*[_type == "businessSubcategory" && _id in $ids ${subcatFilter}] | order(sortOrder asc, title_en asc) {
@@ -129,7 +136,8 @@ export async function GET(req: NextRequest) {
       title_ar,
       businessType,
       image,
-      sortOrder
+      sortOrder,
+      lucideIcon
     }`,
     {
       ids: Array.from(usedSubcategoryIds),
@@ -149,6 +157,7 @@ export async function GET(req: NextRequest) {
         title_ar: s.title_ar ?? '',
         businessType: s.businessType ?? '',
         imageUrl,
+        lucideIcon: s.lucideIcon?.trim() || null,
         tenantCount: tenantCountBySubcategory.get(s._id) ?? 0,
       }
     })
