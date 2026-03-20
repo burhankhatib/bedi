@@ -26,6 +26,7 @@ export async function GET(request: Request) {
     const now = new Date().toISOString()
     const url = new URL(request.url)
     const singleOrderId = url.searchParams.get('orderId')?.trim()
+    const forceLegacyScan = url.searchParams.get('allowLegacy') === '1'
 
     if (singleOrderId) {
       const order = await writeClient.fetch<{
@@ -86,7 +87,7 @@ export async function GET(request: Request) {
     }
 
     const allowLegacyScan = process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true'
-    if (!allowLegacyScan) {
+    if (!allowLegacyScan && !forceLegacyScan) {
       return NextResponse.json({ success: true, processed: 0, skipped: true, reason: 'legacy-scan-disabled' })
     }
 

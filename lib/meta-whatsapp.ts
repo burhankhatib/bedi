@@ -5,6 +5,12 @@ function graphApiVersion(): string {
   return v.startsWith('v') ? v : `v${v}`
 }
 
+function graphApiVersionsToTry(): string[] {
+  const primary = graphApiVersion()
+  const fallbacks = ['v21.0', 'v20.0', 'v19.0']
+  return [primary, ...fallbacks].filter((v, i, arr) => arr.indexOf(v) === i)
+}
+
 async function readJsonOrText(res: Response): Promise<unknown> {
   const text = await res.text()
   if (!text) return { status: res.status, empty: true }
@@ -57,6 +63,16 @@ export function formatMetaWhatsAppApiError(err: unknown): string {
   }
 }
 
+function isLikelyGraphVersionError(err: unknown): boolean {
+  const msg = formatMetaWhatsAppApiError(err).toLowerCase()
+  return (
+    msg.includes('unsupported post request') ||
+    msg.includes('unknown path components') ||
+    msg.includes('unsupported version') ||
+    msg.includes('api version')
+  )
+}
+
 /**
  * Send a WhatsApp template message using Meta's Cloud API.
  * 
@@ -91,8 +107,6 @@ export async function sendWhatsAppTemplateMessage(
     console.error(`[Meta WhatsApp] Invalid phone number provided: ${phone}`)
     return { success: false, error: 'Invalid phone number provided' }
   }
-
-  const url = `https://graph.facebook.com/${graphApiVersion()}/${phoneNumberId}/messages`
 
   const payload: any = {
     messaging_product: 'whatsapp',
@@ -135,22 +149,34 @@ export async function sendWhatsAppTemplateMessage(
   }
 
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(payload),
-    })
+    let lastError: unknown
+    const versions = graphApiVersionsToTry()
 
-    if (!res.ok) {
+    for (let i = 0; i < versions.length; i++) {
+      const version = versions[i]!
+      const url = `https://graph.facebook.com/${version}/${phoneNumberId}/messages`
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (res.ok) return { success: true }
+
       const errorData = await readJsonOrText(res)
       console.error('[Meta WhatsApp] API error:', JSON.stringify(errorData, null, 2))
-      return { success: false, error: errorData }
+      lastError = { version, error: errorData }
+
+      // Only try lower fallback versions for clear version/path failures.
+      if (!isLikelyGraphVersionError(errorData) || i === versions.length - 1) {
+        return { success: false, error: lastError }
+      }
     }
 
-    return { success: true }
+    return { success: false, error: lastError ?? 'unknown_whatsapp_failure' }
   } catch (error) {
     console.error('[Meta WhatsApp] Exception sending message:', error)
     return { success: false, error }

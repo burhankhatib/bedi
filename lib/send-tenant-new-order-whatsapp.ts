@@ -12,7 +12,7 @@ import {
 export const TENANT_NEW_ORDER_TEMPLATE = 'new_order'
 
 /** Template-approved language codes to try (first match wins). */
-const LANGUAGE_TRIES = ['ar_EG', 'ar'] as const
+const LANGUAGE_TRIES = ['ar_EG', 'ar', 'en_US', 'en'] as const
 
 /** WhatsApp body variables: stay under common Cloud API / template limits. */
 const MAX_BUSINESS_NAME_CHARS = 280
@@ -39,11 +39,25 @@ export function cleanWhatsAppRecipientPhone(phone: string | undefined | null): s
 function sanitizeTemplateVariable(text: string, maxLen: number): string {
   const t = (text ?? '')
     .replace(/\0/g, '')
-    .replace(/\u2028|\u2029/g, '\n')
-    .replace(/\r\n/g, '\n')
+    // Meta template params reject newlines/tabs and long whitespace runs.
+    .replace(/\u2028|\u2029/g, ' ')
+    .replace(/\r\n/g, ' ')
+    .replace(/[\n\r\t]+/g, ' ')
+    .replace(/ {2,}/g, ' ')
+    .trim()
   if (t.length <= maxLen) return t
   const cut = Math.max(0, maxLen - 60)
-  return `${t.slice(0, cut)}\n\n⚠️ نص مختصر — افتح التطبيق للتفاصيل الكاملة.`
+  return `${t.slice(0, cut).trim()} ...`
+}
+
+function templateNamesToTry(): string[] {
+  const raw = (process.env.WHATSAPP_NEW_ORDER_TEMPLATE_NAMES || '').trim()
+  if (!raw) return [TENANT_NEW_ORDER_TEMPLATE, 'neworder']
+  const list = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return list.length ? list : [TENANT_NEW_ORDER_TEMPLATE, 'neworder']
 }
 
 export type SendTenantNewOrderWhatsAppResult = {
@@ -86,20 +100,22 @@ export async function sendTenantNewOrderWhatsApp(opts: {
     return false
   }
 
-  for (const lang of LANGUAGE_TRIES) {
-    if (await run(`2vars+button+${lang}`, () => sendWhatsAppTemplateMessage(phone, TENANT_NEW_ORDER_TEMPLATE, [var1, var2], lang, button))) {
-      return { success: true, attempts }
-    }
-    if (await run(`2vars+${lang}`, () => sendWhatsAppTemplateMessage(phone, TENANT_NEW_ORDER_TEMPLATE, [var1, var2], lang))) {
-      return { success: true, attempts }
-    }
+  for (const templateName of templateNamesToTry()) {
+    for (const lang of LANGUAGE_TRIES) {
+      if (await run(`2vars+button+${templateName}+${lang}`, () => sendWhatsAppTemplateMessage(phone, templateName, [var1, var2], lang, button))) {
+        return { success: true, attempts }
+      }
+      if (await run(`2vars+${templateName}+${lang}`, () => sendWhatsAppTemplateMessage(phone, templateName, [var1, var2], lang))) {
+        return { success: true, attempts }
+      }
 
-    const combined = sanitizeTemplateVariable(`${var1}\n\n${var2}`, MAX_COMBINED_SINGLE_VAR_CHARS)
-    if (await run(`1var+button+${lang}`, () => sendWhatsAppTemplateMessage(phone, TENANT_NEW_ORDER_TEMPLATE, [combined], lang, button))) {
-      return { success: true, attempts }
-    }
-    if (await run(`1var+${lang}`, () => sendWhatsAppTemplateMessage(phone, TENANT_NEW_ORDER_TEMPLATE, [combined], lang))) {
-      return { success: true, attempts }
+      const combined = sanitizeTemplateVariable(`${var1} ${var2}`, MAX_COMBINED_SINGLE_VAR_CHARS)
+      if (await run(`1var+button+${templateName}+${lang}`, () => sendWhatsAppTemplateMessage(phone, templateName, [combined], lang, button))) {
+        return { success: true, attempts }
+      }
+      if (await run(`1var+${templateName}+${lang}`, () => sendWhatsAppTemplateMessage(phone, templateName, [combined], lang))) {
+        return { success: true, attempts }
+      }
     }
   }
 

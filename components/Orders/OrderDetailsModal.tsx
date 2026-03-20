@@ -1424,20 +1424,23 @@ Please deliver this order to the customer.
               </span>
             </div>
             {localOrder.orderType === 'delivery' && localOrder.deliveryFee !== undefined && localOrder.deliveryFee > 0 && (
-              <div className="flex justify-between items-center">
-                <span className="text-slate-300">
-                  {localOrder.deliveryFeePaidByBusiness
-                    ? t('Delivery Fee (Paid by business)', 'رسوم التوصيل (يدفعها المتجر)')
-                    : t('Delivery Fee', 'رسوم التوصيل')}
-                </span>
-                {localOrder.deliveryFeePaidByBusiness ? (
-                  <span className="font-bold text-lg text-emerald-300">
-                    {t('FREE', 'مجاناً')}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300">
+                    {localOrder.deliveryFeePaidByBusiness
+                      ? t('Delivery Fee (Paid by business)', 'رسوم التوصيل (يدفعها المتجر)')
+                      : t('Delivery Fee', 'رسوم التوصيل')}
                   </span>
-                ) : (
                   <span className="font-bold text-lg">
                     {localOrder.deliveryFee.toFixed(2)} {formatCurrency(localOrder.currency)}
                   </span>
+                </div>
+                {localOrder.deliveryFeePaidByBusiness && (
+                  <div className="flex justify-end">
+                    <span className="text-xs text-amber-400/90 font-medium">
+                      {t('Customer sees FREE. You pay this to driver.', 'العميل يرى مجاناً. أنت تدفع هذا للسائق.')}
+                    </span>
+                  </div>
                 )}
               </div>
             )}

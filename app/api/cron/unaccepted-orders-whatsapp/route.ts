@@ -19,6 +19,7 @@ export async function GET(req: Request) {
   // Try to read secret from URL parameter as a fallback (for cron-job.org testing)
   const url = new URL(req.url)
   const secretParam = url.searchParams.get('secret')
+  const forceLegacyScan = url.searchParams.get('allowLegacy') === '1'
 
   if (allowed.length && !allowed.includes(bearer) && !(secretParam && allowed.includes(secretParam))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -83,6 +84,7 @@ export async function GET(req: Request) {
       const nowIso = new Date().toISOString()
       const phone = cleanWhatsAppRecipientPhone(order.tenantPhone)
       let notified = 0
+      let handled = false
       if (phone) {
         const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
         const result = await sendTenantNewOrderWhatsApp({
@@ -103,6 +105,7 @@ export async function GET(req: Request) {
         })
         if (result.success) {
           notified = 1
+          handled = true
           await appendOrderNotificationDiagnostic(writeClient, order._id, {
             source: 'cron/unaccepted-orders-whatsapp',
             level: 'info',
@@ -117,8 +120,14 @@ export async function GET(req: Request) {
             message: 'Unaccepted-order WhatsApp reminder send failed (all fallbacks)',
             detail: { mode: 'single-order', error: result.error, attempts: result.attempts },
           })
+          // Return non-2xx so /api/jobs/process-due retries this job.
+          return NextResponse.json(
+            { ok: false, notifiedCount: 0, orderId: singleOrderId, retryable: true, attempts: result.attempts },
+            { status: 502 }
+          )
         }
       } else {
+        handled = true
         await appendOrderNotificationDiagnostic(writeClient, order._id, {
           source: 'cron/unaccepted-orders-whatsapp',
           level: 'warn',
@@ -126,13 +135,15 @@ export async function GET(req: Request) {
           detail: { mode: 'single-order' },
         })
       }
-      await writeClient
-        .patch(order._id)
-        .set({
-          businessWhatsappUnacceptedReminderAt: nowIso,
-          businessWhatsappNotifiedAt: nowIso,
-        })
-        .commit()
+      if (handled) {
+        await writeClient
+          .patch(order._id)
+          .set({
+            businessWhatsappUnacceptedReminderAt: nowIso,
+            businessWhatsappNotifiedAt: nowIso,
+          })
+          .commit()
+      }
       return NextResponse.json({ ok: true, notifiedCount: notified, orderId: singleOrderId })
     } catch (error) {
       console.error('[cron/unaccepted-orders-whatsapp] single order failed:', error)
@@ -141,7 +152,7 @@ export async function GET(req: Request) {
   }
 
   const allowLegacyScan = process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true'
-  if (!allowLegacyScan) {
+  if (!allowLegacyScan && !forceLegacyScan) {
     return NextResponse.json({ ok: true, notifiedCount: 0, skipped: true, reason: 'legacy-scan-disabled' })
   }
 
@@ -194,10 +205,12 @@ export async function GET(req: Request) {
     }
 
     let notifiedCount = 0
+    let failedCount = 0
     const nowIso = new Date().toISOString()
 
     for (const order of unacceptedOrders) {
       try {
+        let handled = false
         const phone = cleanWhatsAppRecipientPhone(order.tenantPhone)
         if (phone) {
           const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
@@ -221,6 +234,7 @@ export async function GET(req: Request) {
 
           if (result.success) {
             notifiedCount++
+            handled = true
             await appendOrderNotificationDiagnostic(writeClient, order._id, {
               source: 'cron/unaccepted-orders-whatsapp',
               level: 'info',
@@ -228,6 +242,7 @@ export async function GET(req: Request) {
               detail: { mode: 'legacy-scan' },
             })
           } else {
+            failedCount++
             console.error(`[cron/unaccepted-orders-whatsapp] Failed to send for order ${order._id}`, result.error)
             await appendOrderNotificationDiagnostic(writeClient, order._id, {
               source: 'cron/unaccepted-orders-whatsapp',
@@ -237,6 +252,7 @@ export async function GET(req: Request) {
             })
           }
         } else {
+          handled = true
           await appendOrderNotificationDiagnostic(writeClient, order._id, {
             source: 'cron/unaccepted-orders-whatsapp',
             level: 'warn',
@@ -245,21 +261,22 @@ export async function GET(req: Request) {
           })
         }
 
-        // We mark it as notified even if we failed to send or there is no phone,
-        // so we don't keep trying and failing every minute for the next 2 hours.
-        await writeClient
-          .patch(order._id)
-          .set({
-            businessWhatsappUnacceptedReminderAt: nowIso,
-            businessWhatsappNotifiedAt: nowIso,
-          })
-          .commit()
+        if (handled) {
+          await writeClient
+            .patch(order._id)
+            .set({
+              businessWhatsappUnacceptedReminderAt: nowIso,
+              businessWhatsappNotifiedAt: nowIso,
+            })
+            .commit()
+        }
       } catch (e) {
+        failedCount++
         console.error('[cron/unaccepted-orders-whatsapp] Failed processing order', order._id, e)
       }
     }
 
-    return NextResponse.json({ ok: true, notifiedCount })
+    return NextResponse.json({ ok: true, notifiedCount, failedCount })
   } catch (error) {
     console.error('[cron/unaccepted-orders-whatsapp] Error fetching orders:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })

@@ -31,6 +31,28 @@ function getBaseUrl(req: Request): string {
   return `${url.protocol}//${url.host}`
 }
 
+async function runLegacyFallbackCrons(req: Request): Promise<{ unacceptedOrders: unknown; scheduledReminders: unknown }> {
+  const baseUrl = getBaseUrl(req)
+  const secret = process.env.CRON_SECRET || process.env.FIREBASE_JOB_SECRET || ''
+  const headers: HeadersInit = secret ? { Authorization: `Bearer ${secret}` } : {}
+
+  const call = async (url: string): Promise<unknown> => {
+    const res = await fetch(url, { headers, method: 'GET', cache: 'no-store' })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      return { ok: false, status: res.status, body }
+    }
+    return body
+  }
+
+  const [unacceptedOrders, scheduledReminders] = await Promise.all([
+    call(`${baseUrl}/api/cron/unaccepted-orders-whatsapp?allowLegacy=1`),
+    call(`${baseUrl}/api/cron/scheduled-order-reminders?allowLegacy=1`),
+  ])
+
+  return { unacceptedOrders, scheduledReminders }
+}
+
 async function executeJob(req: Request, type: ScheduledJobType, orderId: string): Promise<void> {
   const baseUrl = getBaseUrl(req)
   const secret = process.env.CRON_SECRET || process.env.FIREBASE_JOB_SECRET || ''
@@ -66,19 +88,33 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
   }
 
   if (!isFirebaseAdminConfigured()) {
-    return NextResponse.json({ ok: true, processed: 0, reason: 'firebase-admin-not-configured' })
+    const fallback = await runLegacyFallbackCrons(req)
+    return NextResponse.json({ ok: true, processed: 0, reason: 'firebase-admin-not-configured', fallback })
   }
   const db = getFirestoreAdmin()
   if (!db) {
-    return NextResponse.json({ ok: false, error: 'firestore-unavailable' }, { status: 500 })
+    const fallback = await runLegacyFallbackCrons(req)
+    return NextResponse.json({ ok: true, processed: 0, reason: 'firestore-unavailable', fallback })
   }
 
   const nowMs = Date.now()
-  const pending = await db
-    .collection('scheduledJobs')
-    .where('status', '==', 'pending')
-    .limit(200)
-    .get()
+  let pending
+  try {
+    pending = await db
+      .collection('scheduledJobs')
+      .where('status', '==', 'pending')
+      .limit(200)
+      .get()
+  } catch (error) {
+    const fallback = await runLegacyFallbackCrons(req)
+    return NextResponse.json({
+      ok: true,
+      processed: 0,
+      reason: 'scheduled-jobs-query-failed',
+      error: error instanceof Error ? error.message : String(error),
+      fallback,
+    })
+  }
 
   const dueDocs = pending.docs.filter((d) => {
     const runAtMs = Number((d.data() as JobDoc).runAtMs ?? 0)
