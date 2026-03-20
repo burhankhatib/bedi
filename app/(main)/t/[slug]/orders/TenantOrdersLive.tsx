@@ -5,6 +5,8 @@ import { OrdersClient, type Order } from '@/app/(main)/orders/OrdersClient'
 import { OrderNotificationsWrapper } from '@/app/(main)/orders/OrderNotificationsWrapper'
 import { useToast } from '@/components/ui/ToastProvider'
 import { usePusherStream } from '@/lib/usePusherStream'
+import { Button } from '@/components/ui/button'
+import { RefreshCw } from 'lucide-react'
 
 /**
  * Business (tenant) orders list. Same pattern as customer track: initial fetch + SSE only, refetch on event.
@@ -68,6 +70,8 @@ export function TenantOrdersLive({
   const prevOrdersRef = useRef<Order[]>(initialOrders)
   const liveUpdateTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const [orderModalOpen, setOrderModalOpen] = useState(false)
+  const [isMobileViewport, setIsMobileViewport] = useState(false)
+  const [isForceRefreshing, setIsForceRefreshing] = useState(false)
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -121,6 +125,35 @@ export function TenantOrdersLive({
       liveUpdateTimeoutsRef.current = []
     }
   }, [])
+
+  // Recovery fetch: if SSR returned empty (transient Sanity/network error), reload once on mount.
+  useEffect(() => {
+    if ((initialOrders?.length ?? 0) === 0) {
+      void fetchOrders()
+    }
+  }, [fetchOrders, initialOrders])
+
+  // Mobile-only UX guard: use non-blocking alerts to avoid full-screen dialog touch traps.
+  useEffect(() => {
+    const update = () => {
+      setIsMobileViewport(window.matchMedia('(max-width: 767px)').matches)
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
+  const handleForceRefresh = useCallback(async () => {
+    setIsForceRefreshing(true)
+    try {
+      await fetchOrders()
+      showToast('Orders refreshed', 'تم تحديث الطلبات', 'success')
+    } catch {
+      showToast('Refresh failed', 'فشل تحديث الطلبات', 'error')
+    } finally {
+      setTimeout(() => setIsForceRefreshing(false), 300)
+    }
+  }, [fetchOrders, showToast])
 
   const handleAcknowledged = useCallback((orderId: string) => {
     acknowledgedIdsRef.current.add(orderId)
@@ -198,8 +231,22 @@ export function TenantOrdersLive({
         onAcknowledged={handleAcknowledged}
         onTableRequestAcknowledged={handleTableRequestAcknowledged}
         onStandaloneTableRequestAcknowledged={handleStandaloneTableRequestAcknowledged}
-        suppressDialog={orderModalOpen}
+        suppressDialog={orderModalOpen || isMobileViewport}
       />
+
+      {/* Always-available manual refresh for recovery (above modals/overlays). */}
+      <div className="fixed bottom-4 left-4 z-[450]">
+        <Button
+          type="button"
+          onClick={handleForceRefresh}
+          className="h-10 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white shadow-xl border border-cyan-400/40"
+          disabled={isForceRefreshing}
+          title="Force refresh orders"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isForceRefreshing ? 'animate-spin' : ''}`} />
+          Force Refresh
+        </Button>
+      </div>
     </>
   )
 }

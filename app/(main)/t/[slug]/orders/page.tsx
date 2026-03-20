@@ -131,12 +131,12 @@ export default async function TenantOrdersPage({
 
   return (
     <OrdersPushGateWrapper slug={slug}>
-      <div className="min-h-screen overflow-x-hidden bg-slate-950 text-white">
+      <div className="dark min-h-screen overflow-x-hidden bg-slate-950 text-white">
         <AppNav variant="dashboard" />
 
         <main className="mx-auto max-w-[100vw] px-4 py-4 sm:container sm:py-6">
           <SubscriptionBanner slug={slug} initialData={subscriptionBannerData} />
-          <PWAManager role="business-orders" slug={slug} variant="inline" />
+          <PWAManager role="business-orders" slug={slug} variant="inline" hideInstall />
         <div className="mb-4 flex min-w-0 flex-col gap-3 sm:mb-6">
           <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-4">
             <Button asChild variant="ghost" size="sm" className="shrink-0 text-slate-400 hover:text-white">

@@ -110,8 +110,12 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
             {variant === 'dashboard' && (
               <>
                 <PWAInstallIcon config={getTenantDashboardPWAConfig()} className="bg-emerald-500/20 text-emerald-400 ring-emerald-400/30 hover:bg-emerald-500/30" />
-                {/* When PWA installed: reinstall moved to bottom PushStatusCard; hide from header */}
-                {!isStandaloneMode() && <PWAReinstallHelp config={getTenantDashboardPWAConfig()} variant="icon" />}
+                {/* Desktop only: reinstall help when already running as installed PWA */}
+                {isStandaloneMode() && (
+                  <span className="hidden md:inline-flex">
+                    <PWAReinstallHelp config={getTenantDashboardPWAConfig()} variant="icon" />
+                  </span>
+                )}
                 <Button asChild variant="ghost" size="sm" className="text-slate-400 hover:text-white">
                   <Link href="/dashboard">
                     <LayoutDashboard className="mr-1.5 size-4" />
@@ -182,7 +186,6 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
               <>
                 {langSwitcher}
                 <PWAInstallIcon config={getTenantDashboardPWAConfig()} className="bg-emerald-500/20 text-emerald-400 ring-emerald-400/30 hover:bg-emerald-500/30" />
-                {!isStandaloneMode() && <PWAReinstallHelp config={getTenantDashboardPWAConfig()} variant="icon" />}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -261,7 +264,6 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
                 </Link>
               </>
             )}
-            <PWAReinstallHelp config={getTenantDashboardPWAConfig()} variant="menuitem" className="mx-4 my-1" />
             <div className="mt-4 border-t border-slate-800 px-6 pt-4">
               <p className="text-xs text-slate-500">{dashboardNavLabels.account}</p>
               <div className="mt-2 flex items-center gap-2">

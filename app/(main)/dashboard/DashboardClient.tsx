@@ -48,7 +48,7 @@ export function DashboardClient({
           {tenants.map((tenant) => (
             <div
               key={tenant._id}
-              className="group rounded-2xl border border-slate-800/60 bg-slate-900/40 p-6 transition-all hover:border-slate-700 hover:bg-slate-900/60"
+              className="group rounded-2xl border border-slate-800/60 bg-slate-900/40 p-6 transition-all [@media(hover:hover)]:hover:border-slate-700 [@media(hover:hover)]:hover:bg-slate-900/60"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex min-w-0 flex-1 items-start gap-4">
@@ -69,20 +69,20 @@ export function DashboardClient({
               </div>
 
               <div className="mt-6 flex flex-wrap gap-2">
-                <Button asChild size="sm" className="border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white">
+                <Button asChild size="sm" className="touch-manipulation border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white active:bg-slate-600/80">
                   <a href={`/t/${tenant.slug}`} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="mr-1.5 size-3.5" />
                     {t('View menu', 'عرض القائمة')}
                   </a>
                 </Button>
-                <Button asChild size="sm" className="border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white">
-                  <Link href={`/t/${tenant.slug}/manage`}>
+                <Button asChild size="sm" className="touch-manipulation border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white active:bg-slate-600/80">
+                  <Link href={`/t/${tenant.slug}/manage`} prefetch>
                     <LayoutGrid className="mr-1.5 size-3.5" />
                     {t('Manage', 'إدارة')}
                   </Link>
                 </Button>
-                <Button asChild size="sm" className="bg-amber-500 text-slate-950 hover:bg-amber-400">
-                  <Link href={`/t/${tenant.slug}/orders`}>
+                <Button asChild size="sm" className="touch-manipulation bg-amber-500 text-slate-950 hover:bg-amber-400 active:bg-amber-500/90">
+                  <Link href={`/t/${tenant.slug}/orders`} prefetch>
                     {t('Orders', 'الطلبات')}
                     <ArrowRight className="ml-1.5 size-3.5" />
                   </Link>

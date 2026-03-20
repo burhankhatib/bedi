@@ -128,7 +128,7 @@ export function ManageNavClient({
       <div className="mb-4 flex min-w-0 flex-wrap items-center gap-2">
         <a
           href="/dashboard"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors touch-manipulation"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-slate-400 transition-colors touch-manipulation [@media(hover:hover)]:hover:bg-slate-800 [@media(hover:hover)]:hover:text-white active:bg-slate-800/80 active:text-white"
         >
           <ArrowLeft className="mr-1.5 size-4 shrink-0 rtl:ml-1.5 rtl:mr-0 rtl:rotate-180" />
           {t('Dashboard', 'لوحة التحكم')}

@@ -76,7 +76,7 @@ export default async function ManageLayout({
         <TenantBusinessProvider slug={slug}>
         <div className="flex-1 mx-auto w-full max-w-[1400px] flex flex-col">
           {/* Utility Components out of the flex-row flow */}
-          <PWAManager role="business-manage" slug={slug} variant="inline" />
+          <PWAManager role="business-manage" slug={slug} variant="inline" hideInstall />
           <ManageLanguageSync slug={slug} />
 
           <div className="flex-1 flex flex-col md:flex-row w-full">

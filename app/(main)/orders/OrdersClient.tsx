@@ -144,7 +144,14 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     try {
       const storedStatuses = localStorage.getItem('orders_hidden_statuses')
       if (storedStatuses) {
-        setHiddenStatuses(JSON.parse(storedStatuses))
+        const parsed = JSON.parse(storedStatuses)
+        const allStatuses = Object.keys(STATUS_CONFIG)
+        if (Array.isArray(parsed) && parsed.length < allStatuses.length) {
+          setHiddenStatuses(parsed)
+        } else {
+          setHiddenStatuses([])
+          localStorage.setItem('orders_hidden_statuses', JSON.stringify([]))
+        }
       }
       
       const storedView = localStorage.getItem('orders_view_mode')
@@ -219,13 +226,13 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     onModalOpenChange?.(selectedOrder != null)
   }, [selectedOrder, onModalOpenChange])
 
-  // Set default to today's date for initial load
-  useEffect(() => {
-    const today = new Date();
-    const todayString = today.toISOString().split('T')[0];
-    setStartDate(todayString);
-    setEndDate(todayString);
-  }, []);
+  const toLocalDateKey = (value: string) => {
+    const d = new Date(value)
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
 
   const executeStatusUpdate = async (orderId: string, newStatus: string, notifyAt?: string, oldOrder?: Order, newScheduledFor?: string) => {
     try {
@@ -459,10 +466,10 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
 
     // Date filtering (only if dates are set, otherwise show all)
     if (startDate && endDate) {
-      const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
+      const orderDate = toLocalDateKey(order.createdAt);
       if (orderDate < startDate || orderDate > endDate) return false;
     } else if (startDate) {
-      const orderDate = new Date(order.createdAt).toISOString().split('T')[0];
+      const orderDate = toLocalDateKey(order.createdAt);
       if (orderDate !== startDate) return false;
     }
 
