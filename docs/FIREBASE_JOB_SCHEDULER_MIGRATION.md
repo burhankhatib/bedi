@@ -8,7 +8,7 @@ This project now supports **Firebase-backed delayed jobs** to stop idle Sanity A
 - Added due-job processor endpoint: `POST /api/jobs/process-due`
 - Added Firebase scheduled function scaffold in `firebase/functions/src/index.ts`
 - Added event-driven scheduling/cancellation in delivery lifecycle routes
-- Disabled Vercel cron scans in `vercel.json` (`"crons": []`)
+- `vercel.json` includes a **minute cron** for `GET /api/jobs/process-due` so delayed jobs run on Vercel without deploying Firebase Functions. Legacy Sanity-wide scans for unaccepted WhatsApp remain opt-in via `ENABLE_LEGACY_SANITY_SCAN_CRONS`.
 
 ## Required env vars
 

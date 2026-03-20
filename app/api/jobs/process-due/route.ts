@@ -4,6 +4,18 @@ import type { ScheduledJobType } from '@/lib/delivery-job-scheduler'
 
 export const dynamic = 'force-dynamic'
 
+/** Vercel Cron sends Authorization: Bearer $CRON_SECRET; Firebase Functions may use FIREBASE_JOB_SECRET only. Accept either. */
+function isAuthorizedJobProcessor(req: Request): boolean {
+  const header = req.headers.get('authorization')
+  const m = header?.match(/^Bearer\s+(.+)$/i)
+  const token = m?.[1]?.trim() || ''
+  const secrets = [process.env.CRON_SECRET, process.env.FIREBASE_JOB_SECRET].filter(
+    (s): s is string => typeof s === 'string' && s.length > 0
+  )
+  if (!secrets.length) return true
+  return secrets.includes(token)
+}
+
 type JobDoc = {
   type?: ScheduledJobType
   orderId?: string
@@ -48,10 +60,8 @@ async function executeJob(req: Request, type: ScheduledJobType, orderId: string)
   }
 }
 
-export async function POST(req: Request) {
-  const secret = process.env.FIREBASE_JOB_SECRET || process.env.CRON_SECRET
-  const authHeader = req.headers.get('authorization')
-  if (secret && authHeader !== `Bearer ${secret}`) {
+async function runProcessDue(req: Request): Promise<NextResponse> {
+  if (!isAuthorizedJobProcessor(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -110,5 +120,15 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true, processed, failed })
+}
+
+/** POST — Firebase scheduled function (`processDueJobs`) */
+export async function POST(req: Request) {
+  return runProcessDue(req)
+}
+
+/** GET — Vercel Cron only invokes GET; same auth and behavior as POST */
+export async function GET(req: Request) {
+  return runProcessDue(req)
 }
 

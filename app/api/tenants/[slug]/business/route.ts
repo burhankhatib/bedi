@@ -38,9 +38,9 @@ export async function GET(
   const auth = await checkTenantAuth(slug)
   if (!auth.ok) return NextResponse.json({ error: 'Forbidden' }, { status: auth.status })
 
-  const refresh = new URL(req.url).searchParams.get('refresh') === '1'
-  const tenantClient = refresh ? clientNoCdn : client
-  const restaurantClient = refresh ? clientNoCdn : client
+  // Always bypass Sanity CDN: this route is auth-bound and must reflect PATCH immediately (e.g. prioritizeWhatsapp).
+  const tenantClient = clientNoCdn
+  const restaurantClient = clientNoCdn
 
   const [tenant, restaurantInfoRaw] = await Promise.all([
     tenantClient.fetch<{
@@ -122,10 +122,20 @@ export async function GET(
     console.error('[API] Sync tenant phone error:', e)
   }
 
+  const logoAssetRef =
+    restaurantInfoRaw?.logo &&
+    typeof restaurantInfoRaw.logo === 'object' &&
+    'asset' in restaurantInfoRaw.logo &&
+    restaurantInfoRaw.logo.asset &&
+    typeof (restaurantInfoRaw.logo.asset as { _ref?: string })._ref === 'string'
+      ? (restaurantInfoRaw.logo.asset as { _ref: string })._ref
+      : null
+
   const restaurantInfo = restaurantInfoRaw
     ? {
         ...restaurantInfoRaw,
         logoUrl: restaurantInfoRaw.logo ? urlFor(restaurantInfoRaw.logo).width(120).height(120).url() : null,
+        logoAssetId: logoAssetRef,
       }
     : null
   // Tenant-specific + auth: never allow shared CDN caching of this JSON (stale flags e.g. prioritizeWhatsapp after PATCH).

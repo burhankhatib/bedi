@@ -1,7 +1,7 @@
 'use client'
 
-import { Suspense, useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import { Suspense, startTransition, useEffect } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { MobileBottomNav } from './MobileBottomNav'
 import { CartSlider } from '@/components/Cart/CartSlider'
 import { CartToast } from '@/components/Cart/CartToast'
@@ -69,7 +69,40 @@ function isCustomerPWAPath(pathname: string): boolean {
  */
 export function CustomerAreaWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   useScrollToTopOnNavigate()
+
+  /** PWA / WebKit: bfcache restore can leave the previous route’s UI visible until refreshed. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return
+      const p = window.location.pathname || ''
+      if (!isCustomerPath(p)) return
+      startTransition(() => router.refresh())
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [router])
+
+  /**
+   * Standalone PWA back/forward: App Router client cache can desync from the history entry.
+   * Refresh after popstate so the visible URL and RSC payload match (fixes “stuck” on /t/[slug]).
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+    if (!standalone) return
+    const onPopState = () => {
+      const p = window.location.pathname || ''
+      if (!isCustomerPath(p)) return
+      startTransition(() => router.refresh())
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [router])
   const showNav = isCustomerPath(pathname ?? '')
   const { isChosen } = useLocation()
   const { isOpen: cartOpen } = useCart()

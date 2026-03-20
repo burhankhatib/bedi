@@ -55,6 +55,8 @@ type BusinessData = {
     address_en?: string
     address_ar?: string
     logoUrl?: string | null
+    /** Sanity image asset id when a logo already exists (for saves without re-upload). */
+    logoAssetId?: string | null
     notificationSound?: string
     openingHours?: Array<{ open?: string; close?: string; shifts?: { open?: string; close?: string }[] }> | null
     customDateHours?: Array<{ date?: string; open?: string; close?: string; shifts?: { open?: string; close?: string }[] }> | null
@@ -222,7 +224,7 @@ function formSnapshotFromData(d: BusinessData, currentSlug: string): FormState {
     snapchat: r?.socials?.snapchat ?? '',
     whatsapp: r?.socials?.whatsapp ?? '',
     website: r?.socials?.website ?? '',
-    logoAssetId: '',
+    logoAssetId: r?.logoAssetId?.trim() ? r.logoAssetId.trim() : '',
     notificationSound: r?.notificationSound ?? '1.wav',
     deactivated: tenant?.deactivated ?? false,
     deactivateUntil: tenant?.deactivateUntil ?? '',
@@ -441,6 +443,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           snapchat: r.socials?.snapchat || '',
           whatsapp: r.socials?.whatsapp || '',
           website: r.socials?.website || '',
+          logoAssetId: r.logoAssetId?.trim() ? r.logoAssetId.trim() : '',
           notificationSound: r.notificationSound || '1.wav',
           openingHours: Array.isArray(r.openingHours) && r.openingHours.length > 0
             ? Array.from({ length: 7 }, (_, i) => ({ 
@@ -715,7 +718,8 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
   }
 
   const doSave = useCallback(async () => {
-    if (!logoPreviewUrl) {
+    const hasLogo = Boolean(logoPreviewUrl || form.logoAssetId?.trim())
+    if (!hasLogo) {
       showToast('Please upload a business logo first.', 'يرجى رفع شعار العمل أولاً.', 'error')
       return
     }

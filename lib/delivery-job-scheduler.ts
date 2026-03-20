@@ -20,7 +20,15 @@ function jobId(type: ScheduledJobType, orderId: string): string {
 }
 
 export async function scheduleJob(input: ScheduleJobInput): Promise<void> {
-  if (!isFirebaseAdminConfigured()) return
+  if (!isFirebaseAdminConfigured()) {
+    console.warn(
+      '[delivery-job-scheduler] Firebase Admin / Firestore not configured; job not queued:',
+      input.type,
+      input.orderId,
+      '(set FIREBASE_* env or service account — 3min WhatsApp and delivery timers need this + /api/jobs/process-due cron)'
+    )
+    return
+  }
   const db = getFirestoreAdmin()
   if (!db) return
   const id = jobId(input.type, input.orderId)

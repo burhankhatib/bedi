@@ -10,13 +10,17 @@ const writeClient = client.withConfig({ token: token || undefined, useCdn: false
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  
+  const m = authHeader?.match(/^Bearer\s+(.+)$/i)
+  const bearer = m?.[1]?.trim() || ''
+  const allowed = [process.env.CRON_SECRET, process.env.FIREBASE_JOB_SECRET].filter(
+    (s): s is string => typeof s === 'string' && s.length > 0
+  )
+
   // Try to read secret from URL parameter as a fallback (for cron-job.org testing)
   const url = new URL(req.url)
   const secretParam = url.searchParams.get('secret')
-  
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}` && secretParam !== cronSecret) {
+
+  if (allowed.length && !allowed.includes(bearer) && !(secretParam && allowed.includes(secretParam))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
