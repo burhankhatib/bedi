@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
+import { GROQ_STATUS_AWAITING_DRIVER } from '@/lib/delivery-awaiting-driver-status'
 import { notifyDriversOfDeliveryOrder } from '@/lib/notify-drivers-for-order'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
@@ -41,7 +42,7 @@ export async function GET(req: Request) {
         _id == $orderId &&
         defined(deliveryRequestedAt) &&
         !defined(assignedDriver) &&
-        status in ["new", "preparing", "waiting_for_delivery"]
+        ${GROQ_STATUS_AWAITING_DRIVER}
       ][0]{
         _id,
         deliveryRequestedAt,
@@ -70,7 +71,7 @@ export async function GET(req: Request) {
       _type == "order" &&
       defined(deliveryRequestedAt) &&
       !defined(assignedDriver) &&
-      status in ["new", "preparing", "waiting_for_delivery"] &&
+      ${GROQ_STATUS_AWAITING_DRIVER} &&
       (
         !defined(lastDeliveryRequestPingAt) && deliveryRequestedAt <= $cutoff
         || defined(lastDeliveryRequestPingAt) && lastDeliveryRequestPingAt <= $cutoff

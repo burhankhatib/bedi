@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
+import { GROQ_STATUS_AWAITING_DRIVER } from '@/lib/delivery-awaiting-driver-status'
 import { formatMetaWhatsAppApiError, sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
 
 export const dynamic = 'force-dynamic'
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
           _id == $orderId &&
           orderType == "delivery" &&
           defined(deliveryRequestedAt) &&
-          status in ["new", "preparing", "waiting_for_delivery"] &&
+          ${GROQ_STATUS_AWAITING_DRIVER} &&
           !defined(assignedDriver) &&
           (!defined(driversWhatsappNotifiedCount) || driversWhatsappNotifiedCount < 3)
         ][0]{
@@ -141,7 +142,7 @@ export async function GET(req: Request) {
         _type == "order" &&
         orderType == "delivery" &&
         defined(deliveryRequestedAt) &&
-        status in ["new", "preparing", "waiting_for_delivery"] &&
+        ${GROQ_STATUS_AWAITING_DRIVER} &&
         !defined(assignedDriver) &&
         (
           (!defined(driversWhatsappNotifiedAt) && deliveryRequestedAt <= $cutoff3m) ||

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
+import { GROQ_STATUS_AWAITING_DRIVER } from '@/lib/delivery-awaiting-driver-status'
 import { executeDeliveryRequestBroadcast } from '@/lib/execute-delivery-request-broadcast'
 import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
 
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
     `*[
       _type == "order" &&
       orderType == "delivery" &&
-      status in ["new", "acknowledged", "preparing", "waiting_for_delivery"] &&
+      ${GROQ_STATUS_AWAITING_DRIVER} &&
       !defined(assignedDriver) &&
       defined(autoDeliveryRequestScheduledAt) &&
       autoDeliveryRequestScheduledAt <= $now &&
