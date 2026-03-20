@@ -51,8 +51,10 @@ export async function GET(
       country?: string
       city?: string
       businessType?: string
-      businessSubcategoryRefs?: string[] | null
-      businessSubcategories?: Array<{ _id: string; slug?: string; businessType?: string }> | null
+      businessSubcategories?: Array<{
+        _ref?: string
+        doc?: { _id: string; slug?: string; businessType?: string } | null
+      }> | null
       deactivated?: boolean
       deactivateUntil?: string | null
       defaultLanguage?: string | null
@@ -73,8 +75,10 @@ export async function GET(
       `*[_type == "tenant" && _id == $tenantId][0]{
         _id, name, "slug": slug.current, country, city,
         businessType,
-        "businessSubcategoryRefs": businessSubcategories[]._ref,
-        "businessSubcategories": businessSubcategories[]->{ _id, "slug": slug.current, businessType },
+        "businessSubcategories": businessSubcategories[]{
+          "_ref": @._ref,
+          "doc": @->{ _id, "slug": slug.current, businessType }
+        },
         deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, freeDeliveryEnabled, supportsDriverPickup,
         defaultAutoDeliveryRequestMinutes, saveAutoDeliveryRequestPreference,
         catalogHidePrices, prioritizeWhatsapp,
@@ -100,13 +104,13 @@ export async function GET(
 
   // Resolve old subcategory IDs to canonical seeded IDs (e.g. random-uuid → businessSubcategory.burgers-restaurant).
   const rawSubs = (tenantRaw.businessSubcategories ?? []).filter(Boolean)
-  const rawSubRefs = (tenantRaw.businessSubcategoryRefs ?? []).filter((id): id is string => typeof id === 'string' && id.trim() !== '')
   const resolvedSubIds: string[] = []
   let subcatIdsChanged = false
-  const count = Math.max(rawSubs.length, rawSubRefs.length)
-  for (let i = 0; i < count; i += 1) {
-    const sub = rawSubs[i]
-    const fallbackRef = rawSubRefs[i]
+
+  for (const row of rawSubs) {
+    const fallbackRef = typeof row._ref === 'string' ? row._ref.trim() : ''
+    const sub = row.doc
+
     if (!sub) {
       if (fallbackRef) resolvedSubIds.push(fallbackRef)
       continue

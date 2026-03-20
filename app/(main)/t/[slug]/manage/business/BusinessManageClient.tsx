@@ -237,10 +237,7 @@ function formSnapshotFromData(d: BusinessData, currentSlug: string): FormState {
     freeDeliveryEnabled: tenant?.freeDeliveryEnabled ?? false,
     supportsDriverPickup: tenant?.supportsDriverPickup ?? false,
     defaultAutoDeliveryRequestMinutes: (() => {
-      const save = tenant?.saveAutoDeliveryRequestPreference === true
-      if (!save) return 20
       const d = tenant?.defaultAutoDeliveryRequestMinutes
-      if (d === null) return null
       if (d === undefined) return 20
       return d
     })(),
@@ -422,9 +419,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           freeDeliveryEnabled: d.tenant!.freeDeliveryEnabled ?? false,
           supportsDriverPickup: d.tenant!.supportsDriverPickup ?? false,
           defaultAutoDeliveryRequestMinutes:
-            d.tenant!.saveAutoDeliveryRequestPreference === true
-              ? (d.tenant!.defaultAutoDeliveryRequestMinutes === undefined ? 20 : d.tenant!.defaultAutoDeliveryRequestMinutes)
-              : 20,
+            d.tenant!.defaultAutoDeliveryRequestMinutes === undefined ? 20 : d.tenant!.defaultAutoDeliveryRequestMinutes,
           saveAutoDeliveryRequestPreference: d.tenant!.saveAutoDeliveryRequestPreference ?? false,
           prioritizeWhatsapp: d.tenant!.prioritizeWhatsapp ?? false,
           locationLat: d.tenant!.locationLat ?? null,
@@ -741,7 +736,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           ...(form.catalogMode || !form.supportsDelivery
             ? { defaultAutoDeliveryRequestMinutes: null, saveAutoDeliveryRequestPreference: false }
             : {
-                defaultAutoDeliveryRequestMinutes: form.saveAutoDeliveryRequestPreference ? form.defaultAutoDeliveryRequestMinutes : null,
+                defaultAutoDeliveryRequestMinutes: form.defaultAutoDeliveryRequestMinutes,
                 saveAutoDeliveryRequestPreference: form.saveAutoDeliveryRequestPreference,
               }),
           catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false,
@@ -791,7 +786,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                   supportsDelivery: form.catalogMode ? false : form.supportsDelivery,
                   freeDeliveryEnabled: form.catalogMode ? false : (form.supportsDelivery ? form.freeDeliveryEnabled : false),
                   supportsDriverPickup: form.catalogMode ? false : form.supportsDriverPickup,
-                  defaultAutoDeliveryRequestMinutes: form.catalogMode || !form.supportsDelivery ? null : (form.saveAutoDeliveryRequestPreference ? form.defaultAutoDeliveryRequestMinutes : null),
+                  defaultAutoDeliveryRequestMinutes: form.catalogMode || !form.supportsDelivery ? null : form.defaultAutoDeliveryRequestMinutes,
                   saveAutoDeliveryRequestPreference: form.catalogMode || !form.supportsDelivery ? false : form.saveAutoDeliveryRequestPreference,
                   prioritizeWhatsapp: form.prioritizeWhatsapp,
                   locationLat: form.locationLat ?? undefined,
@@ -1522,7 +1517,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                 </div>
               )}
               
-              {businessCategory === 'restaurant' && form.businessType && (
+              {form.businessType && (
                 <div className="mt-5 pt-5 border-t border-slate-700/60">
                   <label className="block text-sm font-semibold text-slate-300 mb-3">{t('Sub-categories (specialties)', 'التصنيفات الفرعية (التخصصات)')}</label>
                   {subcategoriesLoading ? (
