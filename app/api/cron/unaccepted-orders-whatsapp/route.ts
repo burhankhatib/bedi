@@ -3,6 +3,7 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
 import { formatTenantNewOrderWhatsAppSummary } from '@/lib/whatsapp-tenant-order-summary'
+import { appendOrderNotificationDiagnostic } from '@/lib/notification-diagnostics'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,11 +26,12 @@ export async function GET(req: Request) {
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
-  // Find orders that are 'new', haven't been notified yet.
-  // We check for two conditions to trigger the 3-minute warning:
-  // 1. Regular orders: created between 3 minutes and 2 hours ago.
-  // 2. Scheduled orders (which revert to 'new' when their notification time arrives):
-  //    notifyAt is between 3 minutes and 2 hours ago.
+  // Orders still not accepted (status == new): send WhatsApp reminder using the same enhanced
+  // `new_order` template (full details + Maps/Waze) as instant notifications.
+  // Gated by businessWhatsappUnacceptedReminderAt so instant WhatsApp (prioritizeWhatsapp) does not block this.
+  // Time windows:
+  // 1. Regular: created 3–120 minutes ago.
+  // 2. Scheduled: notifyAt 3–120 minutes ago.
   const now = Date.now()
   const cutoff3m = new Date(now - 3 * 60 * 1000).toISOString()
   const cutoff2h = new Date(now - 2 * 60 * 60 * 1000).toISOString()
@@ -57,7 +59,7 @@ export async function GET(req: Request) {
           _type == "order" &&
           _id == $orderId &&
           status == "new" &&
-          !defined(businessWhatsappNotifiedAt)
+          !defined(businessWhatsappUnacceptedReminderAt)
         ][0]{
           _id,
           "tenantPhone": site->ownerPhone,
@@ -86,9 +88,38 @@ export async function GET(req: Request) {
         const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
         const orderSummary = formatTenantNewOrderWhatsAppSummary(order)
         const result = await sendWhatsAppTemplateMessage(phone, 'new_order', [businessName, orderSummary], 'ar_EG', `${order.tenantSlug}/orders`)
-        if (result.success) notified = 1
+        if (result.success) {
+          notified = 1
+          await appendOrderNotificationDiagnostic(writeClient, order._id, {
+            source: 'cron/unaccepted-orders-whatsapp',
+            level: 'info',
+            message: 'Unaccepted-order WhatsApp reminder sent (~3 min, still status new)',
+            detail: { mode: 'single-order' },
+          })
+        } else {
+          console.error(`[cron/unaccepted-orders-whatsapp] Failed to send for order ${order._id}`, result.error)
+          await appendOrderNotificationDiagnostic(writeClient, order._id, {
+            source: 'cron/unaccepted-orders-whatsapp',
+            level: 'error',
+            message: 'Unaccepted-order WhatsApp reminder send failed',
+            detail: { mode: 'single-order', error: result.error },
+          })
+        }
+      } else {
+        await appendOrderNotificationDiagnostic(writeClient, order._id, {
+          source: 'cron/unaccepted-orders-whatsapp',
+          level: 'warn',
+          message: 'Unaccepted-order WhatsApp reminder skipped: tenant has no ownerPhone',
+          detail: { mode: 'single-order' },
+        })
       }
-      await writeClient.patch(order._id).set({ businessWhatsappNotifiedAt: nowIso }).commit()
+      await writeClient
+        .patch(order._id)
+        .set({
+          businessWhatsappUnacceptedReminderAt: nowIso,
+          businessWhatsappNotifiedAt: nowIso,
+        })
+        .commit()
       return NextResponse.json({ ok: true, notifiedCount: notified, orderId: singleOrderId })
     } catch (error) {
       console.error('[cron/unaccepted-orders-whatsapp] single order failed:', error)
@@ -121,7 +152,7 @@ export async function GET(req: Request) {
       `*[
         _type == "order" &&
         status == "new" &&
-        !defined(businessWhatsappNotifiedAt) &&
+        !defined(businessWhatsappUnacceptedReminderAt) &&
         (
           (createdAt <= $cutoff3m && createdAt >= $cutoff2h) ||
           (defined(scheduledFor) && defined(notifyAt) && notifyAt <= $cutoff3m && notifyAt >= $cutoff2h)
@@ -169,14 +200,39 @@ export async function GET(req: Request) {
 
           if (result.success) {
             notifiedCount++
+            await appendOrderNotificationDiagnostic(writeClient, order._id, {
+              source: 'cron/unaccepted-orders-whatsapp',
+              level: 'info',
+              message: 'Unaccepted-order WhatsApp reminder sent (legacy Sanity scan)',
+              detail: { mode: 'legacy-scan' },
+            })
           } else {
-            console.error(`[cron/unaccepted-orders-whatsapp] Failed to send to ${phone} for order ${order._id}`, result.error)
+            console.error(`[cron/unaccepted-orders-whatsapp] Failed to send for order ${order._id}`, result.error)
+            await appendOrderNotificationDiagnostic(writeClient, order._id, {
+              source: 'cron/unaccepted-orders-whatsapp',
+              level: 'error',
+              message: 'Unaccepted-order WhatsApp reminder send failed',
+              detail: { mode: 'legacy-scan', error: result.error },
+            })
           }
+        } else {
+          await appendOrderNotificationDiagnostic(writeClient, order._id, {
+            source: 'cron/unaccepted-orders-whatsapp',
+            level: 'warn',
+            message: 'Unaccepted-order WhatsApp reminder skipped: tenant has no ownerPhone',
+            detail: { mode: 'legacy-scan' },
+          })
         }
 
         // We mark it as notified even if we failed to send or there is no phone,
         // so we don't keep trying and failing every minute for the next 2 hours.
-        await writeClient.patch(order._id).set({ businessWhatsappNotifiedAt: nowIso }).commit()
+        await writeClient
+          .patch(order._id)
+          .set({
+            businessWhatsappUnacceptedReminderAt: nowIso,
+            businessWhatsappNotifiedAt: nowIso,
+          })
+          .commit()
       } catch (e) {
         console.error('[cron/unaccepted-orders-whatsapp] Failed processing order', order._id, e)
       }

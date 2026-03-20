@@ -1,4 +1,4 @@
-import { defineField, defineType } from 'sanity'
+import { defineArrayMember, defineField, defineType } from 'sanity'
 
 export const orderType = defineType({
   name: 'order',
@@ -225,11 +225,30 @@ export const orderType = defineType({
     }),
     defineField({
       name: 'businessWhatsappNotifiedAt',
-      title: 'Business WhatsApp Notified At',
+      title: 'Business WhatsApp reminder processed At (legacy)',
       type: 'datetime',
       readOnly: true,
       hidden: true,
-      description: 'When the business was notified via WhatsApp about an unaccepted order.',
+      description:
+        'Set when the 3-minute “still not accepted” WhatsApp reminder job has run (success or skipped). Also kept for legacy queries. Instant WhatsApp uses businessWhatsappInstantNotifiedAt.',
+    }),
+    defineField({
+      name: 'businessWhatsappInstantNotifiedAt',
+      title: 'Business WhatsApp instant (new order) At',
+      type: 'datetime',
+      readOnly: true,
+      hidden: true,
+      description:
+        'When the business received the instant new-order WhatsApp (tenant “Instant WhatsApp” / prioritizeWhatsapp). Does not block the 3-minute unaccepted reminder.',
+    }),
+    defineField({
+      name: 'businessWhatsappUnacceptedReminderAt',
+      title: 'Business WhatsApp unaccepted reminder At',
+      type: 'datetime',
+      readOnly: true,
+      hidden: true,
+      description:
+        'When the 3-minute reminder for orders still in status “new” was processed (same enhanced new_order template). Prevents duplicate reminders.',
     }),
     defineField({
       name: 'driversWhatsappNotifiedAt',
@@ -254,6 +273,54 @@ export const orderType = defineType({
       readOnly: true,
       hidden: true,
       description: 'Whether the new order FCM push notification has been sent to the business owner and staff.',
+    }),
+    defineField({
+      name: 'notificationDiagnostics',
+      title: 'Notification diagnostics',
+      type: 'array',
+      readOnly: true,
+      hidden: true,
+      description:
+        'Auto-appended log (push, WhatsApp, Firestore job queue). For support / super-admin debugging.',
+      of: [
+        defineArrayMember({
+          type: 'object',
+          name: 'notificationDiagnosticEntry',
+          fields: [
+            defineField({
+              name: 'at',
+              title: 'At',
+              type: 'datetime',
+              readOnly: true,
+            }),
+            defineField({
+              name: 'source',
+              title: 'Source',
+              type: 'string',
+              readOnly: true,
+            }),
+            defineField({
+              name: 'level',
+              title: 'Level',
+              type: 'string',
+              readOnly: true,
+            }),
+            defineField({
+              name: 'message',
+              title: 'Message',
+              type: 'string',
+              readOnly: true,
+            }),
+            defineField({
+              name: 'detail',
+              title: 'Detail (JSON)',
+              type: 'text',
+              rows: 4,
+              readOnly: true,
+            }),
+          ],
+        }),
+      ],
     }),
     defineField({
       name: 'declinedByDriverIds',

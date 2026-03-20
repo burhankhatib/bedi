@@ -3,6 +3,7 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { NotificationService } from '@/lib/notifications/NotificationService'
 import { scheduleOrderUnacceptedWhatsapp } from '@/lib/delivery-job-scheduler'
+import { recordOrderUnacceptedWhatsappJobResult } from '@/lib/notification-diagnostics'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,18 +53,35 @@ export async function GET(request: Request) {
       if (!order?._id) {
         return NextResponse.json({ success: true, processed: 0, skipped: true })
       }
-      await writeClient.patch(order._id).set({ reminderSent: true, status: 'new' }).unset(['businessWhatsappNotifiedAt']).commit()
-      await NotificationService.onNewOrder({
-        orderId: order._id,
-        orderNumber: order.orderNumber,
-        tenantId: order.tenantId,
-        tenantSlug: order.tenantSlug,
-        tenantName: order.tenantName,
-        tenantNameAr: order.tenantNameAr,
-        tenantPhone: order.tenantPhone,
-        prioritizeWhatsapp: order.prioritizeWhatsapp,
-      })
-      await scheduleOrderUnacceptedWhatsapp(order._id, Date.now())
+      await writeClient
+        .patch(order._id)
+        .set({ reminderSent: true, status: 'new' })
+        .unset([
+          'businessWhatsappNotifiedAt',
+          'businessWhatsappUnacceptedReminderAt',
+          'businessWhatsappInstantNotifiedAt',
+        ])
+        .commit()
+      try {
+        await NotificationService.onNewOrder({
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          tenantId: order.tenantId,
+          tenantSlug: order.tenantSlug,
+          tenantName: order.tenantName,
+          tenantNameAr: order.tenantNameAr,
+          tenantPhone: order.tenantPhone,
+          prioritizeWhatsapp: order.prioritizeWhatsapp,
+        })
+      } finally {
+        const jobRes = await scheduleOrderUnacceptedWhatsapp(order._id, Date.now())
+        await recordOrderUnacceptedWhatsappJobResult(
+          writeClient,
+          order._id,
+          'cron/scheduled-order-reminders (single)',
+          jobRes
+        )
+      }
       return NextResponse.json({ success: true, processed: 1, orderId: singleOrderId })
     }
 
@@ -106,23 +124,37 @@ export async function GET(request: Request) {
       try {
         // Mark the reminder as sent, change status back to new so it pops up in dashboard,
         // and explicitly unset the WhatsApp notified flag so the backup cron can pick it up.
-        await writeClient.patch(order._id)
+        await writeClient
+          .patch(order._id)
           .set({ reminderSent: true, status: 'new' })
-          .unset(['businessWhatsappNotifiedAt'])
+          .unset([
+            'businessWhatsappNotifiedAt',
+            'businessWhatsappUnacceptedReminderAt',
+            'businessWhatsappInstantNotifiedAt',
+          ])
           .commit()
 
-        // Trigger the full new order notification flow (Pusher ring, FCM Push, instant WhatsApp if prioritized)
-        await NotificationService.onNewOrder({
-          orderId: order._id,
-          orderNumber: order.orderNumber,
-          tenantId: order.tenantId,
-          tenantSlug: order.tenantSlug,
-          tenantName: order.tenantName,
-          tenantNameAr: order.tenantNameAr,
-          tenantPhone: order.tenantPhone,
-          prioritizeWhatsapp: order.prioritizeWhatsapp
-        })
-        await scheduleOrderUnacceptedWhatsapp(order._id, Date.now())
+        // Trigger immediate ring/push; always queue delayed WhatsApp backup even if push fails.
+        try {
+          await NotificationService.onNewOrder({
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            tenantId: order.tenantId,
+            tenantSlug: order.tenantSlug,
+            tenantName: order.tenantName,
+            tenantNameAr: order.tenantNameAr,
+            tenantPhone: order.tenantPhone,
+            prioritizeWhatsapp: order.prioritizeWhatsapp
+          })
+        } finally {
+          const jobRes = await scheduleOrderUnacceptedWhatsapp(order._id, Date.now())
+          await recordOrderUnacceptedWhatsappJobResult(
+            writeClient,
+            order._id,
+            'cron/scheduled-order-reminders (batch)',
+            jobRes
+          )
+        }
 
         results.push({ orderId: order._id, success: true })
       } catch (err) {

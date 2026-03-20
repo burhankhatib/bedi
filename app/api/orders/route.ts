@@ -11,6 +11,7 @@ import {
   scheduleDeliveryLifecycleJobs,
   scheduleOrderUnacceptedWhatsapp,
 } from '@/lib/delivery-job-scheduler'
+import { recordOrderUnacceptedWhatsappJobResult } from '@/lib/notification-diagnostics'
 
 function isTenantDeactivated(tenant: { deactivated?: boolean; deactivateUntil?: string | null }): boolean {
   if (!tenant?.deactivated) return false
@@ -373,6 +374,7 @@ export async function POST(request: NextRequest) {
 
     let siteSlug: string | undefined = typeof tenantSlug === 'string' ? tenantSlug.trim() || undefined : undefined
     if (siteRef?._ref) {
+      let shouldQueueUnacceptedWhatsapp = false
       try {
         // Fetch tenant to get the proper name for the notification
         const tenantDoc = await writeClient.fetch<{ name?: string; name_ar?: string; slug?: { current?: string }; ownerPhone?: string; prioritizeWhatsapp?: boolean } | null>(
@@ -392,6 +394,7 @@ export async function POST(request: NextRequest) {
           tenantPhone: tenantDoc?.ownerPhone,
           prioritizeWhatsapp: tenantDoc?.prioritizeWhatsapp
         })
+        shouldQueueUnacceptedWhatsapp = true
 
         if (orderType === 'delivery' && targetTenant?.supportsDriverPickup === true && !scheduledFor) {
           const { notifyDriversOfDeliveryOrder } = await import('@/lib/notify-drivers-for-order')
@@ -402,9 +405,15 @@ export async function POST(request: NextRequest) {
             tenantId: siteRef._ref,
           })
         }
-        await scheduleOrderUnacceptedWhatsapp(result._id, Date.now())
       } catch (e) {
         console.error('[API] Tenant pusher trigger or push notification on new order failed:', e)
+      } finally {
+        // Keep 3-minute WhatsApp backup independent from immediate push/pusher flow.
+        // This ensures a transient push error does not prevent delayed business WhatsApp.
+        if (shouldQueueUnacceptedWhatsapp || !scheduledFor) {
+          const jobRes = await scheduleOrderUnacceptedWhatsapp(result._id, Date.now())
+          await recordOrderUnacceptedWhatsappJobResult(writeClient, result._id, 'POST /api/orders', jobRes)
+        }
       }
     }
 

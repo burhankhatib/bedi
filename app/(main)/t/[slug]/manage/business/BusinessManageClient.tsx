@@ -1766,7 +1766,10 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                   {t('Send WhatsApp instantly', 'إرسال واتساب فوراً')}
                 </span>
                 <span className="text-xs text-slate-400 mt-0.5">
-                  {t('Remove the 3-minute delay. Send WhatsApp immediately alongside FCM.', 'إزالة تأخير الـ 3 دقائق. إرسال إشعار واتساب فوراً مع الإشعارات.')}
+                  {t(
+                    'Sends WhatsApp immediately when an order arrives (full details + location links), in addition to FCM. If the order is still not accepted after ~3 minutes, a reminder WhatsApp is sent automatically.',
+                    'يُرسل واتساب فور وصول الطلب (التفاصيل الكاملة + روابط الموقع) بالإضافة إلى الإشعار. إذا لم يُقبل الطلب خلال نحو 3 دقائق، يُرسل تذكير واتساب تلقائياً.'
+                  )}
                 </span>
               </div>
             </label>

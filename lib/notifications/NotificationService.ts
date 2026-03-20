@@ -8,6 +8,7 @@ import { isFCMConfigured } from '@/lib/fcm'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
 import { sendTenantOrderUpdatePush, TenantOrderPushStatus } from '@/lib/tenant-order-push'
 import { formatTenantNewOrderWhatsAppSummary } from '@/lib/whatsapp-tenant-order-summary'
+import { appendOrderNotificationDiagnostic } from '@/lib/notification-diagnostics'
 
 const writeClient = client.withConfig({
   token: token,
@@ -17,7 +18,9 @@ const writeClient = client.withConfig({
 export const NotificationService = {
   /**
    * Fires immediate notifications when a new order is placed.
-   * Includes Pusher real-time update, FCM Push Notification, and WhatsApp Message.
+   * 1) Pusher + FCM/Web Push to tenant staff (always when configured).
+   * 2) Instant WhatsApp (new_order + full order summary) when tenant.prioritizeWhatsapp is true.
+   *    Does not set the 3-minute-unaccepted gate — that uses businessWhatsappUnacceptedReminderAt.
    */
   async onNewOrder(params: {
     orderId: string
@@ -54,7 +57,15 @@ export const NotificationService = {
 
     // 2. FCM Push Notification for Tenant and Staff
     const pushReady = isFCMConfigured() || isPushConfigured()
-    if (pushReady) {
+    if (!pushReady) {
+      console.warn('[NotificationService] Push skipped — FCM and Web Push not configured')
+      await appendOrderNotificationDiagnostic(writeClient, orderId, {
+        source: 'NotificationService.onNewOrder.push',
+        level: 'warn',
+        message: 'Push not attempted: neither FCM nor Web Push (VAPID) is configured on the server',
+        detail: { tenantId },
+      })
+    } else {
       try {
         const orderDoc = await writeClient.fetch<{
           scheduledFor?: string
@@ -89,13 +100,33 @@ export const NotificationService = {
           }).commit()
         } else {
           console.warn(`[NotificationService] No FCM/Web Push sent for new order ${orderId} – check tenant/staff subscriptions and FCM config.`)
+          await appendOrderNotificationDiagnostic(writeClient, orderId, {
+            source: 'NotificationService.onNewOrder.push',
+            level: 'warn',
+            message: 'Push attempted but no device accepted delivery (check userPushSubscription / tenant tokens)',
+            detail: { tenantId, fcmConfigured: isFCMConfigured(), webPushConfigured: isPushConfigured() },
+          })
         }
       } catch (e) {
         console.error('[NotificationService] Push notification on new order failed:', e)
+        await appendOrderNotificationDiagnostic(writeClient, orderId, {
+          source: 'NotificationService.onNewOrder.push',
+          level: 'error',
+          message: 'Push dispatch threw',
+          detail: { tenantId, error: e instanceof Error ? e.message : String(e) },
+        })
       }
     }
 
-    // 3. WhatsApp Notification for Business Owner (Backup by default, instant if prioritizeWhatsapp)
+    // 3. Instant WhatsApp (tenant “Instant WhatsApp enabled” = prioritizeWhatsapp)
+    if (prioritizeWhatsapp && !tenantPhone?.trim()) {
+      await appendOrderNotificationDiagnostic(writeClient, orderId, {
+        source: 'NotificationService.onNewOrder.whatsapp',
+        level: 'warn',
+        message: 'Instant WhatsApp skipped: tenant ownerPhone is empty but prioritizeWhatsapp is true',
+        detail: { tenantId },
+      })
+    }
     if (tenantPhone && prioritizeWhatsapp) {
       try {
         const phone = tenantPhone.trim()
@@ -151,13 +182,28 @@ export const NotificationService = {
           )
 
           if (waResult.success) {
-            await writeClient.patch(orderId).set({ businessWhatsappNotifiedAt: new Date().toISOString() }).commit()
+            await writeClient
+              .patch(orderId)
+              .set({ businessWhatsappInstantNotifiedAt: new Date().toISOString() })
+              .commit()
           } else {
             console.error(`[NotificationService] Failed to send WhatsApp to ${phone} for order ${orderId}`, waResult.error)
+            await appendOrderNotificationDiagnostic(writeClient, orderId, {
+              source: 'NotificationService.onNewOrder.whatsapp',
+              level: 'error',
+              message: 'Instant WhatsApp template send failed',
+              detail: { template: 'new_order', error: waResult.error },
+            })
           }
         }
       } catch (e) {
         console.error('[NotificationService] WhatsApp notification failed:', e)
+        await appendOrderNotificationDiagnostic(writeClient, orderId, {
+          source: 'NotificationService.onNewOrder.whatsapp',
+          level: 'error',
+          message: 'Instant WhatsApp dispatch threw',
+          detail: { error: e instanceof Error ? e.message : String(e) },
+        })
       }
     }
   },

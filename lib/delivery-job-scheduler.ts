@@ -19,7 +19,15 @@ function jobId(type: ScheduledJobType, orderId: string): string {
   return `${type}:${orderId}`
 }
 
-export async function scheduleJob(input: ScheduleJobInput): Promise<void> {
+export type ScheduleJobResult =
+  | { ok: true; jobDocId: string }
+  | {
+      ok: false
+      reason: 'firebase_admin_not_configured' | 'firestore_unavailable' | 'write_failed'
+      message?: string
+    }
+
+export async function scheduleJob(input: ScheduleJobInput): Promise<ScheduleJobResult> {
   if (!isFirebaseAdminConfigured()) {
     console.warn(
       '[delivery-job-scheduler] Firebase Admin / Firestore not configured; job not queued:',
@@ -27,10 +35,10 @@ export async function scheduleJob(input: ScheduleJobInput): Promise<void> {
       input.orderId,
       '(set FIREBASE_* env or service account — 3min WhatsApp and delivery timers need this + /api/jobs/process-due cron)'
     )
-    return
+    return { ok: false, reason: 'firebase_admin_not_configured' }
   }
   const db = getFirestoreAdmin()
-  if (!db) return
+  if (!db) return { ok: false, reason: 'firestore_unavailable' }
   const id = jobId(input.type, input.orderId)
   try {
     await db.collection('scheduledJobs').doc(id).set(
@@ -45,9 +53,15 @@ export async function scheduleJob(input: ScheduleJobInput): Promise<void> {
       },
       { merge: true }
     )
+    return { ok: true, jobDocId: id }
   } catch (err) {
     // Never fail order flows (Firestore index/network/etc.)
     console.warn('[delivery-job-scheduler] scheduleJob failed', input.type, input.orderId, err)
+    return {
+      ok: false,
+      reason: 'write_failed',
+      message: err instanceof Error ? err.message : String(err),
+    }
   }
 }
 
@@ -60,8 +74,11 @@ export async function scheduleDeliveryLifecycleJobs(orderId: string, requestedAt
   ])
 }
 
-export async function scheduleOrderUnacceptedWhatsapp(orderId: string, createdAtMs = Date.now()): Promise<void> {
-  await scheduleJob({ type: 'order_unaccepted_whatsapp', orderId, runAtMs: createdAtMs + 180_000 })
+export async function scheduleOrderUnacceptedWhatsapp(
+  orderId: string,
+  createdAtMs = Date.now()
+): Promise<ScheduleJobResult> {
+  return scheduleJob({ type: 'order_unaccepted_whatsapp', orderId, runAtMs: createdAtMs + 180_000 })
 }
 
 export async function scheduleScheduledOrderReminder(orderId: string, notifyAtIso: string): Promise<void> {

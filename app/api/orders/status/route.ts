@@ -8,6 +8,7 @@ import {
   scheduleOrderUnacceptedWhatsapp,
   scheduleScheduledOrderReminder,
 } from '@/lib/delivery-job-scheduler'
+import { recordOrderUnacceptedWhatsappJobResult } from '@/lib/notification-diagnostics'
 
 export async function PATCH(request: Request) {
   try {
@@ -61,7 +62,11 @@ export async function PATCH(request: Request) {
     if (newScheduledFor && newScheduledFor !== existingOrder.scheduledFor) {
       updateData.scheduledFor = newScheduledFor
       updateData.reminderSent = false
-      patch.unset(['businessWhatsappNotifiedAt'])
+      patch.unset([
+        'businessWhatsappNotifiedAt',
+        'businessWhatsappUnacceptedReminderAt',
+        'businessWhatsappInstantNotifiedAt',
+      ])
       
       // Handle edit history
       if (existingOrder.scheduledFor) {
@@ -103,7 +108,13 @@ export async function PATCH(request: Request) {
       await cancelOrderJobs(orderId)
     }
     if (status === 'new') {
-      await scheduleOrderUnacceptedWhatsapp(orderId, Date.now())
+      const jobRes = await scheduleOrderUnacceptedWhatsapp(orderId, Date.now())
+      await recordOrderUnacceptedWhatsappJobResult(
+        writeClient,
+        orderId,
+        'PATCH /api/orders/status (status=new)',
+        jobRes
+      )
     }
 
     console.log('Updating order with data:', updateData)

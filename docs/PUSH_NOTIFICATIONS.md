@@ -129,3 +129,19 @@ When the same device has the **Customer PWA** (scope `/`) and one or more **Busi
 3. User may need to re-enable notifications (subscriptions expire).  
 4. In Sanity, confirm the recipient document has `fcmToken` or `pushSubscription` (endpoint + keys).  
 5. **Business only:** Ensure scope uses trailing slash and the user enabled push from the Orders page (see “Multiple PWAs on the same device” above).
+
+## Business: new order = FCM + optional instant WhatsApp + 3‑minute reminder
+
+1. **FCM / Web Push** runs immediately when an order is created (`NotificationService.onNewOrder` → `sendTenantAndStaffPush`), when server push is configured.
+2. **Instant WhatsApp** runs immediately when the tenant has **Instant WhatsApp** enabled (`prioritizeWhatsapp`). Uses Meta template `new_order` with `formatTenantNewOrderWhatsAppSummary` (items, totals, customer, delivery address, Google Maps + Waze links). Stored on the order as `businessWhatsappInstantNotifiedAt` — it does **not** block the reminder.
+3. **~3 minute reminder WhatsApp** runs if the order is still **`status == new`** (not accepted), via Firestore job → `GET /api/cron/unaccepted-orders-whatsapp?orderId=…`. Same `new_order` template and formatter. Gated by `businessWhatsappUnacceptedReminderAt` (and legacy `businessWhatsappNotifiedAt` is still set when the reminder job completes for compatibility).
+
+## Super-admin: order notification diagnostics
+
+For a single order, super-admins can call:
+
+`GET /api/admin/orders/[orderId]/notifications-debug`
+
+Response includes Sanity `notificationDiagnostics` (append-only log: push, instant WhatsApp errors, Firestore backup job queue, delayed WhatsApp cron), a snapshot of the Firestore `scheduledJobs` doc `order_unaccepted_whatsapp:{orderId}` when readable, and server flags (`fcmConfigured`, `webPushConfigured`, `firebaseAdminConfigured`).
+
+The same log is stored on the order document in Sanity (`notificationDiagnostics`, hidden in Studio).
