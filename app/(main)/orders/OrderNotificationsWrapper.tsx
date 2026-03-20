@@ -57,6 +57,8 @@ interface OrderNotificationsWrapperProps {
   onStandaloneTableRequestAcknowledged?: (id: string) => void
   /** When true, only show volume control; hide the blocking alert dialog (e.g. when order details modal is open) */
   suppressDialog?: boolean
+  /** Optional order ID to visually emphasize in the new-order alert list (e.g. opened from push deep link). */
+  highlightedOrderId?: string
 }
 
 export function OrderNotificationsWrapper({
@@ -70,6 +72,7 @@ export function OrderNotificationsWrapper({
   onTableRequestAcknowledged,
   onStandaloneTableRequestAcknowledged,
   suppressDialog = false,
+  highlightedOrderId,
 }: OrderNotificationsWrapperProps) {
   const statusUrl = tenantSlug
     ? `/api/tenants/${tenantSlug}/orders/status`
@@ -132,6 +135,7 @@ export function OrderNotificationsWrapper({
       initialNewOrders={initialNewOrders}
       initialTableRequests={initialTableRequests}
       initialStandaloneTableRequests={initialStandaloneTableRequests}
+      highlightedOrderId={highlightedOrderId}
       onAcknowledge={handleAcknowledge}
       onAcknowledgeTableRequest={handleAcknowledgeTableRequest}
       onAcknowledgeStandaloneTableRequest={handleAcknowledgeStandaloneTableRequest}

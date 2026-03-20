@@ -76,7 +76,6 @@ export function TenantOrdersLive({
   const prevOrdersRef = useRef<Order[]>(initialOrders)
   const liveUpdateTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
   const [orderModalOpen, setOrderModalOpen] = useState(false)
-  const [isMobileViewport, setIsMobileViewport] = useState(false)
   const [isForceRefreshing, setIsForceRefreshing] = useState(false)
 
   const fetchOrders = useCallback(async () => {
@@ -150,16 +149,6 @@ export function TenantOrdersLive({
       void fetchOrders()
     }
   }, [fetchOrders, initialOrders])
-
-  // Mobile-only UX guard: use non-blocking alerts to avoid full-screen dialog touch traps.
-  useEffect(() => {
-    const update = () => {
-      setIsMobileViewport(window.matchMedia('(max-width: 767px)').matches)
-    }
-    update()
-    window.addEventListener('resize', update)
-    return () => window.removeEventListener('resize', update)
-  }, [])
 
   const handleForceRefresh = useCallback(async () => {
     setIsForceRefreshing(true)
@@ -245,13 +234,14 @@ export function TenantOrdersLive({
         initialNewOrders={newOrders}
         initialTableRequests={tableRequests}
         initialStandaloneTableRequests={standaloneTableRequests}
+        highlightedOrderId={initialOpenOrderId}
         tenantSlug={slug}
         autoDeliveryDefaults={autoDeliveryDefaults}
         initialNotificationSound={initialNotificationSound}
         onAcknowledged={handleAcknowledged}
         onTableRequestAcknowledged={handleTableRequestAcknowledged}
         onStandaloneTableRequestAcknowledged={handleStandaloneTableRequestAcknowledged}
-        suppressDialog={orderModalOpen || isMobileViewport}
+        suppressDialog={orderModalOpen}
       />
 
       {/* Always-available manual refresh for recovery (above modals/overlays). */}

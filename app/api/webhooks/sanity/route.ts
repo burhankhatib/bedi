@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
             const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
             const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
             const slug = (tenantDoc?.slug ?? '').trim()
-            const path = slug ? `/t/${slug}/orders` : '/orders'
+            const path = slug ? `/t/${slug}/orders?open=${encodeURIComponent(_id)}` : '/orders'
             const url = `${base}${path}`
             const icon = slug ? `${base}/t/${slug}/icon/192` : `${base}/adminslogo.webp`
 

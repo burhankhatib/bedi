@@ -40,7 +40,7 @@ export const NotificationService = {
     }
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
     const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
-    const path = slug ? `/t/${slug}/orders` : '/orders'
+    const path = slug ? `/t/${slug}/orders?open=${encodeURIComponent(orderId)}` : '/orders'
     const url = `${base}${path}`
     const icon = slug ? `${base}/t/${slug}/icon/192` : `${base}/adminslogo.webp`
     const businessName = tenantNameAr || tenantName || tenantSlug || tenantId

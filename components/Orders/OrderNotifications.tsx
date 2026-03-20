@@ -60,6 +60,8 @@ interface OrderNotificationsProps {
   initialNotificationSound?: string
   /** When true, only show volume control; do not show the blocking alert dialog (so order details modal can receive touches) */
   suppressDialog?: boolean
+  /** Optional order ID to highlight in the new-order list (opened from push click). */
+  highlightedOrderId?: string
 }
 
 function NewOrderCard({
@@ -67,6 +69,7 @@ function NewOrderCard({
   onAcknowledge,
   tenantSlug,
   autoDeliveryDefaults,
+  highlighted = false,
 }: {
   order: NewOrder
   onAcknowledge: (
@@ -77,6 +80,7 @@ function NewOrderCard({
   ) => void | Promise<void>
   tenantSlug?: string
   autoDeliveryDefaults?: AutoDeliveryDefaults
+  highlighted?: boolean
 }) {
   const { t, lang } = useLanguage()
   const locale = lang === 'ar' ? 'ar-EG' : 'en-US'
@@ -185,7 +189,12 @@ function NewOrderCard({
   }
 
   return (
-    <div className={`rounded-2xl border-2 p-4 shadow-sm ${cardStyle}`}>
+    <div className={`rounded-2xl border-2 p-4 shadow-sm ${cardStyle} ${highlighted ? 'ring-2 ring-amber-400 ring-offset-2 ring-offset-white dark:ring-offset-slate-900' : ''}`}>
+      {highlighted && (
+        <div className="mb-2 inline-flex items-center rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-black tracking-wide text-slate-950">
+          {t('Opened from notification', 'تم الفتح من الإشعار')}
+        </div>
+      )}
       {isScheduled && (
         <div className="mb-6 flex flex-col items-center justify-center p-6 bg-white dark:bg-purple-900/20 rounded-2xl border-2 border-purple-200 dark:border-purple-800 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 right-0 -mr-6 -mt-6 opacity-5 pointer-events-none">
@@ -437,6 +446,7 @@ export function OrderNotifications({
   autoDeliveryDefaults,
   initialNotificationSound: initialSound,
   suppressDialog = false,
+  highlightedOrderId,
 }: OrderNotificationsProps) {
   const { t: tDialog, lang } = useLanguage()
   const [newOrders, setNewOrders] = useState<NewOrder[]>(initialNewOrders)
@@ -754,6 +764,7 @@ export function OrderNotifications({
                 onAcknowledge={handleAcknowledge}
                 tenantSlug={tenantSlug}
                 autoDeliveryDefaults={autoDeliveryDefaults}
+                highlighted={highlightedOrderId === order._id}
               />
             ))}
 

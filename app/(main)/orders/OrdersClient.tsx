@@ -242,7 +242,11 @@ export function OrdersClient({
   useEffect(() => {
     if (!openOrderIdForTableRequest || !orders.length) return
     const order = orders.find((o) => o._id === openOrderIdForTableRequest)
-    if (order) setSelectedOrder(order)
+    if (!order) return
+    // Keep "new" orders in the New Order alert flow so staff sees Accept + auto-delivery controls.
+    const hasTableRequest = !!(order.customerRequestedAt && !order.customerRequestAcknowledgedAt)
+    if (order.status === 'new' && !hasTableRequest) return
+    setSelectedOrder(order)
   }, [openOrderIdForTableRequest, orders])
 
   // Notify parent when modal opens/closes so the red-bell dialog can be hidden and modal is clickable
