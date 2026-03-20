@@ -10,7 +10,7 @@
  * Design: Material Design 3 — surface/container tokens, 8dp grid, M3 easing.
  */
 
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -24,7 +24,6 @@ import {
   Home,
   Locate,
   RotateCw,
-  Wifi,
   WifiOff,
 } from 'lucide-react'
 import { distanceKm } from '@/lib/maps-utils'
@@ -202,6 +201,7 @@ function SmoothDriverMarker({ lat, lng, icon }: { lat: number; lng: number; icon
   }, [lat, lng])
 
   if (!icon) return null
+  /* eslint-disable react-hooks/refs -- Leaflet: displayPos updated via markerRef.setLatLng in rAF (no React re-renders) */
   return (
     <Marker
       ref={markerRef}
@@ -210,6 +210,7 @@ function SmoothDriverMarker({ lat, lng, icon }: { lat: number; lng: number; icon
       zIndexOffset={300}
     />
   )
+  /* eslint-enable react-hooks/refs */
 }
 
 /* ─── MapBoundsUpdater ────────────────────────────────────────────────── */
@@ -352,30 +353,34 @@ export default function CustomerTrackingMap({
     return `${snap(driverLat)},${snap(driverLng)}_${snap(destLat)},${snap(destLng)}`
   }, [driverLat, driverLng, destLat, destLng])
 
-  const fetchRoute = useCallback(async () => {
-    if (!driverLat || !driverLng || !destLat || !destLng) return
-    setRouteLoading(true)
-    try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${driverLng},${driverLat};${destLng},${destLat}?overview=full&geometries=geojson`
-      const res = await fetch(url)
-      const data = await res.json()
-      if (data.code === 'Ok' && data.routes?.[0]) {
-        const r = data.routes[0]
-        setRoute(r.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]] as [number, number]))
-        setRouteDistance(r.distance ?? null)
-        setRouteDuration(r.duration ?? null)
-      }
-    } catch {
-      // silent — straight-line fallback is shown
-    } finally {
-      setRouteLoading(false)
-    }
-  }, [driverLat, driverLng, destLat, destLng])
-
   useEffect(() => {
-    if (!routeKey) return
-    fetchRoute()
-  }, [routeKey, fetchRoute])
+    if (!routeKey || !driverLat || !driverLng || !destLat || !destLng) return
+    const ac = new AbortController()
+    const url = `https://router.project-osrm.org/route/v1/driving/${driverLng},${driverLat};${destLng},${destLat}?overview=full&geometries=geojson`
+    const loadId = requestAnimationFrame(() => setRouteLoading(true))
+    ;(async () => {
+      try {
+        const res = await fetch(url, { signal: ac.signal })
+        const data = await res.json()
+        if (ac.signal.aborted) return
+        if (data.code === 'Ok' && data.routes?.[0]) {
+          const r = data.routes[0]
+          setRoute(r.geometry.coordinates.map((c: [number, number]) => [c[1], c[0]] as [number, number]))
+          setRouteDistance(r.distance ?? null)
+          setRouteDuration(r.duration ?? null)
+        }
+      } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+        // silent — straight-line fallback is shown
+      } finally {
+        if (!ac.signal.aborted) setRouteLoading(false)
+      }
+    })()
+    return () => {
+      cancelAnimationFrame(loadId)
+      ac.abort()
+    }
+  }, [routeKey, driverLat, driverLng, destLat, destLng])
 
   // Lock body scroll when expanded
   useEffect(() => {

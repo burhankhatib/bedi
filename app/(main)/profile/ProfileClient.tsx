@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { UserProfile, useClerk } from '@clerk/nextjs'
 import {
@@ -97,6 +97,15 @@ export function ProfileClient({ initialCustomer, initialClerk, initialOrders }: 
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [saveOk, setSaveOk] = useState(false)
+  const profileFetchRef = useRef<AbortController | null>(null)
+  const ordersFetchRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => {
+      profileFetchRef.current?.abort()
+      ordersFetchRef.current?.abort()
+    }
+  }, [])
 
   useEffect(() => {
     if (!editing) setName(defaultName)
@@ -118,8 +127,11 @@ export function ProfileClient({ initialCustomer, initialClerk, initialOrders }: 
   }
 
   const refreshProfile = useCallback(async () => {
+    profileFetchRef.current?.abort()
+    const ac = new AbortController()
+    profileFetchRef.current = ac
     try {
-      const res = await fetch('/api/customer/profile')
+      const res = await fetch('/api/customer/profile', { signal: ac.signal })
       if (!res.ok) return
       const data = (await res.json()) as {
         customer: CustomerProfileApiCustomer | null
@@ -127,20 +139,23 @@ export function ProfileClient({ initialCustomer, initialClerk, initialOrders }: 
       }
       setCustomer(data.customer ?? null)
       if (data.clerk) setClerk(data.clerk)
-    } catch {
-      /* ignore */
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
     }
   }, [])
 
   const refreshOrders = useCallback(async () => {
+    ordersFetchRef.current?.abort()
+    const ac = new AbortController()
+    ordersFetchRef.current = ac
     try {
-      const res = await fetch('/api/me/orders')
+      const res = await fetch('/api/me/orders', { signal: ac.signal })
       if (!res.ok) return
       const data = (await res.json()) as { orders?: MyOrderRow[] }
       const list = data.orders ?? []
       setOrders(list.slice(0, 8))
-    } catch {
-      /* ignore */
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
     }
   }, [])
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { FullPageLink } from '@/components/ui/FullPageLink'
 import Image from 'next/image'
@@ -38,15 +38,33 @@ const FALLBACK = {
   search: 'Search',
 } as const
 
-function NavItem({
+type NavIconKind = 'logo' | 'utensils' | 'store' | 'package' | 'search'
+
+function NavGlyph({ kind }: { kind: NavIconKind }) {
+  switch (kind) {
+    case 'logo':
+      return (
+        <Image src="/logo.webp" alt="Bedi" width={28} height={28} className="h-7 w-7 object-contain" />
+      )
+    case 'utensils':
+      return <UtensilsCrossed className="size-6" strokeWidth={2} />
+    case 'store':
+      return <Store className="size-6" strokeWidth={2} />
+    case 'package':
+      return <Package className="size-6" strokeWidth={2} />
+    case 'search':
+      return <Search className="size-6" strokeWidth={2} />
+  }
+}
+
+const NavItem = memo(function NavItem({
   href,
   isButton,
   onClick,
   active,
   highlight,
   label,
-  icon,
-  isRtl,
+  iconKind,
 }: {
   href?: string
   isButton?: boolean
@@ -54,15 +72,14 @@ function NavItem({
   active: boolean
   highlight?: boolean
   label: string
-  icon: React.ReactNode
-  isRtl: boolean
+  iconKind: NavIconKind
 }) {
   const content = (
     <>
       <span
         className={`relative flex h-10 w-10 items-center justify-center rounded-full ${active || highlight ? 'bg-amber-100 dark:bg-amber-950/50' : ''} ${highlight && !active ? 'animate-pulse' : ''}`}
       >
-        {icon}
+        <NavGlyph kind={iconKind} />
         {active && (
           <span
             className="absolute inset-0 rounded-full bg-amber-500/15"
@@ -96,7 +113,40 @@ function NavItem({
       {content}
     </FullPageLink>
   )
-}
+})
+
+/** Cart tab: memoized so quantity updates don’t force full icon-tree reconciliation for other tabs. */
+const CartNavButton = memo(function CartNavButton({
+  label,
+  isRtl,
+  mounted,
+  totalItems,
+  onOpen,
+}: {
+  label: string
+  isRtl: boolean
+  mounted: boolean
+  totalItems: number
+  onOpen: () => void
+}) {
+  const baseClass =
+    'flex flex-col items-center justify-center gap-1 py-3 min-h-[48px] min-w-0 flex-1 touch-manipulation select-none rounded-xl active:bg-slate-100/60 dark:active:bg-slate-800/40 transition-colors'
+  return (
+    <button type="button" onClick={onOpen} className={baseClass} aria-label={label}>
+      <span className="relative flex h-10 w-10 items-center justify-center rounded-full">
+        <ShoppingCart className="size-6" strokeWidth={2} />
+        {mounted && totalItems > 0 && (
+          <span
+            className={`absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-slate-950 ${isRtl ? 'left-0 top-0' : 'right-0 top-0'}`}
+          >
+            {totalItems > 99 ? '99+' : totalItems}
+          </span>
+        )}
+      </span>
+      <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 opacity-80">{label}</span>
+    </button>
+  )
+})
 
 export function MobileBottomNav() {
   const pathname = usePathname()
@@ -108,10 +158,13 @@ export function MobileBottomNav() {
   const isMountedRef = useRef(false)
   const activeCountAbortRef = useRef<AbortController | null>(null)
 
+  const openCart = useCallback(() => setIsOpen(true), [setIsOpen])
+
   useEffect(() => {
     isMountedRef.current = true
-    setMounted(true)
+    const id = requestAnimationFrame(() => setMounted(true))
     return () => {
+      cancelAnimationFrame(id)
       isMountedRef.current = false
       activeCountAbortRef.current?.abort()
     }
@@ -162,7 +215,7 @@ export function MobileBottomNav() {
   const ordersActive = pathname === '/my-orders'
   const searchActive = pathname === '/search'
   const storesActive = pathname === '/search' && category === 'stores'
-  const ordersHighlight = activeOrderCount > 0 || !!pathname && /^\/t\/[^/]+\/track\/[^/]+$/.test(pathname)
+  const ordersHighlight = activeOrderCount > 0 || (!!pathname && /^\/t\/[^/]+\/track\/[^/]+$/.test(pathname))
 
   const isRtl = mounted && lang === 'ar'
   const ariaLabel = mounted ? t('Main navigation', 'التنقل الرئيسي') : FALLBACK.ariaLabel
@@ -172,13 +225,6 @@ export function MobileBottomNav() {
   const ordersLabel = mounted ? t('Orders', 'طلباتي') : FALLBACK.orders
   const cartLabel = mounted ? t('Cart', 'السلة') : FALLBACK.cart
   const searchLabel = mounted ? t('Search', 'بحث') : FALLBACK.search
-
-  const items = [
-    { href: '/', active: homeActive, label: homeLabel, icon: <Image src="/logo.webp" alt="Bedi" width={28} height={28} className="h-7 w-7 object-contain" /> },
-    { href: '/search?category=restaurant', active: restaurantsActive, label: restaurantsLabel, icon: <UtensilsCrossed className="size-6" strokeWidth={2} /> },
-    { href: '/search?category=stores', active: storesActive, label: storesLabel, icon: <Store className="size-6" strokeWidth={2} /> },
-    { href: '/my-orders', active: ordersActive, highlight: ordersHighlight, label: ordersLabel, icon: <Package className="size-6" strokeWidth={2} /> },
-  ]
 
   return (
     <nav
@@ -191,36 +237,47 @@ export function MobileBottomNav() {
       }}
     >
       <div className="flex h-[72px] items-stretch justify-around gap-1 px-1" dir={isRtl ? 'rtl' : 'ltr'}>
-        {items.map((item) => (
-          <div key={item.href}>
-            <NavItem href={item.href} active={item.active} highlight={item.highlight} label={item.label} icon={item.icon} isRtl={isRtl} />
-          </div>
-        ))}
-
-        <div>
+        <div key="/">
+          <NavItem href="/" active={homeActive} label={homeLabel} iconKind="logo" />
+        </div>
+        <div key="/search?category=restaurant">
           <NavItem
-            isButton
-            onClick={() => setIsOpen(true)}
-            active={false}
-            label={cartLabel}
-            icon={
-              <span className="relative flex h-10 w-10 items-center justify-center">
-                <ShoppingCart className="size-6" strokeWidth={2} />
-                {mounted && totalItems > 0 && (
-                  <span
-                    className={`absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-slate-950 ${isRtl ? 'left-0 top-0' : 'right-0 top-0'}`}
-                  >
-                    {totalItems > 99 ? '99+' : totalItems}
-                  </span>
-                )}
-              </span>
-            }
-            isRtl={isRtl}
+            href="/search?category=restaurant"
+            active={restaurantsActive}
+            label={restaurantsLabel}
+            iconKind="utensils"
+          />
+        </div>
+        <div key="/search?category=stores">
+          <NavItem href="/search?category=stores" active={storesActive} label={storesLabel} iconKind="store" />
+        </div>
+        <div key="/my-orders">
+          <NavItem
+            href="/my-orders"
+            active={ordersActive}
+            highlight={ordersHighlight}
+            label={ordersLabel}
+            iconKind="package"
           />
         </div>
 
-        <div>
-          <NavItem href="/search?expand=1" active={searchActive && !restaurantsActive && !storesActive} label={searchLabel} icon={<Search className="size-6" strokeWidth={2} />} isRtl={isRtl} />
+        <div key="cart">
+          <CartNavButton
+            label={cartLabel}
+            isRtl={isRtl}
+            mounted={mounted}
+            totalItems={totalItems}
+            onOpen={openCart}
+          />
+        </div>
+
+        <div key="/search-expand">
+          <NavItem
+            href="/search?expand=1"
+            active={searchActive && !restaurantsActive && !storesActive}
+            label={searchLabel}
+            iconKind="search"
+          />
         </div>
       </div>
     </nav>

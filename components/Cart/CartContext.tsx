@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Product, DayHours, CustomDateHours } from '@/app/types/menu'
 import {
@@ -125,6 +125,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined)
 
 const CART_TENANT_KEY = 'cartTenant'
+const STORAGE_DEBOUNCE_MS = 250
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -157,6 +158,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [])
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [tenantSlug, setTenantSlug] = useState<string | null>(null)
+  const persistTimersRef = useRef<{
+    cart?: ReturnType<typeof setTimeout>
+    tenant?: ReturnType<typeof setTimeout>
+    orderTypeOptions?: ReturnType<typeof setTimeout>
+    customerInfo?: ReturnType<typeof setTimeout>
+  }>({})
 
   const showToast = useCallback((message: string, productName: string) => {
     const id = Date.now().toString()
@@ -225,44 +232,95 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // Save cart to localStorage (array for backwards compat)
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(items))
+    if (persistTimersRef.current.cart) clearTimeout(persistTimersRef.current.cart)
+    persistTimersRef.current.cart = setTimeout(() => {
+      localStorage.setItem('cart', JSON.stringify(items))
+    }, STORAGE_DEBOUNCE_MS)
+    return () => {
+      if (persistTimersRef.current.cart) clearTimeout(persistTimersRef.current.cart)
+    }
   }, [items])
 
   // Save cartTenant to localStorage whenever it changes
   useEffect(() => {
-    if (cartTenant) {
-      localStorage.setItem(CART_TENANT_KEY, JSON.stringify(cartTenant))
-    } else {
-      localStorage.removeItem(CART_TENANT_KEY)
+    if (persistTimersRef.current.tenant) clearTimeout(persistTimersRef.current.tenant)
+    persistTimersRef.current.tenant = setTimeout(() => {
+      if (cartTenant) {
+        localStorage.setItem(CART_TENANT_KEY, JSON.stringify(cartTenant))
+      } else {
+        localStorage.removeItem(CART_TENANT_KEY)
+      }
+    }, STORAGE_DEBOUNCE_MS)
+    return () => {
+      if (persistTimersRef.current.tenant) clearTimeout(persistTimersRef.current.tenant)
     }
   }, [cartTenant])
 
   // Save orderTypeOptions to localStorage whenever it changes
   useEffect(() => {
-    if (orderTypeOptions) {
-      localStorage.setItem('orderTypeOptions', JSON.stringify(orderTypeOptions))
-    } else {
-      localStorage.removeItem('orderTypeOptions')
+    if (persistTimersRef.current.orderTypeOptions) clearTimeout(persistTimersRef.current.orderTypeOptions)
+    persistTimersRef.current.orderTypeOptions = setTimeout(() => {
+      if (orderTypeOptions) {
+        localStorage.setItem('orderTypeOptions', JSON.stringify(orderTypeOptions))
+      } else {
+        localStorage.removeItem('orderTypeOptions')
+      }
+    }, STORAGE_DEBOUNCE_MS)
+    return () => {
+      if (persistTimersRef.current.orderTypeOptions) clearTimeout(persistTimersRef.current.orderTypeOptions)
     }
   }, [orderTypeOptions])
 
   // Save customer info to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem('customerInfo', JSON.stringify({
-      name: customerName,
-      tableNumber: tableNumber,
-      isReady: isReady,
-      orderType: orderType,
-      customerPhone: customerPhone,
-      deliveryAreaId: deliveryAreaId,
-      deliveryAddress: deliveryAddress,
-      deliveryLat: deliveryLat,
-      deliveryLng: deliveryLng,
-      deliveryFee: deliveryFee,
-      deliveryFeePaidByBusiness: deliveryFeePaidByBusiness,
-      scheduledFor: scheduledFor,
-    }))
+    if (persistTimersRef.current.customerInfo) clearTimeout(persistTimersRef.current.customerInfo)
+    persistTimersRef.current.customerInfo = setTimeout(() => {
+      localStorage.setItem('customerInfo', JSON.stringify({
+        name: customerName,
+        tableNumber: tableNumber,
+        isReady: isReady,
+        orderType: orderType,
+        customerPhone: customerPhone,
+        deliveryAreaId: deliveryAreaId,
+        deliveryAddress: deliveryAddress,
+        deliveryLat: deliveryLat,
+        deliveryLng: deliveryLng,
+        deliveryFee: deliveryFee,
+        deliveryFeePaidByBusiness: deliveryFeePaidByBusiness,
+        scheduledFor: scheduledFor,
+      }))
+    }, STORAGE_DEBOUNCE_MS)
+    return () => {
+      if (persistTimersRef.current.customerInfo) clearTimeout(persistTimersRef.current.customerInfo)
+    }
   }, [customerName, tableNumber, isReady, orderType, customerPhone, deliveryAreaId, deliveryAddress, deliveryLat, deliveryLng, deliveryFee, deliveryFeePaidByBusiness, scheduledFor])
+
+  // Flush pending writes before tab close/navigation to avoid data loss in debounce window.
+  useEffect(() => {
+    const flushPendingWrites = () => {
+      localStorage.setItem('cart', JSON.stringify(items))
+      if (cartTenant) localStorage.setItem(CART_TENANT_KEY, JSON.stringify(cartTenant))
+      else localStorage.removeItem(CART_TENANT_KEY)
+      if (orderTypeOptions) localStorage.setItem('orderTypeOptions', JSON.stringify(orderTypeOptions))
+      else localStorage.removeItem('orderTypeOptions')
+      localStorage.setItem('customerInfo', JSON.stringify({
+        name: customerName,
+        tableNumber: tableNumber,
+        isReady: isReady,
+        orderType: orderType,
+        customerPhone: customerPhone,
+        deliveryAreaId: deliveryAreaId,
+        deliveryAddress: deliveryAddress,
+        deliveryLat: deliveryLat,
+        deliveryLng: deliveryLng,
+        deliveryFee: deliveryFee,
+        deliveryFeePaidByBusiness: deliveryFeePaidByBusiness,
+        scheduledFor: scheduledFor,
+      }))
+    }
+    window.addEventListener('beforeunload', flushPendingWrites)
+    return () => window.removeEventListener('beforeunload', flushPendingWrites)
+  }, [items, cartTenant, orderTypeOptions, customerName, tableNumber, isReady, orderType, customerPhone, deliveryAreaId, deliveryAddress, deliveryLat, deliveryLng, deliveryFee, deliveryFeePaidByBusiness, scheduledFor])
 
   const doAddItem = useCallback((
     product: Product,
@@ -357,13 +415,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setConflictState(null)
   }, [])
 
-  const removeFromCart = (cartItemId: string) => {
+  const removeFromCart = useCallback((cartItemId: string) => {
     setItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))
-  }
+  }, [])
 
-  const updateQuantity = (cartItemId: string, quantity: number) => {
+  const updateQuantity = useCallback((cartItemId: string, quantity: number) => {
     if (quantity <= 0) {
-      removeFromCart(cartItemId)
+      setItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))
       return
     }
     setItems((prevItems) =>
@@ -371,15 +429,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         item.cartItemId === cartItemId ? { ...item, quantity } : item
       )
     )
-  }
+  }, [])
 
-  const updateNotes = (cartItemId: string, notes: string) => {
+  const updateNotes = useCallback((cartItemId: string, notes: string) => {
     setItems((prevItems) =>
       prevItems.map((item) =>
         item.cartItemId === cartItemId ? { ...item, notes } : item
       )
     )
-  }
+  }, [])
 
   const updateAddOns = (cartItemId: string, selectedAddOns: string[]) => {
     const productId = cartItemId.split('-')[0]

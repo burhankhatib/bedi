@@ -126,12 +126,21 @@ export function UnifiedOrderDialog({
 
   // Fetch distance price when location changes
   useEffect(() => {
-    if (orderType !== 'delivery' || !isDistanceMode || !tenantSlug || deliveryLat == null || deliveryLng == null) return
-    setPriceLoading(true)
-    fetch(`/api/tenants/${tenantSlug}/delivery-price?lat=${deliveryLat}&lng=${deliveryLng}`)
+    if (orderType !== 'delivery' || !tenantSlug) return
+    const hasLocation = isDistanceMode && deliveryLat != null && deliveryLng != null
+    if (!hasLocation) {
+      setDistanceFee(null)
+      setDistanceKm(null)
+      setPriceLoading(false)
+    } else {
+      setPriceLoading(true)
+    }
+    const ac = new AbortController()
+    const params = hasLocation ? `?lat=${deliveryLat}&lng=${deliveryLng}` : ''
+    fetch(`/api/tenants/${tenantSlug}/delivery-price${params}`, { signal: ac.signal })
       .then(res => res.json())
       .then(data => {
-        if (data.suggestedFee !== undefined) {
+        if (hasLocation && data.suggestedFee !== undefined) {
           setDistanceFee(data.suggestedFee)
           setDistanceKm(data.distanceKm)
         }
@@ -141,24 +150,15 @@ export function UnifiedOrderDialog({
           freeDeliveryEnabled: data.freeDeliveryEnabled === true,
         })
       })
-      .catch(err => console.error('Failed to fetch delivery price', err))
-      .finally(() => setPriceLoading(false))
-  }, [orderType, isDistanceMode, tenantSlug, deliveryLat, deliveryLng])
-
-  // Always fetch tenant delivery flags for visibility logic, even before location is selected.
-  useEffect(() => {
-    if (orderType !== 'delivery' || !tenantSlug) return
-    fetch(`/api/tenants/${tenantSlug}/delivery-price`)
-      .then((res) => res.json())
-      .then((data) => {
-        setTenantDeliveryFlags({
-          requiresPersonalShopper: data.requiresPersonalShopper === true,
-          supportsDriverPickup: data.supportsDriverPickup === true,
-          freeDeliveryEnabled: data.freeDeliveryEnabled === true,
-        })
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        console.error('Failed to fetch delivery price', err)
       })
-      .catch(() => {})
-  }, [orderType, tenantSlug])
+      .finally(() => {
+        if (hasLocation) setPriceLoading(false)
+      })
+    return () => ac.abort()
+  }, [orderType, isDistanceMode, tenantSlug, deliveryLat, deliveryLng])
 
   // Reset form only when dialog transitions from closed to open (not when location/callbacks update while open)
   useEffect(() => {

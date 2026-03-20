@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, startTransition, useEffect } from 'react'
+import { Suspense, startTransition, useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { MobileBottomNav } from './MobileBottomNav'
 import { CartSlider } from '@/components/Cart/CartSlider'
@@ -70,7 +70,20 @@ function isCustomerPWAPath(pathname: string): boolean {
 export function CustomerAreaWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+  const lastRefreshAtRef = useRef(0)
+  const pendingRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useScrollToTopOnNavigate()
+
+  const scheduleRefresh = () => {
+    const now = Date.now()
+    if (now - lastRefreshAtRef.current < 600) return
+    if (pendingRefreshTimerRef.current) clearTimeout(pendingRefreshTimerRef.current)
+    pendingRefreshTimerRef.current = setTimeout(() => {
+      lastRefreshAtRef.current = Date.now()
+      startTransition(() => router.refresh())
+      pendingRefreshTimerRef.current = null
+    }, 120)
+  }
 
   /** PWA / WebKit: bfcache restore can leave the previous route’s UI visible until refreshed. */
   useEffect(() => {
@@ -79,10 +92,16 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
       if (!e.persisted) return
       const p = window.location.pathname || ''
       if (!isCustomerPath(p)) return
-      startTransition(() => router.refresh())
+      scheduleRefresh()
     }
     window.addEventListener('pageshow', onPageShow)
-    return () => window.removeEventListener('pageshow', onPageShow)
+    return () => {
+      window.removeEventListener('pageshow', onPageShow)
+      if (pendingRefreshTimerRef.current) {
+        clearTimeout(pendingRefreshTimerRef.current)
+        pendingRefreshTimerRef.current = null
+      }
+    }
   }, [router])
 
   /**
@@ -98,7 +117,7 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
     const onPopState = () => {
       const p = window.location.pathname || ''
       if (!isCustomerPath(p)) return
-      startTransition(() => router.refresh())
+      scheduleRefresh()
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)

@@ -24,16 +24,30 @@ export function CategoryGrid() {
 
   useEffect(() => {
     if (!isChosen || !city) {
-      setCategories([])
-      setLoading(false)
-      return
+      const resetId = requestAnimationFrame(() => {
+        setCategories([])
+        setLoading(false)
+      })
+      return () => cancelAnimationFrame(resetId)
     }
-    setLoading(true)
+    const ac = new AbortController()
+    const loadId = requestAnimationFrame(() => setLoading(true))
     const params = new URLSearchParams({ city })
-    fetch(`/api/home/categories?${params}`)
+    fetch(`/api/home/categories?${params}`, { signal: ac.signal })
       .then((res) => res.json())
-      .then((data) => setCategories(Array.isArray(data) ? data : []))
-      .finally(() => setLoading(false))
+      .then((data) => {
+        if (!ac.signal.aborted) setCategories(Array.isArray(data) ? data : [])
+      })
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setLoading(false)
+      })
+    return () => {
+      cancelAnimationFrame(loadId)
+      ac.abort()
+    }
   }, [isChosen, city])
 
   if (!isChosen) return null

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, useId } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
@@ -65,6 +65,7 @@ export function UniversalSearch({
   onChange: onControlledChange,
   anchorBottom = false,
 }: UniversalSearchProps) {
+  const listboxId = useId()
   const isControlled = controlledValue !== undefined && onControlledChange !== undefined
   const { t, lang } = useLanguage()
   const { city, isChosen, setOpenLocationModal } = useLocation()
@@ -75,9 +76,10 @@ export function UniversalSearch({
   const { saveQuestion } = useSaveAiQuestion()
   const [internalQuery, setInternalQuery] = useState('')
   const query = isControlled ? (controlledValue ?? '') : internalQuery
-  const setQuery = isControlled
-    ? (v: string) => onControlledChange(v)
-    : setInternalQuery
+  const setQuery = useMemo(() => {
+    if (isControlled && onControlledChange) return (v: string) => onControlledChange(v)
+    return setInternalQuery
+  }, [isControlled, onControlledChange])
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [aiSubmittedQuery, setAiSubmittedQuery] = useState<string | null>(null)
   const [pendingFollowUp, setPendingFollowUp] = useState<string | null>(null)
@@ -88,11 +90,22 @@ export function UniversalSearch({
   const wrapperRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const latestRequestRef = useRef(0)
+  const flatItemsRef = useRef<Array<{ type: 'business'; item: BusinessHit } | { type: 'product'; item: ProductHit }>>([])
+  const focusedIndexRef = useRef(-1)
+  const showDropdownRef = useRef(false)
+  const canShowAIRef = useRef(false)
+  const aiSubmittedQueryRef = useRef<string | null>(null)
+  const setQueryRef = useRef(setQuery)
+  const addToCartFetchRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), DEBOUNCE_MS)
     return () => clearTimeout(t)
   }, [query])
+
+  useEffect(() => {
+    return () => addToCartFetchRef.current?.abort()
+  }, [])
 
   const isAIMode = isLikelyQuestion(debouncedQuery)
 
@@ -161,10 +174,19 @@ export function UniversalSearch({
   const wouldShowAskAIPrompt = canShowAI && !aiSubmittedQuery && totalItems === 0
   const showDropdown = open && (query.trim().length >= MIN_QUERY_LENGTH || !!aiSubmittedQuery) && !chatOverlayOpen && !wouldShowAskAIPrompt
   const showAIPanel = canShowAI && aiSubmittedQuery && !chatOverlayOpen
-  const flatItems: Array<{ type: 'business'; item: BusinessHit } | { type: 'product'; item: ProductHit }> = [
+  const flatItems = useMemo<Array<{ type: 'business'; item: BusinessHit } | { type: 'product'; item: ProductHit }>>(() => [
     ...(results?.businesses ?? []).map((b) => ({ type: 'business' as const, item: b })),
     ...(results?.products ?? []).map((p) => ({ type: 'product' as const, item: p })),
-  ]
+  ], [results?.businesses, results?.products])
+
+  useEffect(() => {
+    flatItemsRef.current = flatItems
+    focusedIndexRef.current = focusedIndex
+    showDropdownRef.current = showDropdown
+    canShowAIRef.current = canShowAI
+    aiSubmittedQueryRef.current = aiSubmittedQuery
+    setQueryRef.current = setQuery
+  }, [flatItems, focusedIndex, showDropdown, canShowAI, aiSubmittedQuery, setQuery])
 
   useEffect(() => {
     const handlePointerOutside = (e: MouseEvent | TouchEvent) => {
@@ -190,7 +212,7 @@ export function UniversalSearch({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!showDropdown) return
+      if (!showDropdownRef.current) return
       if (e.key === 'Escape') {
         setOpen(false)
         setFocusedIndex(-1)
@@ -198,30 +220,40 @@ export function UniversalSearch({
         inputRef.current?.blur()
         return
       }
-      if (canShowAI && !aiSubmittedQuery) {
+      if (canShowAIRef.current && !aiSubmittedQueryRef.current) {
         return
       }
+      const items = flatItemsRef.current
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setFocusedIndex((prev) => (prev < flatItems.length - 1 ? prev + 1 : prev))
+        setFocusedIndex((prev) => {
+          const next = prev < items.length - 1 ? prev + 1 : prev
+          focusedIndexRef.current = next
+          return next
+        })
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setFocusedIndex((prev) => (prev > 0 ? prev - 1 : -1))
+        setFocusedIndex((prev) => {
+          const next = prev > 0 ? prev - 1 : -1
+          focusedIndexRef.current = next
+          return next
+        })
       } else if (e.key === 'Enter') {
-        if (focusedIndex >= 0 && flatItems[focusedIndex]) {
+        const focused = focusedIndexRef.current
+        if (focused >= 0 && items[focused]) {
           e.preventDefault()
-          const { type, item } = flatItems[focusedIndex]
+          const { type, item } = items[focused]
           if (type === 'business') router.push(`/t/${(item as BusinessHit).slug}`)
           else router.push(`/t/${(item as ProductHit).business.slug}#product-${(item as ProductHit)._id}`)
           setOpen(false)
-          setQuery('')
+          setQueryRef.current('')
         }
         // When in AI follow-up mode with no selection, let form submit (don't preventDefault)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [showDropdown, focusedIndex, flatItems, router, canShowAI, aiSubmittedQuery])
+  }, [router])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -271,18 +303,22 @@ export function UniversalSearch({
   }
 
   const handleAddToCart = async (productId: string) => {
+    addToCartFetchRef.current?.abort()
+    const ac = new AbortController()
+    addToCartFetchRef.current = ac
     try {
-      const res = await fetch(`/api/search/product/${productId}`)
+      const res = await fetch(`/api/search/product/${productId}`, { signal: ac.signal })
       if (!res.ok) throw new Error('Failed to fetch product')
       const { product, tenant } = await res.json()
       if (!product || !tenant?.slug) throw new Error('Invalid product data')
       addToCart(product as Product, [], [], { slug: tenant.slug, name: tenant.name })
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
       console.error('Add to cart:', e)
     }
   }
 
-  const hasStoredChat = (() => {
+  const hasStoredChat = useMemo(() => {
     if (typeof window === 'undefined' || !city) return false
     try {
       const raw = localStorage.getItem(`zonify-ai-chat-${city}`)
@@ -292,7 +328,7 @@ export function UniversalSearch({
     } catch {
       return false
     }
-  })()
+  }, [city])
 
   const handleResumeChat = useCallback(() => {
     const typedQuestion = query.trim()
@@ -303,7 +339,7 @@ export function UniversalSearch({
     setAiSubmittedQuery('__resume__')
     setOpen(false)
     inputRef.current?.focus()
-  }, [query])
+  }, [query, setQuery])
 
   const handleChatOverlayClose = useCallback(() => {
     setAiSubmittedQuery(null)
@@ -359,7 +395,8 @@ export function UniversalSearch({
           type="search"
           autoComplete="off"
           role="combobox"
-          aria-expanded={!!showDropdown}
+          aria-expanded={showDropdown}
+          aria-controls={showDropdown ? listboxId : undefined}
           aria-autocomplete="list"
           placeholder={aiSubmittedQuery ? (placeholder ?? t('Ask a follow-up...', 'اسأل سؤالاً إضافياً...')) : (placeholder ?? defaultPlaceholder)}
           value={query}
@@ -429,6 +466,8 @@ export function UniversalSearch({
       )}
       {showDropdown && (
           <div
+            id={listboxId}
+            role="listbox"
             className={cn(
               'absolute left-0 right-0 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-[100] flex flex-col',
               anchorBottom

@@ -57,15 +57,11 @@ export function useLocation() {
 }
 
 /** Fetches cities that have at least one business (from tenants). */
-async function fetchCities(): Promise<string[]> {
-  try {
-    const res = await fetch('/api/home/cities')
-    const data = await res.json()
-    const cities = data?.cities ?? []
-    return Array.isArray(cities) ? (cities as string[]) : []
-  } catch {
-    return []
-  }
+async function fetchCities(signal?: AbortSignal): Promise<string[]> {
+  const res = await fetch('/api/home/cities', { signal })
+  const data = await res.json()
+  const cities = data?.cities ?? []
+  return Array.isArray(cities) ? (cities as string[]) : []
 }
 
 /** GeoJSON feature from API. */
@@ -97,19 +93,27 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const hasTriedAutoDetect = useRef(false)
   const availableCitiesRef = useRef<string[]>([])
   const polygonsRef = useRef<Polygon[] | null>(null)
+  const nominatimAbortRef = useRef<AbortController | null>(null)
 
-  // Keep refs in sync so async callbacks always read the latest value
-  availableCitiesRef.current = availableCities
-  polygonsRef.current = polygons
+  useEffect(() => {
+    availableCitiesRef.current = availableCities
+  }, [availableCities])
+
+  useEffect(() => {
+    polygonsRef.current = polygons
+  }, [polygons])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const savedCity = localStorage.getItem(STORAGE_CITY)
-    if (savedCity && savedCity.trim()) {
-      setCity(savedCity.trim())
-      setIsChosen(true)
-    }
-    setIsInitialized(true)
+    const id = requestAnimationFrame(() => {
+      if (savedCity && savedCity.trim()) {
+        setCity(savedCity.trim())
+        setIsChosen(true)
+      }
+      setIsInitialized(true)
+    })
+    return () => cancelAnimationFrame(id)
   }, [])
 
   useEffect(() => {
@@ -120,21 +124,37 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   }, [isInitialized, city])
 
   useEffect(() => {
-    fetchCities().then((c) => {
-      setAvailableCities(c)
-      setCitiesLoaded(true)
-    })
+    const ac = new AbortController()
+    ;(async () => {
+      try {
+        const c = await fetchCities(ac.signal)
+        if (ac.signal.aborted) return
+        setAvailableCities(c)
+        setCitiesLoaded(true)
+      } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+        if (ac.signal.aborted) return
+        setAvailableCities([])
+        setCitiesLoaded(true)
+      }
+    })()
+    return () => ac.abort()
   }, [])
 
   useEffect(() => {
-    fetch('/api/geofencing/polygons')
+    const ac = new AbortController()
+    fetch('/api/geofencing/polygons', { signal: ac.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
+        if (ac.signal.aborted) return
         if (data?.features?.length) {
           setPolygons(featuresToPolygons(data.features))
         }
       })
-      .catch(() => {})
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+      })
+    return () => ac.abort()
   }, [])
 
   const setLocation = useCallback((c: string) => {
@@ -176,11 +196,21 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
-      { headers: { 'Accept-Language': 'en' } }
-    )
+    nominatimAbortRef.current?.abort()
+    const ac = new AbortController()
+    nominatimAbortRef.current = ac
+    let res: Response
+    try {
+      res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en' }, signal: ac.signal }
+      )
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      throw e
+    }
     const data = await res.json()
+    if (ac.signal.aborted) return
     const address = data.address || {}
     const addressValues: string[] = [
       address.city,
@@ -252,12 +282,12 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     if (typeof window === 'undefined') return
     if (!isInitialized || !citiesLoaded || city) return
     if (!navigator.geolocation) {
-      setLocationStatus('error')
-      return
+      const noGeoId = requestAnimationFrame(() => setLocationStatus('error'))
+      return () => cancelAnimationFrame(noGeoId)
     }
     if (hasTriedAutoDetect.current) return
     hasTriedAutoDetect.current = true
-    setLocationStatus('detecting')
+    const detectingId = requestAnimationFrame(() => setLocationStatus('detecting'))
     let settled = false
     const forceTimeout = window.setTimeout(() => {
       if (settled) return
@@ -296,6 +326,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     })
 
     return () => {
+      cancelAnimationFrame(detectingId)
       settled = true
       clearTimeout(forceTimeout)
     }
@@ -315,6 +346,10 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     retryAutoDetect,
     requestLocationPermission,
   }
+
+  useEffect(() => {
+    return () => nominatimAbortRef.current?.abort()
+  }, [])
 
   return (
     <LocationContext.Provider value={value}>

@@ -98,6 +98,17 @@ export function SearchAIPanel({
     Record<string, { products: ToolProduct[]; byStore: Record<string, ToolProduct[]>; missingIngredients: string[] }>
   >({})
   const [loadingStoreSlug, setLoadingStoreSlug] = useState<string | null>(null)
+  const addToCartFetchRef = useRef<AbortController | null>(null)
+  const addAllFromStoreFetchRef = useRef<AbortController | null>(null)
+  const ingredientsByStoreFetchRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => {
+      addToCartFetchRef.current?.abort()
+      addAllFromStoreFetchRef.current?.abort()
+      ingredientsByStoreFetchRef.current?.abort()
+    }
+  }, [])
 
   const initialMessages = useMemo(() => loadStoredMessages(city), [city])
 
@@ -163,8 +174,11 @@ export function SearchAIPanel({
 
   const handleAddToCart = async (p: ToolProduct) => {
     setAddingProductId(p._id)
+    addToCartFetchRef.current?.abort()
+    const ac = new AbortController()
+    addToCartFetchRef.current = ac
     try {
-      const res = await fetch(`/api/search/product/${p._id}`)
+      const res = await fetch(`/api/search/product/${p._id}`, { signal: ac.signal })
       if (!res.ok) throw new Error('Failed to fetch product')
       const { product, tenant } = await res.json()
       if (!product || !tenant?.slug) throw new Error('Invalid product data')
@@ -184,6 +198,10 @@ export function SearchAIPanel({
       setAddedProductId(p._id)
       setTimeout(() => setAddedProductId(null), 800)
     } catch (e) {
+      if ((e as Error)?.name === 'AbortError') {
+        setAddingProductId(null)
+        return
+      }
       console.error('Add to cart:', e)
       setAddingProductId(null)
       showToast(
@@ -340,8 +358,11 @@ export function SearchAIPanel({
                                   const key = String(storeSlug)
                                   setAddingAllFromKey(key)
                                   try {
+                                    addAllFromStoreFetchRef.current?.abort()
+                                    const batchAc = new AbortController()
+                                    addAllFromStoreFetchRef.current = batchAc
                                     for (const prod of storeProds) {
-                                      const res = await fetch(`/api/search/product/${prod._id}`)
+                                      const res = await fetch(`/api/search/product/${prod._id}`, { signal: batchAc.signal })
                                       if (res.ok) {
                                         const { product, tenant } = await res.json()
                                         if (product && tenant?.slug) {
@@ -352,6 +373,7 @@ export function SearchAIPanel({
                                       }
                                     }
                                   } catch (e) {
+                                    if ((e as Error)?.name === 'AbortError') return
                                     console.error('Add to cart:', e)
                                     showToast(
                                       t('Could not add items. Try again.', 'تعذر إضافة الأصناف. حاول مرة أخرى.'),
@@ -493,6 +515,9 @@ export function SearchAIPanel({
                                 onClick={async () => {
                                   setLoadingStoreSlug(s.slug)
                                   try {
+                                    ingredientsByStoreFetchRef.current?.abort()
+                                    const fetchAc = new AbortController()
+                                    ingredientsByStoreFetchRef.current = fetchAc
                                     const res = await fetch('/api/search/ingredients-by-store', {
                                       method: 'POST',
                                       headers: { 'Content-Type': 'application/json' },
@@ -502,6 +527,7 @@ export function SearchAIPanel({
                                         city,
                                         country,
                                       }),
+                                      signal: fetchAc.signal,
                                     })
                                     if (res.ok) {
                                       const result = await res.json()
@@ -515,6 +541,7 @@ export function SearchAIPanel({
                                       }))
                                     }
                                   } catch (e) {
+                                    if ((e as Error)?.name === 'AbortError') return
                                     console.error('Store choice fetch:', e)
                                     showToast(
                                       t('Could not load products. Try again.', 'تعذر تحميل المنتجات. حاول مرة أخرى.'),
@@ -597,8 +624,11 @@ export function SearchAIPanel({
                                 const key = String(storeSlug)
                                 setAddingAllFromKey(key)
                                 try {
+                                  addAllFromStoreFetchRef.current?.abort()
+                                  const batchAc = new AbortController()
+                                  addAllFromStoreFetchRef.current = batchAc
                                   for (const prod of storeProds) {
-                                    const res = await fetch(`/api/search/product/${prod._id}`)
+                                    const res = await fetch(`/api/search/product/${prod._id}`, { signal: batchAc.signal })
                                     if (res.ok) {
                                       const { product, tenant } = await res.json()
                                       if (product && tenant?.slug) {
@@ -609,6 +639,7 @@ export function SearchAIPanel({
                                     }
                                   }
                                 } catch (e) {
+                                  if ((e as Error)?.name === 'AbortError') return
                                   console.error('Add to cart:', e)
                                   showToast(
                                     t('Could not add items. Try again.', 'تعذر إضافة الأصناف. حاول مرة أخرى.'),
@@ -860,10 +891,14 @@ export function SearchAIPanel({
                                 if (soughtIngredients.length === 0) return
                                 setLoadingStoreSlug(s.slug)
                                 try {
+                                  ingredientsByStoreFetchRef.current?.abort()
+                                  const fetchAc = new AbortController()
+                                  ingredientsByStoreFetchRef.current = fetchAc
                                   const res = await fetch('/api/search/ingredients-by-store', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ ingredients: soughtIngredients, storeSlug: s.slug, city, country }),
+                                    signal: fetchAc.signal,
                                   })
                                   if (res.ok) {
                                     const result = await res.json()
@@ -877,6 +912,7 @@ export function SearchAIPanel({
                                     }))
                                   }
                                 } catch (e) {
+                                  if ((e as Error)?.name === 'AbortError') return
                                   console.error('Store choice fetch:', e)
                                   showToast(t('Could not load products. Try again.', 'تعذر تحميل المنتجات. حاول مرة أخرى.'), '', 'error')
                                 } finally {

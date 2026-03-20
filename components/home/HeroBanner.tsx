@@ -187,34 +187,49 @@ export function HeroBanner() {
 
   const [imageDurationSeconds, setImageDurationSeconds] = useState(10)
 
-  const fetchBanners = useCallback(async () => {
-    const params = new URLSearchParams()
-    params.set('lang', lang)
-    if (isChosen && city) params.set('city', city)
-    const res = await fetch(`/api/home/banners?${params}`)
-    const data = await res.json()
-    if (Array.isArray(data)) {
-      setBanners(data)
-      setImageDurationSeconds(10)
-    } else {
-      setBanners(Array.isArray(data?.banners) ? data.banners : [])
-      const sec = data?.imageDurationSeconds
-      setImageDurationSeconds(
-        typeof sec === 'number' && sec >= 3 && sec <= 120 ? sec : 10
-      )
-    }
-    setIndex(0)
-    setLoading(false)
-  }, [isChosen, city, lang])
-
   useEffect(() => {
     if (!isChosen || !city) {
-      setBanners([])
-      setLoading(false)
-      return
+      const resetId = requestAnimationFrame(() => {
+        setBanners([])
+        setLoading(false)
+      })
+      return () => cancelAnimationFrame(resetId)
     }
-    fetchBanners()
-  }, [fetchBanners, isChosen, city])
+    const ac = new AbortController()
+    const loadId = requestAnimationFrame(() => setLoading(true))
+    const params = new URLSearchParams()
+    params.set('lang', lang)
+    params.set('city', city)
+    fetch(`/api/home/banners?${params}`, { signal: ac.signal })
+      .then((res) => res.json())
+      .then((data) => {
+        if (ac.signal.aborted) return
+        if (Array.isArray(data)) {
+          setBanners(data)
+          setImageDurationSeconds(10)
+        } else {
+          setBanners(Array.isArray(data?.banners) ? data.banners : [])
+          const sec = data?.imageDurationSeconds
+          setImageDurationSeconds(
+            typeof sec === 'number' && sec >= 3 && sec <= 120 ? sec : 10
+          )
+        }
+        setIndex(0)
+      })
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+        if (!ac.signal.aborted) {
+          setBanners([])
+        }
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setLoading(false)
+      })
+    return () => {
+      cancelAnimationFrame(loadId)
+      ac.abort()
+    }
+  }, [isChosen, city, lang])
 
   const currentIsVideo = (() => {
     if (banners.length === 0) return false

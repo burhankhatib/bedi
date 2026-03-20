@@ -80,13 +80,24 @@ function ScrollCanvas({
   const imagesRef = useRef<HTMLImageElement[]>([])
   const loadedCountRef = useRef(0)
   const rafRef = useRef<number>(0)
+  const lastFrameRef = useRef<number>(-1)
+  const lastSizeRef = useRef<{ w: number; h: number; dpr: number }>({ w: 0, h: 0, dpr: 1 })
   const frameCount = frameUrls.length
 
   useEffect(() => {
     loadedCountRef.current = 0
+    lastFrameRef.current = -1
     const imgs: HTMLImageElement[] = []
-    for (const url of frameUrls) {
+    const idleTimers: number[] = []
+    const idleHandle: { id?: number } = {}
+    const eagerCount = Math.min(frameUrls.length, 12)
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void) => number
+      cancelIdleCallback?: (id: number) => void
+    }
+    const enqueueImageLoad = (index: number, url: string, idle: boolean) => {
       const img = document.createElement('img')
+      img.decoding = 'async'
       img.onload = () => {
         loadedCountRef.current++
         if (loadedCountRef.current >= 1) onFirstFrameReady()
@@ -95,12 +106,35 @@ function ScrollCanvas({
         loadedCountRef.current++
         if (loadedCountRef.current >= 1) onFirstFrameReady()
       }
-      img.src = url
       imgs.push(img)
+      if (!idle) {
+        img.src = url
+        return
+      }
+      if (w.requestIdleCallback) {
+        idleHandle.id = w.requestIdleCallback(() => { img.src = url })
+      } else {
+        const t = window.setTimeout(() => { img.src = url }, 16 * Math.max(1, index - eagerCount + 1))
+        idleTimers.push(t)
+      }
     }
+
+    frameUrls.forEach((url, index) => {
+      enqueueImageLoad(index, url, index >= eagerCount)
+    })
+
     imagesRef.current = imgs
     if (frameUrls.length === 0) onFirstFrameReady()
     return () => {
+      if (idleHandle.id && w.cancelIdleCallback) {
+        w.cancelIdleCallback(idleHandle.id)
+      }
+      idleTimers.forEach((id) => window.clearTimeout(id))
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = 0
+      imagesRef.current = []
+      lastFrameRef.current = -1
+      lastSizeRef.current = { w: 0, h: 0, dpr: 1 }
       imgs.length = 0
     }
   }, [frameUrls, onFirstFrameReady])
@@ -112,12 +146,9 @@ function ScrollCanvas({
     const ctx = canvas.getContext('2d', { alpha: false })
     if (!ctx) return
 
-    const draw = () => {
+    const draw = (force = false) => {
       const imgs = imagesRef.current
-      if (imgs.length === 0) {
-        rafRef.current = requestAnimationFrame(draw)
-        return
-      }
+      if (imgs.length === 0) return
 
       const progress = progressMotionValue.get()
       const frameIndex = Math.round(
@@ -130,11 +161,14 @@ function ScrollCanvas({
         const rect = canvas.getBoundingClientRect()
         const w = rect.width
         const h = rect.height
+        const sizeChanged = w !== lastSizeRef.current.w || h !== lastSizeRef.current.h || dpr !== lastSizeRef.current.dpr
+        if (!force && frameIndex === lastFrameRef.current && !sizeChanged) return
 
-        if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+        if (sizeChanged) {
           canvas.width = w * dpr
           canvas.height = h * dpr
-          ctx.scale(dpr, dpr)
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+          lastSizeRef.current = { w, h, dpr }
         }
 
         ctx.fillStyle = '#000'
@@ -157,13 +191,25 @@ function ScrollCanvas({
         }
 
         ctx.drawImage(img, drawX, drawY, drawW, drawH)
+        lastFrameRef.current = frameIndex
       }
-
-      rafRef.current = requestAnimationFrame(draw)
     }
 
-    rafRef.current = requestAnimationFrame(draw)
-    return () => cancelAnimationFrame(rafRef.current)
+    const requestDraw = (force = false) => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => draw(force))
+    }
+
+    requestDraw(true)
+    const unsubscribe = progressMotionValue.on('change', () => requestDraw(false))
+    const onResize = () => requestDraw(true)
+    window.addEventListener('resize', onResize, { passive: true })
+    return () => {
+      unsubscribe()
+      window.removeEventListener('resize', onResize)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = 0
+    }
   }, [frameCount, progressMotionValue])
 
   return (
@@ -199,9 +245,11 @@ export function ScrollDrivenBanner() {
     const params = new URLSearchParams()
     if (city) params.set('city', city)
 
-    fetch(`/api/home/scroll-animations?${params.toString()}`)
+    const ac = new AbortController()
+    fetch(`/api/home/scroll-animations?${params.toString()}`, { signal: ac.signal })
       .then((r) => r.json())
       .then((data: { animation: ScrollAnimationData | null }) => {
+        if (ac.signal.aborted) return
         if (data.animation && data.animation.frames.length >= 2) {
           setAnimationData(data.animation)
           setFrameUrls(data.animation.frames)
@@ -209,9 +257,11 @@ export function ScrollDrivenBanner() {
           setNoAnimation(true)
         }
       })
-      .catch(() => {
-        setNoAnimation(true)
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+        if (!ac.signal.aborted) setNoAnimation(true)
       })
+    return () => ac.abort()
   }, [city])
 
   const scrollHeight = animationData?.scrollHeight ?? 400

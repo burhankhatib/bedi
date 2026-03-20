@@ -53,23 +53,31 @@ export function BrowseMenuModal({
 
   useEffect(() => {
     if (!open || !fetchUrl) return
-    setLoading(true)
-    setError(null)
-    setCategories([])
-    fetch(fetchUrl, { cache: 'no-store' })
+    const ac = new AbortController()
+    const loadId = requestAnimationFrame(() => {
+      setLoading(true)
+      setError(null)
+      setCategories([])
+    })
+    fetch(fetchUrl, { cache: 'no-store', signal: ac.signal })
       .then((res) => {
         if (!res.ok) throw new Error('Failed to load menu')
         return res.json()
       })
       .then((data) => {
-        setCategories(data.categories ?? [])
+        if (!ac.signal.aborted) setCategories(data.categories ?? [])
       })
       .catch(() => {
+        if (ac.signal.aborted) return
         setError('Could not load menu')
       })
       .finally(() => {
-        setLoading(false)
+        if (!ac.signal.aborted) setLoading(false)
       })
+    return () => {
+      cancelAnimationFrame(loadId)
+      ac.abort()
+    }
   }, [open, fetchUrl])
 
   const filteredCategories = useMemo(() => {

@@ -97,7 +97,26 @@ export function TenantBusinessProvider({ slug, children, initialData }: { slug: 
     if (initialData) {
       setData(initialData)
       setLoading(false)
-      return
+      // Hydrate from the authoritative business endpoint in background.
+      // initialData can be intentionally lightweight and miss editable fields.
+      initialAbortRef.current?.abort()
+      const ac = new AbortController()
+      initialAbortRef.current = ac
+      fetch(`/api/tenants/${encodeURIComponent(slug)}/business?refresh=1`, {
+        credentials: 'include',
+        cache: 'no-store',
+        signal: ac.signal,
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (mountedRef.current && !ac.signal.aborted && d) setData(d)
+        })
+        .catch((err) => {
+          if (isAbortError(err)) return
+        })
+      return () => {
+        ac.abort()
+      }
     }
 
     setData(null)
@@ -131,7 +150,7 @@ export function TenantBusinessProvider({ slug, children, initialData }: { slug: 
       ac.abort()
       clearTimeout(timeout)
     }
-  }, [slug])
+  }, [slug, initialData])
 
   const value: TenantBusinessContextValue = {
     data,

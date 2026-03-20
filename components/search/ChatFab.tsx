@@ -7,21 +7,8 @@ import { useLanguage } from '@/components/LanguageContext'
 import { useLocation } from '@/components/LocationContext'
 import { cn } from '@/lib/utils'
 
-const CHAT_STORAGE_PREFIX = 'zonify-ai-chat-'
 export const OPEN_AI_CHAT_EVENT = 'zonify-open-ai-chat'
 export const OPEN_CHAT_ON_LOAD_KEY = 'zonify-open-ai-chat-on-load'
-
-function hasStoredChat(city: string): boolean {
-  if (typeof window === 'undefined' || !city) return false
-  try {
-    const raw = localStorage.getItem(`${CHAT_STORAGE_PREFIX}${city}`)
-    if (!raw) return false
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) && parsed.length > 0
-  } catch {
-    return false
-  }
-}
 
 /** Paths that have UniversalSearch in view (can open chat in-place). Others: navigate to /search. */
 function hasInlineSearch(pathname: string): boolean {
@@ -41,15 +28,17 @@ export function ChatFab() {
   const pathname = usePathname()
 
   useEffect(() => {
-    setMounted(true)
+    const id = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(id)
   }, [])
 
   useEffect(() => {
     if (!mounted || !city || !isChosen) {
-      setVisible(false)
-      return
+      const id = requestAnimationFrame(() => setVisible(false))
+      return () => cancelAnimationFrame(id)
     }
-    setVisible(true)
+    const id = requestAnimationFrame(() => setVisible(true))
+    return () => cancelAnimationFrame(id)
   }, [mounted, city, isChosen])
 
   const handleClick = () => {

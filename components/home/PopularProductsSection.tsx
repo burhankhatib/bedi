@@ -29,16 +29,30 @@ export function PopularProductsSection() {
 
   useEffect(() => {
     if (!isChosen || !city) {
-      setProducts([])
-      setLoading(false)
-      return
+      const resetId = requestAnimationFrame(() => {
+        setProducts([])
+        setLoading(false)
+      })
+      return () => cancelAnimationFrame(resetId)
     }
-    setLoading(true)
+    const ac = new AbortController()
+    const loadId = requestAnimationFrame(() => setLoading(true))
     const params = new URLSearchParams({ city })
-    fetch(`/api/home/popular-products?${params}`)
+    fetch(`/api/home/popular-products?${params}`, { signal: ac.signal })
       .then((res) => res.json())
-      .then((data) => setProducts(Array.isArray(data) ? data : []))
-      .finally(() => setLoading(false))
+      .then((data) => {
+        if (!ac.signal.aborted) setProducts(Array.isArray(data) ? data : [])
+      })
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setLoading(false)
+      })
+    return () => {
+      cancelAnimationFrame(loadId)
+      ac.abort()
+    }
   }, [isChosen, city])
 
   if (!isChosen) return null

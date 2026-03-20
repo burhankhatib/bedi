@@ -25,16 +25,30 @@ export function SubcategoriesSection() {
 
   useEffect(() => {
     if (!isChosen || !city) {
-      setSubcategories([])
-      setLoading(false)
-      return
+      const resetId = requestAnimationFrame(() => {
+        setSubcategories([])
+        setLoading(false)
+      })
+      return () => cancelAnimationFrame(resetId)
     }
-    setLoading(true)
+    const ac = new AbortController()
+    const loadId = requestAnimationFrame(() => setLoading(true))
     const params = new URLSearchParams({ city, category: 'restaurant' })
-    fetch(`/api/home/subcategories?${params}`)
+    fetch(`/api/home/subcategories?${params}`, { signal: ac.signal })
       .then((res) => res.json())
-      .then((data) => setSubcategories(Array.isArray(data) ? data : []))
-      .finally(() => setLoading(false))
+      .then((data) => {
+        if (!ac.signal.aborted) setSubcategories(Array.isArray(data) ? data : [])
+      })
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setLoading(false)
+      })
+    return () => {
+      cancelAnimationFrame(loadId)
+      ac.abort()
+    }
   }, [isChosen, city])
 
   if (!isChosen) return null

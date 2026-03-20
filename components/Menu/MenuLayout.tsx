@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import { InitialData, Product } from '@/app/types/menu'
 import { CategoryNav } from '@/components/Menu/CategoryNav'
@@ -195,6 +195,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   const [stickyBlockHeight, setStickyBlockHeight] = useState(140) // header + menu bar for scroll offset
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showTableChoiceModal, setShowTableChoiceModal] = useState(false)
+  const [allowEmbeddedMap, setAllowEmbeddedMap] = useState(false)
 
   // Show table choice modal when landing with ?table= (dine-in QR)
   useEffect(() => {
@@ -295,14 +296,24 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
 
   const [progressScale, setProgressScale] = useState(0)
   useEffect(() => {
-    const onScroll = () => {
+    let rafId = 0
+    const updateProgress = () => {
+      rafId = 0
       const { scrollTop, scrollHeight, clientHeight } = document.documentElement
       const max = Math.max(0, scrollHeight - clientHeight)
-      setProgressScale(max > 0 ? scrollTop / max : 0)
+      const next = max > 0 ? scrollTop / max : 0
+      setProgressScale((prev) => (Math.abs(prev - next) > 0.001 ? next : prev))
     }
-    onScroll()
+    const onScroll = () => {
+      if (rafId) return
+      rafId = window.requestAnimationFrame(updateProgress)
+    }
+    updateProgress()
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (rafId) window.cancelAnimationFrame(rafId)
+    }
   }, [])
 
   // Measure sticky block height for scroll spy and scroll-into-view offset
@@ -325,7 +336,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
 
     const getScrollOffset = () => stickyBlockHeight + 24
 
-    const onScroll = () => {
+    let rafId = 0
+    const runScrollSpy = () => {
+      rafId = 0
       const offset = getScrollOffset()
       let currentRoot: string | null = null
       for (const id of sectionIds) {
@@ -337,11 +350,38 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
       }
       if (currentRoot !== null) setActiveCategory((prev) => (prev === currentRoot ? prev : currentRoot))
     }
+    const onScroll = () => {
+      if (rafId) return
+      rafId = window.requestAnimationFrame(runScrollSpy)
+    }
 
     window.addEventListener('scroll', onScroll, { passive: true })
-    onScroll()
-    return () => window.removeEventListener('scroll', onScroll)
+    runScrollSpy()
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (rafId) window.cancelAnimationFrame(rafId)
+    }
   }, [hasMostPopular, rootCategories, stickyBlockHeight])
+
+  // Mobile/PWA back navigation can get trapped in embedded map iframe history.
+  // On coarse pointers or standalone mode, prefer a lightweight map preview link.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const rafId = window.requestAnimationFrame(() => {
+      const isStandalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        ((window.navigator as Navigator & { standalone?: boolean }).standalone === true)
+      const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches
+      setAllowEmbeddedMap(!isStandalone && !isCoarsePointer)
+    })
+    return () => window.cancelAnimationFrame(rafId)
+  }, [])
+
+  const hasCoordinates = locationLat != null && locationLng != null
+  const mapLinkHref = useMemo(() => {
+    if (hasCoordinates) return `https://www.google.com/maps?q=${locationLat},${locationLng}`
+    return restaurantInfo?.mapsLink ?? null
+  }, [hasCoordinates, locationLat, locationLng, restaurantInfo?.mapsLink])
 
   const handleCategoryClick = (id: string) => {
     setActiveCategory(id)
@@ -956,9 +996,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
             </p>
           )}
           {((restaurantInfo && (restaurantInfo.address_en || restaurantInfo.address_ar || restaurantInfo.mapsLink)) || locationLat != null) && (
-            (locationLat != null && locationLng != null) ? (
+            hasCoordinates ? (
               <a
-                href={`https://www.google.com/maps?q=${locationLat},${locationLng}`}
+                href={mapLinkHref ?? '#'}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mb-8 max-w-lg mx-auto block hover:text-white transition-colors group"
@@ -993,7 +1033,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
           )}
 
           {/* Embedded Google Maps - prefers coordinates, falls back to mapEmbedUrl */}
-          {(locationLat != null && locationLng != null) ? (
+          {(hasCoordinates && allowEmbeddedMap) ? (
             <div className="mb-12 max-w-4xl mx-auto rounded-2xl overflow-hidden shadow-2xl">
               <iframe
                 src={`https://maps.google.com/maps?q=${locationLat},${locationLng}&hl=en&z=14&output=embed`}
@@ -1007,6 +1047,21 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                 title={t('Map', 'الخريطة')}
               />
             </div>
+          ) : !allowEmbeddedMap && mapLinkHref ? (
+            <a
+              href={mapLinkHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mb-12 block max-w-4xl mx-auto rounded-2xl border border-slate-700 bg-slate-900/60 p-6 hover:bg-slate-900 transition-colors"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-left rtl:text-right">
+                  <p className="text-sm text-slate-300">{t('Open map in Google Maps', 'افتح الخريطة في Google Maps')}</p>
+                  <p className="mt-1 text-base font-semibold text-white">{t('Tap to navigate', 'اضغط للتنقل')}</p>
+                </div>
+                <MapPin className="size-7 text-amber-400 shrink-0" />
+              </div>
+            </a>
           ) : restaurantInfo?.mapEmbedUrl ? (() => {
             const raw = restaurantInfo.mapEmbedUrl.trim()
             const srcMatch = raw.match(/src=["']([^"']+)["']/)

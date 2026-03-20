@@ -44,14 +44,19 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
     }
     setLoading(true)
     const params = new URLSearchParams({ city, category })
-    
-    fetch(`/api/home/tenants?${params}`)
+    const controller = new AbortController()
+
+    fetch(`/api/home/tenants?${params}`, { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => {
         setTenants(Array.isArray(data?.tenants) ? data.tenants : [])
       })
-      .catch((err) => console.error(err))
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return
+        console.error(err)
+      })
       .finally(() => setLoading(false))
+    return () => controller.abort()
   }, [isChosen, city, category])
 
   if (!isChosen || (loading && tenants.length === 0)) {

@@ -389,7 +389,9 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     return () => ac.abort()
   }, [])
 
-  // Load business data: use context if already available (instant show), otherwise fetch so we never stay stuck on Loading.
+  // Load business data from the authoritative business API every time this page mounts.
+  // Context data in manage layout can be partial (metadata-focused), which caused
+  // fields like logo/subcategories/WhatsApp to appear cleared after navigation.
   useEffect(() => {
     const controller = new AbortController()
     const defaultGeo = { countryCode: null as string | null, countryName: null as string | null }
@@ -470,35 +472,16 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
       }
     }
 
-    const ctxData = businessContext.data as BusinessData | null
-    const hasContextData = ctxData != null && ctxData.tenant != null
-
-    if (hasContextData) {
-      if (skipNextApplyRef.current) {
-        skipNextApplyRef.current = false
-        return () => controller.abort()
-      }
-      applyBusinessAndGeo(ctxData, defaultGeo)
-      setLoading(false)
-      fetch('/api/geo', { signal: controller.signal })
-        .then((r) => r.json())
-        .catch(() => defaultGeo)
-        .then((geo) => {
-          if (controller.signal.aborted) return
-          const code = (geo as { countryCode?: string | null })?.countryCode
-          setForm((f) => {
-            if (f.country) return f
-            return code ? { ...f, country: code } : f
-          })
-          if (code && lastSavedRef.current) lastSavedRef.current = { ...lastSavedRef.current, country: code }
-        })
-      return () => controller.abort()
+    if (skipNextApplyRef.current) {
+      skipNextApplyRef.current = false
     }
 
-    // No context data yet: fetch so we never stay stuck on Loading.
     setLoading(true)
     Promise.all([
-      api('/business', { signal: controller.signal }).then((r) => r.json()),
+      fetch(`/api/tenants/${encodeURIComponent(slug)}/business?refresh=1`, {
+        credentials: 'include',
+        signal: controller.signal,
+      }).then((r) => r.json()),
       fetch('/api/geo', { signal: controller.signal }).then((r) => r.json()).catch(() => defaultGeo),
     ])
       .then(([d, geo]) => applyBusinessAndGeo(d as BusinessData, geo as typeof defaultGeo))
@@ -510,7 +493,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [slug, businessContext.data])
+  }, [slug])
 
   // Normalize saved country: if it's a name, resolve to code
   useEffect(() => {
@@ -728,7 +711,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
       const payload: Record<string, unknown> = {
         name: form.name,
         businessType: form.businessType || undefined,
-          businessSubcategoryIds: form.businessSubcategoryIds?.length ? form.businessSubcategoryIds : undefined,
+          businessSubcategoryIds: form.businessSubcategoryIds,
           country: form.country || undefined,
           city: form.city || undefined,
           ownerPhone: form.ownerPhone?.trim() || undefined,

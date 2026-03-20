@@ -18,17 +18,27 @@ export function AiQuestionSyncOnLogin() {
     const questions = getStoredGuestQuestions()
     if (questions.length === 0) return
     syncedRef.current = true
+    const ac = new AbortController()
     fetch('/api/me/search-questions/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ questions }),
       credentials: 'include',
+      signal: ac.signal,
     })
-      .then(() => clearStoredGuestQuestions())
+      .then(() => {
+        if (!ac.signal.aborted) clearStoredGuestQuestions()
+      })
       .catch((e) => {
+        if ((e as Error)?.name === 'AbortError') return
         console.warn('[AI] Sync guest questions failed:', e)
         syncedRef.current = false
       })
+
+    return () => {
+      ac.abort()
+      syncedRef.current = false
+    }
   }, [isSignedIn])
 
   return null

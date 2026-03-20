@@ -37,7 +37,6 @@ export function CustomerPullToRefresh({ children }: { children: React.ReactNode 
   const pathname = usePathname()
   const router = useRouter()
   const { t } = useLanguage()
-  const [startY, setStartY] = useState<number | null>(null)
   const [pullDistance, setPullDistance] = useState(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isForceReloading, setIsForceReloading] = useState(false)
@@ -48,28 +47,14 @@ export function CustomerPullToRefresh({ children }: { children: React.ReactNode 
   if (isIOSStandalonePWA()) return <>{children}</>
 
   setPullDistanceRef.current = setPullDistance
-  startYRef.current = startY
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (isOverlayOpen()) return
     if (isAtTop()) {
       const y = e.touches[0].clientY
-      setStartY(y)
       startYRef.current = y
     } else {
-      setStartY(null)
       startYRef.current = null
-    }
-  }, [])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (isOverlayOpen()) return
-    const sy = startYRef.current
-    if (sy === null || !isAtTop()) return
-    const dist = e.touches[0].clientY - sy
-    if (dist > 0) {
-      e.preventDefault()
-      setPullDistanceRef.current(Math.min(dist * 0.5, MAX_PULL))
     }
   }, [])
 
@@ -83,7 +68,6 @@ export function CustomerPullToRefresh({ children }: { children: React.ReactNode 
       const sy = startYRef.current
       if (sy === null) return
       if (!isAtTop()) {
-        setStartY(null)
         startYRef.current = null
         return
       }
@@ -105,7 +89,7 @@ export function CustomerPullToRefresh({ children }: { children: React.ReactNode 
       if (elapsed < MIN_REFRESH_INTERVAL_MS && !forceReload) {
         // Throttle: skip refresh if we refreshed recently (reduces Sanity API spikes)
         setPullDistance(0)
-        setStartY(null)
+        startYRef.current = null
         return
       }
       setIsRefreshing(true)
@@ -120,7 +104,7 @@ export function CustomerPullToRefresh({ children }: { children: React.ReactNode 
       setIsRefreshing(false)
     }
     setPullDistance(0)
-    setStartY(null)
+    startYRef.current = null
   }, [pullDistance, isRefreshing, router])
 
   return (
@@ -128,7 +112,6 @@ export function CustomerPullToRefresh({ children }: { children: React.ReactNode 
       ref={containerRef}
       className="relative min-h-[50vh] overflow-visible touch-manipulation"
       onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       style={{ touchAction: pullDistance > 0 ? 'none' : 'pan-y' }}
     >

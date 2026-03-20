@@ -8,7 +8,7 @@ import { useOrderAuth } from '@/lib/useOrderAuth'
 import { OrderAuthGate } from '@/components/OrderAuthGate'
 import { useToast } from '@/components/ui/ToastProvider'
 import { Button } from '@/components/ui/button'
-import { X, Plus, Minus, ShoppingCart, QrCode, MessageCircle, Edit2, RotateCcw, Trash2, Send, ChefHat, Store, ArrowRight } from 'lucide-react'
+import { X, ShoppingCart, QrCode, Edit2, RotateCcw, Send, Store, ArrowRight } from 'lucide-react'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
@@ -19,36 +19,21 @@ import {
   SheetTitle,
   SheetDescription
 } from '@/components/ui/sheet'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { Input } from '@/components/ui/input'
 import { formatCurrency } from '@/lib/currency'
-import { getSaleUnitLabel, isWeightBasedUnit, formatQuantityWithUnit, WEIGHT_STEP, WEIGHT_MIN } from '@/lib/sale-units'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
-import { getVariantOptionModifier } from '@/lib/cart-price'
 import { getShopperFeeByItemCount, getShopperFeeExplanation } from '@/lib/shopper-fee'
+import {
+  getVariantBreakdownForLang,
+  getVariantBreakdownAr,
+  formatAddOnsListForLang,
+  formatAddOnsListAr,
+  getCartLineUnitPrice,
+  getCartLineTotal,
+} from '@/lib/cart-line-calculations'
 import { UnifiedOrderDialog } from './UnifiedOrderDialog'
-import type { ProductAddOn } from '@/app/types/menu'
-
-/** Group selectedAddOns (array with duplicates) into { addOnKey, addOn, count } for display and totals. */
-function groupAddOnsByKey(
-  selectedAddOns: string[] | undefined,
-  addOns: ProductAddOn[] | undefined
-): Array<{ addOnKey: string; addOn: ProductAddOn; count: number }> {
-  if (!selectedAddOns?.length) return []
-  const countByKey: Record<string, number> = {}
-  for (const key of selectedAddOns) {
-    countByKey[key] = (countByKey[key] || 0) + 1
-  }
-  return Object.entries(countByKey)
-    .map(([addOnKey, count]) => {
-      const addOn = addOns?.find(
-        (a) => a._key === addOnKey || `${a.name_en}-${a.price}` === addOnKey
-      )
-      return addOn ? { addOnKey, addOn, count } : null
-    })
-    .filter((x): x is NonNullable<typeof x> => x != null)
-}
+import { CartSliderLineItem } from './CartSliderLineItem'
 
 interface CartSliderProps {
   /** When false, only "Receive in Person" and "Delivery" are shown (no Dine-in). From tenant business type. */
@@ -123,51 +108,58 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
   const [isSendingOrder, setIsSendingOrder] = useState(false)
 
   const isRTL = lang === 'ar'
+  const cartCurrencyCode = items[0]?.currency ?? 'ILS'
+
+  /** Memoized delivery + shopper totals when checkout UI is active — avoids repeated getShopperFee* on every render. */
+  const readyCheckoutTotals = useMemo(() => {
+    if (!isReady || items.length === 0) return null
+    const isDelivery = orderType === 'delivery'
+    const hasShopper =
+      !!cartTenant?.requiresPersonalShopper || !!cartTenant?.supportsDriverPickup
+    const freeDel =
+      deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled === true
+    const shopperFee =
+      isDelivery && hasShopper ? getShopperFeeByItemCount(totalItems) : 0
+    const shopperExplanation = getShopperFeeExplanation(
+      totalItems,
+      lang,
+      formatCurrency(cartCurrencyCode)
+    )
+    const grandTotal =
+      isDelivery
+        ? totalPrice + (freeDel ? 0 : deliveryFee) + (hasShopper ? shopperFee : 0)
+        : totalPrice
+    return {
+      isDelivery,
+      hasShopper,
+      freeDel,
+      shopperFee,
+      shopperExplanation,
+      grandTotal,
+    }
+  }, [
+    isReady,
+    items.length,
+    orderType,
+    cartTenant?.requiresPersonalShopper,
+    cartTenant?.supportsDriverPickup,
+    cartTenant?.freeDeliveryEnabled,
+    deliveryFeePaidByBusiness,
+    totalItems,
+    totalPrice,
+    deliveryFee,
+    lang,
+    cartCurrencyCode,
+  ])
 
   const getOrderData = () => {
+    const locale = lang === 'ar' ? 'ar' : 'en'
     return items.map((item) => {
-      const hasSpecialPrice =
-        item.specialPrice &&
-        (!item.specialPriceExpires ||
-          new Date(item.specialPriceExpires) > new Date())
-      const basePrice = hasSpecialPrice ? item.specialPrice! : item.price
-
-      // Calculate add-on prices
-      const addOnPrice = (item.selectedAddOns || []).reduce((sum, addOnKey) => {
-        const addOn = item.addOns?.find(a =>
-          a._key === addOnKey ||
-          `${a.name_en}-${a.price}` === addOnKey
-        )
-        return sum + (addOn?.price || 0)
-      }, 0)
-
-      let variantPrice = 0
-      const variantParts: string[] = []
-      if (item.variants?.length && item.selectedVariants?.length) {
-        item.variants.forEach((group, gi) => {
-          const optionIndex = item.selectedVariants![gi]
-          if (optionIndex === undefined) return
-          const option = group.options?.[optionIndex]
-          if (option) {
-            variantPrice += getVariantOptionModifier(option)
-            const groupName = lang === 'ar' ? group.name_ar : group.name_en
-            const optionLabel = lang === 'ar' ? option.label_ar : option.label_en
-            variantParts.push(`${groupName}: ${optionLabel}`)
-          }
-        })
-      }
+      const { variantParts } = getVariantBreakdownForLang(item, locale)
       const variantText = variantParts.join(', ')
-      const itemPrice = basePrice + addOnPrice + variantPrice
-      const itemTotal = itemPrice * item.quantity
-
-      const addOnsList = groupAddOnsByKey(item.selectedAddOns, item.addOns)
-        .map(({ addOn, count }) => {
-          const addOnName = lang === 'ar' ? addOn.name_ar : addOn.name_en
-          if (count === 1) return addOn.price > 0 ? `${addOnName} (+${addOn.price})` : addOnName
-          const total = addOn.price * count
-          return addOn.price > 0 ? `${addOnName} x${count} (+${total})` : `${addOnName} x${count}`
-        })
-        .join(', ')
+      const itemPrice = getCartLineUnitPrice(item)
+      const itemTotal = getCartLineTotal(item)
+      const addOnsList = formatAddOnsListForLang(item, locale)
       const extras = [variantText, addOnsList].filter(Boolean).join(' · ')
 
       return {
@@ -184,44 +176,11 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
 
   const formatOrderForWhatsApp = () => {
     const orderLines = items.map((item) => {
-      const hasSpecialPrice =
-        item.specialPrice &&
-        (!item.specialPriceExpires ||
-          new Date(item.specialPriceExpires) > new Date())
-      const basePrice = hasSpecialPrice ? item.specialPrice! : item.price
-
-      const addOnPrice = (item.selectedAddOns || []).reduce((sum, addOnKey) => {
-        const addOn = item.addOns?.find(a =>
-          a._key === addOnKey ||
-          `${a.name_en}-${a.price}` === addOnKey
-        )
-        return sum + (addOn?.price || 0)
-      }, 0)
-
-      let variantPrice = 0
-      const variantPartsAr: string[] = []
-      if (item.variants?.length && item.selectedVariants?.length) {
-        item.variants.forEach((group, gi) => {
-          const optionIndex = item.selectedVariants![gi]
-          if (optionIndex === undefined) return
-          const option = group.options?.[optionIndex]
-          if (option) {
-            variantPrice += getVariantOptionModifier(option)
-            variantPartsAr.push(`${group.name_ar}: ${option.label_ar}`)
-          }
-        })
-      }
-      const itemPrice = basePrice + addOnPrice + variantPrice
-      const itemTotal = itemPrice * item.quantity
+      const { variantPartsAr } = getVariantBreakdownAr(item)
+      const itemTotal = getCartLineTotal(item)
       const title = item.title_ar || item.title_en
 
-      const addOnsText = groupAddOnsByKey(item.selectedAddOns, item.addOns)
-        .map(({ addOn, count }) => {
-          if (count === 1) return addOn.price > 0 ? `${addOn.name_ar} (+${addOn.price})` : addOn.name_ar
-          const total = addOn.price * count
-          return addOn.price > 0 ? `${addOn.name_ar} x${count} (+${total})` : `${addOn.name_ar} x${count}`
-        })
-        .join('، ')
+      const addOnsText = formatAddOnsListAr(item)
       const variantTextAr = variantPartsAr.join('، ')
       const extrasAr = [variantTextAr, addOnsText].filter(Boolean).join(' · ')
 
@@ -311,50 +270,15 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     setIsSendingOrder(true)
 
     try {
-      // Prepare order data for API
+      const locale = lang === 'ar' ? 'ar' : 'en'
       const orderItems = items.map((item) => {
-        const hasSpecialPrice =
-          item.specialPrice &&
-          (!item.specialPriceExpires ||
-            new Date(item.specialPriceExpires) > new Date())
-        const basePrice = hasSpecialPrice ? item.specialPrice! : item.price
-
-        const addOnPrice = (item.selectedAddOns || []).reduce((sum, addOnKey) => {
-          const addOn = item.addOns?.find(a =>
-            a._key === addOnKey ||
-            `${a.name_en}-${a.price}` === addOnKey
-          )
-          return sum + (addOn?.price || 0)
-        }, 0)
-
-        let variantPrice = 0
-        const variantParts: string[] = []
-        if (item.variants?.length && item.selectedVariants?.length) {
-          item.variants.forEach((group, gi) => {
-            const optionIndex = item.selectedVariants![gi]
-            if (optionIndex === undefined) return
-            const option = group.options?.[optionIndex]
-            if (option) {
-              variantPrice += getVariantOptionModifier(option)
-              const groupName = lang === 'ar' ? group.name_ar : group.name_en
-              const optionLabel = lang === 'ar' ? option.label_ar : option.label_en
-              variantParts.push(`${groupName}: ${optionLabel}`)
-            }
-          })
-        }
+        const { variantParts } = getVariantBreakdownForLang(item, locale)
         const variantStr = variantParts.join(', ')
-        const addOnsList = groupAddOnsByKey(item.selectedAddOns, item.addOns)
-          .map(({ addOn, count }) => {
-            const addOnName = lang === 'ar' ? addOn.name_ar : addOn.name_en
-            if (count === 1) return addOn.price > 0 ? `${addOnName} (+${addOn.price})` : addOnName
-            const total = addOn.price * count
-            return addOn.price > 0 ? `${addOnName} x${count} (+${total})` : `${addOnName} x${count}`
-          })
-          .join(', ')
+        const addOnsList = formatAddOnsListForLang(item, locale)
         const productName = [lang === 'ar' ? item.title_ar : item.title_en, variantStr].filter(Boolean).join(' · ')
 
-        const itemPrice = basePrice + addOnPrice + variantPrice
-        const itemTotal = itemPrice * item.quantity
+        const itemPrice = getCartLineUnitPrice(item)
+        const itemTotal = getCartLineTotal(item)
 
         return {
           productId: item._id,
@@ -569,152 +493,17 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
               </div>
             ) : (
               <div className="p-4 space-y-4 pb-10">
-                {items.map((item) => {
-                  const hasSpecialPrice =
-                    item.specialPrice &&
-                    (!item.specialPriceExpires ||
-                      new Date(item.specialPriceExpires) > new Date())
-                  const basePrice = hasSpecialPrice ? item.specialPrice! : item.price
-
-                  const addOnPrice = (item.selectedAddOns || []).reduce((sum, addOnKey) => {
-                    const addOn = item.addOns?.find(a =>
-                      a._key === addOnKey ||
-                      `${a.name_en}-${a.price}` === addOnKey
-                    )
-                    return sum + (addOn?.price || 0)
-                  }, 0)
-
-                  let variantPrice = 0
-                  if (item.variants?.length && item.selectedVariants?.length) {
-                    item.variants.forEach((group, gi) => {
-                      const optionIndex = item.selectedVariants![gi]
-                      if (optionIndex === undefined) return
-                      const option = group.options?.[optionIndex]
-                      if (option) variantPrice += getVariantOptionModifier(option)
-                    })
-                  }
-
-                  const itemPrice = basePrice + addOnPrice + variantPrice
-                  const itemTotal = itemPrice * item.quantity
-
-                  return (
-                    <div
-                      key={item.cartItemId}
-                      className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm relative group"
-                    >
-                      <div className="flex gap-4">
-                        {item.image && (
-                          <div className="relative w-20 h-20 rounded-2xl overflow-hidden shrink-0 bg-slate-50">
-                            <Image
-                              src={urlFor(item.image).width(160).height(160).url()}
-                              alt={lang === 'ar' ? item.title_ar : item.title_en}
-                              fill
-                              sizes="80px"
-                              placeholder="blur"
-                              blurDataURL={SHIMMER_PLACEHOLDER}
-                              className="object-cover"
-                            />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start gap-2">
-                            <h4 className="font-black text-base line-clamp-1">
-                              {lang === 'ar' ? item.title_ar : item.title_en}
-                            </h4>
-                            <button
-                              onClick={() => removeFromCart(item.cartItemId)}
-                              className="text-slate-300 hover:text-red-500 transition-colors"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          {item.selectedAddOns && item.selectedAddOns.length > 0 && (
-                            <div className="text-xs font-bold text-slate-500 mt-1 mb-1 space-y-0.5">
-                              {groupAddOnsByKey(item.selectedAddOns, item.addOns).map(({ addOnKey, addOn, count }) => {
-                                const addOnName = lang === 'ar' ? addOn.name_ar : addOn.name_en
-                                const lineTotal = addOn.price * count
-                                return (
-                                  <div key={addOnKey} className="flex items-center gap-1">
-                                    <span className="text-primary">+</span> {addOnName}
-                                    {count > 1 && <span className="text-slate-500"> x{count}</span>}
-                                    {addOn.price > 0 && (
-                                      <span className="text-slate-400 font-medium">
-                                        ({count > 1 ? lineTotal : addOn.price} {formatCurrency(item.currency)})
-                                      </span>
-                                    )}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-
-                          <p className="text-sm font-bold text-slate-400 mb-3">
-                            {itemPrice.toFixed(2)} {formatCurrency(item.currency)}
-                            {item.saleUnit && item.saleUnit !== 'piece' && ` / ${getSaleUnitLabel(item.saleUnit, lang as 'en' | 'ar')}`}
-                            {' × '}{formatQuantityWithUnit(item.quantity, item.saleUnit, lang as 'en' | 'ar')}
-                          </p>
-
-                          <div className="flex items-center justify-between gap-4 mt-auto">
-                            <div className="flex items-center bg-slate-100 rounded-2xl p-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-xl hover:bg-white hover:shadow-sm"
-                                onClick={() => {
-                                  const isWeight = isWeightBasedUnit(item.saleUnit)
-                                  const step = isWeight ? WEIGHT_STEP : 1
-                                  const next = item.quantity - step
-                                  if (next < (isWeight ? WEIGHT_MIN : 1)) removeFromCart(item.cartItemId)
-                                  else updateQuantity(item.cartItemId, Math.round(next * 100) / 100)
-                                }}
-                              >
-                                {(isWeightBasedUnit(item.saleUnit) ? item.quantity < WEIGHT_MIN + WEIGHT_STEP : item.quantity <= 1) ? (
-                                  <Trash2 className="w-4 h-4 text-red-500" />
-                                ) : (
-                                  <Minus className="w-4 h-4" />
-                                )}
-                              </Button>
-                              <span className="font-black text-sm w-12 text-center tabular-nums">
-                                {formatQuantityWithUnit(item.quantity, item.saleUnit, lang as 'en' | 'ar')}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-xl hover:bg-white hover:shadow-sm"
-                                onClick={() => {
-                                  const isWeight = isWeightBasedUnit(item.saleUnit)
-                                  const step = isWeight ? WEIGHT_STEP : 1
-                                  updateQuantity(item.cartItemId, Math.round((item.quantity + step) * 100) / 100)
-                                }}
-                              >
-                                <Plus className="w-4 h-4 text-black" />
-                              </Button>
-                            </div>
-                            <p className="font-black text-xl text-slate-900">
-                              {itemTotal.toFixed(2)} {formatCurrency(item.currency)}
-                              {item.saleUnit && item.saleUnit !== 'piece' && (
-                                <span className="text-sm font-medium text-slate-500"> / {getSaleUnitLabel(item.saleUnit, lang as 'en' | 'ar')}</span>
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 pt-3 border-t border-slate-50">
-                        <div className="flex items-center gap-2 px-1">
-                          <span className="text-xs font-black text-slate-400 uppercase tracking-wider">{t('Note', 'ملاحظة')}:</span>
-                          <Input
-                            placeholder={t('Any requests?', 'أي طلبات؟')}
-                            value={item.notes || ''}
-                            onChange={(e) => updateNotes(item.cartItemId, e.target.value)}
-                            className="h-8 text-xs border-none bg-transparent focus-visible:ring-0 px-0 placeholder:text-slate-300 font-bold"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
+                {items.map((item) => (
+                  <CartSliderLineItem
+                    key={item.cartItemId}
+                    item={item}
+                    lang={lang}
+                    t={t}
+                    onRemove={removeFromCart}
+                    onUpdateQuantity={updateQuantity}
+                    onUpdateNotes={updateNotes}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -816,15 +605,15 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                               {t('Save Time fee', 'رسوم توفير الوقت')}
                             </span>
                             <span className="font-bold shrink-0">
-                              {getShopperFeeByItemCount(totalItems) === 0
+                              {readyCheckoutTotals && readyCheckoutTotals.shopperFee === 0
                                 ? t('FREE', 'مجاناً')
-                                : `${getShopperFeeByItemCount(totalItems).toFixed(2)} ${formatCurrency(items[0]?.currency)}`}
+                                : `${(readyCheckoutTotals?.shopperFee ?? 0).toFixed(2)} ${formatCurrency(items[0]?.currency)}`}
                             </span>
                           </div>
                           <p className="text-[11px] text-amber-900/90 leading-relaxed">
-                            {getShopperFeeExplanation(totalItems, lang, formatCurrency(items[0]?.currency)).body}
+                            {readyCheckoutTotals?.shopperExplanation.body}
                           </p>
-                          {getShopperFeeByItemCount(totalItems) === 0 && (
+                          {readyCheckoutTotals && readyCheckoutTotals.shopperFee === 0 && (
                             <p className="text-[10px] text-amber-800/80">
                               {t('Up to 3 items = free. Your driver collects your order at the store at no extra cost.', 'حتى 3 أصناف = مجاناً. سائقنا يجمع طلبك من المتجر دون تكلفة إضافية.')}
                             </p>
@@ -838,10 +627,8 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                   <div className="flex justify-between items-center px-1">
                     <span className="font-black text-slate-400 text-sm uppercase tracking-widest">{t('Total', 'المجموع')}</span>
                     <span className="font-black text-2xl">
-                      {(orderType === 'delivery'
-                        ? totalPrice + ((deliveryFeePaidByBusiness || cartTenant?.freeDeliveryEnabled) ? 0 : deliveryFee) + ((cartTenant?.requiresPersonalShopper || cartTenant?.supportsDriverPickup) ? getShopperFeeByItemCount(totalItems) : 0)
-                        : totalPrice
-                      ).toFixed(2)} {formatCurrency(items[0]?.currency)}
+                      {(readyCheckoutTotals?.grandTotal ?? totalPrice).toFixed(2)}{' '}
+                      {formatCurrency(items[0]?.currency)}
                     </span>
                   </div>
 
