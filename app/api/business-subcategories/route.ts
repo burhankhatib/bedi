@@ -9,6 +9,13 @@ import {
 
 const writeClient = client.withConfig({ token: writeToken || undefined, useCdn: false })
 
+/**
+ * Seeded docs use deterministic ids (`businessSubcategory.{slug}-{type}`). Those rows are not visible
+ * to anonymous Sanity API requests — only the legacy UUID docs were returned (~14 items). Use the
+ * same server token as writes so the full published list is available.
+ */
+const readClient = clientNoCdn.withConfig({ token: writeToken || undefined })
+
 /** GET: List business sub-categories, optionally filtered by businessType. Bypasses CDN so newly seeded subcategories appear immediately. */
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -19,7 +26,7 @@ async function fetchSubcategoryRows(businessType: string) {
     : `_type == "businessSubcategory"`
   const params = businessType ? { businessType } : {}
 
-  const list = await clientNoCdn.fetch<
+  const list = await readClient.fetch<
     Array<{
       _id: string
       slug?: { current?: string }

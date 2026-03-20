@@ -41,11 +41,14 @@ function isPublicApiPath(path: string): boolean {
 
 const SUPER_ADMIN_EMAIL = 'burhank@gmail.com'
 
-/** Pass through with x-pathname header for SanityLive routing in layout. */
+/**
+ * Pass-through response for routes that skip full Clerk branching.
+ * Do not use `NextResponse.next({ request: { headers } })` here: rewriting the request Headers
+ * makes the response's Headers read-only in Node (undici), and Clerk then throws
+ * `TypeError: immutable` when it tries `handlerResult.headers.append(...)` for auth cookies.
+ */
 function nextWithPath(req: NextRequest) {
-  const requestHeaders = new Headers(req.headers)
-  requestHeaders.set('x-pathname', req.nextUrl.pathname)
-  const res = NextResponse.next({ request: { headers: requestHeaders } })
+  const res = NextResponse.next()
   // Disable caching for /t/* (tenant menu pages) so price/content updates appear immediately
   if (req.nextUrl.pathname.startsWith('/t/')) {
     res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
@@ -55,10 +58,11 @@ function nextWithPath(req: NextRequest) {
 }
 
 /** Build sign-in URL with redirect back to the given path (so user sees Clerk login and then returns). */
-function signInRedirect(req: Request, path: string): Response {
+function signInRedirect(req: Request, path: string): NextResponse {
   const url = new URL('/sign-in', req.url)
   url.searchParams.set('redirect_url', path)
-  return Response.redirect(url)
+  /** Must be NextResponse: undici `Response.redirect` has immutable headers; Clerk appends session cookies after. */
+  return NextResponse.redirect(url)
 }
 
 /** Get email from session claims only (Edge-safe; no clerkClient). May be empty if email not in token. */
@@ -109,7 +113,7 @@ const clerkHandler = clerkMiddleware(async (auth, req) => {
       if (resolvedAdminEmail && !isSuperAdmin) {
         const redirect = new URL('/dashboard', req.url)
         redirect.searchParams.set('error', 'admin_only')
-        return Response.redirect(redirect)
+        return NextResponse.redirect(redirect)
       }
     }
   } catch {

@@ -706,6 +706,10 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
       showToast('Please upload a business logo first.', 'يرجى رفع شعار العمل أولاً.', 'error')
       return
     }
+    if (!form.businessType?.trim()) {
+      showToast('Please choose a valid business type first.', 'يرجى اختيار نوع نشاط صحيح أولاً.', 'error')
+      return
+    }
     setSaving(true)
     try {
       const payload: Record<string, unknown> = {
@@ -1475,7 +1479,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                     setForm((f) => ({ ...f, businessType: 'restaurant', businessSubcategoryIds: [] }))
                     return
                   }
-                  setForm((f) => ({ ...f, businessType: '', businessSubcategoryIds: [] }))
+                  setForm((f) => ({ ...f, businessType: isStoreBusinessType(f.businessType) ? f.businessType : 'grocery', businessSubcategoryIds: [] }))
                 }}
                 className="w-full sm:max-w-md h-14 rounded-xl border border-slate-600 bg-slate-900 text-white px-4 text-base focus:ring-2 focus:ring-amber-500/50 outline-none"
                 required

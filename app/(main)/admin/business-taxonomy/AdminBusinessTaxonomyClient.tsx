@@ -63,6 +63,9 @@ export function AdminBusinessTaxonomyClient() {
   const { showToast } = useToast()
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [seeding, setSeeding] = useState(false)
+  const [migratingRefs, setMigratingRefs] = useState(false)
+  const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [data, setData] = useState<TaxonomyResponse | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
 
@@ -173,6 +176,56 @@ export function AdminBusinessTaxonomyClient() {
     }
     showToast(`Sorted ${d.count ?? 0} sub-categories`, undefined, 'success')
     await load()
+  }
+
+  const runSeedSubcategories = async () => {
+    setSeeding(true)
+    setSyncResult(null)
+    try {
+      const res = await fetch('/api/admin/seed-subcategories', { method: 'POST', credentials: 'include' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg = typeof json?.error === 'string' ? json.error : 'Failed to seed sub-categories'
+        setSyncResult({ ok: false, message: msg })
+        showToast(msg, undefined, 'error')
+        return
+      }
+      const msg = typeof json?.message === 'string' ? json.message : 'Sub-categories seeded'
+      setSyncResult({ ok: true, message: msg })
+      showToast(msg, undefined, 'success')
+      await load()
+    } catch {
+      const msg = 'Network error while seeding sub-categories'
+      setSyncResult({ ok: false, message: msg })
+      showToast(msg, undefined, 'error')
+    } finally {
+      setSeeding(false)
+    }
+  }
+
+  const runMigrateRefs = async () => {
+    setMigratingRefs(true)
+    setSyncResult(null)
+    try {
+      const res = await fetch('/api/admin/seed-subcategories', { method: 'PATCH', credentials: 'include' })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg = typeof json?.error === 'string' ? json.error : 'Failed to migrate tenant references'
+        setSyncResult({ ok: false, message: msg })
+        showToast(msg, undefined, 'error')
+        return
+      }
+      const msg = typeof json?.message === 'string' ? json.message : 'Tenant references migrated'
+      setSyncResult({ ok: true, message: msg })
+      showToast(msg, undefined, 'success')
+      await load()
+    } catch {
+      const msg = 'Network error while migrating tenant references'
+      setSyncResult({ ok: false, message: msg })
+      showToast(msg, undefined, 'error')
+    } finally {
+      setMigratingRefs(false)
+    }
   }
 
   /* —— dialogs —— */
@@ -337,6 +390,24 @@ export function AdminBusinessTaxonomyClient() {
           <Button
             type="button"
             variant="outline"
+            className="border-emerald-600 bg-emerald-900/20 text-emerald-200 hover:bg-emerald-900/40"
+            disabled={busy || seeding || migratingRefs}
+            onClick={() => void runSeedSubcategories()}
+          >
+            Seed sub-categories
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-sky-600 bg-sky-900/20 text-sky-200 hover:bg-sky-900/40"
+            disabled={busy || seeding || migratingRefs}
+            onClick={() => void runMigrateRefs()}
+          >
+            Migrate tenant refs
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
             className="border-slate-600 bg-slate-900 text-slate-200"
             disabled={busy}
             onClick={() => load()}
@@ -367,6 +438,12 @@ export function AdminBusinessTaxonomyClient() {
           </Button>
         </div>
       </div>
+
+      {syncResult && (
+        <div className={`rounded-xl border px-4 py-3 text-sm ${syncResult.ok ? 'border-emerald-600/50 bg-emerald-500/10 text-emerald-200' : 'border-rose-600/50 bg-rose-500/10 text-rose-200'}`}>
+          {syncResult.message}
+        </div>
+      )}
 
       <div className="space-y-3">
         {categoriesSorted.map((cat, idx) => {
