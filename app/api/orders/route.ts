@@ -374,7 +374,6 @@ export async function POST(request: NextRequest) {
 
     let siteSlug: string | undefined = typeof tenantSlug === 'string' ? tenantSlug.trim() || undefined : undefined
     if (siteRef?._ref) {
-      let shouldQueueUnacceptedWhatsapp = false
       try {
         // Fetch tenant to get the proper name for the notification
         const tenantDoc = await writeClient.fetch<{ name?: string; name_ar?: string; slug?: { current?: string }; ownerPhone?: string; prioritizeWhatsapp?: boolean } | null>(
@@ -394,7 +393,6 @@ export async function POST(request: NextRequest) {
           tenantPhone: tenantDoc?.ownerPhone,
           prioritizeWhatsapp: tenantDoc?.prioritizeWhatsapp
         })
-        shouldQueueUnacceptedWhatsapp = true
 
         if (orderType === 'delivery' && targetTenant?.supportsDriverPickup === true && !scheduledFor) {
           const { notifyDriversOfDeliveryOrder } = await import('@/lib/notify-drivers-for-order')
@@ -410,10 +408,24 @@ export async function POST(request: NextRequest) {
       } finally {
         // Keep 3-minute WhatsApp backup independent from immediate push/pusher flow.
         // This ensures a transient push error does not prevent delayed business WhatsApp.
-        if (shouldQueueUnacceptedWhatsapp || !scheduledFor) {
+        if (!scheduledFor) {
           const jobRes = await scheduleOrderUnacceptedWhatsapp(result._id, Date.now())
           await recordOrderUnacceptedWhatsappJobResult(writeClient, result._id, 'POST /api/orders', jobRes)
         }
+      }
+    }
+
+    // Ensure clients can always open /t/[slug]/track/[token] (notification block may have failed before slug was set).
+    if ((!siteSlug || !String(siteSlug).trim()) && siteRef?._ref) {
+      try {
+        const slugOnly = await writeClient.fetch<{ slug?: { current?: string } } | null>(
+          `*[_type == "tenant" && _id == $id][0]{ slug }`,
+          { id: siteRef._ref }
+        )
+        const fromDoc = slugOnly?.slug?.current?.trim()
+        if (fromDoc) siteSlug = fromDoc
+      } catch {
+        /* non-fatal */
       }
     }
 

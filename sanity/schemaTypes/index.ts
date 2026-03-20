@@ -30,7 +30,9 @@ import { catalogCategoryType } from './catalogCategory'
 import { catalogProductType } from './catalogProduct'
 import { masterCatalogProductType } from '../../schemas/masterCatalog'
 import { scrollAnimationType } from './scrollAnimation'
+import { staffAttendanceSessionType } from './staffAttendanceSession'
+import { staffPayrollPeriodType } from './staffPayrollPeriod'
 
 export const schema: { types: SchemaTypeDefinition[] } = {
-  types: [tenantType, categoryType, catalogCategoryType, catalogProductType, masterCatalogProductType, productType, restaurantInfoType, aboutUsType, platformAreaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType, broadcastHistoryType, whatsappMessageType, bopProcessedPaymentType, scrollAnimationType],
+  types: [tenantType, categoryType, catalogCategoryType, catalogProductType, masterCatalogProductType, productType, restaurantInfoType, aboutUsType, platformAreaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType, broadcastHistoryType, whatsappMessageType, bopProcessedPaymentType, scrollAnimationType, staffAttendanceSessionType, staffPayrollPeriodType],
 }

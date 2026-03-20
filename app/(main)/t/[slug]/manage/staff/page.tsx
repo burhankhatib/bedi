@@ -36,26 +36,18 @@ export default async function ManageStaffPage({
     )
   }
 
-  const [tenant, restaurantInfo] = await Promise.all([
+  const [tenant] = await Promise.all([
     noCacheClient.fetch<{ clerkUserEmail?: string | null } | null>(
       `*[_type == "tenant" && _id == $tenantId][0]{ clerkUserEmail }`,
       { tenantId: auth.tenantId }
     ),
-    noCacheClient.fetch<{ name_en?: string | null; name_ar?: string | null } | null>(
-      `*[_type == "restaurantInfo" && site._ref == $siteId][0]{ name_en, name_ar }`,
-      { siteId: auth.tenantId }
-    ),
   ])
   const ownerEmail = (tenant?.clerkUserEmail as string)?.trim() ?? ''
-  const nameEn = restaurantInfo?.name_en?.trim()
-  const nameAr = restaurantInfo?.name_ar?.trim()
 
   return (
     <StaffManageClient
       slug={slug}
       ownerEmail={ownerEmail}
-      nameEn={nameEn ?? undefined}
-      nameAr={nameAr ?? undefined}
     />
   )
 }

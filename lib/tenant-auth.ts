@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server'
 import { getTenantBySlug } from './tenant'
 import { isSuperAdminEmail } from './constants'
 import { getEmailForUser } from './getClerkEmail'
-import { getStaffPermissions, type StaffPermission, STAFF_PERMISSIONS } from './staff-permissions'
+import { getStaffPermissions, type StaffPermission, STAFF_PERMISSIONS, type StaffRole } from './staff-permissions'
 
 export type TenantAuthResult =
   | {
@@ -13,7 +13,7 @@ export type TenantAuthResult =
       /** True if user is owner or co-owner (not staff). */
       isOwner: boolean
       /** When staff: waiter | cashier | manager | custom. When owner: 'owner'. */
-      role: 'owner' | 'waiter' | 'cashier' | 'manager' | 'custom'
+      role: 'owner' | StaffRole
       /** Resolved permissions for this user. Owner has all. */
       permissions: StaffPermission[]
     }
@@ -63,7 +63,7 @@ export async function checkTenantAuth(slug: string): Promise<TenantAuthResult> {
     const permissions = getStaffPermissions({
       _id: staff._id,
       email: staff.email,
-      role: staff.role as 'waiter' | 'cashier' | 'manager' | 'custom',
+      role: staff.role as StaffRole,
       permissions: staff.permissions ?? undefined,
     })
     return {
@@ -72,7 +72,7 @@ export async function checkTenantAuth(slug: string): Promise<TenantAuthResult> {
       slug: tenant.slug,
       isSuperAdmin: false,
       isOwner: false,
-      role: staff.role as 'waiter' | 'cashier' | 'manager' | 'custom',
+      role: staff.role as StaffRole,
       permissions,
     }
   }

@@ -1,5 +1,4 @@
 import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
-import { cleanWhatsAppRecipientPhone, sendTenantNewOrderWhatsApp } from '@/lib/send-tenant-new-order-whatsapp'
 import { pusherServer } from '@/lib/pusher'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
@@ -8,6 +7,7 @@ import { isFCMConfigured } from '@/lib/fcm'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
 import { sendTenantOrderUpdatePush, TenantOrderPushStatus } from '@/lib/tenant-order-push'
 import { appendOrderNotificationDiagnostic } from '@/lib/notification-diagnostics'
+import { notifyBusinessWhatsappForOrder } from '@/lib/business-whatsapp-notifier'
 
 const writeClient = client.withConfig({
   token: token,
@@ -89,7 +89,7 @@ export const NotificationService = {
           dir: 'rtl' as const,
         }
 
-        const sent = await sendTenantAndStaffPush(tenantId, pushPayload)
+        const sent = await sendTenantAndStaffPush(tenantId, pushPayload, { eventType: 'new_order' })
         
         if (sent) {
           // Mark as sent in Sanity
@@ -122,72 +122,21 @@ export const NotificationService = {
       await appendOrderNotificationDiagnostic(writeClient, orderId, {
         source: 'NotificationService.onNewOrder.whatsapp',
         level: 'warn',
-        message: 'Instant WhatsApp skipped: tenant ownerPhone is empty but prioritizeWhatsapp is true',
+        message: 'Tenant ownerPhone is empty; trying other business WhatsApp recipients',
         detail: { tenantId },
       })
     }
-    if (tenantPhone && prioritizeWhatsapp) {
+    if (prioritizeWhatsapp) {
       try {
-        const phone = cleanWhatsAppRecipientPhone(tenantPhone)
-        if (phone) {
-          // Fetch order details for enhanced template
-          const orderDoc = await writeClient.fetch<{
-            customerName?: string
-            customerPhone?: string
-            orderType?: string
-            deliveryAddress?: string
-            deliveryLat?: number
-            deliveryLng?: number
-            totalAmount?: number
-            currency?: string
-            items?: Array<{ productName: string; productNameAr?: string; quantity: number; price: number; total: number }>
-          }>(
-            `*[_type == "order" && _id == $orderId][0]{
-              customerName,
-              customerPhone,
-              orderType,
-              deliveryAddress,
-              deliveryLat,
-              deliveryLng,
-              totalAmount,
-              currency,
-              items[]{ productName, "productNameAr": product->title_ar, quantity, price, total }
-            }`,
-            { orderId }
-          )
-
-          const waResult = await sendTenantNewOrderWhatsApp({
-            phone,
-            businessName,
-            tenantSlug: slug,
-            orderSummaryInput: {
-              currency: orderDoc?.currency,
-              items: orderDoc?.items,
-              totalAmount: orderDoc?.totalAmount,
-              customerName: orderDoc?.customerName,
-              customerPhone: orderDoc?.customerPhone,
-              orderType: orderDoc?.orderType,
-              deliveryAddress: orderDoc?.deliveryAddress,
-              deliveryLat: orderDoc?.deliveryLat,
-              deliveryLng: orderDoc?.deliveryLng,
-            },
-          })
-
-          if (waResult.success) {
-            await writeClient
-              .patch(orderId)
-              .set({ businessWhatsappInstantNotifiedAt: new Date().toISOString() })
-              .commit()
-          } else {
-            console.error(`[NotificationService] Failed to send WhatsApp for order ${orderId}`, waResult.error)
-            await appendOrderNotificationDiagnostic(writeClient, orderId, {
-              source: 'NotificationService.onNewOrder.whatsapp',
-              level: 'error',
-              message: 'Instant WhatsApp template send failed (all fallbacks)',
-              detail: { template: 'new_order', error: waResult.error, attempts: waResult.attempts },
-            })
-          }
-        }
+        await notifyBusinessWhatsappForOrder({
+          writeClient,
+          orderId,
+          tenantId,
+          tenantSlug: slug,
+          tenantName,
+          tenantNameAr,
+          mode: 'instant',
+        })
       } catch (e) {
         console.error('[NotificationService] WhatsApp notification failed:', e)
         await appendOrderNotificationDiagnostic(writeClient, orderId, {

@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation'
 import { checkTenantAuth } from '@/lib/tenant-auth'
-import { requirePermission } from '@/lib/staff-permissions'
 import { PATH_PERMISSION } from '@/lib/staff-permissions'
 
 const SECTION_ORDER: { path: string; permission: keyof typeof PATH_PERMISSION }[] = [
+  { path: '/attendance', permission: 'attendance' },
+  { path: '/payroll', permission: 'payroll' },
   { path: '/business', permission: 'business' },
   { path: '/menu', permission: 'menu' },
   { path: '/tables', permission: 'tables' },

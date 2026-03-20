@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
-import { cleanWhatsAppRecipientPhone, sendTenantNewOrderWhatsApp } from '@/lib/send-tenant-new-order-whatsapp'
 import { appendOrderNotificationDiagnostic } from '@/lib/notification-diagnostics'
+import { notifyBusinessWhatsappForOrder } from '@/lib/business-whatsapp-notifier'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,110 +41,56 @@ export async function GET(req: Request) {
     try {
       const order = await writeClient.fetch<{
         _id: string
-        tenantPhone?: string
+        tenantId?: string
         tenantName?: string
         tenantNameAr?: string
         tenantSlug?: string
-        customerName?: string
-        customerPhone?: string
-        orderType?: string
-        deliveryAddress?: string
-        deliveryLat?: number
-        deliveryLng?: number
-        totalAmount?: number
-        currency?: string
-        items?: Array<{ productName: string; productNameAr?: string; quantity: number; price: number; total: number }>
       } | null>(
         `*[
           _type == "order" &&
           _id == $orderId &&
           status == "new" &&
-          !defined(businessWhatsappUnacceptedReminderAt)
+          !defined(businessWhatsappUnacceptedReminderAt) &&
+          !defined(businessWhatsappInstantNotifiedAt)
         ][0]{
           _id,
-          "tenantPhone": site->ownerPhone,
+          "tenantId": site._ref,
           "tenantName": site->name,
           "tenantNameAr": site->name_ar,
-          "tenantSlug": site->slug.current,
-          customerName,
-          customerPhone,
-          orderType,
-          deliveryAddress,
-          deliveryLat,
-          deliveryLng,
-          totalAmount,
-          currency,
-          items[]{ productName, "productNameAr": product->title_ar, quantity, price, total }
+          "tenantSlug": site->slug.current
         }`,
         { orderId: singleOrderId }
       )
       if (!order?._id) {
         return NextResponse.json({ ok: true, notifiedCount: 0, skipped: true })
       }
-      const nowIso = new Date().toISOString()
-      const phone = cleanWhatsAppRecipientPhone(order.tenantPhone)
-      let notified = 0
-      let handled = false
-      if (phone) {
-        const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
-        const result = await sendTenantNewOrderWhatsApp({
-          phone,
-          businessName,
-          tenantSlug: order.tenantSlug,
-          orderSummaryInput: {
-            currency: order.currency,
-            items: order.items,
-            totalAmount: order.totalAmount,
-            customerName: order.customerName,
-            customerPhone: order.customerPhone,
-            orderType: order.orderType,
-            deliveryAddress: order.deliveryAddress,
-            deliveryLat: order.deliveryLat,
-            deliveryLng: order.deliveryLng,
-          },
-        })
-        if (result.success) {
-          notified = 1
-          handled = true
-          await appendOrderNotificationDiagnostic(writeClient, order._id, {
-            source: 'cron/unaccepted-orders-whatsapp',
-            level: 'info',
-            message: 'Unaccepted-order WhatsApp reminder sent (~3 min, still status new)',
-            detail: { mode: 'single-order' },
-          })
-        } else {
-          console.error(`[cron/unaccepted-orders-whatsapp] Failed to send for order ${order._id}`, result.error)
-          await appendOrderNotificationDiagnostic(writeClient, order._id, {
-            source: 'cron/unaccepted-orders-whatsapp',
-            level: 'error',
-            message: 'Unaccepted-order WhatsApp reminder send failed (all fallbacks)',
-            detail: { mode: 'single-order', error: result.error, attempts: result.attempts },
-          })
-          // Return non-2xx so /api/jobs/process-due retries this job.
-          return NextResponse.json(
-            { ok: false, notifiedCount: 0, orderId: singleOrderId, retryable: true, attempts: result.attempts },
-            { status: 502 }
-          )
-        }
-      } else {
-        handled = true
+      if (!order.tenantId) {
         await appendOrderNotificationDiagnostic(writeClient, order._id, {
           source: 'cron/unaccepted-orders-whatsapp',
           level: 'warn',
-          message: 'Unaccepted-order WhatsApp reminder skipped: tenant has no ownerPhone',
+          message: 'Unaccepted-order reminder skipped: order has no site reference',
           detail: { mode: 'single-order' },
         })
+        return NextResponse.json({ ok: true, notifiedCount: 0, skipped: true, reason: 'missing-tenant' })
       }
-      if (handled) {
-        await writeClient
-          .patch(order._id)
-          .set({
-            businessWhatsappUnacceptedReminderAt: nowIso,
-            businessWhatsappNotifiedAt: nowIso,
-          })
-          .commit()
+      const notify = await notifyBusinessWhatsappForOrder({
+        writeClient,
+        orderId: order._id,
+        tenantId: order.tenantId,
+        tenantSlug: order.tenantSlug,
+        tenantName: order.tenantName,
+        tenantNameAr: order.tenantNameAr,
+        mode: 'unaccepted-reminder',
+        skipIfInstantAlreadySent: true,
+      })
+      if (notify.allFailed) {
+        // Return non-2xx so /api/jobs/process-due retries this job.
+        return NextResponse.json(
+          { ok: false, notifiedCount: 0, orderId: singleOrderId, retryable: true, reason: 'all_recipients_failed' },
+          { status: 502 }
+        )
       }
-      return NextResponse.json({ ok: true, notifiedCount: notified, orderId: singleOrderId })
+      return NextResponse.json({ ok: true, notifiedCount: notify.sent, attempted: notify.attempted, orderId: singleOrderId })
     } catch (error) {
       console.error('[cron/unaccepted-orders-whatsapp] single order failed:', error)
       return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
@@ -159,43 +105,26 @@ export async function GET(req: Request) {
   try {
     const unacceptedOrders = await writeClient.fetch<{
       _id: string
-      tenantPhone?: string
+      tenantId?: string
       tenantName?: string
       tenantNameAr?: string
       tenantSlug?: string
-      customerName?: string
-      customerPhone?: string
-      orderType?: string
-      deliveryAddress?: string
-      deliveryLat?: number
-      deliveryLng?: number
-      totalAmount?: number
-      currency?: string
-      items?: Array<{ productName: string; productNameAr?: string; quantity: number; price: number; total: number }>
     }[]>(
       `*[
         _type == "order" &&
         status == "new" &&
         !defined(businessWhatsappUnacceptedReminderAt) &&
+        !defined(businessWhatsappInstantNotifiedAt) &&
         (
           (createdAt <= $cutoff3m && createdAt >= $cutoff2h) ||
           (defined(scheduledFor) && defined(notifyAt) && notifyAt <= $cutoff3m && notifyAt >= $cutoff2h)
         )
       ]{
         _id,
-        "tenantPhone": site->ownerPhone,
+        "tenantId": site._ref,
         "tenantName": site->name,
         "tenantNameAr": site->name_ar,
-        "tenantSlug": site->slug.current,
-        customerName,
-        customerPhone,
-        orderType,
-        deliveryAddress,
-        deliveryLat,
-        deliveryLng,
-        totalAmount,
-        currency,
-        items[]{ productName, "productNameAr": product->title_ar, quantity, price, total }
+        "tenantSlug": site->slug.current
       }`,
       { cutoff3m, cutoff2h }
     )
@@ -206,69 +135,31 @@ export async function GET(req: Request) {
 
     let notifiedCount = 0
     let failedCount = 0
-    const nowIso = new Date().toISOString()
-
     for (const order of unacceptedOrders) {
       try {
-        let handled = false
-        const phone = cleanWhatsAppRecipientPhone(order.tenantPhone)
-        if (phone) {
-          const businessName = order.tenantNameAr?.trim() || order.tenantName?.trim() || 'Business'
-
-          const result = await sendTenantNewOrderWhatsApp({
-            phone,
-            businessName,
-            tenantSlug: order.tenantSlug,
-            orderSummaryInput: {
-              currency: order.currency,
-              items: order.items,
-              totalAmount: order.totalAmount,
-              customerName: order.customerName,
-              customerPhone: order.customerPhone,
-              orderType: order.orderType,
-              deliveryAddress: order.deliveryAddress,
-              deliveryLat: order.deliveryLat,
-              deliveryLng: order.deliveryLng,
-            },
-          })
-
-          if (result.success) {
-            notifiedCount++
-            handled = true
-            await appendOrderNotificationDiagnostic(writeClient, order._id, {
-              source: 'cron/unaccepted-orders-whatsapp',
-              level: 'info',
-              message: 'Unaccepted-order WhatsApp reminder sent (legacy Sanity scan)',
-              detail: { mode: 'legacy-scan' },
-            })
-          } else {
-            failedCount++
-            console.error(`[cron/unaccepted-orders-whatsapp] Failed to send for order ${order._id}`, result.error)
-            await appendOrderNotificationDiagnostic(writeClient, order._id, {
-              source: 'cron/unaccepted-orders-whatsapp',
-              level: 'error',
-              message: 'Unaccepted-order WhatsApp reminder send failed (all fallbacks)',
-              detail: { mode: 'legacy-scan', error: result.error, attempts: result.attempts },
-            })
-          }
-        } else {
-          handled = true
+        if (!order.tenantId) {
           await appendOrderNotificationDiagnostic(writeClient, order._id, {
             source: 'cron/unaccepted-orders-whatsapp',
             level: 'warn',
-            message: 'Unaccepted-order WhatsApp reminder skipped: tenant has no ownerPhone',
+            message: 'Unaccepted-order reminder skipped: order has no site reference',
             detail: { mode: 'legacy-scan' },
           })
+          continue
         }
-
-        if (handled) {
-          await writeClient
-            .patch(order._id)
-            .set({
-              businessWhatsappUnacceptedReminderAt: nowIso,
-              businessWhatsappNotifiedAt: nowIso,
-            })
-            .commit()
+        const notify = await notifyBusinessWhatsappForOrder({
+          writeClient,
+          orderId: order._id,
+          tenantId: order.tenantId,
+          tenantSlug: order.tenantSlug,
+          tenantName: order.tenantName,
+          tenantNameAr: order.tenantNameAr,
+          mode: 'unaccepted-reminder',
+          skipIfInstantAlreadySent: true,
+        })
+        if (notify.sent > 0) {
+          notifiedCount++
+        } else if (notify.allFailed) {
+          failedCount++
         }
       } catch (e) {
         failedCount++

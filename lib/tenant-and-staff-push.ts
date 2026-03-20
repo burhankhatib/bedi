@@ -12,6 +12,7 @@ import { token as sanityWriteToken } from '@/sanity/lib/token'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToTokenDetailed, isFCMConfigured } from '@/lib/fcm'
 import { removeDevice } from '@/lib/user-push-subscriptions'
+import { isStaffOnShiftNow } from '@/lib/staff-shift-availability'
 
 export type TenantPushPayload = {
   title: string
@@ -22,6 +23,8 @@ export type TenantPushPayload = {
   dir?: 'rtl' | 'ltr'
 }
 
+export type TenantPushEventType = 'new_order' | 'unaccepted_reminder' | 'order_update'
+
 // ──────────────────────────────────────────────────────────
 // Types for legacy docs
 // ──────────────────────────────────────────────────────────
@@ -30,6 +33,22 @@ type LegacyDoc = {
   fcmToken?: string
   fcmTokens?: string[]
   pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
+}
+
+type StaffNotificationRules = {
+  receiveFcm?: boolean
+  newOrder?: boolean
+  unacceptedOrderReminder?: boolean
+}
+
+type StaffWorkSchedule = {
+  timezone?: string
+  days?: Array<{
+    dayOfWeek?: number
+    enabled?: boolean
+    start?: string
+    end?: string
+  }>
 }
 
 type StaleToken = { docId: string; token: string; docType: 'tenant' | 'tenantStaff' }
@@ -138,9 +157,18 @@ async function pruneStaleTokens(staleTokens: StaleToken[]): Promise<void> {
 // ──────────────────────────────────────────────────────────
 export async function sendTenantAndStaffPush(
   tenantId: string,
-  payload: TenantPushPayload
+  payload: TenantPushPayload,
+  options?: { eventType?: TenantPushEventType }
 ): Promise<boolean> {
   if (!isFCMConfigured() && !isPushConfigured()) return false
+
+  const eventType = options?.eventType ?? 'order_update'
+  const allowStaffForEvent = (rules?: StaffNotificationRules): boolean => {
+    if (rules?.receiveFcm === false) return false
+    if (eventType === 'new_order') return rules?.newOrder !== false
+    if (eventType === 'unaccepted_reminder') return rules?.unacceptedOrderReminder !== false
+    return true
+  }
 
   // Step 1: fetch tenant clerkUserId + all staff clerkUserIds (noCdn for fresh data)
   const [tenantDoc, staffList] = await Promise.all([
@@ -148,31 +176,68 @@ export async function sendTenantAndStaffPush(
       `*[_type == "tenant" && _id == $id][0]{ _id, clerkUserId, fcmToken, fcmTokens, "pushSubscription": pushSubscription }`,
       { id: tenantId }
     ),
-    clientNoCdn.fetch<Array<{ _id: string; clerkUserId?: string; fcmToken?: string; fcmTokens?: string[]; pushSubscription?: LegacyDoc['pushSubscription'] }>>(
-      `*[_type == "tenantStaff" && site._ref == $tenantId]{ _id, clerkUserId, fcmTokens, "pushSubscription": pushSubscription }`,
+    clientNoCdn.fetch<
+      Array<{
+        _id: string
+        clerkUserId?: string
+        status?: string
+        notificationRules?: StaffNotificationRules
+        workSchedule?: StaffWorkSchedule
+        fcmToken?: string
+        fcmTokens?: string[]
+        pushSubscription?: LegacyDoc['pushSubscription']
+      }>
+    >(
+      `*[_type == "tenantStaff" && site._ref == $tenantId]{
+        _id,
+        clerkUserId,
+        status,
+        notificationRules,
+        workSchedule,
+        fcmTokens,
+        "pushSubscription": pushSubscription
+      }`,
       { tenantId }
     ),
   ])
 
+  const eligibleStaff = (staffList ?? []).filter((s) => {
+    if (s.status && s.status !== 'active') return false
+    if (!isStaffOnShiftNow(s.workSchedule)) return false
+    return allowStaffForEvent(s.notificationRules)
+  })
+
   // Collect all Clerk user IDs (tenant owner + staff who have clerkUserId saved)
   const clerkUserIds = [
     tenantDoc?.clerkUserId,
-    ...(staffList ?? []).map((s) => s.clerkUserId),
+    ...eligibleStaff.map((s) => s.clerkUserId),
   ].filter((id): id is string => !!id)
 
-  // Step 2: query central userPushSubscription table for ALL matching users or site (noCdn)
+  // Step 2: query central userPushSubscription table for eligible users (noCdn)
   let centralSubs: CentralSub[] = []
   if (clerkUserIds.length > 0 || tenantId) {
     try {
-      centralSubs = await clientNoCdn.fetch<CentralSub[]>(
-        `*[
-          _type == "userPushSubscription" &&
-          roleContext == "tenant" &&
-          ($tenantId in sites[]._ref || clerkUserId in $ids) &&
-          isActive != false
-        ]{ _id, clerkUserId, roleContext, devices }`,
-        { ids: clerkUserIds, tenantId }
-      )
+      if (clerkUserIds.length > 0) {
+        centralSubs = await clientNoCdn.fetch<CentralSub[]>(
+          `*[
+            _type == "userPushSubscription" &&
+            roleContext == "tenant" &&
+            clerkUserId in $ids &&
+            isActive != false
+          ]{ _id, clerkUserId, roleContext, devices }`,
+          { ids: clerkUserIds }
+        )
+      } else {
+        centralSubs = await clientNoCdn.fetch<CentralSub[]>(
+          `*[
+            _type == "userPushSubscription" &&
+            roleContext == "tenant" &&
+            $tenantId in sites[]._ref &&
+            isActive != false
+          ]{ _id, clerkUserId, roleContext, devices }`,
+          { tenantId }
+        )
+      }
     } catch (e) {
       console.error(`[tenant-push] FAILED to query central subscriptions for tenant ${tenantId}:`, e)
       centralSubs = []
@@ -248,7 +313,7 @@ export async function sendTenantAndStaffPush(
   // Step 4: send via legacy fields (only tokens not already sent above)
   const allLegacy: Array<{ doc: LegacyDoc; docType: 'tenant' | 'tenantStaff' }> = []
   if (tenantDoc) allLegacy.push({ doc: tenantDoc, docType: 'tenant' })
-  for (const staff of staffList ?? []) allLegacy.push({ doc: staff, docType: 'tenantStaff' })
+  for (const staff of eligibleStaff) allLegacy.push({ doc: staff, docType: 'tenantStaff' })
   
   console.log(`[tenant-push] Resolving legacy docs. Found: ${allLegacy.length}`)
 

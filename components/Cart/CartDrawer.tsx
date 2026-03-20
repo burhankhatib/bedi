@@ -413,11 +413,15 @@ export function CartDrawer() {
       clearCart()
       setIsOpen(false)
 
-      const slugForRedirect = tenantSlug ?? cartTenant?.slug ?? result.siteSlug
+      const slugForRedirect =
+        (typeof tenantSlug === 'string' && tenantSlug.trim()) ||
+        (cartTenant?.slug && String(cartTenant.slug).trim()) ||
+        (typeof result.siteSlug === 'string' && result.siteSlug.trim()) ||
+        ''
       if (result.trackingToken && slugForRedirect) {
-        router.push(`/t/${slugForRedirect}/track/${result.trackingToken}`)
+        router.replace(`/t/${slugForRedirect}/track/${result.trackingToken}`)
       } else if (result.orderId && slugForRedirect && customerPhone?.trim()) {
-        router.push(`/t/${slugForRedirect}/order/${result.orderId}?phone=${encodeURIComponent(customerPhone)}`)
+        router.replace(`/t/${slugForRedirect}/order/${result.orderId}?phone=${encodeURIComponent(customerPhone)}`)
       }
     } catch (error) {
       console.error('Error sending order:', error)

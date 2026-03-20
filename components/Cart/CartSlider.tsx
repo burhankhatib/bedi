@@ -359,11 +359,15 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
       clearCart()
       setIsOpen(false)
 
-      const slugForTrack = tenantSlug || result.siteSlug
+      const slugForTrack =
+        (typeof tenantSlug === 'string' && tenantSlug.trim()) ||
+        (cartTenant?.slug && String(cartTenant.slug).trim()) ||
+        (typeof result.siteSlug === 'string' && result.siteSlug.trim()) ||
+        ''
       if (result.trackingToken && slugForTrack) {
-        router.push(`/t/${slugForTrack}/track/${result.trackingToken}`)
+        router.replace(`/t/${slugForTrack}/track/${result.trackingToken}`)
       } else if (result.orderId && slugForTrack && customerPhone?.trim()) {
-        router.push(`/t/${slugForTrack}/order/${result.orderId}?phone=${encodeURIComponent(customerPhone)}`)
+        router.replace(`/t/${slugForTrack}/order/${result.orderId}?phone=${encodeURIComponent(customerPhone)}`)
       }
     } catch (error) {
       console.error('Error sending order:', error)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useLanguage } from '@/components/LanguageContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,6 +48,7 @@ interface MenuCategory {
 }
 
 export default function OrderContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const { t, lang } = useLanguage()
   const [orderData, setOrderData] = useState<OrderData | null>(null)
@@ -144,6 +145,11 @@ export default function OrderContent() {
       }
       const result = await response.json()
       setSendToManagementSuccess(result.orderNumber || 'OK')
+      const slug =
+        (typeof result.siteSlug === 'string' && result.siteSlug.trim()) || ''
+      if (result.trackingToken && slug) {
+        router.replace(`/t/${slug}/track/${result.trackingToken}`)
+      }
     } catch (e) {
       setSendToManagementError(e instanceof Error ? e.message : t('Failed to send order', 'فشل إرسال الطلب'))
     } finally {

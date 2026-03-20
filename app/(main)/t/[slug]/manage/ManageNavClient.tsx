@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { useLanguage } from '@/components/LanguageContext'
 import { useTenantBusiness } from './TenantBusinessContext'
-import { Menu, MapPin, Truck, ArrowLeft, Store, TrendingUp, History, ShoppingBag, ArrowRightLeft, CreditCard, Table, Users } from 'lucide-react'
+import { Menu, ArrowLeft, Store, TrendingUp, History, ShoppingBag, ArrowRightLeft, CreditCard, Table, Users, Clock3, Wallet } from 'lucide-react'
 import type { StaffPermission } from '@/lib/staff-permissions'
 import { TenantSidebarActions } from './TenantSidebarActions'
 
@@ -35,6 +35,7 @@ const NAV_GROUPS = [
     items: [
       { path: '/menu', labelEn: 'Menu', labelAr: 'القائمة', icon: Menu, permission: 'settings_menu', proOnly: false },
       { path: '/tables', labelEn: 'Tables', labelAr: 'الطاولات', icon: Table, permission: 'settings_tables', proOnly: true },
+      { path: '/attendance', labelEn: 'Attendance', labelAr: 'الحضور', icon: Clock3, permission: 'orders', proOnly: false },
     ]
   },
   {
@@ -42,6 +43,7 @@ const NAV_GROUPS = [
     titleAr: 'الإدارة',
     items: [
       { path: '/staff', labelEn: 'Staff', labelAr: 'الموظفون', icon: Users, permission: 'staff_manage', proOnly: true },
+      { path: '/payroll', labelEn: 'Payroll', labelAr: 'الرواتب', icon: Wallet, permission: 'payroll', proOnly: false },
       { path: '/analytics', labelEn: 'Analytics', labelAr: 'التحليلات', icon: TrendingUp, permission: 'analytics', proOnly: false },
       { path: '/history', labelEn: 'History', labelAr: 'السجل', icon: History, permission: 'history', proOnly: false },
     ]
@@ -110,7 +112,7 @@ export function ManageNavClient({
     setUpgradeModalOpen(true)
   }
 
-  const NewOrdersBadge = ({ compact = false }: { compact?: boolean }) =>
+  const renderNewOrdersBadge = (compact = false) =>
     newOrdersCount > 0 ? (
       <span
         className={`inline-flex items-center justify-center rounded-full bg-slate-900 text-amber-400 font-bold ${compact ? 'min-w-[20px] h-5 px-1.5 text-xs' : 'min-w-[24px] h-6 px-2 text-sm'}`}
@@ -147,7 +149,7 @@ export function ManageNavClient({
           <span className="text-lg tracking-wide">{t('Orders', 'الطلبات')}</span>
         </span>
         <div className="relative z-10">
-          <NewOrdersBadge />
+          {renderNewOrdersBadge()}
         </div>
         <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out rounded-2xl pointer-events-none"></div>
       </Link>
