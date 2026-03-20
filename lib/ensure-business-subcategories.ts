@@ -18,6 +18,27 @@ export type SubcategoryListItem = {
   sortOrder: number
 }
 
+/**
+ * Old Studio-created slugs → canonical seed slugs.
+ * These were renamed during the seed migration; the mapping lets us merge them
+ * in the dedup pass and resolve tenant refs to canonical IDs.
+ */
+const LEGACY_SLUG_MAP: Record<string, string> = {
+  burger: 'burgers',
+  broast: 'broasted',
+  grill: 'grills',
+  shawerma: 'shawarma',
+  orientalsweets: 'oriental-sweets',
+  homecook: 'home-cooked',
+  gatea: 'gateau',
+}
+
+/** Normalise an old slug to its canonical seed slug (lowercase, mapped). */
+export function canonicalSubcategorySlug(raw: string): string {
+  const norm = raw.trim().toLowerCase()
+  return LEGACY_SLUG_MAP[norm] ?? norm
+}
+
 export function missingSubcategoryRowsForType(
   businessType: string,
   existingSlugs: Set<string>
@@ -56,6 +77,7 @@ export async function createOrReplaceSubcategoryDocs(
 /**
  * Legacy Studio docs sometimes duplicate the same slug as seeded `businessSubcategory.{slug}-{type}`.
  * Prefer the canonical seeded id so the list matches seed ordering/titles.
+ * Also merges old-slug variants (e.g. "burger" → "burgers") via LEGACY_SLUG_MAP.
  */
 export function dedupeSubcategoriesPreferSeeded(
   items: SubcategoryListItem[],
@@ -63,27 +85,27 @@ export function dedupeSubcategoriesPreferSeeded(
 ): SubcategoryListItem[] {
   const bt = businessType.trim().toLowerCase()
   const noSlug: SubcategoryListItem[] = []
-  const byNormSlug = new Map<string, SubcategoryListItem[]>()
+  const byCanonSlug = new Map<string, SubcategoryListItem[]>()
 
   for (const item of items) {
-    const norm = (item.slug || '').trim().toLowerCase()
-    if (!norm) {
+    const raw = (item.slug || '').trim().toLowerCase()
+    if (!raw) {
       noSlug.push(item)
       continue
     }
-    const list = byNormSlug.get(norm) ?? []
+    const canon = canonicalSubcategorySlug(raw)
+    const list = byCanonSlug.get(canon) ?? []
     list.push(item)
-    byNormSlug.set(norm, list)
+    byCanonSlug.set(canon, list)
   }
 
   const merged: SubcategoryListItem[] = [...noSlug]
-  for (const group of byNormSlug.values()) {
+  for (const [canonSlug, group] of byCanonSlug.entries()) {
     if (group.length === 1) {
       merged.push(group[0])
       continue
     }
-    const slug = group[0].slug
-    const preferredId = `businessSubcategory.${slug}-${bt}`
+    const preferredId = `businessSubcategory.${canonSlug}-${bt}`
     const canonical = group.find((g) => g._id === preferredId)
     merged.push(
       canonical ?? group.slice().sort((a, b) => a._id.localeCompare(b._id))[0]

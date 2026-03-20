@@ -8,6 +8,7 @@ import { isVerifiedPhoneForUser } from '@/lib/order-auth'
 import { isAllowedRegistrationCountry } from '@/lib/constants'
 import { getAllowedBusinessTypeValues } from '@/lib/allowed-business-types'
 import { urlFor } from '@/sanity/lib/image'
+import { canonicalSubcategorySlug } from '@/lib/ensure-business-subcategories'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -42,7 +43,7 @@ export async function GET(
   const tenantClient = clientNoCdn
   const restaurantClient = clientNoCdn
 
-  const [tenant, restaurantInfoRaw] = await Promise.all([
+  const [tenantRaw, restaurantInfoRaw] = await Promise.all([
     tenantClient.fetch<{
       _id: string
       name: string
@@ -50,7 +51,7 @@ export async function GET(
       country?: string
       city?: string
       businessType?: string
-      businessSubcategories?: Array<{ _ref: string }>
+      businessSubcategories?: Array<{ _id: string; slug?: string; businessType?: string }> | null
       deactivated?: boolean
       deactivateUntil?: string | null
       defaultLanguage?: string | null
@@ -71,7 +72,7 @@ export async function GET(
       `*[_type == "tenant" && _id == $tenantId][0]{
         _id, name, "slug": slug.current, country, city,
         businessType,
-        "businessSubcategoryIds": businessSubcategories[]._ref,
+        "businessSubcategories": businessSubcategories[]->{ _id, "slug": slug.current, businessType },
         deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, freeDeliveryEnabled, supportsDriverPickup,
         defaultAutoDeliveryRequestMinutes, saveAutoDeliveryRequestPreference,
         catalogHidePrices, prioritizeWhatsapp,
@@ -93,7 +94,47 @@ export async function GET(
     ),
   ])
 
-  if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+  if (!tenantRaw) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
+
+  // Resolve old subcategory IDs to canonical seeded IDs (e.g. random-uuid → businessSubcategory.burgers-restaurant).
+  const rawSubs = (tenantRaw.businessSubcategories ?? []).filter(Boolean)
+  const bt = (tenantRaw.businessType || '').trim().toLowerCase()
+  const resolvedSubIds: string[] = []
+  let subcatIdsChanged = false
+  for (const sub of rawSubs) {
+    if (!sub.slug || !sub.businessType) {
+      resolvedSubIds.push(sub._id)
+      continue
+    }
+    const canon = canonicalSubcategorySlug(sub.slug)
+    const canonicalId = `businessSubcategory.${canon}-${sub.businessType.trim().toLowerCase()}`
+    resolvedSubIds.push(canonicalId)
+    if (canonicalId !== sub._id) subcatIdsChanged = true
+  }
+
+  // Auto-migrate tenant refs to canonical IDs so homepage filtering and future saves match.
+  if (subcatIdsChanged && token && resolvedSubIds.length > 0) {
+    try {
+      await writeClient
+        .patch(tenantRaw._id)
+        .set({
+          businessSubcategories: resolvedSubIds.map((id, i) => ({
+            _type: 'reference' as const,
+            _key: `sub-${i}`,
+            _ref: id,
+          })),
+        })
+        .commit()
+    } catch (e) {
+      console.error('[business GET] auto-migrate subcategory refs failed:', e)
+    }
+  }
+
+  const tenant = {
+    ...tenantRaw,
+    businessSubcategories: undefined as undefined,
+    businessSubcategoryIds: resolvedSubIds,
+  }
 
   // Sync with Clerk verified phone
   try {
