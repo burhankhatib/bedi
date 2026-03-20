@@ -83,7 +83,7 @@ export function ManageNavClient({
     ordersCountAbortRef.current?.abort()
     const ac = new AbortController()
     ordersCountAbortRef.current = ac
-    fetch(`/api/tenants/${slug}/orders/count`, { cache: 'no-store', signal: ac.signal })
+    fetch(`/api/tenants/${slug}/orders/count`, { cache: 'default', signal: ac.signal })
       .then((r) => r.json())
       .then((data) => {
         if (!isMountedRef.current || ac.signal.aborted) return

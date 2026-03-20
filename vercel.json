@@ -3,5 +3,10 @@
   "buildCommand": "next build --webpack",
   "devCommand": "next dev",
   "installCommand": "npm install",
-  "crons": []
+  "crons": [
+    {
+      "path": "/api/cron/auto-delivery-request",
+      "schedule": "* * * * *"
+    }
+  ]
 }

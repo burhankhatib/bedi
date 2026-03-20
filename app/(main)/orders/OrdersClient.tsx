@@ -6,6 +6,7 @@ import { Package, Truck, UtensilsCrossed, Store, Clock, CheckCircle2, XCircle, C
 import { useLanguage } from '@/components/LanguageContext'
 import { AdminProtection } from '@/components/Auth/AdminProtection'
 import { OrderDetailsModal } from '@/components/Orders/OrderDetailsModal'
+import { AutoDeliveryRequestControls, type AutoDeliveryDefaults } from '@/components/Orders/AutoDeliveryRequestControls'
 import { OrderNotifications } from '@/components/Orders/OrderNotifications'
 import { Input } from '@/components/ui/input'
 import { getDriverDisplayNameForBusiness } from '@/lib/driver-display'
@@ -75,6 +76,10 @@ export interface Order {
   tipAmount?: number
   tipSentToDriver?: boolean
   driverArrivedAt?: string
+  deliveryRequestedAt?: string | null
+  autoDeliveryRequestMinutes?: number | null
+  autoDeliveryRequestScheduledAt?: string | null
+  autoDeliveryRequestTriggeredAt?: string | null
 }
 
 const STATUS_CONFIG = {
@@ -102,9 +107,28 @@ interface OrdersClientProps {
   onAcknowledgeTableRequest?: (orderId: string) => void
   /** Called when the order details modal opens or closes (so parent can hide blocking dialogs) */
   onModalOpenChange?: (open: boolean) => void
+  /** Tenant auto-request defaults (from GET orders); updates when parent refetches */
+  autoDeliveryDefaults?: AutoDeliveryDefaults
 }
 
-export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOrderIdForTableRequest, onAcknowledgeTableRequest, onModalOpenChange }: OrdersClientProps) {
+function showAutoDeliveryRow(order: Order, tenantSlug?: string) {
+  if (!tenantSlug) return false
+  if (order.orderType !== 'delivery') return false
+  if (order.assignedDriver) return false
+  if (order.deliveryRequestedAt) return false
+  if (['cancelled', 'refunded'].includes(order.status)) return false
+  return ['new', 'acknowledged', 'preparing', 'waiting_for_delivery'].includes(order.status)
+}
+
+export function OrdersClient({
+  initialOrders,
+  tenantSlug,
+  skipProtection,
+  openOrderIdForTableRequest,
+  onAcknowledgeTableRequest,
+  onModalOpenChange,
+  autoDeliveryDefaults,
+}: OrdersClientProps) {
   const { t, lang } = useLanguage()
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
@@ -427,6 +451,11 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
     }
   }
 
+  const applyAutoDeliveryPatch = useCallback((orderId: string, partial: Partial<Order>) => {
+    setOrders((prev) => prev.map((o) => (o._id === orderId ? { ...o, ...partial } : o)))
+    setSelectedOrder((prev) => (prev && prev._id === orderId ? { ...prev, ...partial } : prev))
+  }, [])
+
   const requestDelivery = async (orderId: string) => {
     try {
       const res = await fetch(`/api/tenants/${tenantSlug}/orders/request-driver`, {
@@ -435,6 +464,11 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
         body: JSON.stringify({ orderId })
       })
       if (res.ok) {
+        applyAutoDeliveryPatch(orderId, {
+          deliveryRequestedAt: new Date().toISOString(),
+          autoDeliveryRequestMinutes: null,
+          autoDeliveryRequestScheduledAt: null,
+        })
         setShowDeliveryToast(true)
         setTimeout(() => setShowDeliveryToast(false), 4000)
       } else {
@@ -904,6 +938,20 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                                 </button>
                               ) : (
                                 <>
+                                  {showAutoDeliveryRow(order, tenantSlug) && tenantSlug && (
+                                    <div className="mb-2 w-full" onClick={(e) => e.stopPropagation()}>
+                                      <AutoDeliveryRequestControls
+                                        tenantSlug={tenantSlug}
+                                        orderId={order._id}
+                                        deliveryRequestedAt={order.deliveryRequestedAt}
+                                        autoDeliveryRequestMinutes={order.autoDeliveryRequestMinutes}
+                                        autoDeliveryRequestScheduledAt={order.autoDeliveryRequestScheduledAt}
+                                        tenantDefaults={autoDeliveryDefaults}
+                                        emphasize={order.status === 'new'}
+                                        onPatched={(p) => applyAutoDeliveryPatch(order._id, p)}
+                                      />
+                                    </div>
+                                  )}
                                   <div className="flex items-center gap-2">
                                     <button
                                       onClick={(e) => { e.stopPropagation(); requestDelivery(order._id); }}
@@ -1097,6 +1145,20 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
                                     </button>
                                   ) : (
                                     <>
+                                      {showAutoDeliveryRow(order, tenantSlug) && tenantSlug && (
+                                        <div className="mb-3 w-full" onClick={(e) => e.stopPropagation()}>
+                                          <AutoDeliveryRequestControls
+                                            tenantSlug={tenantSlug}
+                                            orderId={order._id}
+                                            deliveryRequestedAt={order.deliveryRequestedAt}
+                                            autoDeliveryRequestMinutes={order.autoDeliveryRequestMinutes}
+                                            autoDeliveryRequestScheduledAt={order.autoDeliveryRequestScheduledAt}
+                                            tenantDefaults={autoDeliveryDefaults}
+                                            emphasize={order.status === 'new'}
+                                            onPatched={(p) => applyAutoDeliveryPatch(order._id, p)}
+                                          />
+                                        </div>
+                                      )}
                                       <div className="flex items-center gap-2">
                                         <button
                                           onClick={(e) => { e.stopPropagation(); requestDelivery(order._id); }}
@@ -1235,6 +1297,7 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
               setSelectedOrder(prev => prev && prev._id === updatedOrder._id ? updatedOrder : prev)
             }}
             tenantSlug={tenantSlug}
+            autoDeliveryDefaults={autoDeliveryDefaults}
             onAcknowledgeTableRequest={onAcknowledgeTableRequest}
           />
         )}

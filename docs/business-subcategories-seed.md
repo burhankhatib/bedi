@@ -69,6 +69,37 @@ Based on DoorDash, Talabat, Jahez, and popular MENA food delivery apps.
 | spanish | Spanish | إسباني | 58 |
 | pakistani | Pakistani | باكستاني | 59 |
 | caribbean | Caribbean | كاريبي | 60 |
+| persian | Persian | فارسي | 61 |
+| german | German | ألماني | 62 |
+| brazilian | Brazilian | برازيلي | 63 |
+| ethiopian | Ethiopian | إثيوبي | 64 |
+| argentinian | Argentinian | أرجنتيني | 65 |
+| filipino | Filipino | فلبيني | 66 |
+| nepalese | Nepalese | نيبالي | 67 |
+| moroccan | Moroccan | مغربي | 68 |
+| syrian | Syrian | سوري | 69 |
+| indonesian | Indonesian | إندونيسي | 70 |
+| malaysian | Malaysian | ماليزي | 71 |
+| taiwanese | Taiwanese | تايواني | 72 |
+| hong-kong | Hong Kong | هونغ كونغ | 73 |
+| singaporean | Singaporean | سنغافوري | 74 |
+| british | British | بريطاني | 75 |
+| portuguese | Portuguese | برتغالي | 76 |
+| colombian | Colombian | كولومبي | 77 |
+| peruvian | Peruvian | بيروفي | 78 |
+| cuban | Cuban | كوبي | 79 |
+| iraqi | Iraqi | عراقي | 80 |
+| palestinian | Palestinian | فلسطيني | 81 |
+| yemeni | Yemeni | يمني | 82 |
+| afghan | Afghan | أفغاني | 83 |
+| bangladeshi | Bangladeshi | بنغلاديشي | 84 |
+| sri-lankan | Sri Lankan | سريلانكي | 85 |
+| dim-sum | Dim Sum | ديم سوم | 86 |
+| hot-pot | Hot Pot | هوت بوت | 87 |
+| steakhouse | Steakhouse | ستيك هاوس | 88 |
+| fusion | Fusion | مطبخ فيوجن | 89 |
+| kosher | Kosher | كوشير | 90 |
+| tex-mex | Tex-Mex | تكس مكس | 91 |
 
 ## Cafe (businessType: `cafe`)
 

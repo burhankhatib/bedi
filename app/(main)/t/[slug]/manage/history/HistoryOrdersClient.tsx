@@ -50,7 +50,7 @@ export function HistoryOrdersClient({ slug }: { slug: string }) {
     setLoading(true)
     try {
       const url = `/api/tenants/${slug}/orders/history${debouncedSearch ? `?q=${encodeURIComponent(debouncedSearch)}` : ''}`
-      const res = await fetch(url, { cache: 'no-store' })
+      const res = await fetch(url, { cache: 'default' })
       const data = await res.json()
       setOrders(Array.isArray(data?.orders) ? data.orders : [])
       setTableRequests(Array.isArray(data?.tableRequests) ? data.tableRequests : [])

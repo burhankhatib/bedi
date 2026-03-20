@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { client } from '@/sanity/lib/client'
+import { client, clientNoCdn } from '@/sanity/lib/client'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 
-const freshClient = client.withConfig({ useCdn: false })
+// We conditionally use client (CDN) or clientNoCdn (origin)
 
-export const dynamic = 'force-dynamic'
 
 type ReportRow = {
   _id: string
@@ -39,6 +38,8 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const filter = searchParams.get('filter') || 'new'
+  const refresh = searchParams.get('refresh') === '1'
+  const sanityClient = refresh ? clientNoCdn : client
 
   let reportCondition = ''
   if (filter === 'new') {
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
     reportCondition = `archived == true`
   }
 
-  const reports = await freshClient.fetch<ReportRow[]>(
+  const reports = await sanityClient.fetch<ReportRow[]>(
     `*[_type == "report" && ${reportCondition}] | order(_createdAt desc) {
       _id,
       _createdAt,
@@ -87,13 +88,13 @@ export async function GET(req: NextRequest) {
 
   const [tenantPhones, driverPhones] = await Promise.all([
     tenantIdList.length
-      ? freshClient.fetch<Array<{ tenantId: string; phone: string | null }>>(
+      ? sanityClient.fetch<Array<{ tenantId: string; phone: string | null }>>(
           `*[_type == "restaurantInfo" && site._ref in $ids]{ "tenantId": site._ref, "phone": socials.whatsapp }`,
           { ids: tenantIdList }
         )
       : Promise.resolve([]),
     driverIdList.length
-      ? freshClient.fetch<Array<{ _id: string; phoneNumber: string | null }>>(
+      ? sanityClient.fetch<Array<{ _id: string; phoneNumber: string | null }>>(
           `*[_type == "driver" && _id in $ids]{ _id, phoneNumber }`,
           { ids: driverIdList }
         )
@@ -117,19 +118,19 @@ export async function GET(req: NextRequest) {
   ]
   const [tenantBlocked, driverBlocked, customerBlocked] = await Promise.all([
     tenantIdList.length
-      ? freshClient.fetch<Array<{ _id: string; blockedBySuperAdmin?: boolean }>>(
+      ? sanityClient.fetch<Array<{ _id: string; blockedBySuperAdmin?: boolean }>>(
           `*[_type == "tenant" && _id in $ids]{ _id, blockedBySuperAdmin }`,
           { ids: tenantIdList }
         )
       : Promise.resolve([]),
     driverIdList.length
-      ? freshClient.fetch<Array<{ _id: string; blockedBySuperAdmin?: boolean }>>(
+      ? sanityClient.fetch<Array<{ _id: string; blockedBySuperAdmin?: boolean }>>(
           `*[_type == "driver" && _id in $ids]{ _id, blockedBySuperAdmin }`,
           { ids: driverIdList }
         )
       : Promise.resolve([]),
     customerIds.length
-      ? freshClient.fetch<Array<{ _id: string; blockedBySuperAdmin?: boolean }>>(
+      ? sanityClient.fetch<Array<{ _id: string; blockedBySuperAdmin?: boolean }>>(
           `*[_type == "customer" && _id in $ids]{ _id, blockedBySuperAdmin }`,
           { ids: customerIds }
         )
@@ -178,7 +179,7 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  const allForCounts = await freshClient.fetch<
+  const allForCounts = await sanityClient.fetch<
     Array<{
       reportedTenantId?: string
       reportedDriverId?: string
@@ -198,7 +199,7 @@ export async function GET(req: NextRequest) {
     driverCondition += ` && pendingTaskArchived == true`
   }
 
-  const pendingDrivers = await freshClient.fetch<
+  const pendingDrivers = await sanityClient.fetch<
     Array<{
       _id: string
       name?: string
@@ -233,5 +234,9 @@ export async function GET(req: NextRequest) {
     reports: reportsWithPhones,
     reportCounts: { tenant: countTenant, driver: countDriver, customer: countCustomer },
     pendingDrivers: pendingDrivers ?? [],
+  }, {
+    headers: {
+      'Cache-Control': refresh ? 'no-store' : 'private, max-age=15, stale-while-revalidate=30'
+    }
   })
 }

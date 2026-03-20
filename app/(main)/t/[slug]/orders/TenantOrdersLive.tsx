@@ -7,6 +7,7 @@ import { useToast } from '@/components/ui/ToastProvider'
 import { usePusherStream } from '@/lib/usePusherStream'
 import { Button } from '@/components/ui/button'
 import { RefreshCw } from 'lucide-react'
+import type { AutoDeliveryDefaults } from '@/components/Orders/AutoDeliveryRequestControls'
 
 /**
  * Business (tenant) orders list. Same pattern as customer track: initial fetch + SSE only, refetch on event.
@@ -50,6 +51,7 @@ export function TenantOrdersLive({
   initialStandaloneTableRequests,
   initialOpenOrderId,
   initialNotificationSound,
+  initialAutoDeliveryDefaults,
 }: {
   slug: string
   siteId: string
@@ -60,10 +62,14 @@ export function TenantOrdersLive({
   /** Open this order in the modal (e.g. from ?open= or table request) */
   initialOpenOrderId?: string
   initialNotificationSound?: string
+  initialAutoDeliveryDefaults?: AutoDeliveryDefaults
 }) {
   const { showToast } = useToast()
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [newOrders, setNewOrders] = useState<NewOrder[]>(initialNewOrders)
+  const [autoDeliveryDefaults, setAutoDeliveryDefaults] = useState<AutoDeliveryDefaults>(
+    initialAutoDeliveryDefaults ?? {}
+  )
   const [tableRequests, setTableRequests] = useState<TableRequest[]>(initialTableRequests ?? [])
   const [standaloneTableRequests, setStandaloneTableRequests] = useState<StandaloneTableRequest[]>(initialStandaloneTableRequests ?? [])
   const acknowledgedIdsRef = useRef<Set<string>>(new Set())
@@ -77,7 +83,13 @@ export function TenantOrdersLive({
     try {
       const res = await fetch(`/api/tenants/${slug}/orders`, { cache: 'no-store' })
       if (!res.ok) return
-      const { orders: nextOrders, newOrders: nextNewOrders, tableRequests: nextTableRequests, standaloneTableRequests: nextStandalone } = await res.json()
+      const {
+        orders: nextOrders,
+        newOrders: nextNewOrders,
+        tableRequests: nextTableRequests,
+        standaloneTableRequests: nextStandalone,
+        autoDeliveryDefaults: nextAutoDefaults,
+      } = await res.json()
       const nextOrdersList = Array.isArray(nextOrders) ? nextOrders : []
       const prevOrders = prevOrdersRef.current
       prevOrdersRef.current = nextOrdersList
@@ -105,6 +117,12 @@ export function TenantOrdersLive({
       setNewOrders(nextNew.filter((o) => !acknowledgedIdsRef.current.has(o._id)))
       setTableRequests(Array.isArray(nextTableRequests) ? nextTableRequests : [])
       setStandaloneTableRequests(Array.isArray(nextStandalone) ? nextStandalone : [])
+      if (nextAutoDefaults && typeof nextAutoDefaults === 'object') {
+        setAutoDeliveryDefaults({
+          defaultAutoDeliveryRequestMinutes: nextAutoDefaults.defaultAutoDeliveryRequestMinutes ?? null,
+          saveAutoDeliveryRequestPreference: nextAutoDefaults.saveAutoDeliveryRequestPreference === true,
+        })
+      }
     } catch {
       // keep previous state
     }
@@ -221,12 +239,14 @@ export function TenantOrdersLive({
         openOrderIdForTableRequest={openOrderIdForTableRequest}
         onAcknowledgeTableRequest={handleTableRequestAcknowledged}
         onModalOpenChange={setOrderModalOpen}
+        autoDeliveryDefaults={autoDeliveryDefaults}
       />
       <OrderNotificationsWrapper
         initialNewOrders={newOrders}
         initialTableRequests={tableRequests}
         initialStandaloneTableRequests={standaloneTableRequests}
         tenantSlug={slug}
+        autoDeliveryDefaults={autoDeliveryDefaults}
         initialNotificationSound={initialNotificationSound}
         onAcknowledged={handleAcknowledged}
         onTableRequestAcknowledged={handleTableRequestAcknowledged}

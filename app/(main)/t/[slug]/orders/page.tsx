@@ -79,9 +79,13 @@ export default async function TenantOrdersPage({
   let tableRequests: TableRequest[] = []
   let standaloneTableRequests: Array<{ _id: string; tableNumber: string; type: string; createdAt: string }> = []
   let notificationSound: string | null = null
+  let tenantAutoRow: {
+    defaultAutoDeliveryRequestMinutes?: number | null
+    saveAutoDeliveryRequestPreference?: boolean
+  } | null = null
 
   try {
-    const [ordersList, newOrdersList, tableRequestsList, standaloneList] = await Promise.all([
+    const [ordersList, newOrdersList, tableRequestsList, standaloneList, tenantAutoFetched] = await Promise.all([
       freshClient.fetch(`*[_type == "order" && ${siteFilter}] | order(createdAt desc) {
         _id, orderNumber, orderType, status, customerName, tableNumber, customerPhone,
         deliveryArea->{_id, name_en, name_ar}, deliveryAddress, deliveryFee,
@@ -89,7 +93,9 @@ export default async function TenantOrdersPage({
         items, subtotal, totalAmount, currency,
         createdAt, preparedAt, driverAcceptedAt, driverPickedUpAt, completedAt, cancelledAt, driverCancelledAt, driverDeclinedAssignmentAt,
         customerRequestType, customerRequestPaymentMethod, customerRequestedAt, customerRequestAcknowledgedAt,
-        tipPercent, tipAmount, tipSentToDriver, tipIncludedInTotal, tipRemovedByDriver, driverArrivedAt
+        tipPercent, tipAmount, tipSentToDriver, tipIncludedInTotal, tipRemovedByDriver, driverArrivedAt,
+        scheduledFor, acknowledgedAt, notifyAt, reminderSent,
+        deliveryRequestedAt, autoDeliveryRequestMinutes, autoDeliveryRequestScheduledAt, autoDeliveryRequestTriggeredAt
       }`, { siteId }),
       freshClient.fetch(`*[_type == "order" && ${siteFilter} && status == "new"] | order(createdAt desc) {
         _id,
@@ -110,11 +116,16 @@ export default async function TenantOrdersPage({
         _id, orderNumber, tableNumber, customerRequestType, customerRequestPaymentMethod, customerRequestedAt
       }`, { siteId }),
       freshClient.fetch(standaloneTableRequestsGROQ, { siteId }),
+      freshClient.fetch<{ defaultAutoDeliveryRequestMinutes?: number | null; saveAutoDeliveryRequestPreference?: boolean } | null>(
+        `*[_type == "tenant" && _id == $siteId][0]{ defaultAutoDeliveryRequestMinutes, saveAutoDeliveryRequestPreference }`,
+        { siteId }
+      ),
     ])
     orders = (ordersList ?? []) as Order[]
     newOrders = (newOrdersList ?? []) as Array<{ _id: string; orderNumber: string; createdAt: string }>
     tableRequests = (tableRequestsList ?? []) as TableRequest[]
     standaloneTableRequests = (standaloneList ?? []) as Array<{ _id: string; tableNumber: string; type: string; createdAt: string }>
+    tenantAutoRow = tenantAutoFetched ?? null
   } catch (error) {
     console.error('[TenantOrders] Failed to fetch orders:', error)
   }
@@ -164,6 +175,10 @@ export default async function TenantOrdersPage({
           initialStandaloneTableRequests={standaloneTableRequests}
           initialOpenOrderId={typeof initialOpenOrderId === 'string' ? initialOpenOrderId : undefined}
           initialNotificationSound={notificationSound ?? undefined}
+          initialAutoDeliveryDefaults={{
+            defaultAutoDeliveryRequestMinutes: tenantAutoRow?.defaultAutoDeliveryRequestMinutes ?? null,
+            saveAutoDeliveryRequestPreference: tenantAutoRow?.saveAutoDeliveryRequestPreference === true,
+          }}
         />
         <BusinessPushStatusCard slug={slug} />
         </main>

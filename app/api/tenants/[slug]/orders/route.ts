@@ -53,7 +53,11 @@ const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc
   scheduledFor,
   acknowledgedAt,
   notifyAt,
-  reminderSent
+  reminderSent,
+  deliveryRequestedAt,
+  autoDeliveryRequestMinutes,
+  autoDeliveryRequestScheduledAt,
+  autoDeliveryRequestTriggeredAt
 }`
 const NEW_ORDERS_GROQ = `*[_type == "order" && ${siteFilter} && status == "new"] | order(createdAt desc) {
   _id,
@@ -98,11 +102,18 @@ export async function GET(
 
   const siteId = auth.tenantId
   try {
-    const [orders, newOrders, tableRequests, standaloneTableRequests] = await Promise.all([
+    const [orders, newOrders, tableRequests, standaloneTableRequests, tenantAutoPrefs] = await Promise.all([
       noCacheClient.fetch(ORDERS_GROQ, { siteId }),
       noCacheClient.fetch(NEW_ORDERS_GROQ, { siteId }),
       noCacheClient.fetch(NEW_TABLE_REQUESTS_GROQ, { siteId }),
       noCacheClient.fetch(STANDALONE_TABLE_REQUESTS_GROQ, { siteId }),
+      noCacheClient.fetch<{
+        defaultAutoDeliveryRequestMinutes?: number | null
+        saveAutoDeliveryRequestPreference?: boolean
+      } | null>(
+        `*[_type == "tenant" && _id == $siteId][0]{ defaultAutoDeliveryRequestMinutes, saveAutoDeliveryRequestPreference }`,
+        { siteId }
+      ),
     ])
     return NextResponse.json(
       {
@@ -110,6 +121,10 @@ export async function GET(
         newOrders: newOrders ?? [],
         tableRequests: tableRequests ?? [],
         standaloneTableRequests: standaloneTableRequests ?? [],
+        autoDeliveryDefaults: {
+          defaultAutoDeliveryRequestMinutes: tenantAutoPrefs?.defaultAutoDeliveryRequestMinutes ?? null,
+          saveAutoDeliveryRequestPreference: tenantAutoPrefs?.saveAutoDeliveryRequestPreference === true,
+        },
       },
       {
         headers: {

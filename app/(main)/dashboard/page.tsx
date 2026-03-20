@@ -1,6 +1,6 @@
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
-import { clientNoCdn } from '@/sanity/lib/client'
+import { client } from '@/sanity/lib/client'
 import { TENANTS_FOR_USER_QUERY, TENANTS_FOR_STAFF_QUERY } from '@/sanity/lib/queries'
 import type { Tenant } from '@/lib/tenant'
 import { getDriverIdByClerkUserId } from '@/lib/driver'
@@ -53,12 +53,12 @@ export default async function DashboardPage() {
     try {
       const clerkUserEmailLower = (email || '').trim().toLowerCase()
       const [rawTenants, staffTenants, driverIdResult] = await Promise.all([
-        clientNoCdn.fetch<Tenant[] | null>(TENANTS_FOR_USER_QUERY, {
+        client.fetch<Tenant[] | null>(TENANTS_FOR_USER_QUERY, {
           clerkUserId: uid,
           clerkUserEmailLower: clerkUserEmailLower || undefined,
         }),
         clerkUserEmailLower
-          ? clientNoCdn.fetch<Tenant[] | null>(TENANTS_FOR_STAFF_QUERY, { emailLower: clerkUserEmailLower })
+          ? client.fetch<Tenant[] | null>(TENANTS_FOR_STAFF_QUERY, { emailLower: clerkUserEmailLower })
           : Promise.resolve(null),
         getDriverIdByClerkUserId(uid),
       ])

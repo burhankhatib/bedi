@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { client } from '@/sanity/lib/client'
+import { client, clientNoCdn } from '@/sanity/lib/client'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 
 /** Strict: only orders belonging to this tenant. */
 const siteFilter = 'site._ref == $siteId'
-const noCacheClient = client.withConfig({ useCdn: false })
 const ORDERS_GROQ = `*[_type == "order" && ${siteFilter}] | order(createdAt desc) {
   _id,
   orderNumber,
@@ -64,11 +63,13 @@ export async function GET(
   const siteId = auth.tenantId
   const { searchParams } = new URL(req.url)
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
+  const refresh = searchParams.get('refresh') === '1'
+  const sanityClient = refresh ? clientNoCdn : client
 
   try {
     const [ordersResult, tableRequestsResult] = await Promise.all([
-      noCacheClient.fetch(ORDERS_GROQ, { siteId }),
-      noCacheClient.fetch(TABLE_REQUESTS_GROQ, { siteId })
+      sanityClient.fetch(ORDERS_GROQ, { siteId }),
+      sanityClient.fetch(TABLE_REQUESTS_GROQ, { siteId })
     ])
     
     let filteredOrders = (ordersResult ?? []) as Array<{
@@ -102,7 +103,7 @@ export async function GET(
     
     return NextResponse.json(
       { orders: filteredOrders, tableRequests: filteredTableRequests },
-      { headers: { 'Cache-Control': 'no-store' } }
+      { headers: { 'Cache-Control': refresh ? 'no-store' : 'private, max-age=30, stale-while-revalidate=60' } }
     )
   } catch (error) {
     console.error('[TenantOrdersHistory GET]', error)

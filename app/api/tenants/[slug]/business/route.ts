@@ -59,6 +59,8 @@ export async function GET(
       supportsDelivery?: boolean
       freeDeliveryEnabled?: boolean
       supportsDriverPickup?: boolean
+      defaultAutoDeliveryRequestMinutes?: number | null
+      saveAutoDeliveryRequestPreference?: boolean
       catalogHidePrices?: boolean
       prioritizeWhatsapp?: boolean
       ownerPhone?: string
@@ -70,7 +72,9 @@ export async function GET(
         _id, name, "slug": slug.current, country, city,
         businessType,
         "businessSubcategoryIds": businessSubcategories[]._ref,
-        deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, freeDeliveryEnabled, supportsDriverPickup, catalogHidePrices, prioritizeWhatsapp,
+        deactivated, deactivateUntil, defaultLanguage, supportsDineIn, supportsReceiveInPerson, supportsDelivery, freeDeliveryEnabled, supportsDriverPickup,
+        defaultAutoDeliveryRequestMinutes, saveAutoDeliveryRequestPreference,
+        catalogHidePrices, prioritizeWhatsapp,
         ownerPhone, normalizedOwnerPhone, locationLat, locationLng
       }`,
       { tenantId: auth.tenantId }
@@ -124,9 +128,10 @@ export async function GET(
         logoUrl: restaurantInfoRaw.logo ? urlFor(restaurantInfoRaw.logo).width(120).height(120).url() : null,
       }
     : null
+  // Tenant-specific + auth: never allow shared CDN caching of this JSON (stale flags e.g. prioritizeWhatsapp after PATCH).
   return NextResponse.json(
     { tenant, restaurantInfo },
-    { headers: refresh ? { 'Cache-Control': 'no-store' } : { 'Cache-Control': 's-maxage=60, stale-while-revalidate=120' } }
+    { headers: { 'Cache-Control': 'private, no-store, must-revalidate' } }
   )
 }
 
@@ -232,9 +237,26 @@ export async function PATCH(
   }
   if (body.supportsDineIn !== undefined) tenantSet.supportsDineIn = Boolean(body.supportsDineIn)
   if (body.supportsReceiveInPerson !== undefined) tenantSet.supportsReceiveInPerson = Boolean(body.supportsReceiveInPerson)
-  if (body.supportsDelivery !== undefined) tenantSet.supportsDelivery = Boolean(body.supportsDelivery)
+  if (body.supportsDelivery !== undefined) {
+    tenantSet.supportsDelivery = Boolean(body.supportsDelivery)
+    if (!tenantSet.supportsDelivery) {
+      tenantSet.defaultAutoDeliveryRequestMinutes = null
+      tenantSet.saveAutoDeliveryRequestPreference = false
+    }
+  }
   if (body.freeDeliveryEnabled !== undefined) tenantSet.freeDeliveryEnabled = Boolean(body.freeDeliveryEnabled)
   if (body.supportsDriverPickup !== undefined) tenantSet.supportsDriverPickup = Boolean(body.supportsDriverPickup)
+  if (body.defaultAutoDeliveryRequestMinutes !== undefined && body.supportsDelivery !== false) {
+    const raw = body.defaultAutoDeliveryRequestMinutes
+    if (raw === null) {
+      tenantSet.defaultAutoDeliveryRequestMinutes = null
+    } else if (typeof raw === 'number' && [0, 5, 10, 15, 20, 25, 30, 35, 40].includes(raw)) {
+      tenantSet.defaultAutoDeliveryRequestMinutes = raw
+    }
+  }
+  if (body.saveAutoDeliveryRequestPreference !== undefined && body.supportsDelivery !== false) {
+    tenantSet.saveAutoDeliveryRequestPreference = Boolean(body.saveAutoDeliveryRequestPreference)
+  }
   if (body.catalogHidePrices !== undefined) tenantSet.catalogHidePrices = Boolean(body.catalogHidePrices)
   if (body.prioritizeWhatsapp !== undefined) tenantSet.prioritizeWhatsapp = Boolean(body.prioritizeWhatsapp)
 

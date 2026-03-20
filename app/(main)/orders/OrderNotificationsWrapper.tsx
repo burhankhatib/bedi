@@ -2,6 +2,7 @@
 
 import { OrderNotifications } from '@/components/Orders/OrderNotifications'
 import { useCallback } from 'react'
+import type { AutoDeliveryDefaults } from '@/components/Orders/AutoDeliveryRequestControls'
 
 interface NewOrder {
   _id: string
@@ -45,6 +46,7 @@ interface OrderNotificationsWrapperProps {
   initialStandaloneTableRequests?: StandaloneTableRequest[]
   /** When set, acknowledge uses tenant-scoped status API */
   tenantSlug?: string
+  autoDeliveryDefaults?: AutoDeliveryDefaults
   /** Tenant's notification sound (from restaurantInfo) so sound works without global fetch */
   initialNotificationSound?: string
   /** Called after a successful acknowledge with the orderId (parent can update list immediately) */
@@ -62,6 +64,7 @@ export function OrderNotificationsWrapper({
   initialTableRequests = [],
   initialStandaloneTableRequests = [],
   tenantSlug,
+  autoDeliveryDefaults,
   initialNotificationSound,
   onAcknowledged,
   onTableRequestAcknowledged,
@@ -132,6 +135,8 @@ export function OrderNotificationsWrapper({
       onAcknowledge={handleAcknowledge}
       onAcknowledgeTableRequest={handleAcknowledgeTableRequest}
       onAcknowledgeStandaloneTableRequest={handleAcknowledgeStandaloneTableRequest}
+      tenantSlug={tenantSlug}
+      autoDeliveryDefaults={autoDeliveryDefaults}
       initialNotificationSound={initialNotificationSound}
       suppressDialog={suppressDialog}
     />

@@ -16,6 +16,14 @@ export type TenantBusinessData = {
     defaultLanguage?: string | null
     supportsDineIn?: boolean
     supportsReceiveInPerson?: boolean
+    supportsDelivery?: boolean
+    freeDeliveryEnabled?: boolean
+    supportsDriverPickup?: boolean
+    catalogHidePrices?: boolean
+    prioritizeWhatsapp?: boolean
+    ownerPhone?: string
+    locationLat?: number
+    locationLng?: number
   }
   restaurantInfo?: Record<string, unknown> | null
 }
@@ -40,9 +48,9 @@ export function useTenantBusiness(): TenantBusinessContextValue {
   return ctx
 }
 
-export function TenantBusinessProvider({ slug, children }: { slug: string; children: ReactNode }) {
-  const [data, setData] = useState<TenantBusinessData | null>(null)
-  const [loading, setLoading] = useState(true)
+export function TenantBusinessProvider({ slug, children, initialData }: { slug: string; children: ReactNode; initialData?: TenantBusinessData }) {
+  const [data, setData] = useState<TenantBusinessData | null>(initialData ?? null)
+  const [loading, setLoading] = useState(!initialData)
   const fetchedSlugRef = useRef<string | null>(null)
   const mountedRef = useRef(false)
   const refetchAbortRef = useRef<AbortController | null>(null)
@@ -85,6 +93,13 @@ export function TenantBusinessProvider({ slug, children }: { slug: string; child
     if (!slug) return
     if (fetchedSlugRef.current === slug) return
     fetchedSlugRef.current = slug
+
+    if (initialData) {
+      setData(initialData)
+      setLoading(false)
+      return
+    }
+
     setData(null)
     setLoading(true)
     initialAbortRef.current?.abort()
@@ -95,7 +110,7 @@ export function TenantBusinessProvider({ slug, children }: { slug: string; child
     }, 8000)
     fetch(`/api/tenants/${encodeURIComponent(slug)}/business`, {
       credentials: 'include',
-      cache: 'default',
+      cache: 'no-store',
       signal: ac.signal,
     })
       .then((r) => (r.ok ? r.json() : null))

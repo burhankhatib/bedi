@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { client } from '@/sanity/lib/client'
+import { client, clientNoCdn } from '@/sanity/lib/client'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 
-const freshClient = client.withConfig({ useCdn: false })
-
-export const dynamic = 'force-dynamic'
+// We conditionally use client (CDN) or clientNoCdn (origin)
 
 type Row = {
   _id: string
@@ -30,6 +28,8 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const filter = searchParams.get('filter') || 'new'
+  const refresh = searchParams.get('refresh') === '1'
+  const sanityClient = refresh ? clientNoCdn : client
 
   let condition = ''
   if (filter === 'new') {
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     condition = `archived == true`
   }
 
-  const list = await freshClient.fetch<Row[]>(
+  const list = await sanityClient.fetch<Row[]>(
     `*[_type == "suspendedContact" && ${condition}] | order(createdAt desc) {
       _id,
       type,
@@ -58,19 +58,19 @@ export async function GET(req: NextRequest) {
 
   const [drivers, tenants, customers] = await Promise.all([
     clerkIds.length
-      ? freshClient.fetch<Array<{ _id: string; clerkUserId?: string; phoneNumber?: string; blockedBySuperAdmin?: boolean }>>(
+      ? sanityClient.fetch<Array<{ _id: string; clerkUserId?: string; phoneNumber?: string; blockedBySuperAdmin?: boolean }>>(
           `*[_type == "driver" && clerkUserId in $ids]{ _id, clerkUserId, phoneNumber, blockedBySuperAdmin }`,
           { ids: clerkIds }
         )
       : Promise.resolve([]),
     clerkIds.length
-      ? freshClient.fetch<Array<{ _id: string; clerkUserId?: string; blockedBySuperAdmin?: boolean }>>(
+      ? sanityClient.fetch<Array<{ _id: string; clerkUserId?: string; blockedBySuperAdmin?: boolean }>>(
           `*[_type == "tenant" && clerkUserId in $ids]{ _id, clerkUserId, blockedBySuperAdmin }`,
           { ids: clerkIds }
         )
       : Promise.resolve([]),
     clerkIds.length
-      ? freshClient.fetch<Array<{ _id: string; clerkUserId?: string; primaryPhone?: string; blockedBySuperAdmin?: boolean }>>(
+      ? sanityClient.fetch<Array<{ _id: string; clerkUserId?: string; primaryPhone?: string; blockedBySuperAdmin?: boolean }>>(
           `*[_type == "customer" && clerkUserId in $ids]{ _id, clerkUserId, primaryPhone, blockedBySuperAdmin }`,
           { ids: clerkIds }
         )
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
 
   const tenantIds = (tenants ?? []).map((t) => t._id)
   const tenantPhones = await (tenantIds.length
-    ? freshClient.fetch<Array<{ tenantId: string; phone: string | null }>>(
+    ? sanityClient.fetch<Array<{ tenantId: string; phone: string | null }>>(
         `*[_type == "restaurantInfo" && site._ref in $ids]{ "tenantId": site._ref, "phone": socials.whatsapp }`,
         { ids: tenantIds }
       )
@@ -136,5 +136,9 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  return NextResponse.json({ contacts })
+  return NextResponse.json({ contacts }, {
+    headers: {
+      'Cache-Control': refresh ? 'no-store' : 'private, max-age=15, stale-while-revalidate=30'
+    }
+  })
 }

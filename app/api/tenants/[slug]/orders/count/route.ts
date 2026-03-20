@@ -1,14 +1,13 @@
-import { NextResponse } from 'next/server'
-import { client } from '@/sanity/lib/client'
+import { NextRequest, NextResponse } from 'next/server'
+import { client, clientNoCdn } from '@/sanity/lib/client'
 import { checkTenantAuth } from '@/lib/tenant-auth'
 
 /** Strict: only orders belonging to this tenant. */
 const siteFilter = 'site._ref == $siteId'
-const noCacheClient = client.withConfig({ useCdn: false })
 
 /** GET new orders count for tenant (lightweight for nav badge). */
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params
@@ -16,8 +15,12 @@ export async function GET(
   if (!auth.ok) return NextResponse.json({ error: 'Forbidden' }, { status: auth.status })
 
   const siteId = auth.tenantId
+  const { searchParams } = new URL(req.url)
+  const refresh = searchParams.get('refresh') === '1'
+  const sanityClient = refresh ? clientNoCdn : client
+
   try {
-    const count = await noCacheClient.fetch<number>(
+    const count = await sanityClient.fetch<number>(
       `count(*[_type == "order" && ${siteFilter} && status == "new"])`,
       { siteId }
     )
@@ -25,8 +28,8 @@ export async function GET(
       { newCount: typeof count === 'number' ? count : 0 },
       {
         headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
-          Pragma: 'no-cache',
+          'Cache-Control': refresh ? 'no-store, no-cache, must-revalidate' : 'private, max-age=15, stale-while-revalidate=30',
+          Pragma: refresh ? 'no-cache' : '',
         },
       }
     )

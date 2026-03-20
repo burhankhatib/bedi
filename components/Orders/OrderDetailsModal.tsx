@@ -14,6 +14,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { getDriverDisplayNameForBusiness } from '@/lib/driver-display'
 import { SlideToCompleteOrder } from './SlideToCompleteOrder'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
+import { AutoDeliveryRequestControls, type AutoDeliveryDefaults } from '@/components/Orders/AutoDeliveryRequestControls'
 
 interface OrderItem {
   _key: string
@@ -103,6 +104,10 @@ interface Order {
   tipIncludedInTotal?: boolean
   tipRemovedByDriver?: boolean
   driverArrivedAt?: string
+  deliveryRequestedAt?: string | null
+  autoDeliveryRequestMinutes?: number | null
+  autoDeliveryRequestScheduledAt?: string | null
+  autoDeliveryRequestTriggeredAt?: string | null
 }
 
 interface OrderDetailsModalProps {
@@ -114,6 +119,7 @@ interface OrderDetailsModalProps {
   onOrderUpdated?: (updatedOrder: Order) => void
   /** When set, update-items and assign-driver use tenant-scoped APIs */
   tenantSlug?: string
+  autoDeliveryDefaults?: AutoDeliveryDefaults
   /** Called when staff acknowledges table request (stops ringing, notifies customer) */
   onAcknowledgeTableRequest?: (orderId: string) => void
 }
@@ -220,7 +226,16 @@ function normalizeVariants(raw: unknown): ProductVariantGroup[] {
   }).filter((g) => g.options.length > 0)
 }
 
-export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, onOrderUpdated, tenantSlug, onAcknowledgeTableRequest }: OrderDetailsModalProps) {
+export function OrderDetailsModal({
+  order,
+  onClose,
+  onStatusUpdate,
+  onRefresh,
+  onOrderUpdated,
+  tenantSlug,
+  autoDeliveryDefaults,
+  onAcknowledgeTableRequest,
+}: OrderDetailsModalProps) {
   const { t, lang } = useLanguage()
   const { showToast } = useToast()
   const [reminderMinutes, setReminderMinutes] = useState(60)
@@ -638,6 +653,15 @@ export function OrderDetailsModal({ order, onClose, onStatusUpdate, onRefresh, o
         body: JSON.stringify({ orderId: localOrder._id }),
       })
       if (!res.ok) throw new Error('Failed to request delivery')
+      const now = new Date().toISOString()
+      const next: Order = {
+        ...localOrder,
+        deliveryRequestedAt: now,
+        autoDeliveryRequestMinutes: null,
+        autoDeliveryRequestScheduledAt: null,
+      }
+      setLocalOrder(next)
+      onOrderUpdated?.(next)
       onRefresh()
       showToast('Delivery requested. Captains in your area will see this order.', 'تم طلب التوصيل. سيرى الكباتن في منطقتك الطلب.', 'success')
       onClose()
@@ -1820,6 +1844,31 @@ Please deliver this order to the customer.
                     </div>
                   ) : step3Active ? (
                     <div className="p-1 rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200 border-2 border-blue-300">
+                      {tenantSlug &&
+                        localOrder.orderType === 'delivery' &&
+                        !localOrder.assignedDriver &&
+                        !localOrder.deliveryRequestedAt &&
+                        !['cancelled', 'refunded'].includes(localOrder.status) &&
+                        ['new', 'acknowledged', 'preparing', 'waiting_for_delivery'].includes(localOrder.status) && (
+                          <div className="mb-2 px-1">
+                            <AutoDeliveryRequestControls
+                              tenantSlug={tenantSlug}
+                              orderId={localOrder._id}
+                              deliveryRequestedAt={localOrder.deliveryRequestedAt}
+                              autoDeliveryRequestMinutes={localOrder.autoDeliveryRequestMinutes}
+                              autoDeliveryRequestScheduledAt={localOrder.autoDeliveryRequestScheduledAt}
+                              tenantDefaults={autoDeliveryDefaults}
+                              emphasize={localOrder.status === 'new'}
+                              onPatched={(p) => {
+                                setLocalOrder((prev) => {
+                                  const next = { ...prev, ...p }
+                                  onOrderUpdated?.(next)
+                                  return next
+                                })
+                              }}
+                            />
+                          </div>
+                        )}
                       <div className="flex gap-2 mb-2 px-1 pt-1">
                         <Button
                           onClick={requestDelivery}

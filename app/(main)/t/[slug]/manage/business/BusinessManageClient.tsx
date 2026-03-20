@@ -11,10 +11,11 @@ import { compressImageForUpload } from '@/lib/compress-image'
 import { getCountryNameAr, getCityNameAr } from '@/lib/registration-translations'
 import { toEnglishDigits } from '@/lib/phone'
 import { detectCityAndCountry } from '@/lib/geofencing-utils'
-import { Upload, ImageIcon, Volume2, Play, AlertTriangle, Trash2, Store, UtensilsCrossed, Clock, MapPin, Save, LocateFixed, RefreshCw, Activity, CheckCircle2, XCircle } from 'lucide-react'
+import { Upload, ImageIcon, Volume2, Play, AlertTriangle, Trash2, Store, UtensilsCrossed, Clock, MapPin, Save, LocateFixed, RefreshCw, Activity, CheckCircle2, XCircle, Timer } from 'lucide-react'
 import { TenantQRCode } from '@/components/TenantQRCode'
 import { useTenantBusiness } from '../TenantBusinessContext'
 import { isAbortError } from '@/lib/abort-utils'
+import { AUTO_DELIVERY_DROPDOWN_SEQUENCE } from '@/lib/auto-delivery-request'
 import dynamic from 'next/dynamic'
 
 const LocationPickerMap = dynamic(() => import('@/components/Cart/LocationPickerMap'), { ssr: false })
@@ -40,6 +41,8 @@ type BusinessData = {
     supportsDelivery?: boolean
     freeDeliveryEnabled?: boolean
     supportsDriverPickup?: boolean
+    defaultAutoDeliveryRequestMinutes?: number | null
+    saveAutoDeliveryRequestPreference?: boolean
     prioritizeWhatsapp?: boolean
     locationLat?: number
     locationLng?: number
@@ -186,6 +189,9 @@ type FormState = {
   supportsDelivery: boolean
   freeDeliveryEnabled: boolean
   supportsDriverPickup: boolean
+  /** Delay before auto-requesting drivers on new orders (when “remember” is on). Null = none. */
+  defaultAutoDeliveryRequestMinutes: number | null
+  saveAutoDeliveryRequestPreference: boolean
   prioritizeWhatsapp: boolean
   openingHours: Array<{ open: string; close: string; shifts: { open: string; close: string }[] }>
   customDateHours: Array<{ date: string; open: string; close: string; shifts: { open: string; close: string }[] }>
@@ -228,6 +234,15 @@ function formSnapshotFromData(d: BusinessData, currentSlug: string): FormState {
     supportsDelivery: tenant?.supportsDelivery ?? true,
     freeDeliveryEnabled: tenant?.freeDeliveryEnabled ?? false,
     supportsDriverPickup: tenant?.supportsDriverPickup ?? false,
+    defaultAutoDeliveryRequestMinutes: (() => {
+      const save = tenant?.saveAutoDeliveryRequestPreference === true
+      if (!save) return 20
+      const d = tenant?.defaultAutoDeliveryRequestMinutes
+      if (d === null) return null
+      if (d === undefined) return 20
+      return d
+    })(),
+    saveAutoDeliveryRequestPreference: tenant?.saveAutoDeliveryRequestPreference ?? false,
     prioritizeWhatsapp: tenant?.prioritizeWhatsapp ?? false,
     openingHours: Array.isArray(r?.openingHours) && r.openingHours.length > 0
       ? Array.from({ length: 7 }, (_, i) => ({ 
@@ -293,6 +308,8 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     supportsDelivery: true as boolean,
     freeDeliveryEnabled: false as boolean,
     supportsDriverPickup: false as boolean,
+    defaultAutoDeliveryRequestMinutes: 20 as number | null,
+    saveAutoDeliveryRequestPreference: false as boolean,
     prioritizeWhatsapp: false as boolean,
     openingHours: Array.from({ length: 7 }, () => ({ open: '', close: '', shifts: [] as { open: string; close: string }[] })),
     customDateHours: [] as Array<{ date: string; open: string; close: string; shifts?: { open: string; close: string }[] }>,
@@ -729,6 +746,12 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           supportsDelivery: form.catalogMode ? false : form.supportsDelivery,
           freeDeliveryEnabled: form.catalogMode ? false : (form.supportsDelivery ? form.freeDeliveryEnabled : false),
           supportsDriverPickup: form.catalogMode ? false : form.supportsDriverPickup,
+          ...(form.catalogMode || !form.supportsDelivery
+            ? { defaultAutoDeliveryRequestMinutes: null, saveAutoDeliveryRequestPreference: false }
+            : {
+                defaultAutoDeliveryRequestMinutes: form.saveAutoDeliveryRequestPreference ? form.defaultAutoDeliveryRequestMinutes : null,
+                saveAutoDeliveryRequestPreference: form.saveAutoDeliveryRequestPreference,
+              }),
           catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false,
           prioritizeWhatsapp: form.prioritizeWhatsapp,
           openingHours: form.openingHours,
@@ -754,8 +777,38 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
         showToast('Business saved successfully.', 'تم حفظ البيانات بنجاح.', 'success')
         lastSavedRef.current = JSON.parse(JSON.stringify(form))
         skipNextApplyRef.current = true
-        setData((prev) => prev ? { ...prev, tenant: { ...prev.tenant, name: form.name, slug: form.slug, businessType: form.businessType, businessSubcategoryIds: form.businessSubcategoryIds, country: form.country, city: form.city, ownerPhone: form.ownerPhone, catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false, freeDeliveryEnabled: form.catalogMode ? false : (form.supportsDelivery ? form.freeDeliveryEnabled : false), supportsDriverPickup: form.catalogMode ? false : form.supportsDriverPickup } } : null)
-        businessContext.refetch()
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                tenant: {
+                  ...prev.tenant,
+                  name: form.name,
+                  slug: form.slug,
+                  businessType: form.businessType,
+                  businessSubcategoryIds: form.businessSubcategoryIds,
+                  country: form.country,
+                  city: form.city,
+                  ownerPhone: form.ownerPhone,
+                  deactivated: form.deactivated,
+                  deactivateUntil: form.deactivateUntil || null,
+                  defaultLanguage: form.defaultLanguage || null,
+                  catalogHidePrices: form.catalogMode ? form.catalogHidePrices : false,
+                  supportsDineIn: form.catalogMode ? false : form.supportsDineIn,
+                  supportsReceiveInPerson: form.catalogMode ? false : form.supportsReceiveInPerson,
+                  supportsDelivery: form.catalogMode ? false : form.supportsDelivery,
+                  freeDeliveryEnabled: form.catalogMode ? false : (form.supportsDelivery ? form.freeDeliveryEnabled : false),
+                  supportsDriverPickup: form.catalogMode ? false : form.supportsDriverPickup,
+                  defaultAutoDeliveryRequestMinutes: form.catalogMode || !form.supportsDelivery ? null : (form.saveAutoDeliveryRequestPreference ? form.defaultAutoDeliveryRequestMinutes : null),
+                  saveAutoDeliveryRequestPreference: form.catalogMode || !form.supportsDelivery ? false : form.saveAutoDeliveryRequestPreference,
+                  prioritizeWhatsapp: form.prioritizeWhatsapp,
+                  locationLat: form.locationLat ?? undefined,
+                  locationLng: form.locationLng ?? undefined,
+                },
+              }
+            : null
+        )
+        void businessContext.refetch(true)
         if (resData?.redirectTo) {
           window.location.assign(resData.redirectTo)
           return
@@ -1287,6 +1340,64 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                         </p>
                       </div>
                     </label>
+                    <div
+                      className={`rounded-xl border border-slate-700/80 bg-slate-900 p-4 transition-colors ${
+                        form.supportsDelivery ? '' : 'opacity-60 pointer-events-none'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-500/20 text-blue-300">
+                          <Timer className="size-4" />
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              {t('Auto-request drivers after', 'طلب السائقين تلقائياً بعد')}
+                            </p>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {t(
+                                'Default delay when a new delivery order appears. You can change per order on the orders screen.',
+                                'المدة الافتراضية عند وصول طلب توصيل جديد. يمكنك تغييرها لكل طلب من شاشة الطلبات.'
+                              )}
+                            </p>
+                          </div>
+                          <select
+                            value={form.defaultAutoDeliveryRequestMinutes === null ? 'none' : String(form.defaultAutoDeliveryRequestMinutes)}
+                            disabled={!form.supportsDelivery}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setForm((f) => ({
+                                ...f,
+                                defaultAutoDeliveryRequestMinutes: v === 'none' ? null : Number(v),
+                              }))
+                            }}
+                            className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                          >
+                            {AUTO_DELIVERY_DROPDOWN_SEQUENCE.map((entry) => (
+                              <option key={entry === 'none' ? 'none' : entry} value={entry === 'none' ? 'none' : String(entry)} className="bg-slate-900">
+                                {entry === 'none'
+                                  ? t('None (manual only)', 'بدون (يدوي فقط)')
+                                  : entry === 0
+                                    ? t('Immediately', 'فوراً')
+                                    : t(`${entry} minutes`, `${entry} دقيقة`)}
+                              </option>
+                            ))}
+                          </select>
+                          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-200">
+                            <input
+                              type="checkbox"
+                              checked={form.saveAutoDeliveryRequestPreference}
+                              disabled={!form.supportsDelivery}
+                              onChange={(e) =>
+                                setForm((f) => ({ ...f, saveAutoDeliveryRequestPreference: e.target.checked }))
+                              }
+                              className="size-4 rounded border-slate-600 bg-slate-800 accent-amber-500"
+                            />
+                            {t('Remember this for new orders', 'تذكر هذا للطلبات الجديدة')}
+                          </label>
+                        </div>
+                      </div>
+                    </div>
                     <p className="mt-2 text-xs text-slate-400">
                       {t('Customers see Delivery only when this is checked and you have at least one delivery area.', 'يرى العملاء خيار التوصيل فقط عند تفعيله هنا مع وجود منطقة توصيل واحدة على الأقل.')}
                     </p>

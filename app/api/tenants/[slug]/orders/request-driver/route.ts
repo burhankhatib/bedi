@@ -41,7 +41,11 @@ export async function POST(
     return NextResponse.json({ error: 'Cannot request driver for a cancelled or refunded order' }, { status: 400 })
   }
   const now = new Date().toISOString()
-  await writeClient.patch(orderId).set({ deliveryRequestedAt: now }).commit()
+  await writeClient
+    .patch(orderId)
+    .set({ deliveryRequestedAt: now })
+    .unset(['autoDeliveryRequestMinutes', 'autoDeliveryRequestScheduledAt'])
+    .commit()
 
   // CRITICAL: Notify online drivers in same country/city via FCM or Web Push. Use writeClient (with token) so we can read all drivers.
   const { notifyDriversOfDeliveryOrder } = await import('@/lib/notify-drivers-for-order')

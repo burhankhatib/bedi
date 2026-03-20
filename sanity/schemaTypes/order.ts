@@ -177,6 +177,29 @@ export const orderType = defineType({
       description: 'Updated by the retry-delivery-requests cron job each time it re-sends push to online drivers (every 3 min).',
     }),
     defineField({
+      name: 'autoDeliveryRequestMinutes',
+      title: 'Auto delivery request (minutes)',
+      type: 'number',
+      description:
+        'Delay before automatically requesting drivers: 0 = immediately, 5–40, or 20 typical. Clear = no auto schedule.',
+      hidden: ({ parent }) => parent?.orderType !== 'delivery',
+    }),
+    defineField({
+      name: 'autoDeliveryRequestScheduledAt',
+      title: 'Auto delivery request scheduled at',
+      type: 'datetime',
+      description: 'When the system should fire the delivery request (set from tenant delay when scheduled).',
+      hidden: ({ parent }) => parent?.orderType !== 'delivery',
+    }),
+    defineField({
+      name: 'autoDeliveryRequestTriggeredAt',
+      title: 'Auto delivery request triggered at',
+      type: 'datetime',
+      description: 'Set when auto (or immediate) broadcast ran; avoids duplicate cron processing.',
+      readOnly: true,
+      hidden: ({ parent }) => parent?.orderType !== 'delivery',
+    }),
+    defineField({
       name: 'deliveryTier1SentAt',
       title: 'Delivery Tier 1 Sent At',
       type: 'datetime',

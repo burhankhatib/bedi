@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { checkTenantAuth } from '@/lib/tenant-auth'
-import { getTenantBySlug, isTenantSubscriptionExpired } from '@/lib/tenant'
+import { getTenantWithRestaurant, isTenantSubscriptionExpired } from '@/lib/tenant'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { AppNav } from '@/components/saas/AppNav'
@@ -42,7 +42,7 @@ export default async function ManageLayout({
     redirect('/dashboard')
   }
 
-  const tenant = await getTenantBySlug(slug, { useCdn: false })
+  const tenant = await getTenantWithRestaurant(slug, { useCdn: false })
   await enforcePhoneVerification(`/t/${slug}/manage`)
 
   let subscriptionStatus = tenant?.subscriptionStatus ?? 'trial'
@@ -73,7 +73,7 @@ export default async function ManageLayout({
       <AppNav variant="dashboard" />
 
       <TenantManagePushWrapper slug={slug}>
-        <TenantBusinessProvider slug={slug}>
+        <TenantBusinessProvider slug={slug} initialData={tenant ? { tenant: tenant as any, restaurantInfo: tenant.restaurantInfo } : undefined}>
         <div className="flex-1 mx-auto w-full max-w-[1400px] flex flex-col">
           {/* Utility Components out of the flex-row flow */}
           <PWAManager role="business-manage" slug={slug} variant="inline" hideInstall />

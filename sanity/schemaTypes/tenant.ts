@@ -284,6 +284,20 @@ export const tenantType = defineType({
       description: 'When enabled, new delivery orders are automatically sent to drivers (online and offline reminders) without manual "request driver" from the business.',
     }),
     defineField({
+      name: 'defaultAutoDeliveryRequestMinutes',
+      title: 'Default auto delivery request delay (minutes)',
+      type: 'number',
+      description:
+        'Pre-select delay for “request drivers after…”. Null = none / manual only in UI unless tenant picks each time. 0 = immediately; 5–40 allowed.',
+    }),
+    defineField({
+      name: 'saveAutoDeliveryRequestPreference',
+      title: 'Save auto delivery request preference',
+      type: 'boolean',
+      initialValue: false,
+      description: 'When true, new orders pre-fill the auto-request delay from defaultAutoDeliveryRequestMinutes.',
+    }),
+    defineField({
       name: 'businessLogo',
       title: 'Business logo',
       type: 'image',

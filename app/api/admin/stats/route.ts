@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { client } from '@/sanity/lib/client'
+import { client, clientNoCdn } from '@/sanity/lib/client'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 
-const freshClient = client.withConfig({ useCdn: false })
-
-export const dynamic = 'force-dynamic'
+// We conditionally use client (CDN) or clientNoCdn (origin)
 
 type DeliveryAnalyticsShape = {
   completedDeliveryOrders: number
@@ -35,6 +33,8 @@ export async function GET(req: NextRequest) {
   const fromParam = searchParams.get('from')
   const toParam = searchParams.get('to')
   const download = searchParams.get('download') === '1'
+  const refresh = searchParams.get('refresh') === '1'
+  const sanityClient = refresh ? clientNoCdn : client
   let dateFilter = ''
   const params: Record<string, string> = {}
   if (fromParam && toParam) {
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 
   const completionFetch =
     fromParam && toParam
-      ? freshClient.fetch<CompletionOrderRow[]>(
+      ? sanityClient.fetch<CompletionOrderRow[]>(
           `*[_type == "order" && status == "completed" && orderType == "delivery" && defined(completedAt) && completedAt >= $from && completedAt <= $to] {
             "siteRef": site._ref,
             deliveryFeePaidByBusiness
@@ -56,14 +56,14 @@ export async function GET(req: NextRequest) {
 
   const [tenantsCount, driversCount, totalOrdersCount, reportsCount, tenants, orderDocs, completionOrderDocs] =
     await Promise.all([
-      freshClient.fetch<number>(`count(*[_type == "tenant"])`),
-      freshClient.fetch<number>(`count(*[_type == "driver"])`),
-      freshClient.fetch<number>(`count(*[_type == "order"])`),
-      freshClient.fetch<number>(`count(*[_type == "report"])`),
-      freshClient.fetch<Array<{ _id: string; name: string; slug: string }>>(
+      sanityClient.fetch<number>(`count(*[_type == "tenant"])`),
+      sanityClient.fetch<number>(`count(*[_type == "driver"])`),
+      sanityClient.fetch<number>(`count(*[_type == "order"])`),
+      sanityClient.fetch<number>(`count(*[_type == "report"])`),
+      sanityClient.fetch<Array<{ _id: string; name: string; slug: string }>>(
         `*[_type == "tenant"] | order(name asc) { _id, name, "slug": slug.current }`
       ),
-      freshClient.fetch<
+      sanityClient.fetch<
         Array<{
           siteRef: string | null
           status?: string
@@ -234,5 +234,9 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  return NextResponse.json(body)
+  return NextResponse.json(body, {
+    headers: {
+      'Cache-Control': refresh ? 'no-store' : 'private, max-age=15, stale-while-revalidate=30'
+    }
+  })
 }

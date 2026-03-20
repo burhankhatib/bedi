@@ -1,10 +1,17 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import { Bell, Check, Volume2, VolumeX, HandHelping, CreditCard, UtensilsCrossed, Truck, Store, MapPin, Phone, Navigation, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { googleMapsNavigationUrl, wazeNavigationUrl } from '@/lib/maps-utils'
+import {
+  AUTO_DELIVERY_DROPDOWN_SEQUENCE,
+  initialAutoDeliveryMinutesFromTenant,
+} from '@/lib/auto-delivery-request'
+import type { AutoDeliveryDefaults } from '@/components/Orders/AutoDeliveryRequestControls'
+import { useLanguage } from '@/components/LanguageContext'
 
 interface NewOrder {
   _id: string
@@ -41,20 +48,48 @@ export interface StandaloneTableRequest {
 }
 
 interface OrderNotificationsProps {
-  onAcknowledge: (orderId: string, statusOverride?: string, notifyAt?: string) => void
+  onAcknowledge: (orderId: string, statusOverride?: string, notifyAt?: string) => void | Promise<void>
   onAcknowledgeTableRequest?: (orderId: string) => void
   onAcknowledgeStandaloneTableRequest?: (id: string) => void
   initialNewOrders?: NewOrder[]
   initialTableRequests?: TableRequest[]
   initialStandaloneTableRequests?: StandaloneTableRequest[]
+  tenantSlug?: string
+  autoDeliveryDefaults?: AutoDeliveryDefaults
   /** When provided (e.g. tenant page), use this sound so it works without fetching global restaurantInfo */
   initialNotificationSound?: string
   /** When true, only show volume control; do not show the blocking alert dialog (so order details modal can receive touches) */
   suppressDialog?: boolean
 }
 
-function NewOrderCard({ order, onAcknowledge }: { order: NewOrder, onAcknowledge: (orderId: string, statusOverride?: string, notifyAt?: string) => void }) {
+function NewOrderCard({
+  order,
+  onAcknowledge,
+  tenantSlug,
+  autoDeliveryDefaults,
+}: {
+  order: NewOrder
+  onAcknowledge: (
+    orderId: string,
+    statusOverride?: string,
+    notifyAt?: string,
+    deliveryAuto?: { minutes: number | null; savePreference: boolean }
+  ) => void | Promise<void>
+  tenantSlug?: string
+  autoDeliveryDefaults?: AutoDeliveryDefaults
+}) {
+  const { t, lang } = useLanguage()
+  const locale = lang === 'ar' ? 'ar-EG' : 'en-US'
   const [reminderMinutes, setReminderMinutes] = useState(60)
+  const [autoMinutes, setAutoMinutes] = useState<number | null>(() =>
+    initialAutoDeliveryMinutesFromTenant(autoDeliveryDefaults ?? {})
+  )
+  const [saveAutoPref, setSaveAutoPref] = useState(false)
+
+  useEffect(() => {
+    setAutoMinutes(initialAutoDeliveryMinutesFromTenant(autoDeliveryDefaults ?? {}))
+    setSaveAutoPref(false)
+  }, [order._id, autoDeliveryDefaults?.saveAutoDeliveryRequestPreference, autoDeliveryDefaults?.defaultAutoDeliveryRequestMinutes])
 
   const isDelivery = order.orderType === 'delivery'
   const isDineIn = order.orderType === 'dine-in'
@@ -85,18 +120,18 @@ function NewOrderCard({ order, onAcknowledge }: { order: NewOrder, onAcknowledge
                        scheduledDate.getFullYear() === tomorrow.getFullYear()
                        
     if (isToday) {
-      scheduleBadgeText = 'TODAY'
+      scheduleBadgeText = t('TODAY', 'اليوم')
       scheduleBadgeColor = 'bg-green-500 text-white'
     } else if (isTomorrow) {
-      scheduleBadgeText = 'TOMORROW'
+      scheduleBadgeText = t('TOMORROW', 'غداً')
       scheduleBadgeColor = 'bg-purple-600 text-white'
     } else {
-      scheduleBadgeText = 'LATER'
+      scheduleBadgeText = t('LATER', 'لاحقاً')
       scheduleBadgeColor = 'bg-slate-600 text-white'
     }
     
-    scheduledTimeStr = scheduledDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    scheduledDateStr = scheduledDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+    scheduledTimeStr = scheduledDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+    scheduledDateStr = scheduledDate.toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' })
   }
 
   // Per-type styles
@@ -129,7 +164,13 @@ function NewOrderCard({ order, onAcknowledge }: { order: NewOrder, onAcknowledge
         ? 'bg-fuchsia-600 hover:bg-fuchsia-700 text-white'
         : 'bg-teal-600 hover:bg-teal-700 text-white'
   const Icon = isScheduled ? Clock : isDelivery ? Truck : isDineIn ? UtensilsCrossed : Store
-  const typeLabel = isScheduled ? 'Scheduled' : isDelivery ? 'Delivery' : isDineIn ? 'Dine-in' : 'Pickup'
+  const typeLabel = isScheduled
+    ? t('Scheduled', 'مجدول')
+    : isDelivery
+      ? t('Delivery', 'توصيل')
+      : isDineIn
+        ? t('Dine-in', 'تناول في المكان')
+        : t('Pickup', 'استلام')
 
   const handleKeepInScheduled = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -153,7 +194,7 @@ function NewOrderCard({ order, onAcknowledge }: { order: NewOrder, onAcknowledge
           
           <div className="z-10 flex flex-col items-center text-center space-y-2">
             <span className="text-sm font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest">
-              Scheduled For
+              {t('Scheduled For', 'مجدول ليوم')}
             </span>
             <div className="text-5xl md:text-6xl font-black text-purple-900 dark:text-purple-50 tracking-tight">
               {scheduledTimeStr}
@@ -184,7 +225,7 @@ function NewOrderCard({ order, onAcknowledge }: { order: NewOrder, onAcknowledge
             <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">#{order.orderNumber}</span>
           </div>
           <p className="text-xl font-black text-slate-900 dark:text-white leading-tight truncate">
-            {order.customerName || 'Customer'}
+            {order.customerName || t('Customer', 'عميل')}
           </p>
         </div>
       </div>
@@ -220,7 +261,7 @@ function NewOrderCard({ order, onAcknowledge }: { order: NewOrder, onAcknowledge
                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-bold shadow-sm hover:bg-blue-700"
                 >
                   <Navigation className="h-3 w-3" />
-                  Maps
+                  {t('Maps', 'خرائط')}
                 </a>
                 <a
                   href={wazeUrl!}
@@ -229,7 +270,7 @@ function NewOrderCard({ order, onAcknowledge }: { order: NewOrder, onAcknowledge
                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500 text-white text-xs font-bold shadow-sm hover:bg-sky-600"
                 >
                   <Navigation className="h-3 w-3" />
-                  Waze
+                  {t('Waze', 'ويز')}
                 </a>
               </div>
             )}
@@ -244,7 +285,9 @@ function NewOrderCard({ order, onAcknowledge }: { order: NewOrder, onAcknowledge
                 <span className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-fuchsia-600 text-white text-sm font-black shrink-0">
                   {order.tableNumber}
                 </span>
-                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">Table {order.tableNumber}</span>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                  {t('Table', 'طاولة')} {order.tableNumber}
+                </span>
               </div>
             )}
             {order.customerPhone && (
@@ -276,17 +319,17 @@ function NewOrderCard({ order, onAcknowledge }: { order: NewOrder, onAcknowledge
         <div className="space-y-3 mt-4 pt-4 border-t border-purple-200 dark:border-purple-800">
           <div className="flex items-center gap-2">
             <label className="text-sm font-semibold text-purple-900 dark:text-purple-100 flex-1">
-              Remind me in:
+              {t('Remind me in:', 'ذكرني خلال:')}
             </label>
             <select
               value={reminderMinutes}
               onChange={(e) => setReminderMinutes(Number(e.target.value))}
               className="px-2 py-1.5 rounded-lg border-2 border-purple-200 dark:border-purple-800 bg-white dark:bg-purple-950 text-sm font-bold text-purple-700 dark:text-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
-              <option value={15}>15 min</option>
-              <option value={30}>30 min</option>
-              <option value={60}>1 hour</option>
-              <option value={120}>2 hours</option>
+              <option value={15}>{t('15 min', '15 د')}</option>
+              <option value={30}>{t('30 min', '30 د')}</option>
+              <option value={60}>{t('1 hour', 'ساعة')}</option>
+              <option value={120}>{t('2 hours', 'ساعتين')}</option>
             </select>
           </div>
           <div className="flex flex-col gap-2">
@@ -294,25 +337,90 @@ function NewOrderCard({ order, onAcknowledge }: { order: NewOrder, onAcknowledge
               onClick={handleKeepInScheduled}
               className="w-full rounded-xl font-black text-sm h-11 bg-purple-600 hover:bg-purple-700 text-white"
             >
-              Keep in Scheduled Orders
+              {t('Keep in Scheduled Orders', 'حفظ في الطلبات المجدولة')}
             </Button>
             <Button
               onClick={handleStartPreparing}
               variant="outline"
-              className="w-full rounded-xl font-black text-sm h-11 border-purple-200 text-purple-700 hover:bg-purple-50"
+              className="w-full rounded-xl font-black text-sm h-11 border-purple-200 text-purple-700 hover:bg-purple-50 dark:border-purple-700 dark:text-purple-200 dark:hover:bg-purple-900/30"
             >
-              Start Preparing Now
+              {t('Start Preparing Now', 'ابدأ التحضير الآن')}
             </Button>
           </div>
         </div>
       ) : (
-        <Button
-          onClick={(e) => { e.stopPropagation(); onAcknowledge(order._id) }}
-          className={`w-full rounded-xl font-black text-base h-11 shadow-md mt-2 ${btnStyle}`}
-        >
-          <Check className="w-4 h-4 mr-2" />
-          {isDelivery ? 'Accept Delivery' : isDineIn ? 'Order Received' : 'Order Received'}
-        </Button>
+        <>
+          {isDelivery && tenantSlug && (
+            <motion.div
+              className="mt-3 space-y-2 rounded-xl border-2 border-blue-200 bg-blue-50/90 p-3 dark:border-blue-800 dark:bg-blue-950/50"
+              animate={
+                autoMinutes !== null
+                  ? {
+                      boxShadow: [
+                        '0 0 0 0 rgba(37, 99, 235, 0)',
+                        '0 0 0 6px rgba(37, 99, 235, 0.12)',
+                      ],
+                    }
+                  : { boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }
+              }
+              transition={
+                autoMinutes !== null
+                  ? { repeat: Infinity, duration: 2, ease: [0.2, 0, 0, 1] }
+                  : { duration: 0.2 }
+              }
+            >
+              <p className="text-xs font-bold uppercase tracking-wide text-blue-800 dark:text-blue-200">
+                {t('Auto request drivers after', 'طلب السائقين تلقائياً بعد')}
+              </p>
+              <select
+                value={autoMinutes === null ? 'none' : String(autoMinutes)}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setAutoMinutes(v === 'none' ? null : Number(v))
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full rounded-lg border-2 border-blue-200 bg-white px-2 py-2 text-sm font-semibold text-blue-900 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-100"
+              >
+                {AUTO_DELIVERY_DROPDOWN_SEQUENCE.map((entry) => (
+                  <option key={entry === 'none' ? 'none' : entry} value={entry === 'none' ? 'none' : String(entry)}>
+                    {entry === 'none'
+                      ? t('None (manual only)', 'بدون (يدوي فقط)')
+                      : entry === 0
+                        ? t('Immediately', 'فوراً')
+                        : t(`${entry} minutes`, `${entry} دقيقة`)}
+                  </option>
+                ))}
+              </select>
+              <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-blue-900 dark:text-blue-100">
+                <input
+                  type="checkbox"
+                  checked={saveAutoPref}
+                  onChange={(e) => setSaveAutoPref(e.target.checked)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="size-4 rounded border-blue-300 text-blue-600"
+                />
+                {t('Save my choice for future orders', 'احفظ اختياري للطلبات القادمة')}
+              </label>
+            </motion.div>
+          )}
+          <Button
+            onClick={(e) => {
+              e.stopPropagation()
+              void onAcknowledge(
+                order._id,
+                undefined,
+                undefined,
+                tenantSlug && isDelivery ? { minutes: autoMinutes, savePreference: saveAutoPref } : undefined
+              )
+            }}
+            className={`w-full rounded-xl font-black text-base h-11 shadow-md mt-2 ${btnStyle}`}
+          >
+            <Check className="w-4 h-4 mr-2" />
+            {isDelivery
+              ? t('Accept Delivery', 'قبول التوصيل')
+              : t('Order Received', 'تم استلام الطلب')}
+          </Button>
+        </>
       )}
     </div>
   )
@@ -325,9 +433,12 @@ export function OrderNotifications({
   initialNewOrders = [],
   initialTableRequests = [],
   initialStandaloneTableRequests = [],
+  tenantSlug,
+  autoDeliveryDefaults,
   initialNotificationSound: initialSound,
   suppressDialog = false,
 }: OrderNotificationsProps) {
+  const { t: tDialog, lang } = useLanguage()
   const [newOrders, setNewOrders] = useState<NewOrder[]>(initialNewOrders)
   const [tableRequests, setTableRequests] = useState<TableRequest[]>(initialTableRequests)
   const [standaloneTableRequests, setStandaloneTableRequests] = useState<StandaloneTableRequest[]>(initialStandaloneTableRequests)
@@ -438,10 +549,17 @@ export function OrderNotifications({
     if (totalAlerts > 0 && previousCountRef.current < totalAlerts) {
       if ('Notification' in window && Notification.permission === 'granted') {
         try {
-          new Notification('🔔 Order alert', {
-            body: totalAlerts === 1
-              ? '1 new order or table request'
-              : `${totalAlerts} new orders or table requests`,
+          const title = lang === 'ar' ? '🔔 تنبيه طلب' : '🔔 Order alert'
+          const body =
+            totalAlerts === 1
+              ? lang === 'ar'
+                ? 'طلب جديد أو طلب طاولة واحد'
+                : '1 new order or table request'
+              : lang === 'ar'
+                ? `${totalAlerts} طلبات أو تنبيهات طاولة`
+                : `${totalAlerts} new orders or table requests`
+          new Notification(title, {
+            body,
             icon: '/icons/icon-192x192.png',
             badge: '/icons/icon-192x192.png',
           })
@@ -450,7 +568,7 @@ export function OrderNotifications({
         Notification.requestPermission()
       }
     }
-  }, [totalAlerts])
+  }, [totalAlerts, lang])
 
   // Request notification permission on mount
   useEffect(() => {
@@ -459,16 +577,40 @@ export function OrderNotifications({
     }
   }, [])
 
-  const handleAcknowledge = async (orderId: string, statusOverride?: string, notifyAt?: string) => {
+  const handleAcknowledge = async (
+    orderId: string,
+    statusOverride?: string,
+    notifyAt?: string,
+    deliveryAuto?: { minutes: number | null; savePreference: boolean }
+  ) => {
     try {
       isAcknowledgingRef.current = orderId
       setNewOrders((prev) => prev.filter((o) => o._id !== orderId))
       await onAcknowledge(orderId, statusOverride, notifyAt)
-      setTimeout(() => { isAcknowledgingRef.current = null }, 1000)
+      if (tenantSlug && deliveryAuto && deliveryAuto.minutes !== null) {
+        const r = await fetch(
+          `/api/tenants/${encodeURIComponent(tenantSlug)}/orders/${encodeURIComponent(orderId)}/auto-delivery-request`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              minutes: deliveryAuto.minutes,
+              savePreference: deliveryAuto.savePreference,
+            }),
+          }
+        )
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}))
+          console.warn('[OrderNotifications] auto-delivery-request', err)
+        }
+      }
+      setTimeout(() => {
+        isAcknowledgingRef.current = null
+      }, 1000)
     } catch (error) {
       console.error('[OrderNotifications] Error acknowledging order:', error)
       isAcknowledgingRef.current = null
-      alert('Failed to acknowledge order. Please try again.')
+      alert(tDialog('Failed to acknowledge order. Please try again.', 'تعذر تأكيد الطلب. يرجى المحاولة مرة أخرى.'))
     }
   }
 
@@ -482,7 +624,7 @@ export function OrderNotifications({
     } catch (error) {
       console.error('[OrderNotifications] Error acknowledging table request:', error)
       isAcknowledgingRef.current = null
-      alert('Failed to acknowledge table request. Please try again.')
+      alert(tDialog('Failed to acknowledge table request. Please try again.', 'تعذر تأكيد طلب الطاولة. يرجى المحاولة مرة أخرى.'))
     }
   }
 
@@ -496,7 +638,7 @@ export function OrderNotifications({
     } catch (error) {
       console.error('[OrderNotifications] Error acknowledging standalone table request:', error)
       isAcknowledgingRef.current = null
-      alert('Failed to acknowledge. Please try again.')
+      alert(tDialog('Failed to acknowledge. Please try again.', 'تعذر التأكيد. يرجى المحاولة مرة أخرى.'))
     }
   }
 
@@ -517,14 +659,14 @@ export function OrderNotifications({
         {soundBlocked && (
           <Button type="button" size="sm" className="w-full mb-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-medium" onClick={() => { notificationAudioRef.current?.play().then(() => setSoundBlocked(false)).catch(() => {}) }}>
             <Volume2 className="w-4 h-4 mr-1.5 inline" />
-            Click to enable sound
+            {tDialog('Click to enable sound', 'اضغط لتفعيل الصوت')}
           </Button>
         )}
         <div className="flex items-center gap-2">
-          <Button onClick={toggleMute} variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" title={isMuted ? 'Unmute' : 'Mute'}>
+          <Button onClick={toggleMute} variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" title={isMuted ? tDialog('Unmute', 'إلغاء كتم') : tDialog('Mute', 'كتم')}>
             {isMuted ? <VolumeX className="w-4 h-4 text-slate-600 dark:text-slate-400" /> : <Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
           </Button>
-          <input type="range" min="0" max="1" step="0.1" value={isMuted ? 0 : volume} onChange={handleVolumeChange} className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-orange-500" title="Volume" />
+          <input type="range" min="0" max="1" step="0.1" value={isMuted ? 0 : volume} onChange={handleVolumeChange} className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-orange-500" title={tDialog('Volume', 'مستوى الصوت')} />
           <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 w-8 text-right shrink-0">{Math.round((isMuted ? 0 : volume) * 100)}%</span>
         </div>
       </div>
@@ -545,11 +687,11 @@ export function OrderNotifications({
             }}
           >
             <Volume2 className="w-4 h-4 mr-1.5 inline" />
-            Click to enable sound
+            {tDialog('Click to enable sound', 'اضغط لتفعيل الصوت')}
           </Button>
         )}
         <div className="flex items-center gap-2">
-          <Button onClick={toggleMute} variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" title={isMuted ? 'Unmute' : 'Mute'}>
+          <Button onClick={toggleMute} variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" title={isMuted ? tDialog('Unmute', 'إلغاء كتم') : tDialog('Mute', 'كتم')}>
             {isMuted ? <VolumeX className="w-4 h-4 text-slate-600 dark:text-slate-400" /> : <Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
           </Button>
           <input
@@ -560,7 +702,7 @@ export function OrderNotifications({
             value={isMuted ? 0 : volume}
             onChange={handleVolumeChange}
             className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer accent-orange-500"
-            title="Volume"
+            title={tDialog('Volume', 'مستوى الصوت')}
           />
           <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 w-8 text-right shrink-0">
             {Math.round((isMuted ? 0 : volume) * 100)}%
@@ -590,10 +732,12 @@ export function OrderNotifications({
                 </div>
                 <div>
                   <DialogTitle className="text-base font-black text-slate-900 dark:text-white leading-tight">
-                    {totalAlerts === 1 ? 'New Alert' : `${totalAlerts} Alerts`}
+                    {totalAlerts === 1
+                      ? tDialog('New Alert', 'تنبيه جديد')
+                      : tDialog(`${totalAlerts} Alerts`, `${totalAlerts} تنبيهات`)}
                   </DialogTitle>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Acknowledge all to stop the sound
+                    {tDialog('Acknowledge all to stop the sound', 'أكّد الكل لإيقاف الصوت')}
                   </p>
                 </div>
               </div>
@@ -604,7 +748,13 @@ export function OrderNotifications({
 
             {/* New Orders */}
             {newOrders.map((order) => (
-              <NewOrderCard key={order._id} order={order} onAcknowledge={handleAcknowledge} />
+              <NewOrderCard
+                key={order._id}
+                order={order}
+                onAcknowledge={handleAcknowledge}
+                tenantSlug={tenantSlug}
+                autoDeliveryDefaults={autoDeliveryDefaults}
+              />
             ))}
 
             {/* Table Requests (dine-in order: waiter or check) */}
@@ -621,7 +771,9 @@ export function OrderNotifications({
                 ? 'bg-amber-500 hover:bg-amber-600 text-slate-950'
                 : 'bg-emerald-600 hover:bg-emerald-700 text-white'
               const Icon = isWaiter ? HandHelping : CreditCard
-              const typeLabel = isWaiter ? 'Waiter Help' : 'Pay Request'
+              const typeLabel = isWaiter
+                ? tDialog('Waiter Help', 'مساعدة النادل')
+                : tDialog('Pay Request', 'طلب الدفع')
 
               return (
                 <div
@@ -645,7 +797,7 @@ export function OrderNotifications({
                           {req.tableNumber || '?'}
                         </span>
                         <p className="text-xl font-black text-slate-900 dark:text-white leading-tight">
-                          Table {req.tableNumber || '—'}
+                          {tDialog('Table', 'طاولة')} {req.tableNumber || '—'}
                         </p>
                       </div>
                     </div>
@@ -653,11 +805,18 @@ export function OrderNotifications({
                   <div className="pl-14 mb-3">
                     {!isWaiter && req.customerRequestPaymentMethod && (
                       <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        Payment method: <span className="font-black">{req.customerRequestPaymentMethod === 'cash' ? 'Cash' : 'Card'}</span>
+                        {tDialog('Payment method:', 'طريقة الدفع:')}{' '}
+                        <span className="font-black">
+                          {req.customerRequestPaymentMethod === 'cash'
+                            ? tDialog('Cash', 'نقداً')
+                            : tDialog('Card', 'بطاقة')}
+                        </span>
                       </p>
                     )}
                     {isWaiter && (
-                      <p className="text-sm text-slate-600 dark:text-slate-400">Customer needs assistance at the table.</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {tDialog('Customer needs assistance at the table.', 'العميل يحتاج مساعدة على الطاولة.')}
+                      </p>
                     )}
                   </div>
                   <Button
@@ -665,7 +824,9 @@ export function OrderNotifications({
                     className={`w-full rounded-xl font-black text-base h-11 shadow-md ${btnStyle}`}
                   >
                     <Check className="w-4 h-4 mr-2" />
-                    {isWaiter ? `Go to Table ${req.tableNumber || ''}` : 'On My Way'}
+                    {isWaiter
+                      ? `${tDialog('Go to Table', 'اذهب إلى الطاولة')} ${req.tableNumber || ''}`.trim()
+                      : tDialog('On My Way', 'في الطريق')}
                   </Button>
                 </div>
               )
@@ -685,7 +846,7 @@ export function OrderNotifications({
                     <div className="flex items-center gap-2 flex-wrap mb-0.5">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-black uppercase tracking-wide bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
                         <HandHelping className="h-3 w-3" />
-                        Waiter Call
+                        {tDialog('Waiter Call', 'نداء النادل')}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -693,20 +854,22 @@ export function OrderNotifications({
                         {req.tableNumber}
                       </span>
                       <p className="text-xl font-black text-slate-900 dark:text-white leading-tight">
-                        Table {req.tableNumber}
+                        {tDialog('Table', 'طاولة')} {req.tableNumber}
                       </p>
                     </div>
                   </div>
                 </div>
                 <div className="pl-14 mb-3">
-                  <p className="text-sm text-slate-600 dark:text-slate-400">Customer needs a waiter at this table.</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    {tDialog('Customer needs a waiter at this table.', 'العميل يطلب نادلاً على هذه الطاولة.')}
+                  </p>
                 </div>
                 <Button
                   onClick={(e) => { e.stopPropagation(); handleAcknowledgeStandaloneTableRequest(req._id) }}
                   className="w-full rounded-xl font-black text-base h-11 shadow-md bg-amber-500 hover:bg-amber-600 text-slate-950"
                 >
                   <Check className="w-4 h-4 mr-2" />
-                  Go to Table {req.tableNumber}
+                  {tDialog('Go to Table', 'اذهب إلى الطاولة')} {req.tableNumber}
                 </Button>
               </div>
             ))}
