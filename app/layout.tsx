@@ -1,19 +1,17 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Cairo, Plus_Jakarta_Sans } from "next/font/google";
+import { Cairo } from "next/font/google";
 import { ClientProviders } from "@/components/ClientProviders";
 import "./globals.css";
 
+/** Single UI font — avoids Next.js preloading a second family (Plus Jakarta was never referenced in CSS → browser preload warning). */
 const cairo = Cairo({
   variable: "--font-cairo",
   subsets: ["latin", "arabic"],
   weight: ["400", "700"],
-});
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  variable: "--font-brand",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  display: "swap",
+  preload: true,
+  adjustFontFallback: true,
 });
 
 export const metadata: Metadata = {
@@ -147,7 +145,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${cairo.variable} ${plusJakartaSans.variable}`} suppressHydrationWarning>
+    <html lang="en" className={cairo.variable} suppressHydrationWarning>
       <body className="font-sans antialiased">
         <WebSiteStructuredData />
         <Script

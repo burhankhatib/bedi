@@ -29,94 +29,115 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
-  const { slug } = await params
-  if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
+  try {
+    const { slug } = await params
+    if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
-  const body = await req.json()
-  const { orderId, status, completedAt, acknowledgeTableRequest, notifyAt, newScheduledFor } = body
-  if (!orderId) {
-    return NextResponse.json({ error: 'orderId required' }, { status: 400 })
-  }
-
-  const check = await checkOrderOwnership(slug, orderId)
-  if (!check.ok) return NextResponse.json({ error: 'Forbidden' }, { status: check.status })
-
-  const orderBefore = await writeClient.fetch<{ assignedDriver?: any, scheduledFor?: string } | null>(
-    `*[_type == "order" && _id == $orderId][0]{ assignedDriver, scheduledFor }`,
-    { orderId }
-  )
-
-  if (acknowledgeTableRequest === true) {
-    const now = new Date().toISOString()
-    await writeClient.patch(orderId).set({ customerRequestAcknowledgedAt: now }).commit()
-    return NextResponse.json({ success: true, orderId, acknowledgedTableRequest: true })
-  }
-
-  if (!status) {
-    return NextResponse.json({ error: 'status required' }, { status: 400 })
-  }
-
-  const patch = writeClient.patch(orderId)
-  const updateData: Record<string, unknown> = { status }
-  if (completedAt != null) updateData.completedAt = completedAt
-  if (newScheduledFor && newScheduledFor !== orderBefore?.scheduledFor) {
-    updateData.scheduledFor = newScheduledFor
-    updateData.reminderSent = false
-    patch.unset(['businessWhatsappNotifiedAt'])
-    
-    // Handle edit history
-    if (orderBefore?.scheduledFor) {
-      const historyEntry = {
-        _key: `history-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        previousScheduledFor: orderBefore.scheduledFor,
-        changedAt: new Date().toISOString()
-      }
-      patch.setIfMissing({ scheduleEditHistory: [] })
-           .insert('after', 'scheduleEditHistory[-1]', [historyEntry])
+    let body: Record<string, unknown>
+    try {
+      body = (await req.json()) as Record<string, unknown>
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
-  }
-  if (status === 'acknowledged') {
-    updateData.acknowledgedAt = new Date().toISOString()
-    if (notifyAt) {
-      updateData.notifyAt = notifyAt
+
+    const orderId = body.orderId as string | undefined
+    const status = body.status as string | undefined
+    const completedAt = body.completedAt
+    const acknowledgeTableRequest = body.acknowledgeTableRequest === true
+    const notifyAt = body.notifyAt as string | undefined
+    const newScheduledFor = body.newScheduledFor as string | undefined
+
+    if (!orderId) {
+      return NextResponse.json({ error: 'orderId required' }, { status: 400 })
+    }
+
+    const check = await checkOrderOwnership(slug, orderId)
+    if (!check.ok) return NextResponse.json({ error: 'Forbidden' }, { status: check.status })
+
+    const orderBefore = await writeClient.fetch<{ assignedDriver?: any, scheduledFor?: string } | null>(
+      `*[_type == "order" && _id == $orderId][0]{ assignedDriver, scheduledFor }`,
+      { orderId }
+    )
+
+    if (acknowledgeTableRequest === true) {
+      const now = new Date().toISOString()
+      await writeClient.patch(orderId).set({ customerRequestAcknowledgedAt: now }).commit()
+      return NextResponse.json({ success: true, orderId, acknowledgedTableRequest: true })
+    }
+
+    if (!status) {
+      return NextResponse.json({ error: 'status required' }, { status: 400 })
+    }
+
+    const patch = writeClient.patch(orderId)
+    const updateData: Record<string, unknown> = { status }
+    if (completedAt != null) updateData.completedAt = completedAt
+    if (newScheduledFor && newScheduledFor !== orderBefore?.scheduledFor) {
+      updateData.scheduledFor = newScheduledFor
       updateData.reminderSent = false
-      await scheduleScheduledOrderReminder(orderId, notifyAt)
+      patch.unset(['businessWhatsappNotifiedAt'])
+      
+      // Handle edit history
+      if (orderBefore?.scheduledFor) {
+        const historyEntry = {
+          _key: `history-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          previousScheduledFor: orderBefore.scheduledFor,
+          changedAt: new Date().toISOString()
+        }
+        patch.setIfMissing({ scheduleEditHistory: [] })
+             .insert('after', 'scheduleEditHistory[-1]', [historyEntry])
+      }
     }
-  }
-  if (status === 'preparing' || status === 'waiting_for_delivery') {
-    updateData.preparedAt = new Date().toISOString()
-    if (orderBefore?.assignedDriver) {
-      const reqAt = new Date().toISOString()
-      updateData.deliveryRequestedAt = reqAt
-      patch.unset(['assignedDriver'])
-      await scheduleDeliveryLifecycleJobs(orderId, new Date(reqAt).getTime())
+    if (status === 'acknowledged') {
+      updateData.acknowledgedAt = new Date().toISOString()
+      if (notifyAt) {
+        updateData.notifyAt = notifyAt
+        updateData.reminderSent = false
+        await scheduleScheduledOrderReminder(orderId, notifyAt)
+      }
     }
-  }
-  if (status === 'out-for-delivery') {
-    updateData.driverPickedUpAt = new Date().toISOString()
-    await cancelOrderJobs(orderId)
-  }
-  if (status === 'cancelled' || status === 'refunded') {
-    updateData.cancelledAt = new Date().toISOString()
-    await cancelOrderJobs(orderId)
-  }
-  if (status === 'completed' || status === 'served') {
-    await cancelOrderJobs(orderId)
-  }
-  if (status === 'new') {
-    await scheduleOrderUnacceptedWhatsapp(orderId, Date.now())
-  }
+    if (status === 'preparing' || status === 'waiting_for_delivery') {
+      updateData.preparedAt = new Date().toISOString()
+      if (orderBefore?.assignedDriver) {
+        const reqAt = new Date().toISOString()
+        updateData.deliveryRequestedAt = reqAt
+        patch.unset(['assignedDriver'])
+        await scheduleDeliveryLifecycleJobs(orderId, new Date(reqAt).getTime())
+      }
+    }
+    if (status === 'out-for-delivery') {
+      updateData.driverPickedUpAt = new Date().toISOString()
+      await cancelOrderJobs(orderId)
+    }
+    if (status === 'cancelled' || status === 'refunded') {
+      updateData.cancelledAt = new Date().toISOString()
+      await cancelOrderJobs(orderId)
+    }
+    if (status === 'completed' || status === 'served') {
+      await cancelOrderJobs(orderId)
+    }
+    if (status === 'new') {
+      await scheduleOrderUnacceptedWhatsapp(orderId, Date.now())
+    }
 
-  await patch.set(updateData).commit()
+    await patch.set(updateData).commit()
 
-  // Realtime/push notification failures should not block tenant status updates.
-  await NotificationService.onOrderStatusUpdated({
-    orderId,
-    status,
-    isScheduleUpdate: !!newScheduledFor && newScheduledFor !== orderBefore?.scheduledFor
-  }).catch((notifyError) => {
-    console.warn('[tenant/orders/status] Notification dispatch failed:', notifyError)
-  })
+    // Realtime/push notification failures should not block tenant status updates.
+    await NotificationService.onOrderStatusUpdated({
+      orderId,
+      status,
+      isScheduleUpdate: !!newScheduledFor && newScheduledFor !== orderBefore?.scheduledFor
+    }).catch((notifyError) => {
+      console.warn('[tenant/orders/status] Notification dispatch failed:', notifyError)
+    })
 
-  return NextResponse.json({ success: true, orderId, status })
+    return NextResponse.json({ success: true, orderId, status })
+  } catch (error) {
+    console.error('[tenant/orders/status] PATCH failed:', error)
+    const details = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json(
+      { error: 'Failed to update order status', details },
+      { status: 500 }
+    )
+  }
 }

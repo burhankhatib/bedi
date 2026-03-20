@@ -257,7 +257,14 @@ export function OrdersClient({ initialOrders, tenantSlug, skipProtection, openOr
       const responseData = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(responseData.error || `Failed to update order status: ${response.status} ${response.statusText}`);
+        const base =
+          (typeof responseData.error === 'string' && responseData.error) ||
+          `Failed to update order status: ${response.status} ${response.statusText}`
+        const details =
+          typeof (responseData as { details?: string }).details === 'string'
+            ? (responseData as { details?: string }).details
+            : ''
+        throw new Error(details ? `${base} — ${details}` : base)
       }
 
       if (!responseData.success) {

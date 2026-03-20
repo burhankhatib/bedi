@@ -24,18 +24,23 @@ export async function scheduleJob(input: ScheduleJobInput): Promise<void> {
   const db = getFirestoreAdmin()
   if (!db) return
   const id = jobId(input.type, input.orderId)
-  await db.collection('scheduledJobs').doc(id).set(
-    {
-      type: input.type,
-      orderId: input.orderId,
-      runAtMs: input.runAtMs,
-      payload: input.payload ?? {},
-      status: 'pending',
-      attempts: 0,
-      updatedAtMs: Date.now(),
-    },
-    { merge: true }
-  )
+  try {
+    await db.collection('scheduledJobs').doc(id).set(
+      {
+        type: input.type,
+        orderId: input.orderId,
+        runAtMs: input.runAtMs,
+        payload: input.payload ?? {},
+        status: 'pending',
+        attempts: 0,
+        updatedAtMs: Date.now(),
+      },
+      { merge: true }
+    )
+  } catch (err) {
+    // Never fail order flows (Firestore index/network/etc.)
+    console.warn('[delivery-job-scheduler] scheduleJob failed', input.type, input.orderId, err)
+  }
 }
 
 export async function scheduleDeliveryLifecycleJobs(orderId: string, requestedAtMs = Date.now()): Promise<void> {
@@ -61,20 +66,24 @@ export async function cancelOrderJobs(orderId: string): Promise<void> {
   if (!isFirebaseAdminConfigured()) return
   const db = getFirestoreAdmin()
   if (!db) return
-  const snapshot = await db
-    .collection('scheduledJobs')
-    .where('orderId', '==', orderId)
-    .where('status', '==', 'pending')
-    .get()
+  try {
+    // Avoid compound queries: they require a Firestore composite index and throw
+    // FAILED_PRECONDITION if missing — which would break order status updates (500).
+    const snapshot = await db.collection('scheduledJobs').where('orderId', '==', orderId).get()
 
-  if (!snapshot.docs.length) return
-  await Promise.all(
-    snapshot.docs.map((doc) =>
-      doc.ref.update({
-        status: 'cancelled',
-        updatedAtMs: Date.now(),
-      })
+    const pending = snapshot.docs.filter((doc) => (doc.data()?.status as string | undefined) === 'pending')
+    if (!pending.length) return
+
+    await Promise.all(
+      pending.map((doc) =>
+        doc.ref.update({
+          status: 'cancelled',
+          updatedAtMs: Date.now(),
+        })
+      )
     )
-  )
+  } catch (err) {
+    console.warn('[delivery-job-scheduler] cancelOrderJobs failed — order status should still proceed', orderId, err)
+  }
 }
 
