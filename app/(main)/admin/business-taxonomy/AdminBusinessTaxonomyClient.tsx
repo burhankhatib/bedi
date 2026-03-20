@@ -68,6 +68,7 @@ export function AdminBusinessTaxonomyClient() {
   const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [data, setData] = useState<TaxonomyResponse | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+  const [subcatQuery, setSubcatQuery] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -101,12 +102,50 @@ export function AdminBusinessTaxonomyClient() {
     })
   }
 
+  const expandAll = () => {
+    if (!data?.categories?.length) return
+    setExpanded(new Set(data.categories.map((c) => c._id)))
+  }
+
+  const collapseAll = () => setExpanded(new Set())
+
+  const subcatQueryNorm = subcatQuery.trim().toLowerCase()
+
   const subsFor = (value: string) =>
-    (data?.subcategories ?? []).filter((s) => s.businessType === value).sort((a, b) => {
-      const so = (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
-      if (so !== 0) return so
-      return (a.title_en || '').localeCompare(b.title_en || '')
-    })
+    (data?.subcategories ?? [])
+      .filter((s) => {
+        if (s.businessType !== value) return false
+        if (!subcatQueryNorm) return true
+        const en = (s.title_en || '').toLowerCase()
+        const ar = (s.title_ar || '').toLowerCase()
+        const slug = (s.slug || '').toLowerCase()
+        return en.includes(subcatQueryNorm) || ar.includes(subcatQueryNorm) || slug.includes(subcatQueryNorm)
+      })
+      .sort((a, b) => {
+        const so = (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+        if (so !== 0) return so
+        return (a.title_en || '').localeCompare(b.title_en || '')
+      })
+
+  /** Total subs in dataset (not filtered) — confirms API returned seeded rows. */
+  const totalSubcategories = data?.subcategories?.length ?? 0
+
+  /** When searching, open every category that still has matching subs. */
+  useEffect(() => {
+    if (!data?.categories?.length || !subcatQueryNorm) return
+    const next = new Set<string>()
+    for (const cat of data.categories) {
+      const has = (data.subcategories ?? []).some((s) => {
+        if (s.businessType !== cat.value) return false
+        const en = (s.title_en || '').toLowerCase()
+        const ar = (s.title_ar || '').toLowerCase()
+        const slug = (s.slug || '').toLowerCase()
+        return en.includes(subcatQueryNorm) || ar.includes(subcatQueryNorm) || slug.includes(subcatQueryNorm)
+      })
+      if (has) next.add(cat._id)
+    }
+    setExpanded(next)
+  }, [data, subcatQueryNorm])
 
   const reorderCategories = async (orderedIds: string[]) => {
     setBusy(true)
@@ -381,10 +420,16 @@ export function AdminBusinessTaxonomyClient() {
         <div>
           <h1 className="text-2xl font-bold text-white">Business taxonomy</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-400">
-            Categories are business types (restaurant, grocery, pharmacy...). To add cuisines/specialties like Italian or
-            Burgers, expand a category and use Add under Sub-categories. Edits apply everywhere; deleting a sub-category
-            removes it from all businesses.
+            Categories are business types (restaurant, grocery, pharmacy…). Sub-categories (specialties) live inside each
+            category—use <span className="font-medium text-slate-300">Expand all</span> below or click the row. Search
+            filters specialties and opens matching categories. Edits apply everywhere; delete removes a specialty from all
+            businesses.
           </p>
+          {!loading && data ? (
+            <p className="mt-2 text-xs text-slate-500">
+              Loaded {totalSubcategories.toLocaleString()} sub-categories across {categoriesSorted.length} business types.
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -404,6 +449,24 @@ export function AdminBusinessTaxonomyClient() {
             onClick={() => void runMigrateRefs()}
           >
             Migrate tenant refs
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-slate-600 bg-slate-900 text-slate-200"
+            disabled={busy || !data}
+            onClick={() => expandAll()}
+          >
+            Expand all
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-slate-600 bg-slate-900 text-slate-200"
+            disabled={busy || !data}
+            onClick={() => collapseAll()}
+          >
+            Collapse all
           </Button>
           <Button
             type="button"
@@ -445,9 +508,28 @@ export function AdminBusinessTaxonomyClient() {
         </div>
       )}
 
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm text-slate-400">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Find sub-categories</span>
+          <Input
+            value={subcatQuery}
+            onChange={(e) => setSubcatQuery(e.target.value)}
+            placeholder="e.g. Italian, burger, مشاوي…"
+            className="max-w-xl border-slate-600 bg-slate-900 text-white placeholder:text-slate-600"
+            disabled={!data}
+          />
+        </label>
+        {subcatQueryNorm ? (
+          <Button type="button" variant="ghost" className="shrink-0 text-slate-400" onClick={() => setSubcatQuery('')}>
+            Clear search
+          </Button>
+        ) : null}
+      </div>
+
       <div className="space-y-3">
         {categoriesSorted.map((cat, idx) => {
           const subs = subsFor(cat.value)
+          const subsTotal = (data?.subcategories ?? []).filter((s) => s.businessType === cat.value).length
           const open = expanded.has(cat._id)
           const tc = data?.tenantCountByType?.[cat.value] ?? 0
           return (
@@ -465,7 +547,11 @@ export function AdminBusinessTaxonomyClient() {
                   <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400">
                     {tc} business{tc === 1 ? '' : 'es'}
                   </span>
-                  <span className="text-xs text-slate-500">{subs.length} sub</span>
+                  <span className="text-xs text-slate-500">
+                    {subcatQueryNorm && subs.length !== subsTotal
+                      ? `${subs.length} / ${subsTotal} sub`
+                      : `${subsTotal} sub`}
+                  </span>
                 </button>
                 <div className="flex flex-wrap items-center gap-1">
                   <Button

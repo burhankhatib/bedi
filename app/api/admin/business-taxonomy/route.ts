@@ -12,8 +12,11 @@ export const dynamic = 'force-dynamic'
 
 const writeClient = client.withConfig({ token: writeToken || undefined, useCdn: false })
 
+/** Seeded sub-categories use ids like `businessSubcategory.{slug}-{type}`; those docs are not returned by unauthenticated API reads. */
+const readClient = clientNoCdn.withConfig({ token: writeToken || undefined, useCdn: false })
+
 async function ensureBaselineBusinessCategories() {
-  const existingValues = await clientNoCdn.fetch<string[]>(
+  const existingValues = await readClient.fetch<string[]>(
     `array::unique(*[_type == "businessCategory" && defined(value) && value != ""].value)`
   )
   const existing = new Set((existingValues ?? []).map((v) => String(v).trim()).filter(Boolean))
@@ -59,7 +62,7 @@ function businessTypeId(input: string): string {
 }
 
 async function countTenantsByBusinessType(value: string): Promise<number> {
-  const n = await clientNoCdn.fetch<number>(
+  const n = await readClient.fetch<number>(
     `count(*[_type == "tenant" && businessType == $v])`,
     { v: value }
   )
@@ -70,7 +73,7 @@ async function stripSubcategoryFromAllTenants(
   w: SanityClient,
   subcategoryId: string
 ): Promise<number> {
-  const tenants = await clientNoCdn.fetch<
+  const tenants = await readClient.fetch<
     Array<{ _id: string; businessSubcategories?: Array<{ _ref: string; _key?: string; _type?: string }> }>
   >(`*[_type == "tenant" && references($sid)]{ _id, businessSubcategories }`, { sid: subcategoryId })
 
@@ -122,18 +125,18 @@ export async function GET() {
   await ensureBaselineBusinessCategories()
 
   const [categories, subcategories, tenantTypes] = await Promise.all([
-    clientNoCdn.fetch<CategoryRow[]>(
+    readClient.fetch<CategoryRow[]>(
       `*[_type == "businessCategory"] | order(sortOrder asc, name_en asc) {
         _id, value, name_en, name_ar, sortOrder,
         "imageAssetRef": image.asset._ref
       }`
     ),
-    clientNoCdn.fetch<SubRow[]>(
+    readClient.fetch<SubRow[]>(
       `*[_type == "businessSubcategory"] | order(businessType asc, sortOrder asc, title_en asc) {
         _id, "slug": slug.current, title_en, title_ar, businessType, sortOrder
       }`
     ),
-    clientNoCdn.fetch<string[]>(`*[_type == "tenant" && defined(businessType)].businessType`),
+    readClient.fetch<string[]>(`*[_type == "tenant" && defined(businessType)].businessType`),
   ])
 
   const tenantCountByType: Record<string, number> = {}
@@ -173,13 +176,13 @@ export async function POST(req: NextRequest) {
         if (!name_en || !name_ar) {
           return NextResponse.json({ error: 'name_en and name_ar are required' }, { status: 400 })
         }
-        const dup = await clientNoCdn.fetch<{ _id: string } | null>(
+        const dup = await readClient.fetch<{ _id: string } | null>(
           `*[_type == "businessCategory" && value == $v][0]{ _id }`,
           { v: value }
         )
         if (dup) return NextResponse.json({ error: 'A category with this value already exists' }, { status: 409 })
         const topSo =
-          (await clientNoCdn.fetch<number | null>(
+          (await readClient.fetch<number | null>(
             `*[_type == "businessCategory"] | order(sortOrder desc)[0].sortOrder`
           )) ?? -1
         const sortOrder =
@@ -202,7 +205,7 @@ export async function POST(req: NextRequest) {
       case 'updateCategory': {
         const id = String(body.id ?? '').trim()
         if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-        const existing = await clientNoCdn.fetch<CategoryRow | null>(
+        const existing = await readClient.fetch<CategoryRow | null>(
           `*[_type == "businessCategory" && _id == $id][0]{ _id, value, name_en, name_ar, sortOrder }`,
           { id }
         )
@@ -228,7 +231,7 @@ export async function POST(req: NextRequest) {
                 { status: 400 }
               )
             }
-            const dup = await clientNoCdn.fetch<{ _id: string } | null>(
+            const dup = await readClient.fetch<{ _id: string } | null>(
               `*[_type == "businessCategory" && value == $v && _id != $id][0]{ _id }`,
               { v: nextVal, id }
             )
@@ -258,7 +261,7 @@ export async function POST(req: NextRequest) {
         if (!id || !confirmValue) {
           return NextResponse.json({ error: 'id and confirmValue (exact machine id) are required' }, { status: 400 })
         }
-        const cat = await clientNoCdn.fetch<{ _id: string; value: string } | null>(
+        const cat = await readClient.fetch<{ _id: string; value: string } | null>(
           `*[_type == "businessCategory" && _id == $id][0]{ _id, value }`,
           { id }
         )
@@ -273,7 +276,7 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           )
         }
-        const subs = await clientNoCdn.fetch<string[]>(
+        const subs = await readClient.fetch<string[]>(
           `*[_type == "businessSubcategory" && businessType == $v]._id`,
           { v: cat.value }
         )
@@ -292,7 +295,7 @@ export async function POST(req: NextRequest) {
         if (!title_en || !title_ar || !businessType) {
           return NextResponse.json({ error: 'title_en, title_ar, businessType are required' }, { status: 400 })
         }
-        const catExists = await clientNoCdn.fetch<{ _id: string } | null>(
+        const catExists = await readClient.fetch<{ _id: string } | null>(
           `*[_type == "businessCategory" && value == $v][0]{ _id }`,
           { v: businessType }
         )
@@ -306,14 +309,14 @@ export async function POST(req: NextRequest) {
         if (!slug) slug = slugify(title_en)
         if (!slug) return NextResponse.json({ error: 'Could not derive slug' }, { status: 400 })
         const docId = `businessSubcategory.${slug}-${businessType}`
-        const exists = await clientNoCdn.fetch<{ _id: string } | null>(
+        const exists = await readClient.fetch<{ _id: string } | null>(
           `*[_type == "businessSubcategory" && slug.current == $s && businessType == $bt][0]{ _id }`,
           { s: slug, bt: businessType }
         )
         if (exists) return NextResponse.json({ error: 'Sub-category slug already exists for this business type' }, { status: 409 })
 
         const maxSo =
-          (await clientNoCdn.fetch<number | null>(
+          (await readClient.fetch<number | null>(
             `*[_type == "businessSubcategory" && businessType == $bt] | order(sortOrder desc)[0].sortOrder`,
             { bt: businessType }
           )) ?? -1
@@ -337,7 +340,7 @@ export async function POST(req: NextRequest) {
       case 'updateSubcategory': {
         const id = String(body.id ?? '').trim()
         if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-        const existing = await clientNoCdn.fetch<SubRow | null>(
+        const existing = await readClient.fetch<SubRow | null>(
           `*[_type == "businessSubcategory" && _id == $id][0]{ _id, "slug": slug.current, title_en, title_ar, businessType, sortOrder }`,
           { id }
         )
@@ -361,7 +364,7 @@ export async function POST(req: NextRequest) {
       case 'deleteSubcategory': {
         const id = String(body.id ?? '').trim()
         if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-        const ex = await clientNoCdn.fetch<{ _id: string } | null>(
+        const ex = await readClient.fetch<{ _id: string } | null>(
           `*[_type == "businessSubcategory" && _id == $id][0]{ _id }`,
           { id }
         )
@@ -398,7 +401,7 @@ export async function POST(req: NextRequest) {
 
       case 'sortCategoriesAlphabetical': {
         const cats =
-          (await clientNoCdn.fetch<CategoryRow[]>(
+          (await readClient.fetch<CategoryRow[]>(
             `*[_type == "businessCategory"]{ _id, name_en, name_ar, value, sortOrder }`
           )) ?? []
         const sorted = [...cats].sort((a, b) =>
@@ -416,7 +419,7 @@ export async function POST(req: NextRequest) {
         const businessType = businessTypeId(String(body.businessType ?? ''))
         if (!businessType) return NextResponse.json({ error: 'businessType required' }, { status: 400 })
         const subs =
-          (await clientNoCdn.fetch<SubRow[]>(
+          (await readClient.fetch<SubRow[]>(
             `*[_type == "businessSubcategory" && businessType == $bt]{ _id, title_en, title_ar, slug, businessType, sortOrder }`,
             { bt: businessType }
           )) ?? []

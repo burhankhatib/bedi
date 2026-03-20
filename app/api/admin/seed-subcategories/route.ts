@@ -8,6 +8,7 @@ import { BY_BUSINESS_TYPE, type SubcategoryRow } from '@/lib/business-subcategor
 import { createOrReplaceSubcategoryDocs, canonicalSubcategorySlug } from '@/lib/ensure-business-subcategories'
 
 const writeClient = client.withConfig({ token: writeToken || undefined, useCdn: false })
+const readClient = clientNoCdn.withConfig({ token: writeToken || undefined, useCdn: false })
 
 /** POST: Seed business sub-categories into Sanity. Uses the app's Sanity project/dataset. Super admin only. */
 export async function POST() {
@@ -81,7 +82,7 @@ export async function PATCH() {
     return NextResponse.json({ error: 'Server needs a write token' }, { status: 500 })
   }
 
-  const tenants = await clientNoCdn.fetch<
+  const tenants = await readClient.fetch<
     Array<{
       _id: string
       businessType?: string
