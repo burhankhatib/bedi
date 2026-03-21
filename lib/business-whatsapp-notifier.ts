@@ -127,7 +127,7 @@ export async function notifyBusinessWhatsappForOrder(params: {
   attempted: number
   sent: number
   allFailed: boolean
-  skippedReason?: 'instant_already_sent' | 'no_recipients'
+  skippedReason?: 'instant_already_sent' | 'no_recipients' | 'order_whatsapp_already_handled'
 }> {
   const {
     writeClient,
@@ -141,7 +141,10 @@ export async function notifyBusinessWhatsappForOrder(params: {
   } = params
 
   const orderDoc = await writeClient.fetch<
-    (OrderWhatsAppSummary & { businessWhatsappInstantNotifiedAt?: string }) | null
+    (OrderWhatsAppSummary & {
+      businessWhatsappInstantNotifiedAt?: string
+      businessWhatsappUnacceptedReminderAt?: string
+    }) | null
   >(
     `*[_type == "order" && _id == $orderId][0]{
       customerName,
@@ -153,10 +156,32 @@ export async function notifyBusinessWhatsappForOrder(params: {
       totalAmount,
       currency,
       businessWhatsappInstantNotifiedAt,
+      businessWhatsappUnacceptedReminderAt,
       items[]{ productName, "productNameAr": product->title_ar, quantity, price, total }
     }`,
     { orderId }
   )
+
+  // One business WhatsApp per order (instant takes precedence over ~3min reminder).
+  if (mode === 'instant' && orderDoc?.businessWhatsappInstantNotifiedAt) {
+    await appendOrderNotificationDiagnostic(writeClient, orderId, {
+      source: 'business-whatsapp-notifier',
+      level: 'info',
+      message: 'Instant WhatsApp skipped: this order already received a business WhatsApp message',
+      detail: { mode, instantAt: orderDoc.businessWhatsappInstantNotifiedAt },
+    })
+    return { attempted: 0, sent: 0, allFailed: false, skippedReason: 'order_whatsapp_already_handled' }
+  }
+
+  if (mode === 'unaccepted-reminder' && orderDoc?.businessWhatsappUnacceptedReminderAt) {
+    await appendOrderNotificationDiagnostic(writeClient, orderId, {
+      source: 'business-whatsapp-notifier',
+      level: 'info',
+      message: 'Unaccepted reminder skipped: reminder pipeline already completed for this order',
+      detail: { mode, reminderAt: orderDoc.businessWhatsappUnacceptedReminderAt },
+    })
+    return { attempted: 0, sent: 0, allFailed: false, skippedReason: 'order_whatsapp_already_handled' }
+  }
 
   if (skipIfInstantAlreadySent && orderDoc?.businessWhatsappInstantNotifiedAt) {
     const nowIso = new Date().toISOString()
@@ -169,7 +194,8 @@ export async function notifyBusinessWhatsappForOrder(params: {
     await appendOrderNotificationDiagnostic(writeClient, orderId, {
       source: 'business-whatsapp-notifier',
       level: 'info',
-      message: 'Reminder skipped: instant WhatsApp already sent for this order',
+      message:
+        '3-minute reminder skipped: instant WhatsApp already sent — one WhatsApp per order (no duplicate)',
       detail: { mode, instantAt: orderDoc.businessWhatsappInstantNotifiedAt },
     })
     return { attempted: 0, sent: 0, allFailed: false, skippedReason: 'instant_already_sent' }
@@ -229,7 +255,8 @@ export async function notifyBusinessWhatsappForOrder(params: {
   if (mode === 'instant' && sent > 0) {
     await writeClient.patch(orderId).set({ businessWhatsappInstantNotifiedAt: nowIso }).commit()
   }
-  if (mode === 'unaccepted-reminder') {
+  // Only mark reminder completion when we actually sent at least one message (or no-recipients branch above).
+  if (mode === 'unaccepted-reminder' && sent > 0) {
     await writeClient.patch(orderId).set({
       businessWhatsappUnacceptedReminderAt: nowIso,
       businessWhatsappNotifiedAt: nowIso,
