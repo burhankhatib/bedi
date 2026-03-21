@@ -25,6 +25,8 @@ type ReportFormModalProps = {
   trackingToken?: string
   reportedLabel?: string
   onSuccess?: () => void
+  overlayClassName?: string
+  contentClassName?: string
 }
 
 export function ReportFormModal({
@@ -37,6 +39,8 @@ export function ReportFormModal({
   trackingToken,
   reportedLabel,
   onSuccess,
+  overlayClassName,
+  contentClassName,
 }: ReportFormModalProps) {
   const { t, lang } = useLanguage()
   const categories = getCategories(reporterType, reportedType)
@@ -83,8 +87,8 @@ export function ReportFormModal({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className="sm:max-w-md z-[350]"
-        overlayClassName="z-[350]"
+        className={`sm:max-w-md ${contentClassName || 'z-[350]'}`}
+        overlayClassName={overlayClassName || 'z-[350]'}
         aria-describedby={undefined}
       >
         <DialogHeader>

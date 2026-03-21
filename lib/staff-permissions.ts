@@ -99,16 +99,20 @@ export function requirePermission(
 
 const OWNER_ONLY_PERMISSIONS: StaffPermission[] = ['transfer']
 
+/** Narrows arbitrary strings from API/DB to known permission keys. */
+function isStaffPermission(p: string): p is StaffPermission {
+  return (STAFF_PERMISSIONS as readonly string[]).includes(p)
+}
+
 export function sanitizeStaffPermissions(perms: string[] | StaffPermission[]): StaffPermission[] {
   const seen = new Set<StaffPermission>()
   const result: StaffPermission[] = []
   for (const p of perms) {
-    if (!STAFF_PERMISSIONS.includes(p as StaffPermission)) continue
-    const perm = p as StaffPermission
-    if (OWNER_ONLY_PERMISSIONS.includes(perm)) continue
-    if (seen.has(perm)) continue
-    seen.add(perm)
-    result.push(perm)
+    if (!isStaffPermission(p)) continue
+    if (OWNER_ONLY_PERMISSIONS.includes(p)) continue
+    if (seen.has(p)) continue
+    seen.add(p)
+    result.push(p)
   }
   return result
 }

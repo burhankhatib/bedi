@@ -9,11 +9,16 @@ function isAuthorizedJobProcessor(req: Request): boolean {
   const header = req.headers.get('authorization')
   const m = header?.match(/^Bearer\s+(.+)$/i)
   const token = m?.[1]?.trim() || ''
+  
+  const url = new URL(req.url)
+  const secretParam = url.searchParams.get('secret')
+  
   const secrets = [process.env.CRON_SECRET, process.env.FIREBASE_JOB_SECRET].filter(
     (s): s is string => typeof s === 'string' && s.length > 0
   )
+  
   if (!secrets.length) return true
-  return secrets.includes(token)
+  return secrets.includes(token) || (secretParam != null && secrets.includes(secretParam))
 }
 
 type JobDoc = {

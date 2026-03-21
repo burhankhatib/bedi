@@ -341,6 +341,26 @@ export function OrderDetailsModal({
     }
   }, [order, isEditing])
 
+  // Escape to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return
+      if (e.key === 'Escape') {
+        if (confirmAction !== null) {
+          setConfirmAction(null)
+        } else if (reportTarget !== null) {
+          setReportTarget(null)
+        } else if (showAddProduct) {
+          setShowAddProduct(false)
+        } else {
+          onClose()
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose, confirmAction, reportTarget, showAddProduct])
+
   // Fetch business country/city when delivery order and tenant — required to allow request driver
   useEffect(() => {
     if (order.orderType !== 'delivery' || !tenantSlug) {
@@ -781,19 +801,22 @@ Please deliver this order to the customer.
 
   return (
     <div
-      className="fixed inset-0 z-[400] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
+      className="fixed inset-0 z-[500] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="bg-white text-slate-900 rounded-3xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden shadow-xl relative z-10 overscroll-contain touch-pan-y"
+        className="flex flex-col min-h-0 bg-white text-slate-900 rounded-3xl max-w-3xl w-full max-h-[90vh] shadow-xl relative z-10"
         onClick={(e) => e.stopPropagation()}
         dir={lang === 'ar' ? 'rtl' : 'ltr'}
-        style={{ WebkitOverflowScrolling: 'touch' }}
       >
+        <div 
+          className="flex-1 min-h-0 p-8 overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           {/* Header */}
-        <div className="flex items-start justify-between gap-4 mb-6">
+        <div className="sticky top-0 z-20 bg-white -mx-8 -mt-8 px-8 pt-8 pb-4 flex items-start justify-between gap-4 mb-6 border-b border-slate-100">
           <div>
             <div className="flex items-center gap-3 mb-2">
               {order.orderType === 'delivery' ? (
@@ -2131,37 +2154,40 @@ Please deliver this order to the customer.
               orderId={localOrder._id}
               slug={tenantSlug}
               onSuccess={() => setReportTarget(null)}
+              overlayClassName="z-[550]"
+              contentClassName="z-[550]"
             />
           )}
+        </div>
+        </div>
 
-          {/* Confirmation dialog for Cancel / Refund */}
-          {confirmAction !== null && (
-            <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-black/50" onClick={() => setConfirmAction(null)}>
-              <div
-                className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl text-slate-900"
-                onClick={(e) => e.stopPropagation()}
-                dir={lang === 'ar' ? 'rtl' : 'ltr'}
-              >
-                <p className="font-bold text-lg mb-4">
-                  {confirmAction === 'cancelled'
-                    ? t('Are you sure you want to cancel this order?', 'هل أنت متأكد من إلغاء هذا الطلب؟')
-                    : t('Are you sure you want to mark this order as refunded?', 'هل أنت متأكد من استرداد هذا الطلب؟')}
-                </p>
-                <div className="flex gap-3 justify-end">
-                  <Button variant="outline" className="rounded-xl" onClick={() => setConfirmAction(null)}>
-                    {t('Back', 'رجوع')}
-                  </Button>
-                  <Button
-                    className={`rounded-xl ${confirmAction === 'cancelled' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'}`}
-                    onClick={() => handleConfirmStatus(confirmAction)}
-                  >
-                    {t('Yes, confirm', 'نعم، تأكيد')}
-                  </Button>
-                </div>
+        {/* Confirmation dialog for Cancel / Refund */}
+        {confirmAction !== null && (
+          <div className="absolute inset-0 z-[510] flex items-center justify-center p-4 bg-black/50 rounded-3xl" onClick={() => setConfirmAction(null)}>
+            <div
+              className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl text-slate-900"
+              onClick={(e) => e.stopPropagation()}
+              dir={lang === 'ar' ? 'rtl' : 'ltr'}
+            >
+              <p className="font-bold text-lg mb-4">
+                {confirmAction === 'cancelled'
+                  ? t('Are you sure you want to cancel this order?', 'هل أنت متأكد من إلغاء هذا الطلب؟')
+                  : t('Are you sure you want to mark this order as refunded?', 'هل أنت متأكد من استرداد هذا الطلب؟')}
+              </p>
+              <div className="flex gap-3 justify-end">
+                <Button variant="outline" className="rounded-xl" onClick={() => setConfirmAction(null)}>
+                  {t('Back', 'رجوع')}
+                </Button>
+                <Button
+                  className={`rounded-xl ${confirmAction === 'cancelled' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'}`}
+                  onClick={() => handleConfirmStatus(confirmAction)}
+                >
+                  {t('Yes, confirm', 'نعم، تأكيد')}
+                </Button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
