@@ -13,6 +13,7 @@ const CustomerTrackingMap = dynamic(
 )
 import { getWhatsAppUrl, normalizePhoneForWhatsApp } from '@/lib/whatsapp'
 import { formatCurrency } from '@/lib/currency'
+import { getMapLink } from '@/lib/maps-utils'
 import Link from 'next/link'
 import {
   CheckCircle2,
@@ -144,15 +145,26 @@ function CustomerLocationShare({ orderId, trackingToken }: { orderId: string; tr
       return
     }
     setState('loading')
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude
-        const lng = pos.coords.longitude
+
+    let bestFix: GeolocationPosition | null = null
+    let watchId: number | null = null
+    let timeoutId: number | null = null
+    let fallbackTimeoutId: number | null = null
+
+    const finishAndShare = async () => {
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+      if (timeoutId !== null) window.clearTimeout(timeoutId)
+      if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
+
+      if (bestFix) {
+        const lat = bestFix.coords.latitude
+        const lng = bestFix.coords.longitude
+        const accuracy = bestFix.coords.accuracy
         try {
           const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/location`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ trackingToken, lat, lng }),
+            body: JSON.stringify({ trackingToken, lat, lng, accuracy, source: 'gps_high' }),
           })
           if (!res.ok) throw new Error('Failed')
           setSaved({ lat, lng })
@@ -162,20 +174,60 @@ function CustomerLocationShare({ orderId, trackingToken }: { orderId: string; tr
           setState('idle')
           showToast('فشل مشاركة الموقع. حاول مرة أخرى.', undefined, 'error')
         }
-      },
-      (err) => {
+      } else {
         setState('idle')
-        if (err.code === 1) {
-          showToast(
-            'Location access denied. Enable it in device settings.',
-            'تم رفض الوصول للموقع. فعّله من إعدادات الجهاز.',
-            'error'
-          )
-        } else {
-          showToast('Could not get location. Try again.', 'تعذّر تحديد الموقع. حاول مرة أخرى.', 'error')
-        }
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        showToast('Could not get a precise location. Try again.', 'تعذّر تحديد الموقع بدقة. حاول مرة أخرى.', 'error')
+      }
+    }
+
+    const onPosition = (pos: GeolocationPosition) => {
+      const accuracy = pos.coords.accuracy
+      if (!bestFix || accuracy < bestFix.coords.accuracy) {
+        bestFix = pos
+      }
+      if (accuracy <= 25) {
+        finishAndShare()
+      }
+    }
+
+    const onError = (err: GeolocationPositionError) => {
+      if (bestFix) {
+        finishAndShare()
+        return
+      }
+
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+      if (timeoutId !== null) window.clearTimeout(timeoutId)
+      if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
+
+      setState('idle')
+      if (err.code === 1) {
+        showToast(
+          'Location access denied. Enable it in device settings.',
+          'تم رفض الوصول للموقع. فعّله من إعدادات الجهاز.',
+          'error'
+        )
+      } else {
+        showToast('Could not get location. Try again.', 'تعذّر تحديد الموقع. حاول مرة أخرى.', 'error')
+      }
+    }
+
+    // Give it 8 seconds to find a good fix, then just use the best we have
+    timeoutId = window.setTimeout(() => {
+      finishAndShare()
+    }, 8000)
+
+    // Ultimate fallback
+    fallbackTimeoutId = window.setTimeout(() => {
+      if (!bestFix) {
+        finishAndShare()
+      }
+    }, 15000)
+
+    watchId = navigator.geolocation.watchPosition(
+      onPosition,
+      onError,
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     )
   }
 
@@ -3111,14 +3163,47 @@ export function OrderTrackClient({ slug, token }: { slug: string; token: string 
         </div>
       )}
 
-      {data.order.orderType === 'delivery' && data.order.deliveryAddress && (
+      {data.order.orderType === 'delivery' && (data.order.deliveryAddress || (data.order.deliveryLat != null && data.order.deliveryLng != null)) && (
         <div className="mt-5 px-4">
           <div className="rounded-3xl border border-slate-200/60 bg-white p-5 shadow-sm">
             <h2 className="font-bold text-slate-800 flex items-center gap-2 mb-2">
               <MapPin className="h-5 w-5 text-slate-400" />
               {t('Delivery address', 'عنوان التوصيل')}
             </h2>
-            <p className="text-slate-600 text-sm leading-relaxed">{data.order.deliveryAddress}</p>
+            {data.order.deliveryAddress && (
+              <p className="text-slate-600 text-sm leading-relaxed mb-3">{data.order.deliveryAddress}</p>
+            )}
+            {data.order.deliveryLat != null && data.order.deliveryLng != null && (
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={getMapLink('google', { lat: data.order.deliveryLat, lng: data.order.deliveryLng })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 text-xs transition-colors"
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  Google Maps
+                </a>
+                <a
+                  href={getMapLink('apple', { lat: data.order.deliveryLat, lng: data.order.deliveryLng })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 text-xs transition-colors"
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  Apple Maps
+                </a>
+                <a
+                  href={getMapLink('waze', { lat: data.order.deliveryLat, lng: data.order.deliveryLng })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-3 py-2 text-xs transition-colors"
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  Waze
+                </a>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -49,7 +49,7 @@ interface UnifiedOrderDialogProps {
   /** Optional: shared delivery location (from "Share my location"). Used to show status and clear on reset. */
   deliveryLat?: number | null
   deliveryLng?: number | null
-  setDeliveryLocation?: (lat: number, lng: number) => void
+  setDeliveryLocation?: (lat: number, lng: number, accuracyMeters?: number | null, source?: 'gps_high' | 'gps_low' | 'manual_picker' | 'maps_link' | 'cache') => void
   clearDeliveryLocation?: () => void
 }
 
@@ -92,6 +92,8 @@ export function UnifiedOrderDialog({
   const [isEditingName, setIsEditingName] = useState(false)
   const [showMapModal, setShowMapModal] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
+
+  const [showLocationControls, setShowLocationControls] = useState(false)
 
   // Timing
   const [isScheduled, setIsScheduled] = useState(false)
@@ -210,17 +212,26 @@ export function UnifiedOrderDialog({
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=${lang === 'ar' ? 'ar' : 'en'}`)
       const data = await res.json()
-      if (data?.display_name) return data.display_name
+      if (data?.address) {
+        const parts = []
+        if (data.address.road || data.address.pedestrian || data.address.street) parts.push(data.address.road || data.address.pedestrian || data.address.street)
+        if (data.address.neighbourhood || data.address.suburb || data.address.quarter) parts.push(data.address.neighbourhood || data.address.suburb || data.address.quarter)
+        if (data.address.city || data.address.town || data.address.village) parts.push(data.address.city || data.address.town || data.address.village)
+        
+        const uniqueParts = Array.from(new Set(parts)).filter(Boolean)
+        if (uniqueParts.length > 0) return uniqueParts.join(lang === 'ar' ? '، ' : ', ')
+      }
+      if (data?.display_name) {
+        const parts = data.display_name.split(',').map((p: string) => p.trim())
+        if (parts.length > 1) parts.pop() // Try to remove country
+        return parts.join(lang === 'ar' ? '، ' : ', ')
+      }
     } catch {
       // ignore
     }
     return null
   }, [lang])
 
-  /**
-   * Request GPS for delivery pin. Default: fast fresh fix (no stale cache). Optional highAccuracy for a slower, finer fix.
-   * Must be triggered from a user gesture on iOS for the permission prompt.
-   */
   const requestDeliveryLocation = useCallback(
     (opts?: { highAccuracy?: boolean }) => {
       if (!setDeliveryLocation || !navigator.geolocation) {
@@ -236,22 +247,71 @@ export function UnifiedOrderDialog({
       setLocationLoading(true)
 
       const highAccuracy = opts?.highAccuracy === true
-      const positionOptions: PositionOptions = highAccuracy
-        ? { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 }
-        : { enableHighAccuracy: false, timeout: 18000, maximumAge: 0 }
 
-      const onSuccess = (pos: GeolocationPosition) => {
-        const lat = pos.coords.latitude
-        const lng = pos.coords.longitude
-        setDeliveryLocation(lat, lng)
-        setLocationLoading(false)
+      // Accumulate the best fix we get in a short window
+      let bestFix: GeolocationPosition | null = null
+      let watchId: number | null = null
+      let timeoutId: number | null = null
+      let fallbackTimeoutId: number | null = null
+
+      const finishAndApplyBestFix = () => {
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+        if (timeoutId !== null) window.clearTimeout(timeoutId)
+        if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
+        
         geoInFlightRef.current = false
-        void reverseGeocode(lat, lng).then((name) => {
-          if (name) setAddress((prev) => (prev.trim() ? prev : name))
-        })
+        setLocationLoading(false)
+
+        if (bestFix) {
+          const lat = bestFix.coords.latitude
+          const lng = bestFix.coords.longitude
+          const accuracy = bestFix.coords.accuracy
+          
+          // Log for diagnostics
+          console.debug(`[GPS] Applied fix: accuracy ${accuracy}m`)
+          
+          setDeliveryLocation(lat, lng, accuracy, highAccuracy ? 'gps_high' : 'gps_low')
+          
+          void reverseGeocode(lat, lng).then((name) => {
+            if (name) setAddress((prev) => (prev.trim() ? prev : name))
+          })
+        } else {
+          setLocationError(
+            t(
+              'Could not get a precise location. Please try again or adjust on map.',
+              'تعذر الحصول على موقع دقيق. يرجى المحاولة مرة أخرى أو التعديل على الخريطة.'
+            )
+          )
+        }
+      }
+
+      const onPosition = (pos: GeolocationPosition) => {
+        const accuracy = pos.coords.accuracy
+        
+        if (!bestFix || accuracy < bestFix.coords.accuracy) {
+          bestFix = pos
+        }
+
+        // If we got a really good fix (< 25m), accept it immediately and stop watching
+        if (accuracy <= 25) {
+          finishAndApplyBestFix()
+        }
       }
 
       const onError = (err: GeolocationPositionError) => {
+        if (bestFix) {
+          // If we had at least one fix, just use it
+          finishAndApplyBestFix()
+          return
+        }
+        
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+        if (timeoutId !== null) window.clearTimeout(timeoutId)
+        if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
+
+        geoInFlightRef.current = false
+        setLocationLoading(false)
+
         if (err.code === 1) {
           setLocationError(
             isIOS
@@ -279,38 +339,32 @@ export function UnifiedOrderDialog({
             )
           )
         }
-        setLocationLoading(false)
-        geoInFlightRef.current = false
       }
 
-      navigator.geolocation.getCurrentPosition(onSuccess, (err) => {
-        if (err.code === 3 && isIOS) {
-          let resolved = false
-          const watchId = navigator.geolocation.watchPosition(
-            (pos) => {
-              if (resolved) return
-              resolved = true
-              navigator.geolocation.clearWatch(watchId)
-              onSuccess(pos)
-            },
-            (watchErr) => {
-              if (resolved) return
-              resolved = true
-              navigator.geolocation.clearWatch(watchId)
-              onError(watchErr)
-            },
-            { enableHighAccuracy: highAccuracy, timeout: 15000, maximumAge: 0 }
-          )
-          window.setTimeout(() => {
-            if (resolved) return
-            resolved = true
-            navigator.geolocation.clearWatch(watchId)
-            onError(err)
-          }, 16000)
-        } else {
-          onError(err)
+      // Try for up to 8 seconds to get the best fix
+      const samplingWindowMs = highAccuracy ? 8000 : 4000
+      timeoutId = window.setTimeout(() => {
+        finishAndApplyBestFix()
+      }, samplingWindowMs)
+      
+      // Safety fallback: if no fix at all after max timeout, show error
+      const maxTimeoutMs = highAccuracy ? 15000 : 10000
+      fallbackTimeoutId = window.setTimeout(() => {
+        if (!bestFix) {
+          finishAndApplyBestFix()
         }
-      }, positionOptions)
+      }, maxTimeoutMs)
+
+      // Start watching
+      watchId = navigator.geolocation.watchPosition(
+        onPosition,
+        onError,
+        {
+          enableHighAccuracy: true, // Always try for high accuracy when watching
+          timeout: 10000,
+          maximumAge: 0
+        }
+      )
     },
     [setDeliveryLocation, t, isIOS, reverseGeocode]
   )
@@ -321,7 +375,7 @@ export function UnifiedOrderDialog({
     if (!value.trim()) return
     const coords = parseCoordsFromGoogleMapsUrl(value.trim())
     if (coords && setDeliveryLocation) {
-      setDeliveryLocation(coords.lat, coords.lng)
+      setDeliveryLocation(coords.lat, coords.lng, null, 'maps_link')
       setMapsLinkError(null)
       const name = await reverseGeocode(coords.lat, coords.lng)
       if (name) setAddress(name)
@@ -976,7 +1030,7 @@ export function UnifiedOrderDialog({
                           lat={deliveryLat}
                           lng={deliveryLng}
                           onChange={async (lat, lng) => {
-                            setDeliveryLocation(lat, lng)
+                            setDeliveryLocation(lat, lng, null, 'manual_picker')
                             const name = await reverseGeocode(lat, lng)
                             if (name) setAddress(name)
                           }}
@@ -986,7 +1040,18 @@ export function UnifiedOrderDialog({
                           centerPinAriaLabel={t('Center map on pin', 'توسيط الخريطة على الدبوس')}
                         />
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+                      <div className="flex justify-between items-center px-1 mb-0.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowLocationControls(!showLocationControls)}
+                          className="h-6 text-[10px] font-bold px-2 ml-auto rtl:mr-auto rtl:ml-0 text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                        >
+                          {showLocationControls ? t('Hide options', 'إخفاء الخيارات') : t('Location options', 'خيارات الموقع')}
+                        </Button>
+                      </div>
+                      <div className={`grid grid-cols-2 sm:grid-cols-4 gap-1 transition-all duration-300 overflow-hidden ${showLocationControls ? 'max-h-[100px] opacity-100 mt-0.5' : 'max-h-0 opacity-0 m-0'}`}>
                         <Button
                           type="button"
                           variant="outline"

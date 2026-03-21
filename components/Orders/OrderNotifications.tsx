@@ -2,15 +2,15 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Bell, Check, Volume2, VolumeX, HandHelping, CreditCard, UtensilsCrossed, Truck, Store, MapPin, Phone, Navigation, Clock } from 'lucide-react'
+import { Bell, Check, Volume2, VolumeX, HandHelping, CreditCard, UtensilsCrossed, Truck, Store, MapPin, Phone, Navigation, Clock, Timer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { googleMapsNavigationUrl, wazeNavigationUrl } from '@/lib/maps-utils'
+import { googleMapsNavigationUrl, wazeNavigationUrl, appleMapsNavigationUrl } from '@/lib/maps-utils'
 import {
   AUTO_DELIVERY_DROPDOWN_SEQUENCE,
   initialAutoDeliveryMinutesFromTenant,
 } from '@/lib/auto-delivery-request'
-import type { AutoDeliveryDefaults } from '@/components/Orders/AutoDeliveryRequestControls'
+import { autoDeliveryM3, type AutoDeliveryDefaults } from '@/components/Orders/AutoDeliveryRequestControls'
 import { useLanguage } from '@/components/LanguageContext'
 
 interface NewOrder {
@@ -101,6 +101,7 @@ function NewOrderCard({
   const hasCoords = order.deliveryLat != null && order.deliveryLng != null && Number.isFinite(order.deliveryLat) && Number.isFinite(order.deliveryLng)
   const mapsUrl = hasCoords ? googleMapsNavigationUrl({ lat: order.deliveryLat!, lng: order.deliveryLng! }) : null
   const wazeUrl = hasCoords ? wazeNavigationUrl({ lat: order.deliveryLat!, lng: order.deliveryLng! }) : null
+  const appleUrl = hasCoords ? appleMapsNavigationUrl({ lat: order.deliveryLat!, lng: order.deliveryLng! }) : null
   const areaName = order.deliveryArea?.name_en || order.deliveryArea?.name_ar || null
   const isScheduled = !!order.scheduledFor
 
@@ -281,6 +282,15 @@ function NewOrderCard({
                   <Navigation className="h-3 w-3" />
                   {t('Waze', 'ويز')}
                 </a>
+                <a
+                  href={appleUrl!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-white text-xs font-bold shadow-sm hover:bg-slate-900"
+                >
+                  <Navigation className="h-3 w-3" />
+                  {t('Apple', 'آبل')}
+                </a>
               </div>
             )}
           </>
@@ -361,55 +371,66 @@ function NewOrderCard({
         <>
           {isDelivery && tenantSlug && (
             <motion.div
-              className="mt-3 space-y-2 rounded-xl border-2 border-blue-200 bg-blue-50/90 p-3 dark:border-blue-800 dark:bg-blue-950/50"
+              className={`mt-2 ${autoDeliveryM3.surface}`}
               animate={
                 autoMinutes !== null
                   ? {
                       boxShadow: [
-                        '0 0 0 0 rgba(37, 99, 235, 0)',
-                        '0 0 0 6px rgba(37, 99, 235, 0.12)',
+                        'var(--m3-elevation-1)',
+                        '0 0 0 3px color-mix(in oklab, var(--m3-primary) 22%, transparent)',
                       ],
                     }
-                  : { boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }
+                  : { boxShadow: 'var(--m3-elevation-1)' }
               }
               transition={
                 autoMinutes !== null
                   ? { repeat: Infinity, duration: 2, ease: [0.2, 0, 0, 1] }
                   : { duration: 0.2 }
               }
+              onClick={(e) => e.stopPropagation()}
             >
-              <p className="text-xs font-bold uppercase tracking-wide text-blue-800 dark:text-blue-200">
-                {t('Auto request drivers after', 'طلب السائقين تلقائياً بعد')}
-              </p>
-              <select
-                value={autoMinutes === null ? 'none' : String(autoMinutes)}
-                onChange={(e) => {
-                  const v = e.target.value
-                  setAutoMinutes(v === 'none' ? null : Number(v))
-                }}
-                onClick={(e) => e.stopPropagation()}
-                className="w-full rounded-lg border-2 border-blue-200 bg-white px-2 py-2 text-sm font-semibold text-blue-900 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-100"
-              >
-                {AUTO_DELIVERY_DROPDOWN_SEQUENCE.map((entry) => (
-                  <option key={entry === 'none' ? 'none' : entry} value={entry === 'none' ? 'none' : String(entry)}>
-                    {entry === 'none'
-                      ? t('None (manual only)', 'بدون (يدوي فقط)')
-                      : entry === 0
-                        ? t('Immediately', 'فوراً')
-                        : t(`${entry} minutes`, `${entry} دقيقة`)}
-                  </option>
-                ))}
-              </select>
-              <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-blue-900 dark:text-blue-100">
-                <input
-                  type="checkbox"
-                  checked={saveAutoPref}
-                  onChange={(e) => setSaveAutoPref(e.target.checked)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="size-4 rounded border-blue-300 text-blue-600"
-                />
-                {t('Save my choice for future orders', 'احفظ اختياري للطلبات القادمة')}
-              </label>
+              <div className="flex items-start gap-2">
+                <div
+                  className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200"
+                  aria-hidden
+                >
+                  <Timer className="size-3.5" strokeWidth={2} />
+                </div>
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <p className={autoDeliveryM3.label}>
+                    {t('Auto request drivers after', 'طلب السائقين تلقائياً بعد')}
+                  </p>
+                  <select
+                    value={autoMinutes === null ? 'none' : String(autoMinutes)}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setAutoMinutes(v === 'none' ? null : Number(v))
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className={autoDeliveryM3.select}
+                  >
+                    {AUTO_DELIVERY_DROPDOWN_SEQUENCE.map((entry) => (
+                      <option key={entry === 'none' ? 'none' : entry} value={entry === 'none' ? 'none' : String(entry)}>
+                        {entry === 'none'
+                          ? t('None (manual only)', 'بدون (يدوي فقط)')
+                          : entry === 0
+                            ? t('Immediately', 'فوراً')
+                            : t(`${entry} minutes`, `${entry} دقيقة`)}
+                      </option>
+                    ))}
+                  </select>
+                  <label className={autoDeliveryM3.checkboxRow}>
+                    <input
+                      type="checkbox"
+                      checked={saveAutoPref}
+                      onChange={(e) => setSaveAutoPref(e.target.checked)}
+                      onClick={(e) => e.stopPropagation()}
+                      className={autoDeliveryM3.checkbox}
+                    />
+                    <span>{t('Save my choice for future orders', 'احفظ اختياري للطلبات القادمة')}</span>
+                  </label>
+                </div>
+              </div>
             </motion.div>
           )}
           <Button

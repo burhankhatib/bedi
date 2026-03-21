@@ -89,7 +89,9 @@ interface CartContextType {
   setDeliveryAddress: (address: string) => void
   deliveryLat: number | null
   deliveryLng: number | null
-  setDeliveryLocation: (lat: number, lng: number) => void
+  deliveryAccuracyMeters?: number | null
+  deliveryLocationSource?: 'gps_high' | 'gps_low' | 'manual_picker' | 'maps_link' | 'cache'
+  setDeliveryLocation: (lat: number, lng: number, accuracyMeters?: number | null, source?: 'gps_high' | 'gps_low' | 'manual_picker' | 'maps_link' | 'cache') => void
   clearDeliveryLocation: () => void
   deliveryFee: number
   setDeliveryFee: (fee: number) => void
@@ -145,16 +147,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [deliveryAddress, setDeliveryAddress] = useState<string>('')
   const [deliveryLat, setDeliveryLat] = useState<number | null>(null)
   const [deliveryLng, setDeliveryLng] = useState<number | null>(null)
+  const [deliveryAccuracyMeters, setDeliveryAccuracyMeters] = useState<number | null>(null)
+  const [deliveryLocationSource, setDeliveryLocationSource] = useState<CartContextType['deliveryLocationSource']>()
   const [deliveryFee, setDeliveryFee] = useState<number>(0)
   const [deliveryFeePaidByBusiness, setDeliveryFeePaidByBusiness] = useState<boolean>(false)
   const [scheduledFor, setScheduledFor] = useState<string | undefined>(undefined)
-  const setDeliveryLocation = useCallback((lat: number, lng: number) => {
+  const setDeliveryLocation = useCallback((lat: number, lng: number, accuracyMeters?: number | null, source?: CartContextType['deliveryLocationSource']) => {
     setDeliveryLat(lat)
     setDeliveryLng(lng)
+    setDeliveryAccuracyMeters(accuracyMeters ?? null)
+    if (source) setDeliveryLocationSource(source)
   }, [])
   const clearDeliveryLocation = useCallback(() => {
     setDeliveryLat(null)
     setDeliveryLng(null)
+    setDeliveryAccuracyMeters(null)
+    setDeliveryLocationSource(undefined)
   }, [])
   const [toast, setToast] = useState<ToastMessage | null>(null)
   const [tenantSlug, setTenantSlug] = useState<string | null>(null)
@@ -220,6 +228,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setDeliveryAddress(info.deliveryAddress || '')
         setDeliveryLat(typeof info.deliveryLat === 'number' ? info.deliveryLat : null)
         setDeliveryLng(typeof info.deliveryLng === 'number' ? info.deliveryLng : null)
+        setDeliveryAccuracyMeters(typeof info.deliveryAccuracyMeters === 'number' ? info.deliveryAccuracyMeters : null)
+        setDeliveryLocationSource(info.deliveryLocationSource || 'cache')
         setDeliveryFee(info.deliveryFee || 0)
         setDeliveryFeePaidByBusiness(info.deliveryFeePaidByBusiness === true)
         setScheduledFor(info.scheduledFor)
@@ -285,6 +295,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         deliveryAddress: deliveryAddress,
         deliveryLat: deliveryLat,
         deliveryLng: deliveryLng,
+        deliveryAccuracyMeters: deliveryAccuracyMeters,
+        deliveryLocationSource: deliveryLocationSource,
         deliveryFee: deliveryFee,
         deliveryFeePaidByBusiness: deliveryFeePaidByBusiness,
         scheduledFor: scheduledFor,
@@ -293,7 +305,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (persistTimersRef.current.customerInfo) clearTimeout(persistTimersRef.current.customerInfo)
     }
-  }, [customerName, tableNumber, isReady, orderType, customerPhone, deliveryAreaId, deliveryAddress, deliveryLat, deliveryLng, deliveryFee, deliveryFeePaidByBusiness, scheduledFor])
+  }, [customerName, tableNumber, isReady, orderType, customerPhone, deliveryAreaId, deliveryAddress, deliveryLat, deliveryLng, deliveryAccuracyMeters, deliveryLocationSource, deliveryFee, deliveryFeePaidByBusiness, scheduledFor])
 
   // Flush pending writes before tab close/navigation to avoid data loss in debounce window.
   useEffect(() => {
@@ -313,6 +325,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         deliveryAddress: deliveryAddress,
         deliveryLat: deliveryLat,
         deliveryLng: deliveryLng,
+        deliveryAccuracyMeters: deliveryAccuracyMeters,
+        deliveryLocationSource: deliveryLocationSource,
         deliveryFee: deliveryFee,
         deliveryFeePaidByBusiness: deliveryFeePaidByBusiness,
         scheduledFor: scheduledFor,
@@ -320,7 +334,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
     window.addEventListener('beforeunload', flushPendingWrites)
     return () => window.removeEventListener('beforeunload', flushPendingWrites)
-  }, [items, cartTenant, orderTypeOptions, customerName, tableNumber, isReady, orderType, customerPhone, deliveryAreaId, deliveryAddress, deliveryLat, deliveryLng, deliveryFee, deliveryFeePaidByBusiness, scheduledFor])
+  }, [items, cartTenant, orderTypeOptions, customerName, tableNumber, isReady, orderType, customerPhone, deliveryAreaId, deliveryAddress, deliveryLat, deliveryLng, deliveryAccuracyMeters, deliveryLocationSource, deliveryFee, deliveryFeePaidByBusiness, scheduledFor])
 
   const doAddItem = useCallback((
     product: Product,
@@ -528,6 +542,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         deliveryLng,
         setDeliveryLocation,
         clearDeliveryLocation,
+        deliveryAccuracyMeters,
+        deliveryLocationSource,
         deliveryFee,
         setDeliveryFee,
         deliveryFeePaidByBusiness,

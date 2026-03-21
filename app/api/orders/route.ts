@@ -45,6 +45,8 @@ export async function POST(request: NextRequest) {
       deliveryAddress,
       deliveryLat,
       deliveryLng,
+      deliveryAccuracyMeters,
+      deliveryLocationSource,
       deliveryFee,
       items,
       currency,
@@ -302,6 +304,8 @@ export async function POST(request: NextRequest) {
       if (typeof deliveryLat === 'number' && Number.isFinite(deliveryLat) && typeof deliveryLng === 'number' && Number.isFinite(deliveryLng)) {
         orderDoc.deliveryLat = deliveryLat
         orderDoc.deliveryLng = deliveryLng
+        if (typeof deliveryAccuracyMeters === 'number') orderDoc.deliveryAccuracyMeters = deliveryAccuracyMeters
+        if (typeof deliveryLocationSource === 'string') orderDoc.deliveryLocationSource = deliveryLocationSource
       }
     }
 

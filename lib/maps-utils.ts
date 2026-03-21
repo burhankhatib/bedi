@@ -52,6 +52,27 @@ export function wazeNavigationUrl(destination: { lat: number; lng: number } | st
   return `https://waze.com/ul?ll=${destination.lat},${destination.lng}&navigate=yes`
 }
 
+/** Apple Maps URL that starts directions/navigation. Use coords when available. */
+export function appleMapsNavigationUrl(destination: { lat: number; lng: number } | string): string {
+  if (typeof destination === 'string') {
+    return `http://maps.apple.com/?daddr=${encodeURIComponent(destination)}&dirflg=d`
+  }
+  return `http://maps.apple.com/?daddr=${destination.lat},${destination.lng}&dirflg=d`
+}
+
+export type MapApp = 'google' | 'waze' | 'apple'
+
+export function getMapLink(app: MapApp, destination: { lat: number; lng: number } | string): string {
+  switch (app) {
+    case 'google':
+      return googleMapsNavigationUrl(destination)
+    case 'waze':
+      return wazeNavigationUrl(destination)
+    case 'apple':
+      return appleMapsNavigationUrl(destination)
+  }
+}
+
 /** Haversine distance in km between two coordinates. */
 export function distanceKm(
   a: { lat: number; lng: number },

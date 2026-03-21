@@ -72,6 +72,8 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     setDeliveryAddress,
     deliveryLat,
     deliveryLng,
+    deliveryAccuracyMeters,
+    deliveryLocationSource,
     setDeliveryLocation,
     clearDeliveryLocation,
     deliveryFee,
@@ -329,6 +331,8 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         if (deliveryLat != null && deliveryLng != null && Number.isFinite(deliveryLat) && Number.isFinite(deliveryLng)) {
           orderPayload.deliveryLat = deliveryLat
           orderPayload.deliveryLng = deliveryLng
+          if (deliveryAccuracyMeters != null) orderPayload.deliveryAccuracyMeters = deliveryAccuracyMeters
+          if (deliveryLocationSource != null) orderPayload.deliveryLocationSource = deliveryLocationSource
         }
       }
 

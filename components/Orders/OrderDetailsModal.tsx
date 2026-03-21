@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { X, Package, Truck, UtensilsCrossed, Clock, User, Phone, MapPin, ChefHat, CheckCircle2, XCircle, MessageCircle, Edit2, Plus, Trash2, Save, RotateCcw, Settings, Flag, HandHelping, CreditCard, Check } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
-import { googleMapsNavigationUrl, wazeNavigationUrl, distanceKm } from '@/lib/maps-utils'
+import { googleMapsNavigationUrl, wazeNavigationUrl, appleMapsNavigationUrl, distanceKm } from '@/lib/maps-utils'
 import { client } from '@/sanity/lib/client'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
@@ -1134,6 +1134,15 @@ Please deliver this order to the customer.
                           >
                             <MapPin className="w-4 h-4" />
                             {t('Open in Google Maps', 'فتح في خرائط جوجل')}
+                          </a>
+                          <a
+                            href={appleMapsNavigationUrl({ lat: localOrder.deliveryLat, lng: localOrder.deliveryLng })}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold px-4 py-2.5 text-sm transition-colors"
+                          >
+                            <MapPin className="w-4 h-4" />
+                            Apple Maps
                           </a>
                           <a
                             href={wazeNavigationUrl({ lat: localOrder.deliveryLat, lng: localOrder.deliveryLng })}

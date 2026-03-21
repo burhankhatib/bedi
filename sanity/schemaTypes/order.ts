@@ -105,6 +105,29 @@ export const orderType = defineType({
       hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
     }),
     defineField({
+      name: 'deliveryAccuracyMeters',
+      title: 'Delivery Location Accuracy (m)',
+      type: 'number',
+      description: 'GPS accuracy in meters when location was captured.',
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
+      name: 'deliveryLocationSource',
+      title: 'Delivery Location Source',
+      type: 'string',
+      description: 'How the location was obtained (e.g., gps_high, maps_link, manual_picker, cache).',
+      options: {
+        list: [
+          { title: 'High Accuracy GPS', value: 'gps_high' },
+          { title: 'Low/Fast GPS', value: 'gps_low' },
+          { title: 'Maps Link', value: 'maps_link' },
+          { title: 'Manual Map Pin', value: 'manual_picker' },
+          { title: 'Cached/Stale', value: 'cache' },
+        ],
+      },
+      hidden: ({ parent }) => parent?.orderType === 'dine-in' || parent?.orderType === 'receive-in-person',
+    }),
+    defineField({
       name: 'deliveryFee',
       title: 'Delivery Fee',
       type: 'number',
