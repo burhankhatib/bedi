@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useMemo } from 'react'
+import { useEffect, useRef, useMemo, type RefObject } from 'react'
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet'
+import { Crosshair, Locate, Loader2 } from 'lucide-react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -14,7 +15,7 @@ const customIcon = L.icon({
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   tooltipAnchor: [16, -28],
-  shadowSize: [41, 41]
+  shadowSize: [41, 41],
 })
 
 function MapUpdater({ center }: { center: [number, number] }) {
@@ -34,29 +35,67 @@ function MapClickHandler({ onChange }: { onChange: (lat: number, lng: number) =>
   return null
 }
 
-function CenterMapToMarker({ markerRef, onChange }: { markerRef: React.RefObject<L.Marker | null>, onChange: (lat: number, lng: number) => void }) {
+/** Re-centers the map view on the draggable pin (does not call GPS). */
+function CenterMapOnPinButton({
+  markerRef,
+  onChange,
+  ariaLabel,
+}: {
+  markerRef: RefObject<L.Marker | null>
+  onChange: (lat: number, lng: number) => void
+  ariaLabel: string
+}) {
   const map = useMap()
   const handleMapCenter = () => {
-    const marker = markerRef.current;
+    const marker = markerRef.current
     if (marker) {
-       const position = marker.getLatLng();
-       onChange(position.lat, position.lng);
-       map.setView([position.lat, position.lng]);
+      const position = marker.getLatLng()
+      onChange(position.lat, position.lng)
+      map.setView([position.lat, position.lng])
     }
-  };
-  
+  }
+
   return (
-    <button 
+    <button
       type="button"
       onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        handleMapCenter();
+        e.preventDefault()
+        e.stopPropagation()
+        handleMapCenter()
       }}
-      className="absolute bottom-4 right-4 z-[400] bg-white text-slate-800 p-2 rounded-full shadow-lg border border-slate-200/50 hover:bg-slate-50 transition-colors flex items-center justify-center cursor-pointer"
-      title="Center map to marker"
+      className="pointer-events-auto absolute bottom-4 end-4 z-[1000] flex size-11 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-800 shadow-lg transition-colors hover:bg-slate-50"
+      title={ariaLabel}
+      aria-label={ariaLabel}
     >
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-crosshair"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg>
+      <Crosshair className="size-5" aria-hidden />
+    </button>
+  )
+}
+
+/** Calls parent to run GPS (same as checkout "Share / Refresh location"). */
+function MyLocationFab({
+  onRequestMyLocation,
+  locationLoading,
+  ariaLabel,
+}: {
+  onRequestMyLocation: () => void
+  locationLoading: boolean
+  ariaLabel: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (!locationLoading) onRequestMyLocation()
+      }}
+      disabled={locationLoading}
+      className="pointer-events-auto absolute bottom-4 start-4 z-[1000] flex size-11 items-center justify-center rounded-full border border-emerald-200/90 bg-emerald-600 text-white shadow-lg transition-colors hover:bg-emerald-700 disabled:opacity-70"
+      title={ariaLabel}
+      aria-label={ariaLabel}
+    >
+      {locationLoading ? <Loader2 className="size-5 animate-spin" aria-hidden /> : <Locate className="size-5" aria-hidden />}
     </button>
   )
 }
@@ -65,13 +104,22 @@ export default function LocationPickerMap({
   lat,
   lng,
   onChange,
+  onRequestMyLocation,
+  locationLoading = false,
+  gpsAriaLabel = 'Use my current location',
+  centerPinAriaLabel = 'Center map on pin',
 }: {
   lat: number
   lng: number
   onChange: (lat: number, lng: number) => void
+  /** GPS refresh — must be wired to the same handler as checkout "Share my location". */
+  onRequestMyLocation?: () => void
+  locationLoading?: boolean
+  gpsAriaLabel?: string
+  centerPinAriaLabel?: string
 }) {
-  const markerRef = useRef<L.Marker>(null)
-  
+  const markerRef = useRef<L.Marker | null>(null)
+
   const eventHandlers = useMemo(
     () => ({
       dragend() {
@@ -86,7 +134,7 @@ export default function LocationPickerMap({
   )
 
   return (
-    <div className="h-full w-full rounded-2xl overflow-hidden border border-slate-200 z-0 relative isolate">
+    <div className="relative isolate z-0 h-full w-full overflow-hidden rounded-2xl border border-slate-200">
       <MapContainer
         center={[lat, lng]}
         zoom={16}
@@ -107,7 +155,14 @@ export default function LocationPickerMap({
           icon={customIcon}
         />
         <MapUpdater center={[lat, lng]} />
-        <CenterMapToMarker markerRef={markerRef} onChange={onChange} />
+        {onRequestMyLocation ? (
+          <MyLocationFab
+            onRequestMyLocation={onRequestMyLocation}
+            locationLoading={locationLoading}
+            ariaLabel={gpsAriaLabel}
+          />
+        ) : null}
+        <CenterMapOnPinButton markerRef={markerRef} onChange={onChange} ariaLabel={centerPinAriaLabel} />
       </MapContainer>
     </div>
   )

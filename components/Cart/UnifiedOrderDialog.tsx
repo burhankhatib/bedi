@@ -114,6 +114,8 @@ export function UnifiedOrderDialog({
 
   const nameInputRef = useRef<HTMLInputElement>(null)
   const prevOpenRef = useRef(false)
+  /** Prevents overlapping getCurrentPosition calls (auto + tap, or double-tap). */
+  const geoInFlightRef = useRef(false)
 
   const [distanceFee, setDistanceFee] = useState<number | null>(null)
   const [distanceKm, setDistanceKm] = useState<number | null>(null)
@@ -212,89 +214,103 @@ export function UnifiedOrderDialog({
     return null
   }, [lang])
 
-  /** Request location permission and get coordinates. Must be called from user gesture (tap) for iOS to show prompt. */
-  const requestDeliveryLocation = useCallback(() => {
-    if (!setDeliveryLocation || !navigator.geolocation) {
-      if (!navigator.geolocation) {
-        setLocationError(t('Location is not supported by your browser.', 'المتصفح لا يدعم الموقع.'))
+  /**
+   * Request GPS for delivery pin. Default: fast fresh fix (no stale cache). Optional highAccuracy for a slower, finer fix.
+   * Must be triggered from a user gesture on iOS for the permission prompt.
+   */
+  const requestDeliveryLocation = useCallback(
+    (opts?: { highAccuracy?: boolean }) => {
+      if (!setDeliveryLocation || !navigator.geolocation) {
+        if (!navigator.geolocation) {
+          setLocationError(t('Location is not supported by your browser.', 'المتصفح لا يدعم الموقع.'))
+        }
+        return
       }
-      return
-    }
-    setLocationError(null)
-    setLocationLoading(true)
+      if (geoInFlightRef.current) return
 
-    const onSuccess = async (pos: GeolocationPosition) => {
-      const lat = pos.coords.latitude
-      const lng = pos.coords.longitude
-      setDeliveryLocation(lat, lng)
-      setLocationLoading(false)
+      geoInFlightRef.current = true
+      setLocationError(null)
+      setLocationLoading(true)
 
-      const name = await reverseGeocode(lat, lng)
-      if (name) setAddress(prev => prev.trim() ? prev : name)
-    }
+      const highAccuracy = opts?.highAccuracy === true
+      const positionOptions: PositionOptions = highAccuracy
+        ? { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 }
+        : { enableHighAccuracy: false, timeout: 18000, maximumAge: 0 }
 
-    const onError = (err: GeolocationPositionError) => {
-      if (err.code === 1) {
-        setLocationError(
-          isIOS
-            ? t(
-                'Location was denied. On iPhone: go to Settings > Privacy & Security > Location Services, turn on and set this website to "Ask" or "While Using". Then tap the button again.',
-                'تم رفض الموقع. على iPhone: الإعدادات > الخصوصية والأمان > خدمات الموقع، فعّلها واختر لهذا الموقع "اسأل" أو "أثناء الاستخدام". ثم اضغط الزر مرة أخرى.'
-              )
-            : t(
-                'Location was denied. Enable it in your browser or device Settings (Privacy > Location), then tap the button again.',
-                'تم رفض الموقع. فعّله من إعدادات المتصفح أو الجهاز (الخصوصية > الموقع)، ثم اضغط الزر مرة أخرى.'
-              )
-        )
-      } else if (err.code === 3) {
-        setLocationError(
-          t('Location request timed out. Try again or enter your address below.',
-            'انتهت مهلة طلب الموقع. حاول مرة أخرى أو أدخل عنوانك أدناه.')
-        )
-      } else {
-        setLocationError(
-          t('Could not get location. Allow access when prompted, or enter your address below.',
-            'تعذر الحصول على الموقع. اسمح بالوصول عند الطلب، أو أدخل عنوانك أدناه.')
-        )
+      const onSuccess = (pos: GeolocationPosition) => {
+        const lat = pos.coords.latitude
+        const lng = pos.coords.longitude
+        setDeliveryLocation(lat, lng)
+        setLocationLoading(false)
+        geoInFlightRef.current = false
+        void reverseGeocode(lat, lng).then((name) => {
+          if (name) setAddress((prev) => (prev.trim() ? prev : name))
+        })
       }
-      setLocationLoading(false)
-    }
 
-    const options: PositionOptions = {
-      enableHighAccuracy: true,
-      timeout: 25000,
-      maximumAge: 60000,
-    }
+      const onError = (err: GeolocationPositionError) => {
+        if (err.code === 1) {
+          setLocationError(
+            isIOS
+              ? t(
+                  'Location was denied. On iPhone: go to Settings > Privacy & Security > Location Services, turn on and set this website to "Ask" or "While Using". Then tap the button again.',
+                  'تم رفض الموقع. على iPhone: الإعدادات > الخصوصية والأمان > خدمات الموقع، فعّلها واختر لهذا الموقع "اسأل" أو "أثناء الاستخدام". ثم اضغط الزر مرة أخرى.'
+                )
+              : t(
+                  'Location was denied. Enable it in your browser or device Settings (Privacy > Location), then tap the button again.',
+                  'تم رفض الموقع. فعّله من إعدادات المتصفح أو الجهاز (الخصوصية > الموقع)، ثم اضغط الزر مرة أخرى.'
+                )
+          )
+        } else if (err.code === 3) {
+          setLocationError(
+            t(
+              'Location request timed out. Try again or enter your address below.',
+              'انتهت مهلة طلب الموقع. حاول مرة أخرى أو أدخل عنوانك أدناه.'
+            )
+          )
+        } else {
+          setLocationError(
+            t(
+              'Could not get location. Allow access when prompted, or enter your address below.',
+              'تعذر الحصول على الموقع. اسمح بالوصول عند الطلب، أو أدخل عنوانك أدناه.'
+            )
+          )
+        }
+        setLocationLoading(false)
+        geoInFlightRef.current = false
+      }
 
-    navigator.geolocation.getCurrentPosition(onSuccess, (err) => {
-      if (err.code === 3 && isIOS) {
-        let resolved = false
-        const watchId = navigator.geolocation.watchPosition(
-          (pos) => {
+      navigator.geolocation.getCurrentPosition(onSuccess, (err) => {
+        if (err.code === 3 && isIOS) {
+          let resolved = false
+          const watchId = navigator.geolocation.watchPosition(
+            (pos) => {
+              if (resolved) return
+              resolved = true
+              navigator.geolocation.clearWatch(watchId)
+              onSuccess(pos)
+            },
+            (watchErr) => {
+              if (resolved) return
+              resolved = true
+              navigator.geolocation.clearWatch(watchId)
+              onError(watchErr)
+            },
+            { enableHighAccuracy: highAccuracy, timeout: 15000, maximumAge: 0 }
+          )
+          window.setTimeout(() => {
             if (resolved) return
             resolved = true
             navigator.geolocation.clearWatch(watchId)
-            onSuccess(pos)
-          },
-          (watchErr) => {
-            if (resolved) return
-            resolved = true
-            navigator.geolocation.clearWatch(watchId)
-            onError(watchErr)
-          },
-          { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
-        )
-        setTimeout(() => {
-          if (resolved) return
-          resolved = true
-          navigator.geolocation.clearWatch(watchId)
+            onError(err)
+          }, 16000)
+        } else {
           onError(err)
-        }, 16000)
-      } else {
-        onError(err)
-      }
-    }, options)
-  }, [setDeliveryLocation, t, isIOS, reverseGeocode])
+        }
+      }, positionOptions)
+    },
+    [setDeliveryLocation, t, isIOS, reverseGeocode]
+  )
 
   const handleMapsLinkChange = async (value: string) => {
     setMapsLinkInput(value)
@@ -321,10 +337,8 @@ export function UnifiedOrderDialog({
     }
     setOrderType(type)
     setStep('details')
-    // Request location permission immediately when user chooses Delivery (user gesture = iOS allows prompt)
-    if (type === 'delivery' && setDeliveryLocation) {
-      requestDeliveryLocation()
-    }
+    // Do not auto-request GPS here: it raced with "Share My Location" and caused duplicate getCurrentPosition calls.
+    // User taps Share My Location / map GPS (still on the same gesture flow as choosing Delivery).
   }
 
   const handleFinalSubmit = (e: React.FormEvent) => {
@@ -885,7 +899,7 @@ export function UnifiedOrderDialog({
                     {deliveryLat == null || deliveryLng == null ? (
                       <Button
                         type="button"
-                        onClick={requestDeliveryLocation}
+                        onClick={() => requestDeliveryLocation()}
                         disabled={locationLoading}
                         className="w-full h-14 rounded-xl font-bold text-base bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-md flex items-center justify-center gap-2"
                       >
@@ -912,7 +926,38 @@ export function UnifiedOrderDialog({
                               const name = await reverseGeocode(lat, lng)
                               if (name) setAddress(name)
                             }}
+                            onRequestMyLocation={() => requestDeliveryLocation()}
+                            locationLoading={locationLoading}
+                            gpsAriaLabel={t('Use my current location', 'استخدام موقعي الحالي')}
+                            centerPinAriaLabel={t('Center map on pin', 'توسيط الخريطة على الدبوس')}
                           />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => requestDeliveryLocation()}
+                            disabled={locationLoading}
+                            className="flex flex-1 min-h-11 items-center justify-center gap-2 rounded-xl border-emerald-200 bg-emerald-50/80 text-xs font-bold text-emerald-900 hover:bg-emerald-100"
+                          >
+                            {locationLoading ? (
+                              <Loader2 className="size-4 shrink-0 animate-spin" />
+                            ) : (
+                              <Locate className="size-4 shrink-0" />
+                            )}
+                            <span>{t('Refresh location', 'تحديث الموقع')}</span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => requestDeliveryLocation({ highAccuracy: true })}
+                            disabled={locationLoading}
+                            className="flex flex-1 min-h-11 items-center justify-center gap-2 rounded-xl border-slate-300 bg-white text-xs font-bold"
+                          >
+                            {t('Improve accuracy', 'تحسين الدقة')}
+                          </Button>
                         </div>
                         <div className="flex gap-2">
                           <Button
