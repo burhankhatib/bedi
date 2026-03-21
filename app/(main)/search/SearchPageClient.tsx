@@ -16,8 +16,8 @@ import { BUSINESS_TYPES } from '@/lib/constants'
 import { getCityDisplayName } from '@/lib/registration-translations'
 import { UniversalSearch } from '@/components/search/UniversalSearch'
 import { CategoryIconsBar } from '@/components/home/CategoryIconsBar'
-import { FreeDeliveryLogoFrame } from '@/components/home/FreeDeliveryLogoFrame'
-import { FreeDeliveryCardBadge } from '@/components/home/FreeDeliveryCardBadge'
+import { BusinessListingCard } from '@/components/home/BusinessListingCard'
+import { BUSINESS_LISTING_CARD_GRID_CLASS } from '@/lib/ui/businessListingGrid'
 import { isLikelyQuestion } from '@/lib/ai/question-detection'
 
 type Localized = { en: string; ar: string }
@@ -558,11 +558,11 @@ export function SearchPageClient() {
             {/* Note: In M3 Overhaul, the duplicate Specialty strip widget was removed because the top header (CategoryIconsBar) already solves this filtering natively and sticky-persists. */}
 
             {loading ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div className={BUSINESS_LISTING_CARD_GRID_CLASS}>
                 {[...Array(8)].map((_, i) => (
                   <div
                     key={i}
-                    className="h-[104px] animate-pulse rounded-2xl bg-slate-200/60"
+                    className="h-[300px] animate-pulse rounded-[20px] bg-slate-200/60"
                   />
                 ))}
               </div>
@@ -617,44 +617,20 @@ export function SearchPageClient() {
                         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
                           {t('Businesses', 'الأعمال')}
                         </h2>
-                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        <div className={BUSINESS_LISTING_CARD_GRID_CLASS}>
                           {sortedSearchResults.businesses.map((b) => (
-                            <div key={b._id}>
-                              <FullPageLink
-                                href={b.slug ? `/t/${b.slug}` : '#'}
-                                className={`group flex flex-col items-center rounded-[20px] bg-white p-4 pb-5 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30 ${
-                                  b.freeDeliveryEnabled ? 'overflow-visible' : 'overflow-hidden'
-                                }`}
-                              >
-                                <div className="relative mb-3 shrink-0">
-                                  <FreeDeliveryLogoFrame
-                                    active={b.freeDeliveryEnabled === true}
-                                    variant="light"
-                                    ariaLabel={t('Free Delivery', 'توصيل مجاني')}
-                                    className="size-[80px] sm:size-[88px] rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300"
-                                  >
-                                    {b.logoUrl ? (
-                                      <Image src={b.logoUrl} alt={(lang === 'ar' ? b.name_ar : b.name_en) || b.name} fill className="object-contain p-2" sizes="88px" />
-                                    ) : (
-                                      <div className="relative flex h-full w-full items-center justify-center">
-                                        <Store className="size-9 text-slate-300" />
-                                      </div>
-                                    )}
-                                  </FreeDeliveryLogoFrame>
-                                  {b.freeDeliveryEnabled && (
-                                    <FreeDeliveryCardBadge label={t('Free Delivery', 'توصيل مجاني')} variant="light" />
-                                  )}
-                                </div>
-                                <h3 className="font-bold text-slate-900 text-[17px] sm:text-[19px] tracking-tight text-center line-clamp-2 group-hover:text-brand-yellow transition-colors w-full">
-                                  {(lang === 'ar' ? b.name_ar : b.name_en) || b.name}
-                                </h3>
-                                <p className="mt-1 text-[13px] text-slate-500 capitalize font-medium">
-                                  {lang === 'ar'
-                                    ? BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.labelAr ?? b.businessType
-                                    : BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.label ?? b.businessType}
-                                </p>
-                              </FullPageLink>
-                            </div>
+                            <BusinessListingCard
+                              key={b._id}
+                              href={b.slug ? `/t/${b.slug}` : '#'}
+                              logoUrl={b.logoUrl}
+                              displayName={(lang === 'ar' ? b.name_ar : b.name_en) || b.name}
+                              businessType={b.businessType}
+                              freeDeliveryEnabled={b.freeDeliveryEnabled}
+                              lang={lang}
+                              t={t}
+                              useFullPageLink
+                              titleTag="h3"
+                            />
                           ))}
                         </div>
                       </section>
@@ -751,62 +727,21 @@ export function SearchPageClient() {
                 </FullPageLink>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-4">
+              <div className={`${BUSINESS_LISTING_CARD_GRID_CLASS} pt-4`}>
                 {displayTenants.map((tenant) => (
-                  <div key={tenant._id}>
-                    <FullPageLink
-                      href={tenant.slug ? `/t/${tenant.slug}` : '#'}
-                      className={`group flex flex-col items-center rounded-[20px] bg-white p-4 pb-5 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-brand-yellow/30 ${
-                        tenant.freeDeliveryEnabled ? 'overflow-visible' : 'overflow-hidden'
-                      }`}
-                    >
-                      {/* Logo + floating badge (badge does not add layout height) */}
-                      <div className="relative mb-3 shrink-0">
-                        <FreeDeliveryLogoFrame
-                          active={tenant.freeDeliveryEnabled === true}
-                          variant="light"
-                          ariaLabel={t('Free Delivery', 'توصيل مجاني')}
-                          className="size-[80px] sm:size-[88px] rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300"
-                        >
-                          {tenant.logoUrl ? (
-                            <Image
-                              src={tenant.logoUrl}
-                              alt={(lang === 'ar' ? tenant.name_ar : tenant.name_en) || tenant.name}
-                              fill
-                              className="object-contain p-2"
-                              sizes="88px"
-                            />
-                          ) : (
-                            <div className="relative flex h-full w-full items-center justify-center">
-                              <Store className="size-9 text-slate-300" />
-                            </div>
-                          )}
-                        </FreeDeliveryLogoFrame>
-                        {tenant.freeDeliveryEnabled && (
-                          <FreeDeliveryCardBadge label={t('Free Delivery', 'توصيل مجاني')} variant="light" />
-                        )}
-                      </div>
-                      {/* Business name - bold, big font */}
-                      <h2 className="font-bold text-slate-900 text-[17px] sm:text-[19px] tracking-tight text-center line-clamp-2 group-hover:text-brand-yellow transition-colors w-full">
-                        {(lang === 'ar' ? tenant.name_ar : tenant.name_en) || tenant.name}
-                      </h2>
-                      {/* Category */}
-                      <p className="mt-1 text-[13px] text-slate-500 capitalize font-medium">
-                        {lang === 'ar'
-                          ? BUSINESS_TYPES.find((b) => b.value === tenant.businessType)?.labelAr ?? tenant.businessType
-                          : BUSINESS_TYPES.find((b) => b.value === tenant.businessType)?.label ?? tenant.businessType}
-                      </p>
-                      {/* Specialty */}
-                      {tenant.sections.length > 0 && (
-                        <p className="mt-1 text-[12px] text-slate-500 line-clamp-2 text-center">
-                          {tenant.sections
-                            .map((s) => (lang === 'ar' ? s.ar || s.en : s.en || s.ar))
-                            .filter(Boolean)
-                            .join(' • ')}
-                        </p>
-                      )}
-                    </FullPageLink>
-                  </div>
+                  <BusinessListingCard
+                    key={tenant._id}
+                    href={tenant.slug ? `/t/${tenant.slug}` : '#'}
+                    logoUrl={tenant.logoUrl}
+                    displayName={(lang === 'ar' ? tenant.name_ar : tenant.name_en) || tenant.name}
+                    businessType={tenant.businessType}
+                    freeDeliveryEnabled={tenant.freeDeliveryEnabled}
+                    sections={tenant.sections}
+                    lang={lang}
+                    t={t}
+                    useFullPageLink
+                    titleTag="h3"
+                  />
                 ))}
               </div>
             )}

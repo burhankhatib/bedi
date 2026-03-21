@@ -1,4 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton'
+import { BUSINESS_LISTING_CARD_GRID_CLASS } from '@/lib/ui/businessListingGrid'
 
 /**
  * Home page skeleton: header, sidebar, category strip, banner, featured grid, popular section.
@@ -39,14 +40,12 @@ export function HomePageSkeleton() {
         {/* Featured places section */}
         <div className="mb-10">
           <Skeleton className="mb-6 h-7 w-48" />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 rounded-[20px] bg-white p-4 shadow-sm">
-                <Skeleton className="size-20 rounded-2xl shrink-0" />
-                <div className="flex-1 min-w-0 space-y-2">
-                  <Skeleton className="h-5 w-3/4" />
-                  <Skeleton className="h-3 w-1/2" />
-                </div>
+          <div className={BUSINESS_LISTING_CARD_GRID_CLASS}>
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="h-[300px] rounded-[20px] bg-white p-4 shadow-sm">
+                <Skeleton className="mx-auto size-[160px] rounded-3xl" />
+                <Skeleton className="mx-auto mt-4 h-5 w-4/5" />
+                <Skeleton className="mx-auto mt-2 h-3 w-1/2" />
               </div>
             ))}
           </div>

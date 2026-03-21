@@ -11,7 +11,6 @@ import { PublicFooter } from '@/components/saas/PublicFooter'
 import { PopularProductsSection } from '@/components/home/PopularProductsSection'
 import { HomePageAuthSections } from '@/components/home/HomePageAuthSections'
 import { FeaturedTenants } from '@/components/home/FeaturedTenants'
-import { PWAAppBanners } from '@/components/home/PWAAppBanners'
 import { ScrollDrivenBanner } from '@/components/home/ScrollDrivenBanner'
 import { Store, UtensilsCrossed } from 'lucide-react'
 
@@ -118,11 +117,16 @@ export function HomePageNew() {
             <ScrollDrivenBanner />
           </div>
 
-          {/* Feed — full width container */}
+          {/* Featured tenants — light surface */}
+          <div className="relative left-1/2 w-screen max-w-none -translate-x-1/2 bg-white">
+            <div className="mx-auto w-full max-w-none px-4 pb-10 pt-2 md:px-6 md:pb-12">
+              <FeaturedTenants category={activeCategory} />
+            </div>
+          </div>
+
+          {/* Popular + auth — dark feed */}
           <div className="relative left-1/2 w-screen max-w-none -translate-x-1/2 bg-black">
             <div className="mx-auto flex w-full max-w-none flex-col gap-8 px-4 py-12 md:gap-10 md:px-6 md:py-16 pb-16">
-              <FeaturedTenants category={activeCategory} />
-
               <motion.section
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -131,7 +135,6 @@ export function HomePageNew() {
                 <PopularProductsSection />
               </motion.section>
 
-              <PWAAppBanners />
               <HomePageAuthSections />
             </div>
           </div>

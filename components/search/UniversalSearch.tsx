@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo, useId } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
-import { Search, X, Store, UtensilsCrossed, Loader2, Sparkles, ShoppingCart } from 'lucide-react'
+import { Search, X, UtensilsCrossed, Loader2, Sparkles, ShoppingCart } from 'lucide-react'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
 import { useCart } from '@/components/Cart/CartContext'
@@ -15,6 +15,7 @@ import { isLikelyQuestion } from '@/lib/ai/question-detection'
 import { SearchAIPanel } from './SearchAIPanel'
 import { SearchChatOverlay } from './SearchChatOverlay'
 import { OPEN_AI_CHAT_EVENT, OPEN_CHAT_ON_LOAD_KEY } from './ChatFab'
+import { BusinessSearchRowLogo } from '@/components/home/BusinessListingCard'
 import { useSaveAiQuestion } from './useSaveAiQuestion'
 
 type BusinessHit = {
@@ -571,15 +572,7 @@ export function UniversalSearch({
                             focusedIndex === idx ? 'bg-slate-100' : 'hover:bg-slate-50'
                           )}
                         >
-                          <div className="relative size-12 shrink-0 rounded-xl overflow-hidden bg-slate-100">
-                            {b.logoUrl ? (
-                              <Image src={b.logoUrl} alt={name} fill className="object-contain p-1" sizes="48px" />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center">
-                                <Store className="size-6 text-slate-400" />
-                              </div>
-                            )}
-                          </div>
+                          <BusinessSearchRowLogo logoUrl={b.logoUrl} alt={name} />
                           <span className="font-semibold text-slate-900 truncate">{name}</span>
                         </Link>
                       )

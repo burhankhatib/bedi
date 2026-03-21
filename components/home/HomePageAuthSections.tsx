@@ -1,252 +1,280 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
+import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
+import { useUser } from '@clerk/nextjs'
 import { useLanguage } from '@/components/LanguageContext'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import {
-  Store,
-  Truck,
-  Menu,
-  ClipboardList,
-  Zap,
-  LogIn,
-  UserPlus,
-  MapPin,
-  Banknote,
-} from 'lucide-react'
+import { PREFER_DRIVER_KEY, PREFER_TENANT_KEY } from '@/components/StandaloneDriverRedirect'
+import { LayoutDashboard, UserPlus, LogIn, ArrowRight } from 'lucide-react'
+import { PWAStoreBadgePair, type PWAAppKind } from '@/components/home/PWAStoreBadgePair'
+import { PWAUninstallScopeDialog } from '@/components/home/PWAUninstallScopeDialog'
+
+type MeContext = { tenants: { slug: string; name?: string }[]; isDriver: boolean }
 
 const container = {
   hidden: { opacity: 0 },
-  visible: (i = 1) => ({
+  visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.12, delayChildren: 0.04 * i },
-  }),
+    transition: { staggerChildren: 0.1, delayChildren: 0.06 },
+  },
 }
 
 const item = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: { opacity: 0, y: 16 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.4, ease: 'easeOut' as const },
+    transition: { duration: 0.35, ease: [0.2, 0, 0, 1] as const },
   },
 }
 
-const float = {
-  initial: { y: 0 },
-  animate: {
-    y: [0, -6, 0],
-    transition: { duration: 4, repeat: Infinity, ease: 'easeInOut' as const },
-  },
+function preferTenant() {
+  try {
+    localStorage.removeItem(PREFER_DRIVER_KEY)
+    localStorage.setItem(PREFER_TENANT_KEY, '1')
+  } catch {
+    /* ignore */
+  }
 }
 
-const DRIVER_BRAND = '#9c2d2a'
-const BUSINESS_BRAND = '#221f20'
+function preferDriver() {
+  try {
+    localStorage.setItem(PREFER_DRIVER_KEY, '1')
+    localStorage.removeItem(PREFER_TENANT_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+/** M3 filled — primary (business). Full width + taller tap area on small screens. */
+const m3Filled =
+  'inline-flex w-full min-h-11 flex-1 items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-bold shadow-[var(--m3-elevation-1)] transition-[transform,box-shadow,opacity] duration-[var(--m3-duration-short)] ease-[var(--m3-ease-standard)] hover:shadow-[var(--m3-elevation-2)] active:scale-[0.98] bg-[var(--m3-primary)] text-[var(--m3-on-primary)] hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--m3-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 touch-manipulation sm:min-h-10 sm:w-auto sm:py-2.5'
+
+/** Driver brand red (matches driver PWA / marketing). */
+const m3FilledDriver =
+  'inline-flex w-full min-h-11 flex-1 items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-bold shadow-[var(--m3-elevation-1)] transition-[transform,box-shadow,background-color] duration-[var(--m3-duration-short)] ease-[var(--m3-ease-standard)] hover:shadow-[var(--m3-elevation-2)] active:scale-[0.98] bg-[#9c2d2a] text-white hover:bg-[#b83834] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 touch-manipulation sm:min-h-10 sm:w-auto sm:py-2.5'
+
+const m3Outlined =
+  'inline-flex w-full min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[var(--m3-outline-variant)] bg-[var(--m3-surface-container-high)] px-4 py-3 text-sm font-bold text-[var(--m3-on-surface)] transition-colors duration-[var(--m3-duration-short)] ease-[var(--m3-ease-standard)] hover:bg-[var(--m3-surface-container-low)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--m3-outline)] focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 touch-manipulation sm:min-h-10 sm:w-auto sm:py-2.5'
+
+const m3Card =
+  'flex h-full flex-col rounded-3xl border border-zinc-700/70 bg-zinc-900/85 px-5 py-6 shadow-[var(--m3-elevation-2)] backdrop-blur-sm sm:rounded-2xl md:px-5 md:py-5'
 
 export function HomePageAuthSections() {
   const { t, lang } = useLanguage()
   const isRtl = lang === 'ar'
+  const { isSignedIn, isLoaded: clerkLoaded } = useUser()
+  const [meContext, setMeContext] = useState<MeContext | null>(null)
+  const [pwaModalApp, setPwaModalApp] = useState<PWAAppKind | null>(null)
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      setMeContext(null)
+      return
+    }
+    let cancelled = false
+    fetch('/api/me/context')
+      .then((res) => res.json())
+      .then((data: { tenants?: { slug: string; name?: string }[]; isDriver?: boolean }) => {
+        if (cancelled) return
+        setMeContext({
+          tenants: Array.isArray(data.tenants) ? data.tenants : [],
+          isDriver: data.isDriver === true,
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setMeContext({ tenants: [], isDriver: false })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isSignedIn])
+
+  const hasTenant = (meContext?.tenants.length ?? 0) > 0
+  const hasDriver = meContext?.isDriver === true
+  const contextReady = !isSignedIn || meContext !== null
+  const showSignedInBusiness = Boolean(isSignedIn && contextReady && hasTenant)
+  const showSignedInDriver = Boolean(isSignedIn && contextReady && hasDriver)
 
   return (
-    <section className="mt-16 space-y-20 pb-16 md:mt-24 md:space-y-28" aria-label={t('Sign in or sign up', 'تسجيل الدخول أو إنشاء حساب')}>
-      {/* ─── For Businesses (Tenants) ─── */}
+    <section
+      className="mt-12 pb-12 md:mt-16 md:pb-16"
+      aria-label={t('For businesses and drivers', 'للأعمال والسائقين')}
+      dir={isRtl ? 'rtl' : 'ltr'}
+    >
+      <PWAUninstallScopeDialog
+        open={pwaModalApp !== null}
+        onOpenChange={(open) => {
+          if (!open) setPwaModalApp(null)
+        }}
+        app={pwaModalApp}
+      />
       <motion.div
-        id="for-businesses"
         initial="hidden"
         whileInView="visible"
-        viewport={{ once: true, margin: '-80px' }}
+        viewport={{ once: true, margin: '-60px' }}
         variants={container}
-        className="scroll-mt-20"
+        className="mx-auto max-w-4xl scroll-mt-20"
       >
-        <div className="mx-auto max-w-5xl">
-          <motion.div
-            variants={item}
-            className="mb-8 flex flex-col items-center gap-2 text-center"
-          >
-            <span
-              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium text-white"
-              style={{ backgroundColor: BUSINESS_BRAND, borderColor: `${BUSINESS_BRAND}99`, borderWidth: 1 }}
-            >
-              <Store className="size-4" />
-              {t('For businesses', 'للأعمال')}
-            </span>
-            <h2 className="text-3xl font-bold tracking-tight text-[#E6E1E5] md:text-4xl">
-              {t('Get your menu online. Accept orders in minutes.', 'انشر قائمتك أونلاين. استقبل الطلبات خلال دقائق.')}
-            </h2>
-            <p className="max-w-xl text-[#CAC4D0]">
-              {t(
-                'Restaurants, cafes, salons and more — one link, dine-in and delivery orders, no app store.',
-                'مطاعم، مقاهي، صالونات والمزيد — رابط واحد، طلبات جلوس وتوصيل، بدون متجر تطبيقات.'
+        <motion.div variants={item} className="mb-8 px-1 text-center md:mb-8 md:px-0">
+          <h2 className="text-2xl font-bold tracking-tight text-[#E6E1E5] md:text-3xl">
+            {t('Grow with Bedi', 'انمُ مع بدي')}
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[#CAC4D0] md:mt-2 md:text-base">
+            {t(
+              'Run your business online or deliver orders — same account, one platform.',
+              'أدر عملك أونلاين أو وصّل الطلبات — نفس الحساب، منصة واحدة.'
+            )}
+          </p>
+        </motion.div>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-4">
+          {/* Business */}
+          <motion.article variants={item} id="for-businesses" className={m3Card}>
+            <div className="mb-5 flex flex-col items-center gap-3 text-center max-md:pb-1 md:mb-4 md:flex-row md:items-center md:gap-4 md:text-start">
+              <div
+                className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black ring-1 ring-white/20 md:h-[4.5rem] md:w-[4.5rem]"
+                aria-hidden
+              >
+                <Image
+                  src="/adminslogo.webp"
+                  alt=""
+                  width={72}
+                  height={72}
+                  className="object-cover"
+                  sizes="(max-width:768px) 56px, 72px"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-lg font-bold text-[#E6E1E5] md:text-xl">{t('For businesses', 'للأعمال')}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-[#CAC4D0] md:mt-1 md:text-sm">
+                  {t('Menu, orders, dine-in & delivery.', 'قائمة، طلبات، جلوس وتوصيل.')}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-auto flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap sm:gap-2">
+              {!clerkLoaded ? (
+                <div className="h-11 flex-1 animate-pulse rounded-full bg-zinc-800 sm:h-10" />
+              ) : !isSignedIn ? (
+                <>
+                  <Link href="/sign-up?redirect_url=/onboarding" className={m3Filled}>
+                    <UserPlus className="size-4 shrink-0" aria-hidden />
+                    {t('Sign up', 'تسجيل')}
+                  </Link>
+                  <Link href="/sign-in?redirect_url=/onboarding" className={m3Outlined}>
+                    <LogIn className="size-4 shrink-0" aria-hidden />
+                    {t('Sign in', 'دخول')}
+                  </Link>
+                </>
+              ) : !contextReady ? (
+                <div className="h-11 flex-1 animate-pulse rounded-full bg-zinc-800 sm:h-10" />
+              ) : showSignedInBusiness ? (
+                <Link href="/dashboard" onClick={preferTenant} className={`${m3Filled} sm:w-auto`}>
+                  <LayoutDashboard className="size-4 shrink-0" aria-hidden />
+                  {t('Business dashboard', 'لوحة الأعمال')}
+                  <ArrowRight className="size-4 shrink-0 opacity-90 rtl:rotate-180" aria-hidden />
+                </Link>
+              ) : (
+                <Link href="/onboarding" onClick={preferTenant} className={`${m3Filled} sm:w-auto`}>
+                  <UserPlus className="size-4 shrink-0" aria-hidden />
+                  {t('Register your business', 'سجّل عملك')}
+                  <ArrowRight className="size-4 shrink-0 opacity-90 rtl:rotate-180" aria-hidden />
+                </Link>
               )}
-            </p>
-          </motion.div>
+            </div>
 
-          <motion.div variants={item}>
-            <Card className="overflow-hidden transition-shadow hover:shadow-xl bg-[#2B2930] border-[#49454F]" style={{ borderColor: `${BUSINESS_BRAND}50`, background: `linear-gradient(to bottom right, ${BUSINESS_BRAND}25, #2B2930)`, boxShadow: `0 10px 40px -10px ${BUSINESS_BRAND}30` }}>
-              <CardHeader className="pb-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle className="text-xl text-[#E6E1E5] md:text-2xl">
-                      {t('Create your business account', 'إنشاء حساب أعمال')}
-                    </CardTitle>
-                    <CardDescription className="mt-1.5 text-[#CAC4D0]">
-                      {t('Sign up or sign in to manage your menu and orders.', 'سجّل أو ادخل لإدارة قائمتك وطلباتك.')}
-                    </CardDescription>
-                  </div>
-                  <motion.div
-                    variants={float}
-                    initial="initial"
-                    animate="animate"
-                    className="hidden shrink-0 sm:block"
-                  >
-                    <div className="flex size-16 items-center justify-center rounded-2xl text-white" style={{ backgroundColor: BUSINESS_BRAND }}>
-                      <Store className="size-8" />
-                    </div>
-                  </motion.div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <ul className="grid gap-3 sm:grid-cols-3">
-                  {[
-                    { icon: Menu, text: t('Digital menu & link', 'قائمة رقمية ورابط'), textAr: 'قائمة رقمية ورابط' },
-                    { icon: ClipboardList, text: t('Orders dashboard', 'لوحة الطلبات'), textAr: 'لوحة الطلبات' },
-                    { icon: Zap, text: t('Dine-in & delivery', 'جلوس وتوصيل'), textAr: 'جلوس وتوصيل' },
-                  ].map(({ icon: Icon, text, textAr }, i) => (
-                    <motion.li
-                      key={i}
-                      variants={item}
-                      className="flex items-center gap-3 rounded-xl border bg-[#36343B] border-[#49454F] px-4 py-3"
-                      style={{ borderColor: `${BUSINESS_BRAND}40` }}
-                    >
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg text-white" style={{ backgroundColor: BUSINESS_BRAND }}>
-                        <Icon className="size-4" />
-                      </div>
-                      <span className="text-sm font-medium text-[#E6E1E5]">{isRtl ? textAr : text}</span>
-                    </motion.li>
-                  ))}
-                </ul>
-              </CardContent>
-              <CardFooter className="flex flex-wrap gap-3 border-t pt-6" style={{ borderColor: `${BUSINESS_BRAND}40`, backgroundColor: `${BUSINESS_BRAND}15` }}>
-                <Button asChild size="lg" className="gap-2 rounded-xl text-white shadow-md hover:opacity-90" style={{ backgroundColor: BUSINESS_BRAND }}>
-                  <Link href="/sign-up?redirect_url=/onboarding">
-                    <UserPlus className="size-5" />
-                    {t('Sign up (Business)', 'تسجيل (أعمال)')}
-                  </Link>
-                </Button>
-                <Button asChild size="lg" variant="outline" className="gap-2 rounded-xl border bg-transparent text-[#E6E1E5] hover:bg-[#36343B]" style={{ borderColor: `${BUSINESS_BRAND}60` }}>
-                  <Link href="/sign-in?redirect_url=/">
-                    <LogIn className="size-5" />
-                    {t('Sign in (Business)', 'دخول (أعمال)')}
-                  </Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          </motion.div>
-        </div>
-      </motion.div>
+            <div className="mt-6 rounded-2xl border border-zinc-700/50 bg-zinc-950/35 p-4 max-md:mt-7 md:mt-5 md:border-0 md:border-t md:border-zinc-700/50 md:bg-transparent md:p-0 md:pt-4">
+              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-500 md:mb-2">
+                {t('Install the app', 'ثبّت التطبيق')}
+              </p>
+              <PWAStoreBadgePair
+                href="/dashboard"
+                appKind="business"
+                t={t}
+                onBeforeNavigate={preferTenant}
+                onStandaloneBlocked={setPwaModalApp}
+              />
+            </div>
+          </motion.article>
 
-      {/* ─── For Drivers ─── */}
-      <motion.div
-        id="for-drivers"
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: '-80px' }}
-        variants={container}
-        className="scroll-mt-20"
-      >
-        <div className="mx-auto max-w-5xl">
-          <motion.div
-            variants={item}
-            className="mb-8 flex flex-col items-center gap-2 text-center"
-          >
-            <span
-              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium text-white"
-              style={{ backgroundColor: DRIVER_BRAND, borderColor: `${DRIVER_BRAND}99`, borderWidth: 1 }}
-            >
-              <Truck className="size-4" />
-              {t('For drivers', 'للسائقين')}
-            </span>
-            <h2 className="text-3xl font-bold tracking-tight text-[#E6E1E5] md:text-4xl">
-              {t('Deliver orders. Earn on your schedule.', 'وصّل الطلبات. اربح حسب وقتك.')}
-            </h2>
-            <p className="max-w-xl text-[#CAC4D0]">
-              {t(
-                'Join the driver app, get orders in your area, and get paid. Enable notifications to receive new orders.',
-                'انضم لتطبيق السائقين، استلم طلبات في منطقتك واربح. فعّل الإشعارات لاستقبال طلبات جديدة.'
+          {/* Driver */}
+          <motion.article variants={item} id="for-drivers" className={m3Card}>
+            <div className="mb-5 flex flex-col items-center gap-3 text-center max-md:pb-1 md:mb-4 md:flex-row md:items-center md:gap-4 md:text-start">
+              <div
+                className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black ring-1 ring-white/20 md:h-[4.5rem] md:w-[4.5rem]"
+                aria-hidden
+              >
+                <Image
+                  src="/driversLogo.webp"
+                  alt=""
+                  width={72}
+                  height={72}
+                  className="object-cover"
+                  sizes="(max-width:768px) 56px, 72px"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-lg font-bold text-[#E6E1E5] md:text-xl">{t('For drivers', 'للسائقين')}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-[#CAC4D0] md:mt-1 md:text-sm">
+                  {t('Deliver nearby and get paid.', 'وصّل في منطقتك واربح.')}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-auto flex flex-col gap-3 pt-1 sm:flex-row sm:flex-wrap sm:gap-2">
+              {!clerkLoaded ? (
+                <div className="h-11 flex-1 animate-pulse rounded-full bg-red-900/80 sm:h-10" />
+              ) : !isSignedIn ? (
+                <>
+                  <Link href="/sign-up?redirect_url=/driver" className={m3FilledDriver}>
+                    <UserPlus className="size-4 shrink-0" aria-hidden />
+                    {t('Sign up', 'تسجيل')}
+                  </Link>
+                  <Link href="/sign-in?redirect_url=/driver" className={m3Outlined}>
+                    <LogIn className="size-4 shrink-0" aria-hidden />
+                    {t('Sign in', 'دخول')}
+                  </Link>
+                </>
+              ) : !contextReady ? (
+                <div className="h-11 flex-1 animate-pulse rounded-full bg-red-900/80 sm:h-10" />
+              ) : showSignedInDriver ? (
+                <Link href="/driver" onClick={preferDriver} className={`${m3FilledDriver} sm:w-auto`}>
+                  <Image
+                    src="/driversLogo.webp"
+                    alt=""
+                    width={16}
+                    height={16}
+                    className="size-4 shrink-0 object-contain drop-shadow-sm"
+                    sizes="16px"
+                  />
+                  {t('Driver dashboard', 'لوحة السائق')}
+                  <ArrowRight className="size-4 shrink-0 opacity-90 rtl:rotate-180" aria-hidden />
+                </Link>
+              ) : (
+                <Link href="/driver/profile" onClick={preferDriver} className={`${m3FilledDriver} sm:w-auto`}>
+                  <UserPlus className="size-4 shrink-0" aria-hidden />
+                  {t('Complete driver signup', 'أكمل تسجيل السائق')}
+                  <ArrowRight className="size-4 shrink-0 opacity-90 rtl:rotate-180" aria-hidden />
+                </Link>
               )}
-            </p>
-          </motion.div>
+            </div>
 
-          <motion.div variants={item}>
-            <Card className="overflow-hidden transition-shadow hover:shadow-xl bg-[#2B2930] border-[#49454F]" style={{ borderColor: `${DRIVER_BRAND}50`, background: `linear-gradient(to bottom right, ${DRIVER_BRAND}25, #2B2930)`, boxShadow: `0 10px 40px -10px ${DRIVER_BRAND}30` }}>
-              <CardHeader className="pb-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle className="text-xl text-[#E6E1E5] md:text-2xl">
-                      {t('Join as a driver', 'انضم كسائق')}
-                    </CardTitle>
-                    <CardDescription className="mt-1.5 text-[#CAC4D0]">
-                      {t('Sign up or sign in to the driver app and start receiving orders.', 'سجّل أو ادخل لتطبيق السائقين وابدأ باستقبال الطلبات.')}
-                    </CardDescription>
-                  </div>
-                  <motion.div
-                    variants={float}
-                    initial="initial"
-                    animate="animate"
-                    className="hidden shrink-0 sm:block"
-                  >
-                    <div className="flex size-16 items-center justify-center rounded-2xl text-white" style={{ backgroundColor: DRIVER_BRAND }}>
-                      <Truck className="size-8" />
-                    </div>
-                  </motion.div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <ul className="grid gap-3 sm:grid-cols-3">
-                  {[
-                    { icon: MapPin, text: t('Orders in your area', 'طلبات في منطقتك'), textAr: 'طلبات في منطقتك' },
-                    { icon: Zap, text: t('Real-time notifications', 'إشعارات فورية'), textAr: 'إشعارات فورية' },
-                    { icon: Banknote, text: t('Get paid per delivery', 'ادفع لكل توصيل'), textAr: 'ادفع لكل توصيل' },
-                  ].map(({ icon: Icon, text, textAr }, i) => (
-                    <motion.li
-                      key={i}
-                      variants={item}
-                      className="flex items-center gap-3 rounded-xl border bg-[#36343B] border-[#49454F] px-4 py-3"
-                      style={{ borderColor: `${DRIVER_BRAND}40` }}
-                    >
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-lg text-white" style={{ backgroundColor: DRIVER_BRAND }}>
-                        <Icon className="size-4" />
-                      </div>
-                      <span className="text-sm font-medium text-[#E6E1E5]">{isRtl ? textAr : text}</span>
-                    </motion.li>
-                  ))}
-                </ul>
-              </CardContent>
-              <CardFooter className="flex flex-wrap gap-3 border-t pt-6" style={{ borderColor: `${DRIVER_BRAND}40`, backgroundColor: `${DRIVER_BRAND}15` }}>
-                <Button asChild size="lg" className="gap-2 rounded-xl text-white shadow-md hover:opacity-90" style={{ backgroundColor: DRIVER_BRAND }}>
-                  <Link href="/sign-up?redirect_url=/driver">
-                    <UserPlus className="size-5" />
-                    {t('Sign up (Driver)', 'تسجيل (سائق)')}
-                  </Link>
-                </Button>
-                <Button asChild size="lg" variant="outline" className="gap-2 rounded-xl border bg-transparent text-[#E6E1E5] hover:bg-[#36343B]" style={{ borderColor: `${DRIVER_BRAND}60` }}>
-                  <Link href="/sign-in?redirect_url=/driver">
-                    <LogIn className="size-5" />
-                    {t('Sign in (Driver)', 'دخول (سائق)')}
-                  </Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          </motion.div>
+            <div className="mt-6 rounded-2xl border border-zinc-700/50 bg-zinc-950/35 p-4 max-md:mt-7 md:mt-5 md:border-0 md:border-t md:border-zinc-700/50 md:bg-transparent md:p-0 md:pt-4">
+              <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-500 md:mb-2">
+                {t('Install the app', 'ثبّت التطبيق')}
+              </p>
+              <PWAStoreBadgePair
+                href="/driver"
+                appKind="driver"
+                t={t}
+                onBeforeNavigate={preferDriver}
+                onStandaloneBlocked={setPwaModalApp}
+              />
+            </div>
+          </motion.article>
         </div>
       </motion.div>
     </section>

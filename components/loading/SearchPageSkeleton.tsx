@@ -1,4 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton'
+import { BUSINESS_LISTING_CARD_GRID_CLASS } from '@/lib/ui/businessListingGrid'
 
 /**
  * Search page skeleton: header, category strip, title, search bar, tenant grid.
@@ -32,15 +33,13 @@ export function SearchPageSkeleton() {
           <Skeleton className="size-14 rounded-full shrink-0" />
         </div>
 
-        {/* Tenant/product grid */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-4">
+        {/* Tenant cards (matches SearchPageClient business grid) */}
+        <div className={`${BUSINESS_LISTING_CARD_GRID_CLASS} pt-4`}>
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="flex items-center gap-4 rounded-[20px] bg-white p-4 shadow-sm">
-              <Skeleton className="size-[72px] rounded-full shrink-0" />
-              <div className="flex-1 min-w-0 space-y-2">
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-              </div>
+            <div key={i} className="h-[300px] rounded-[20px] bg-white p-4 shadow-sm">
+              <Skeleton className="mx-auto size-[160px] rounded-3xl" />
+              <Skeleton className="mx-auto mt-4 h-5 w-4/5" />
+              <Skeleton className="mx-auto mt-2 h-3 w-1/2" />
             </div>
           ))}
         </div>

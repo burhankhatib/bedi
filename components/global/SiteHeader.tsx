@@ -3,8 +3,21 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname, useRouter } from 'next/navigation'
-import { MapPin, ChevronDown, User, LogIn, Store, Truck, Menu, ClipboardList, LogOut, Bell, ShoppingCart, Sparkles } from 'lucide-react'
+import {
+  MapPin,
+  ChevronDown,
+  User,
+  LogIn,
+  Store,
+  Truck,
+  Menu,
+  ClipboardList,
+  LogOut,
+  Bell,
+  ShoppingCart,
+  Sparkles,
+  LayoutDashboard,
+} from 'lucide-react'
 import { useUser, useClerk } from '@clerk/nextjs'
 import { useLocation } from '@/components/LocationContext'
 import { getCityDisplayName } from '@/lib/registration-translations'
@@ -75,52 +88,39 @@ function AuthEntryButton({ t }: { t: (en: string, ar: string) => string; isRtl: 
   )
 }
 
-/** Desktop: clear toggle to switch between Customer / Driver / Tenant. Shown only when signed in. */
-function DesktopRoleSwitcher({ t, isRtl }: { t: (en: string, ar: string) => string; isRtl: boolean }) {
-  const pathname = usePathname() ?? ''
-  const isDriver = pathname.startsWith('/driver')
-  const isTenant = pathname.startsWith('/dashboard') || pathname.startsWith('/onboarding') || pathname.startsWith('/t/')
-  const isCustomer = !isDriver && !isTenant
+type MeContext = { tenants: { slug: string; name?: string }[]; isDriver: boolean }
 
-  const base = 'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors'
-  const active = 'bg-slate-900 text-white border-slate-900 shadow-sm'
-  const inactive = 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+/** M3 filled — primary action (business dashboard). */
+const m3FilledPrimary =
+  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full px-4 text-sm font-bold shadow-[var(--m3-elevation-1)] outline-none transition-[transform,box-shadow,opacity] duration-[var(--m3-duration-short)] ease-[var(--m3-ease-standard)] hover:shadow-[var(--m3-elevation-2)] focus-visible:ring-2 focus-visible:ring-[var(--m3-primary)] focus-visible:ring-offset-2 active:scale-[0.98] bg-[var(--m3-primary)] text-[var(--m3-on-primary)] hover:opacity-95 touch-manipulation'
 
-  return (
-    <div
-      className="hidden md:flex items-center gap-0.5 p-0.5 rounded-xl border border-slate-200 bg-slate-50/80"
-      role="group"
-      aria-label={t('Switch role', 'تبديل الدور')}
-    >
-      <a
-        href="/"
-        onClick={() => { try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.removeItem(PREFER_TENANT_KEY) } catch { /* ignore */ } }}
-        className={`${base} ${isCustomer ? active : inactive}`}
-        title={t('Browse as Customer', 'التصفح كزبون')}
-      >
-        <User className="size-4 shrink-0" aria-hidden />
-        <span className="hidden lg:inline">{t('Customer', 'زبون')}</span>
-      </a>
-      <a
-        href="/driver"
-        onClick={() => { try { localStorage.setItem(PREFER_DRIVER_KEY, '1'); localStorage.removeItem(PREFER_TENANT_KEY) } catch { /* ignore */ } }}
-        className={`${base} ${isDriver ? active : inactive}`}
-        title={t('Switch to Driver', 'التبديل إلى سائق')}
-      >
-        <Truck className="size-4 shrink-0" aria-hidden />
-        <span className="hidden lg:inline">{t('Driver', 'سائق')}</span>
-      </a>
-      <a
-        href="/dashboard"
-        onClick={() => { try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.setItem(PREFER_TENANT_KEY, '1') } catch { /* ignore */ } }}
-        className={`${base} ${isTenant ? active : inactive}`}
-        title={t('Switch to Business', 'التبديل إلى أعمال')}
-      >
-        <Store className="size-4 shrink-0" aria-hidden />
-        <span className="hidden lg:inline">{t('Business', 'أعمال')}</span>
-      </a>
-    </div>
-  )
+/** M3 filled tonal — secondary role (driver). */
+const m3FilledDriver =
+  'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full px-4 text-sm font-bold shadow-[var(--m3-elevation-1)] outline-none transition-[transform,box-shadow,opacity] duration-[var(--m3-duration-short)] ease-[var(--m3-ease-standard)] hover:shadow-[var(--m3-elevation-2)] focus-visible:ring-2 focus-visible:ring-[var(--m3-secondary-container)] focus-visible:ring-offset-2 active:scale-[0.98] bg-[var(--m3-secondary-container)] text-[var(--m3-on-secondary-container)] hover:opacity-95 touch-manipulation'
+
+/** Mobile: full-width M3 list button (48dp min height). */
+const m3MobileRowPrimary =
+  'flex w-full min-h-12 items-center justify-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold shadow-[var(--m3-elevation-1)] transition-[transform,box-shadow,opacity] duration-[var(--m3-duration-short)] ease-[var(--m3-ease-standard)] active:scale-[0.99] bg-[var(--m3-primary)] text-[var(--m3-on-primary)] hover:opacity-95 touch-manipulation'
+
+const m3MobileRowDriver =
+  'flex w-full min-h-12 items-center justify-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold shadow-[var(--m3-elevation-1)] transition-[transform,box-shadow,opacity] duration-[var(--m3-duration-short)] ease-[var(--m3-ease-standard)] active:scale-[0.99] bg-[var(--m3-secondary-container)] text-[var(--m3-on-secondary-container)] hover:opacity-95 touch-manipulation'
+
+function preferTenant() {
+  try {
+    localStorage.removeItem(PREFER_DRIVER_KEY)
+    localStorage.setItem(PREFER_TENANT_KEY, '1')
+  } catch {
+    /* ignore */
+  }
+}
+
+function preferDriver() {
+  try {
+    localStorage.setItem(PREFER_DRIVER_KEY, '1')
+    localStorage.removeItem(PREFER_TENANT_KEY)
+  } catch {
+    /* ignore */
+  }
 }
 
 export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderProps) {
@@ -130,8 +130,8 @@ export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderPr
   const { signOut } = useClerk()
   const isRtl = lang === 'ar'
   const [menuOpen, setMenuOpen] = useState(false)
+  const [meContext, setMeContext] = useState<MeContext | null>(null)
 
-  const router = useRouter()
   const { totalItems, setIsOpen } = useCart()
   const [globalOrderType, setGlobalOrderType] = useState<'delivery' | 'pickup'>('delivery')
 
@@ -139,6 +139,34 @@ export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderPr
     const saved = localStorage.getItem('global_order_type')
     if (saved === 'pickup') setGlobalOrderType('pickup')
   }, [])
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      setMeContext(null)
+      return
+    }
+    let cancelled = false
+    fetch('/api/me/context')
+      .then((res) => res.json())
+      .then((data: { tenants?: { slug: string; name?: string }[]; isDriver?: boolean }) => {
+        if (cancelled) return
+        setMeContext({
+          tenants: Array.isArray(data.tenants) ? data.tenants : [],
+          isDriver: data.isDriver === true,
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setMeContext({ tenants: [], isDriver: false })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isSignedIn])
+
+  const hasTenantAccess = (meContext?.tenants.length ?? 0) > 0
+  const hasDriverAccess = meContext?.isDriver === true
+  const meContextLoaded = Boolean(isSignedIn && meContext)
+  const showWorkDashboardEntry = Boolean(meContextLoaded && (hasTenantAccess || hasDriverAccess))
 
   const handleToggleOrderType = (type: 'delivery' | 'pickup') => {
     setGlobalOrderType(type)
@@ -193,39 +221,109 @@ export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderPr
             <Sparkles className="w-5 h-5 text-slate-500" />
             {t('Search history', 'سجل البحث')}
           </Link>
-          <p className="text-xs text-slate-500">{t('Switch to', 'التبديل إلى')}</p>
-          <div className="flex flex-wrap gap-2">
-            <a
-              href="/"
-              onClick={() => {
-                try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.removeItem(PREFER_TENANT_KEY) } catch { /* ignore */ }
-              }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100"
-            >
-              <User className="size-3.5" />
-              {t('Browse as Customer', 'التصفح كزبون')}
-            </a>
-            <a
-              href="/driver"
-              onClick={() => {
-                try { localStorage.setItem(PREFER_DRIVER_KEY, '1') } catch { /* ignore */ }
-              }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
-            >
-              <Truck className="size-3.5" />
-              {t('Switch to Driver', 'التبديل إلى سائق')}
-            </a>
-            <a
-              href="/dashboard"
-              onClick={() => {
-                try { localStorage.removeItem(PREFER_DRIVER_KEY); localStorage.setItem(PREFER_TENANT_KEY, '1') } catch { /* ignore */ }
-              }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-200"
-            >
-              <Store className="size-3.5" />
-              {t('Switch to Business', 'التبديل إلى أعمال')}
-            </a>
-          </div>
+          {showWorkDashboardEntry ? (
+            <div className="rounded-2xl border border-[var(--m3-outline-variant)] bg-[var(--m3-surface-container)] p-3 shadow-[var(--m3-elevation-1)]">
+              <p className="px-1 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--m3-on-surface-variant)]">
+                {t('Work', 'مساحة العمل')}
+              </p>
+              <div className="flex flex-col gap-2">
+                {hasTenantAccess && (
+                  <a
+                    href="/dashboard"
+                    onClick={() => {
+                      preferTenant()
+                      setMenuOpen(false)
+                    }}
+                    className={m3MobileRowPrimary}
+                  >
+                    <LayoutDashboard className="size-5 shrink-0" aria-hidden />
+                    {t('Business dashboard', 'لوحة الأعمال')}
+                  </a>
+                )}
+                {hasDriverAccess && (
+                  <a
+                    href="/driver"
+                    onClick={() => {
+                      preferDriver()
+                      setMenuOpen(false)
+                    }}
+                    className={m3MobileRowDriver}
+                  >
+                    <Truck className="size-5 shrink-0" aria-hidden />
+                    {t('Driver dashboard', 'لوحة السائق')}
+                  </a>
+                )}
+              </div>
+              <a
+                href="/"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem(PREFER_DRIVER_KEY)
+                    localStorage.removeItem(PREFER_TENANT_KEY)
+                  } catch {
+                    /* ignore */
+                  }
+                  setMenuOpen(false)
+                }}
+                className="mt-1 flex w-full min-h-10 items-center justify-center gap-2 rounded-xl border border-[var(--m3-outline)] bg-[var(--m3-surface-container-high)] px-3 py-2.5 text-sm font-semibold text-[var(--m3-on-surface)] transition-colors duration-[var(--m3-duration-short)] ease-[var(--m3-ease-standard)] hover:bg-[var(--m3-surface-container-low)] active:scale-[0.99] touch-manipulation"
+              >
+                <User className="size-4 shrink-0 text-[var(--m3-on-surface-variant)]" aria-hidden />
+                {t('Browse as Customer', 'التصفح كزبون')}
+              </a>
+            </div>
+          ) : (
+            meContextLoaded && (
+              <>
+                <p className="text-xs text-slate-500">{t('Switch to', 'التبديل إلى')}</p>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href="/"
+                    onClick={() => {
+                      try {
+                        localStorage.removeItem(PREFER_DRIVER_KEY)
+                        localStorage.removeItem(PREFER_TENANT_KEY)
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100"
+                  >
+                    <User className="size-3.5" />
+                    {t('Browse as Customer', 'التصفح كزبون')}
+                  </a>
+                  <a
+                    href="/driver"
+                    onClick={() => {
+                      try {
+                        localStorage.setItem(PREFER_DRIVER_KEY, '1')
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
+                  >
+                    <Truck className="size-3.5" />
+                    {t('Switch to Driver', 'التبديل إلى سائق')}
+                  </a>
+                  <a
+                    href="/dashboard"
+                    onClick={() => {
+                      try {
+                        localStorage.removeItem(PREFER_DRIVER_KEY)
+                        localStorage.setItem(PREFER_TENANT_KEY, '1')
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-200"
+                  >
+                    <Store className="size-3.5" />
+                    {t('Switch to Business', 'التبديل إلى أعمال')}
+                  </a>
+                </div>
+              </>
+            )
+          )}
           <button
             type="button"
             onClick={() => {
@@ -314,6 +412,32 @@ export function SiteHeader({ variant = 'home', showSearch = true }: SiteHeaderPr
 
               {/* Account Dropdown & Language */}
               <div className="hidden md:flex items-center gap-2 ms-2">
+                {variant === 'home' && showWorkDashboardEntry && (
+                  <div className="flex items-center gap-2 pe-1">
+                    {hasTenantAccess && (
+                      <a
+                        href="/dashboard"
+                        onClick={preferTenant}
+                        className={m3FilledPrimary}
+                        title={t('Business dashboard', 'لوحة الأعمال')}
+                      >
+                        <LayoutDashboard className="size-4 shrink-0" aria-hidden />
+                        <span>{t('Dashboard', 'لوحة التحكم')}</span>
+                      </a>
+                    )}
+                    {hasDriverAccess && (
+                      <a
+                        href="/driver"
+                        onClick={preferDriver}
+                        className={m3FilledDriver}
+                        title={t('Driver dashboard', 'لوحة السائق')}
+                      >
+                        <Truck className="size-4 shrink-0" aria-hidden />
+                        <span>{t('Driver', 'سائق')}</span>
+                      </a>
+                    )}
+                  </div>
+                )}
                 <LanguageSwitcher />
                 {isSignedIn ? (
                   <CustomerProfileAvatarLink

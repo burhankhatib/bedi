@@ -20,6 +20,8 @@ import { SanitizedMarkdown } from '@/components/ai/SanitizedMarkdown'
 import type { Product } from '@/app/types/menu'
 import type { ToolProduct, ToolBusiness, StoreOption } from '@/lib/ai/search-tools'
 import { BUSINESS_TYPES } from '@/lib/constants'
+import { BusinessListingCard } from '@/components/home/BusinessListingCard'
+import { BUSINESS_LISTING_CARD_GRID_CLASS } from '@/lib/ui/businessListingGrid'
 
 const CHAT_STORAGE_PREFIX = 'zonify-ai-chat-'
 
@@ -993,39 +995,22 @@ export function SearchAIPanel({
                           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                             {t('Stores', 'المتاجر')}
                           </p>
-                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          <div className={BUSINESS_LISTING_CARD_GRID_CLASS}>
                             {businesses.slice(0, 6).map((b) => {
                               const displayName = (lang === 'ar' && b.name_ar ? b.name_ar : b.name) || b.name
                               return (
-                                <a
+                                <BusinessListingCard
                                   key={b.slug}
                                   href={`/t/${b.slug}`}
-                                  className="group flex flex-col items-center overflow-hidden rounded-[20px] bg-white p-4 pb-4 transition-all duration-300 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.12)] border border-transparent hover:border-amber-300/50"
-                                >
-                                  <div className="relative size-[64px] sm:size-[72px] shrink-0 overflow-hidden rounded-2xl bg-slate-50 shadow-sm border border-slate-100/60 group-hover:scale-[1.03] transition-transform duration-300 mb-2">
-                                    {b.logoUrl ? (
-                                      <Image
-                                        src={b.logoUrl}
-                                        alt={displayName}
-                                        fill
-                                        className="object-contain p-2"
-                                        sizes="72px"
-                                      />
-                                    ) : (
-                                      <div className="flex h-full w-full items-center justify-center">
-                                        <Store className="size-8 text-slate-300" />
-                                      </div>
-                                    )}
-                                  </div>
-                                  <h3 className="font-bold text-slate-900 text-[15px] sm:text-[17px] tracking-tight text-center line-clamp-2 w-full" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-                                    {displayName}
-                                  </h3>
-                                  <p className="mt-0.5 text-[12px] text-slate-500 capitalize font-medium">
-                                    {lang === 'ar'
-                                      ? BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.labelAr ?? b.businessType
-                                      : BUSINESS_TYPES.find((bt) => bt.value === b.businessType)?.label ?? b.businessType}
-                                  </p>
-                                </a>
+                                  logoUrl={b.logoUrl}
+                                  displayName={displayName}
+                                  businessType={b.businessType}
+                                  lang={lang}
+                                  t={t}
+                                  useFullPageLink
+                                  titleTag="h3"
+                                  dir={lang === 'ar' ? 'rtl' : 'ltr'}
+                                />
                               )
                             })}
                           </div>

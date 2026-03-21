@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { Bike } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,8 @@ export type FreeDeliveryLogoFrameProps = {
   /** Screen reader + native tooltip (e.g. t('Free Delivery', 'توصيل مجاني')) */
   ariaLabel: string
   className?: string
+  /** e.g. adaptive logo tile fill from client-side sampling */
+  style?: CSSProperties
   children: ReactNode
 }
 
@@ -44,6 +46,7 @@ export function FreeDeliveryLogoFrame({
   variant = 'light',
   ariaLabel,
   className,
+  style,
   children,
 }: FreeDeliveryLogoFrameProps) {
   const vk = variant === 'dark' ? 'dark' : 'light'
@@ -51,6 +54,7 @@ export function FreeDeliveryLogoFrame({
   return (
     <div
       className={cn('relative shrink-0 overflow-hidden', className)}
+      style={style}
       title={active ? ariaLabel : undefined}
     >
       <div className="relative z-0 h-full w-full min-h-0">

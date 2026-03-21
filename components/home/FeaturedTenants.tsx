@@ -2,14 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { motion } from 'motion/react'
 import { Store } from 'lucide-react'
-import { FreeDeliveryLogoFrame } from '@/components/home/FreeDeliveryLogoFrame'
-import { FreeDeliveryCardBadge } from '@/components/home/FreeDeliveryCardBadge'
+import { BusinessListingCard } from '@/components/home/BusinessListingCard'
+import { BUSINESS_LISTING_CARD_GRID_CLASS } from '@/lib/ui/businessListingGrid'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
-import { BUSINESS_TYPES } from '@/lib/constants'
 
 type Localized = { en: string; ar: string }
 
@@ -61,15 +59,15 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
 
   if (!isChosen || (loading && tenants.length === 0)) {
     return (
-      <section className="pt-2 pb-8">
-        <h2 className="mb-6 text-xl font-bold text-[#E6E1E5] md:text-2xl tracking-tight">
+      <section className="p-10 my-10">
+        <h2 className="mb-6 text-xl font-bold tracking-tight text-slate-900 md:text-2xl">
           {t('Featured places', 'أماكن مميزة')}
         </h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className={BUSINESS_LISTING_CARD_GRID_CLASS}>
           {[...Array(8)].map((_, i) => (
             <div
               key={i}
-              className="h-[200px] animate-pulse rounded-[20px] bg-[#2B2930]"
+              className="h-[300px] animate-pulse rounded-[20px] bg-slate-100"
             />
           ))}
         </div>
@@ -80,9 +78,9 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
   if (tenants.length === 0) {
     return (
       <section className="pt-2 pb-8">
-        <div className="rounded-3xl border border-[#49454F] bg-[#2B2930] p-12 text-center">
-          <Store className="mx-auto size-16 text-[#938F99]" />
-          <p className="mt-4 text-[#CAC4D0] font-medium text-lg">
+        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-12 text-center">
+          <Store className="mx-auto size-16 text-slate-400" />
+          <p className="mt-4 text-lg font-medium text-slate-600">
             {t('No businesses found here yet.', 'لا توجد أعمال هنا بعد.')}
           </p>
         </div>
@@ -92,16 +90,19 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
 
   return (
     <section className="pt-2 pb-8">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-[#E6E1E5] md:text-2xl tracking-tight">
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">
           {t('Featured places to order', 'أماكن مميزة للطلب')}
         </h2>
-        <Link href={`/search?category=${category}`} className="text-sm font-semibold text-amber-400 hover:text-amber-300 hidden sm:block transition-colors">
+        <Link
+          href={`/search?category=${category}`}
+          className="hidden text-sm font-semibold text-amber-600 transition-colors hover:text-amber-700 sm:block"
+        >
           {t('See All', 'عرض الكل')}
         </Link>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className={BUSINESS_LISTING_CARD_GRID_CLASS}>
         {tenants.slice(0, 12).map((tStore, i) => (
           <motion.div
             key={tStore._id}
@@ -109,67 +110,28 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.3, ease: [0.2, 0, 0, 1], delay: Math.min(i * 0.04, 0.4) }}
           >
-            <Link
+            <BusinessListingCard
               href={tStore.slug ? `/t/${tStore.slug}` : '#'}
-              className={`group flex flex-col items-center rounded-[20px] bg-[#2B2930] p-4 pb-5 transition-all duration-300 border border-[#49454F] hover:border-amber-400/50 hover:bg-[#36343B] ${
-                tStore.freeDeliveryEnabled ? 'overflow-visible' : 'overflow-hidden'
-              }`}
-            >
-              <div className="relative mb-3 shrink-0">
-                <FreeDeliveryLogoFrame
-                  active={tStore.freeDeliveryEnabled === true}
-                  variant="dark"
-                  ariaLabel={t('Free Delivery', 'توصيل مجاني')}
-                  className="size-[80px] sm:size-[88px] rounded-2xl bg-[#36343B] border border-[#49454F] group-hover:scale-[1.03] transition-transform duration-300"
-                >
-                  {tStore.logoUrl ? (
-                    <Image
-                      src={tStore.logoUrl}
-                      alt={(lang === 'ar' ? tStore.name_ar : tStore.name_en) || tStore.name}
-                      fill
-                      className="object-contain p-2"
-                      sizes="88px"
-                    />
-                  ) : (
-                    <div className="relative flex h-full w-full items-center justify-center">
-                      <Store className="size-9 text-[#938F99]" />
-                    </div>
-                  )}
-                </FreeDeliveryLogoFrame>
-                {tStore.freeDeliveryEnabled && (
-                  <FreeDeliveryCardBadge label={t('Free Delivery', 'توصيل مجاني')} variant="dark" />
-                )}
-              </div>
-
-              <h2 className="font-bold text-[#E6E1E5] text-[17px] sm:text-[19px] tracking-tight text-center line-clamp-2 group-hover:text-amber-400 transition-colors w-full">
-                {(lang === 'ar' ? tStore.name_ar : tStore.name_en) || tStore.name}
-              </h2>
-
-              <p className="mt-1 text-[13px] text-[#CAC4D0] capitalize font-medium">
-                {lang === 'ar'
-                  ? BUSINESS_TYPES.find((b) => b.value === tStore.businessType)?.labelAr ??
-                    tStore.businessType
-                  : BUSINESS_TYPES.find((b) => b.value === tStore.businessType)?.label ??
-                    tStore.businessType}
-              </p>
-
-              {tStore.sections.length > 0 && (
-                <p className="mt-1 text-[12px] text-[#938F99] line-clamp-2 text-center">
-                  {tStore.sections
-                    .map((s) => (lang === 'ar' ? s.ar || s.en : s.en || s.ar))
-                    .filter(Boolean)
-                    .join(' • ')}
-                </p>
-              )}
-            </Link>
+              logoUrl={tStore.logoUrl}
+              displayName={(lang === 'ar' ? tStore.name_ar : tStore.name_en) || tStore.name}
+              businessType={tStore.businessType}
+              freeDeliveryEnabled={tStore.freeDeliveryEnabled}
+              sections={tStore.sections}
+              lang={lang}
+              t={t}
+              titleTag="h2"
+            />
           </motion.div>
         ))}
       </div>
 
       <div className="mt-6 flex justify-center sm:hidden">
-         <Link href={`/search?category=${category}`} className="w-full flex items-center justify-center h-12 rounded-full border border-[#49454F] font-semibold text-[#CAC4D0] hover:bg-[#36343B] hover:text-[#E6E1E5] transition">
-            {t('See all stores', 'عرض جميع المتاجر')}
-         </Link>
+        <Link
+          href={`/search?category=${category}`}
+          className="flex h-12 w-full items-center justify-center rounded-full border border-slate-300 font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+        >
+          {t('See all stores', 'عرض جميع المتاجر')}
+        </Link>
       </div>
     </section>
   )
