@@ -226,7 +226,6 @@ export type ScrollAnimationData = {
   scrollHeight: number
   frameCount: number
   frames: string[]
-  priority?: number
 }
 
 function ScrollAnimationSection({ data }: { data: ScrollAnimationData }) {
@@ -303,43 +302,36 @@ function ScrollAnimationSection({ data }: { data: ScrollAnimationData }) {
 }
 
 /**
- * Apple-style pinned scroll sections. Fetches all matching scroll animations
- * from Sanity (city / global filters, enabled, schedule), ordered by priority (10 = first).
+ * Apple-style pinned scroll section. The API returns **one** random animation per load among
+ * entries whose country/city targeting matches the visitor (no untargeted docs).
  */
 export function ScrollDrivenBanner() {
-  const [animations, setAnimations] = useState<ScrollAnimationData[]>([])
+  const [animation, setAnimation] = useState<ScrollAnimationData | null>(null)
   const [noAnimation, setNoAnimation] = useState(false)
   const { city } = useLocation()
 
   useEffect(() => {
     setNoAnimation(false)
-    setAnimations([])
+    setAnimation(null)
 
     const params = new URLSearchParams()
     if (city) params.set('city', city)
 
     const ac = new AbortController()
-    fetch(`/api/home/scroll-animations?${params.toString()}`, { signal: ac.signal })
+    fetch(`/api/home/scroll-animations?${params.toString()}`, {
+      signal: ac.signal,
+      cache: 'no-store',
+    })
       .then((r) => r.json())
-      .then(
-        (data: {
-          animations?: ScrollAnimationData[]
-          animation?: ScrollAnimationData | null
-        }) => {
-          if (ac.signal.aborted) return
-          const list = Array.isArray(data.animations)
-            ? data.animations
-            : data.animation && data.animation.frames.length >= 2
-              ? [data.animation]
-              : []
-          const valid = list.filter((a) => a.frames.length >= 2)
-          if (valid.length > 0) {
-            setAnimations(valid)
-          } else {
-            setNoAnimation(true)
-          }
+      .then((data: { animation?: ScrollAnimationData | null }) => {
+        if (ac.signal.aborted) return
+        const a = data.animation
+        if (a && a.frames.length >= 2) {
+          setAnimation(a)
+        } else {
+          setNoAnimation(true)
         }
-      )
+      })
       .catch((e) => {
         if (e instanceof DOMException && e.name === 'AbortError') return
         if (!ac.signal.aborted) setNoAnimation(true)
@@ -347,13 +339,7 @@ export function ScrollDrivenBanner() {
     return () => ac.abort()
   }, [city])
 
-  if (noAnimation && animations.length === 0) return null
+  if (noAnimation || !animation) return null
 
-  return (
-    <>
-      {animations.map((a) => (
-        <ScrollAnimationSection key={a._id} data={a} />
-      ))}
-    </>
-  )
+  return <ScrollAnimationSection key={animation._id} data={animation} />
 }

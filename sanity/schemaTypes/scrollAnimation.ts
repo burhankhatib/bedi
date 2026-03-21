@@ -54,7 +54,8 @@ export const scrollAnimationType = defineType({
           { title: 'Jerusalem', value: 'jerusalem' },
         ],
       },
-      description: 'Leave empty to show everywhere. Otherwise, only when user country matches.',
+      description:
+        'Restrict by region (inferred from the customer’s selected city). Leave empty only if you use Cities below — at least one of Countries or Cities is required.',
     }),
     defineField({
       name: 'cities',
@@ -73,25 +74,15 @@ export const scrollAnimationType = defineType({
         layout: 'list',
       },
       description:
-        'Pick one or more cities from the list (English name is stored; must match the customer’s selected city). Leave empty to show in all cities.',
+        'English city names; must match the customer’s selected city. Leave empty only if you use Countries above — at least one of Cities or Countries is required.',
       validation: (Rule) => Rule.unique(),
     }),
     defineField({
-      name: 'priority',
-      title: 'Display priority',
-      type: 'number',
-      initialValue: 5,
-      description:
-        '1 = lowest, 10 = highest. When several animations match the visitor, higher priority appears first (stacked top to bottom on the homepage). Leave unset to use default 5 for older entries.',
-      validation: (Rule) => Rule.integer().min(1).max(10),
-    }),
-    defineField({
       name: 'sortOrder',
-      title: 'Tiebreaker order',
+      title: 'List order (Studio)',
       type: 'number',
       initialValue: 0,
-      description:
-        'When two animations have the same priority, lower numbers appear first.',
+      description: 'Lower numbers sort first in Studio lists only. The live site picks randomly among matching animations.',
     }),
     defineField({
       name: 'startDate',
@@ -113,35 +104,37 @@ export const scrollAnimationType = defineType({
       description: 'Quick toggle to disable without deleting.',
     }),
   ],
+  validation: (Rule) =>
+    Rule.custom((doc) => {
+      const d = doc as { cities?: unknown[]; countries?: unknown[] } | undefined
+      if (!d) return true
+      const hasCities = Array.isArray(d.cities) && d.cities.length > 0
+      const hasCountries = Array.isArray(d.countries) && d.countries.length > 0
+      if (!hasCities && !hasCountries) {
+        return 'Set at least one city or country. Untargeted animations are not shown on the homepage.'
+      }
+      return true
+    }),
   preview: {
     select: {
       title: 'title',
-      priority: 'priority',
       enabled: 'enabled',
       startDate: 'startDate',
       endDate: 'endDate',
       frameCount: 'frames.length',
       media: 'frames.0',
     },
-    prepare({ title, priority, enabled, startDate, endDate, media }) {
+    prepare({ title, enabled, startDate, endDate, media }) {
       const status = enabled === false ? ' [OFF]' : ''
       const scheduled = startDate || endDate ? ' (scheduled)' : ''
-      const pr = typeof priority === 'number' ? ` · P${priority}` : ''
       return {
-        title: `${title ?? 'Untitled'}${pr}${status}${scheduled}`,
+        title: `${title ?? 'Untitled'}${status}${scheduled}`,
         media,
       }
     },
   },
   orderings: [
-    {
-      title: 'Priority (high first)',
-      name: 'priorityDesc',
-      by: [
-        { field: 'priority', direction: 'desc' },
-        { field: 'sortOrder', direction: 'asc' },
-      ],
-    },
     { title: 'Sort order (asc)', name: 'sortOrderAsc', by: [{ field: 'sortOrder', direction: 'asc' }] },
+    { title: 'Title A–Z', name: 'titleAsc', by: [{ field: 'title', direction: 'asc' }] },
   ],
 })
