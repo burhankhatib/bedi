@@ -17,6 +17,7 @@ import { SearchChatOverlay } from './SearchChatOverlay'
 import { OPEN_AI_CHAT_EVENT, OPEN_CHAT_ON_LOAD_KEY } from './ChatFab'
 import { BusinessSearchRowLogo } from '@/components/home/BusinessListingCard'
 import { useSaveAiQuestion } from './useSaveAiQuestion'
+import { useReportSearchUiOccupied } from '@/lib/search-ui-occupancy'
 
 type BusinessHit = {
   _id: string
@@ -171,6 +172,8 @@ export function UniversalSearch({
   /** Can receive "open chat" event (e.g. from ChatFab) — needs location, regardless of current query. */
   const canReceiveOpenChat = !!city && isChosen
   const chatOverlayOpen = canShowAI && !!aiSubmittedQuery
+  /** Hide floating ChatFab when this search is in use (dropdown or AI). */
+  useReportSearchUiOccupied(open || !!aiSubmittedQuery)
   // Don't show the "Ask AI" popup when user typed a question — they just press Enter to fire AI
   const wouldShowAskAIPrompt = canShowAI && !aiSubmittedQuery && totalItems === 0
   const showDropdown = open && (query.trim().length >= MIN_QUERY_LENGTH || !!aiSubmittedQuery) && !chatOverlayOpen && !wouldShowAskAIPrompt
@@ -394,6 +397,7 @@ export function UniversalSearch({
         <input
           ref={inputRef}
           type="search"
+          enterKeyHint={aiSubmittedQuery ? 'send' : 'search'}
           autoComplete="off"
           role="combobox"
           aria-expanded={showDropdown}
@@ -410,17 +414,20 @@ export function UniversalSearch({
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && canShowAI && query.trim() && !showDropdown) {
-              e.preventDefault()
-              handleSubmit(e as unknown as React.FormEvent)
-            }
+            if (e.key !== 'Enter') return
+            const q = query.trim()
+            if (!q) return
+            // Keyboard-focused list item: global handler + default navigation (desktop)
+            if (showDropdown && focusedIndex >= 0) return
+            // Mobile has no send button — Enter / keyboard Search submits the form
+            e.preventDefault()
+            handleSubmit(e as unknown as React.FormEvent)
           }}
           className={cn(
             'w-full rounded-full bg-slate-100 py-3 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-500 focus:bg-white focus:ring-2 focus:ring-brand-yellow/50 focus:shadow-sm',
-            'ps-12 pe-11',
+            'ps-12 pe-10 sm:pe-11',
             compact && 'py-2 text-xs',
-            inputClassName,
-            'ps-12 pe-11'
+            inputClassName
           )}
         />
         <div className="absolute end-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -445,7 +452,7 @@ export function UniversalSearch({
           {canShowAI && query.trim() && (
             <button
               type="submit"
-              className="p-2 rounded-full bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors"
+              className="hidden sm:inline-flex p-2 rounded-full bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors"
               aria-label={t('Ask AI', 'اسأل الذكاء الاصطناعي')}
             >
               <Sparkles className="size-4" />
@@ -494,7 +501,10 @@ export function UniversalSearch({
                   </span>
                 </div>
                 <p className="text-sm text-slate-600">
-                  {t('Type your question, then press Enter to ask.', 'اكتب سؤالك واضغط Enter للسؤال.')}
+                  {t(
+                    'Type your question, then press Enter or the keyboard Search key to ask.',
+                    'اكتب سؤالك ثم اضغط Enter أو زر البحث في لوحة المفاتيح.'
+                  )}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <button

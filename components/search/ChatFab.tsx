@@ -6,6 +6,7 @@ import { Sparkles } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { useLocation } from '@/components/LocationContext'
 import { cn } from '@/lib/utils'
+import { SEARCH_UI_OCCUPIED_EVENT } from '@/lib/search-ui-occupancy'
 
 export const OPEN_AI_CHAT_EVENT = 'zonify-open-ai-chat'
 export const OPEN_CHAT_ON_LOAD_KEY = 'zonify-open-ai-chat-on-load'
@@ -22,6 +23,7 @@ function hasInlineSearch(pathname: string): boolean {
 export function ChatFab() {
   const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
+  const [searchUiOccupied, setSearchUiOccupied] = useState(false)
   const { city, isChosen } = useLocation()
   const { t } = useLanguage()
   const router = useRouter()
@@ -41,6 +43,15 @@ export function ChatFab() {
     return () => cancelAnimationFrame(id)
   }, [mounted, city, isChosen])
 
+  useEffect(() => {
+    const onOccupied = (e: Event) => {
+      const d = (e as CustomEvent<{ occupied?: boolean }>).detail?.occupied
+      if (typeof d === 'boolean') setSearchUiOccupied(d)
+    }
+    window.addEventListener(SEARCH_UI_OCCUPIED_EVENT, onOccupied)
+    return () => window.removeEventListener(SEARCH_UI_OCCUPIED_EVENT, onOccupied)
+  }, [])
+
   const handleClick = () => {
     if (hasInlineSearch(pathname ?? '')) {
       window.dispatchEvent(new CustomEvent(OPEN_AI_CHAT_EVENT))
@@ -52,7 +63,7 @@ export function ChatFab() {
     }
   }
 
-  if (!visible) return null
+  if (!visible || searchUiOccupied) return null
 
   return (
     <button

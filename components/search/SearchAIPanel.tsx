@@ -1120,6 +1120,7 @@ export function SearchAIPanel({
         <input
           ref={replyInputRef}
           type="text"
+          enterKeyHint="send"
           value={replyInput}
           onChange={(e) => setReplyInput(e.target.value)}
           placeholder={t('Type your reply...', 'اكتب ردك...')}
@@ -1130,7 +1131,7 @@ export function SearchAIPanel({
         <button
           type="submit"
           disabled={loading || !replyInput.trim()}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-slate-950 transition-colors hover:bg-amber-400 disabled:opacity-50 disabled:hover:bg-amber-500"
+          className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-slate-950 transition-colors hover:bg-amber-400 disabled:opacity-50 disabled:hover:bg-amber-500"
           aria-label={t('Send', 'إرسال')}
         >
           <Send className="size-5" />

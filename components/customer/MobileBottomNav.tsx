@@ -44,7 +44,15 @@ function NavGlyph({ kind }: { kind: NavIconKind }) {
   switch (kind) {
     case 'logo':
       return (
-        <Image src="/logo.webp" alt="Bedi" width={28} height={28} className="h-7 w-7 object-contain" />
+        <Image
+          src="/logo.webp"
+          alt="Bedi"
+          width={28}
+          height={28}
+          className="h-7 w-7 object-contain"
+          loading="lazy"
+          fetchPriority="low"
+        />
       )
     case 'utensils':
       return <UtensilsCrossed className="size-6" strokeWidth={2} />

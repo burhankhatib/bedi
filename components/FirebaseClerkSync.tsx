@@ -3,19 +3,30 @@
 /**
  * When the user is signed in with Clerk, get a custom token from the "firebase" JWT template
  * and sign in to Firebase Auth. This keeps Clerk and Firebase in sync for the customer (e.g. menu).
- * Run once when the user is loaded and signed in.
+ * Run once per signed-in session; skips entirely if Firebase env is incomplete.
+ *
+ * If production shows Identity Toolkit `CONFIGURATION_NOT_FOUND`, fix Firebase Console + Vercel
+ * `NEXT_PUBLIC_FIREBASE_*` (same Web app as Firebase project) and enable Authentication.
  */
 import { useAuth } from '@clerk/nextjs'
 import { useEffect, useRef } from 'react'
+import { isFirebaseConfigured } from '@/lib/firebase-config'
 
 export function FirebaseClerkSync() {
   const { isSignedIn, getToken } = useAuth()
-  const synced = useRef(false)
+  /** One attempt per sign-in session; never reset on failure (avoids retry spam + console noise). */
+  const syncAttemptedForSession = useRef(false)
 
   useEffect(() => {
-    if (!isSignedIn || !getToken || synced.current) return
+    if (!isSignedIn) {
+      syncAttemptedForSession.current = false
+      return
+    }
+    if (!getToken || !isFirebaseConfigured() || syncAttemptedForSession.current) return
+
+    syncAttemptedForSession.current = true
     let cancelled = false
-    synced.current = true
+
     ;(async () => {
       try {
         const token = await getToken({ template: 'firebase' })
@@ -35,10 +46,13 @@ export function FirebaseClerkSync() {
         const auth = getAuth(app)
         await signInWithCustomToken(auth, token)
       } catch {
-        synced.current = false
+        // Wrong API key / deleted project / CONFIGURATION_NOT_FOUND — infra must be fixed; do not retry.
       }
     })()
-    return () => { cancelled = true }
+
+    return () => {
+      cancelled = true
+    }
   }, [isSignedIn, getToken])
 
   return null

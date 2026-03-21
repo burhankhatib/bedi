@@ -10,7 +10,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { SiteHeader } from '@/components/global/SiteHeader'
 import { LocationModal } from '@/components/global/LocationModal'
 import { Button } from '@/components/ui/button'
-import { Store, UtensilsCrossed, Flame, ChevronRight, Search, MapPin, Filter, LayoutGrid, List, Sparkles } from 'lucide-react'
+import { Store, UtensilsCrossed, Flame, ChevronRight, ChevronDown, Search, MapPin, Filter, LayoutGrid, List, Sparkles } from 'lucide-react'
 import { MdRestaurant } from 'react-icons/md'
 import { BUSINESS_TYPES } from '@/lib/constants'
 import { getCityDisplayName } from '@/lib/registration-translations'
@@ -19,6 +19,7 @@ import { CategoryIconsBar } from '@/components/home/CategoryIconsBar'
 import { BusinessListingCard } from '@/components/home/BusinessListingCard'
 import { BUSINESS_LISTING_CARD_GRID_CLASS } from '@/lib/ui/businessListingGrid'
 import { isLikelyQuestion } from '@/lib/ai/question-detection'
+import { cn } from '@/lib/utils'
 
 type Localized = { en: string; ar: string }
 
@@ -187,6 +188,8 @@ export function SearchPageClient() {
   const [searchQuery, setSearchQuery] = useState(urlQuery)
   const [debouncedQuery, setDebouncedQuery] = useState(urlQuery)
   const [filtersExpanded, setFiltersExpanded] = useState(false)
+  /** Mobile search tips: collapsed by default; hidden once user types or gets results/AI. */
+  const [searchInstructionsOpen, setSearchInstructionsOpen] = useState(false)
   const [searchResults, setSearchResults] = useState<{
     businesses: Array<{ _id: string; name: string; name_en: string | null; name_ar: string | null; slug: string; businessType: string; freeDeliveryEnabled?: boolean; logoUrl: string | null }>
     products: Array<{
@@ -403,6 +406,13 @@ export function SearchPageClient() {
   const isQuestionMode = searchQuery.trim().length > 0 && isLikelyQuestion(searchQuery)
   const showAIAssistantState = showSearchResults && !hasSearchResults && isQuestionMode
 
+  const hideMobileSearchTips =
+    !!searchQuery.trim() || showSearchResults || showAIAssistantState || (loading && hasSearchQuery)
+
+  useEffect(() => {
+    if (hideMobileSearchTips) setSearchInstructionsOpen(false)
+  }, [hideMobileSearchTips])
+
   return (
     <div className="min-h-screen bg-slate-50" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <SiteHeader variant="home" showSearch={false} />
@@ -421,42 +431,85 @@ export function SearchPageClient() {
               </div>
             )}
             <AnimatePresence mode="wait">
-              {!searchQuery.trim() && (
+              {!hideMobileSearchTips && (
                 <motion.div
                   key="search-instructions"
                   className="md:hidden overflow-hidden"
-                  initial={{ opacity: 1, maxHeight: 320 }}
+                  initial={{ opacity: 1, maxHeight: 280 }}
                   exit={{ opacity: 0, maxHeight: 0 }}
                   transition={{ duration: 0.28, ease: [0.2, 0, 0, 1] }}
                 >
-                  <div className="py-4 px-1">
-                    <div className="rounded-2xl bg-gradient-to-br from-slate-50 to-amber-50/60 dark:from-slate-800/80 dark:to-amber-950/20 border border-slate-200/80 dark:border-slate-700/60 p-4 shadow-sm">
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-2xl" aria-hidden>✨</span>
-                        <p className="text-base font-semibold text-slate-800 dark:text-slate-200">
-                          {t('How to use Search & AI Chat', 'كيفية استخدام البحث والمحادثة')}
-                        </p>
-                      </div>
-                      <ul className="space-y-3">
-                        <li className="flex items-start gap-3 rounded-xl bg-white/70 dark:bg-slate-800/50 p-3 border border-slate-100 dark:border-slate-700/50">
-                          <span className="text-xl shrink-0 mt-0.5" aria-hidden>🔍</span>
-                          <span className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                            {t('Type keywords (e.g. broast, pizza) to search businesses & products', 'اكتب كلمات (مثل: بروست، بيتزا) للبحث عن الأعمال والمنتجات')}
+                  <div className="py-2 px-1">
+                    <div className="rounded-2xl bg-gradient-to-br from-slate-50 to-amber-50/60 dark:from-slate-800/80 dark:to-amber-950/20 border border-slate-200/80 dark:border-slate-700/60 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => setSearchInstructionsOpen((o) => !o)}
+                        aria-expanded={searchInstructionsOpen}
+                        className="flex w-full items-center justify-between gap-2 rounded-2xl px-4 py-3 text-start transition-colors hover:bg-white/40 dark:hover:bg-slate-800/40"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="text-xl shrink-0" aria-hidden>
+                            ✨
                           </span>
-                        </li>
-                        <li className="flex items-start gap-3 rounded-xl bg-white/70 dark:bg-slate-800/50 p-3 border border-slate-100 dark:border-slate-700/50">
-                          <span className="text-xl shrink-0 mt-0.5" aria-hidden>🍳</span>
-                          <span className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                            {t('Ask questions (e.g. How do I make an omelette?) for recipes & recommendations', 'اسأل أسئلة (مثل: كيف أصنع أومليت؟) للحصول على وصفات وأوصيات')}
+                          <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                            {t('How to use Search & AI Chat', 'كيفية استخدام البحث والمحادثة')}
                           </span>
-                        </li>
-                        <li className="flex items-start gap-3 rounded-xl bg-white/70 dark:bg-slate-800/50 p-3 border border-slate-100 dark:border-slate-700/50">
-                          <span className="text-xl shrink-0 mt-0.5" aria-hidden>👍</span>
-                          <span className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                            {t('Use the search bar at the bottom — easy to reach with your thumb', 'استخدم شريط البحث أسفل الشاشة — سهل الوصول بإصبعك')}
-                          </span>
-                        </li>
-                      </ul>
+                        </div>
+                        <ChevronDown
+                          className={cn(
+                            'size-5 shrink-0 text-slate-600 transition-transform duration-200 dark:text-slate-300',
+                            searchInstructionsOpen && 'rotate-180'
+                          )}
+                          aria-hidden
+                        />
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {searchInstructionsOpen && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25, ease: [0.2, 0, 0, 1] }}
+                            className="overflow-hidden"
+                          >
+                            <ul className="space-y-3 px-4 pb-4 pt-0">
+                              <li className="flex items-start gap-3 rounded-xl border border-slate-100 bg-white/70 p-3 dark:border-slate-700/50 dark:bg-slate-800/50">
+                                <span className="mt-0.5 shrink-0 text-xl" aria-hidden>
+                                  🔍
+                                </span>
+                                <span className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                                  {t(
+                                    'Type keywords (e.g. broast, pizza) to search businesses & products',
+                                    'اكتب كلمات (مثل: بروست، بيتزا) للبحث عن الأعمال والمنتجات'
+                                  )}
+                                </span>
+                              </li>
+                              <li className="flex items-start gap-3 rounded-xl border border-slate-100 bg-white/70 p-3 dark:border-slate-700/50 dark:bg-slate-800/50">
+                                <span className="mt-0.5 shrink-0 text-xl" aria-hidden>
+                                  🍳
+                                </span>
+                                <span className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                                  {t(
+                                    'Ask questions (e.g. How do I make an omelette?) for recipes & recommendations',
+                                    'اسأل أسئلة (مثل: كيف أصنع أومليت؟) للحصول على وصفات وأوصيات'
+                                  )}
+                                </span>
+                              </li>
+                              <li className="flex items-start gap-3 rounded-xl border border-slate-100 bg-white/70 p-3 dark:border-slate-700/50 dark:bg-slate-800/50">
+                                <span className="mt-0.5 shrink-0 text-xl" aria-hidden>
+                                  👍
+                                </span>
+                                <span className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                                  {t(
+                                    'Use the search bar at the bottom — easy to reach with your thumb',
+                                    'استخدم شريط البحث أسفل الشاشة — سهل الوصول بإصبعك'
+                                  )}
+                                </span>
+                              </li>
+                            </ul>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
                 </motion.div>
