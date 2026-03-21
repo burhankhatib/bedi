@@ -1,5 +1,6 @@
 import { defineField, defineType } from 'sanity'
 import { BulkImageUploadInput } from '../components/BulkImageUploadInput'
+import { PLATFORM_CITY_OPTIONS } from '@/lib/platform-cities'
 
 /**
  * Scroll-driven animation banner for the homepage.
@@ -59,15 +60,38 @@ export const scrollAnimationType = defineType({
       name: 'cities',
       title: 'Cities (filter)',
       type: 'array',
-      of: [{ type: 'string' }],
-      description: 'Leave empty to show in all cities. Otherwise, only when user city matches.',
+      of: [
+        {
+          type: 'string',
+          options: {
+            list: PLATFORM_CITY_OPTIONS,
+            layout: 'dropdown',
+          },
+        },
+      ],
+      options: {
+        layout: 'list',
+      },
+      description:
+        'Pick one or more cities from the list (English name is stored; must match the customer’s selected city). Leave empty to show in all cities.',
+      validation: (Rule) => Rule.unique(),
+    }),
+    defineField({
+      name: 'priority',
+      title: 'Display priority',
+      type: 'number',
+      initialValue: 5,
+      description:
+        '1 = lowest, 10 = highest. When several animations match the visitor, higher priority appears first (stacked top to bottom on the homepage). Leave unset to use default 5 for older entries.',
+      validation: (Rule) => Rule.integer().min(1).max(10),
     }),
     defineField({
       name: 'sortOrder',
-      title: 'Sort Order',
+      title: 'Tiebreaker order',
       type: 'number',
       initialValue: 0,
-      description: 'Lower = shown first if multiple animations match. Only the top-matching animation is displayed.',
+      description:
+        'When two animations have the same priority, lower numbers appear first.',
     }),
     defineField({
       name: 'startDate',
@@ -92,22 +116,32 @@ export const scrollAnimationType = defineType({
   preview: {
     select: {
       title: 'title',
+      priority: 'priority',
       enabled: 'enabled',
       startDate: 'startDate',
       endDate: 'endDate',
       frameCount: 'frames.length',
       media: 'frames.0',
     },
-    prepare({ title, enabled, startDate, endDate, media }) {
+    prepare({ title, priority, enabled, startDate, endDate, media }) {
       const status = enabled === false ? ' [OFF]' : ''
       const scheduled = startDate || endDate ? ' (scheduled)' : ''
+      const pr = typeof priority === 'number' ? ` · P${priority}` : ''
       return {
-        title: `${title ?? 'Untitled'}${status}${scheduled}`,
+        title: `${title ?? 'Untitled'}${pr}${status}${scheduled}`,
         media,
       }
     },
   },
   orderings: [
-    { title: 'Sort Order (asc)', name: 'sortOrderAsc', by: [{ field: 'sortOrder', direction: 'asc' }] },
+    {
+      title: 'Priority (high first)',
+      name: 'priorityDesc',
+      by: [
+        { field: 'priority', direction: 'desc' },
+        { field: 'sortOrder', direction: 'asc' },
+      ],
+    },
+    { title: 'Sort order (asc)', name: 'sortOrderAsc', by: [{ field: 'sortOrder', direction: 'asc' }] },
   ],
 })

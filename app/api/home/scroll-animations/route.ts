@@ -4,79 +4,41 @@ import { urlFor } from '@/sanity/lib/image'
 
 export const revalidate = 60
 
-/**
- * GET /api/home/scroll-animations?city=Jerusalem
- * Returns the best-matching scroll animation for the user's location.
- * Frames are returned as optimised Sanity CDN image URLs.
- */
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const city = searchParams.get('city') ?? ''
+type FrameAsset = { asset?: { _ref: string } }
+type AnimationDoc = {
+  _id: string
+  title: string
+  frames: FrameAsset[]
+  scrollHeight: number
+  countries?: string[]
+  cities?: string[]
+  sortOrder?: number
+  /** 1–10, higher = more important (default 5 for legacy docs) */
+  priority?: number
+}
 
-  type FrameAsset = { asset?: { _ref: string } }
-  type AnimationDoc = {
-    _id: string
-    title: string
-    frames: FrameAsset[]
-    scrollHeight: number
-    countries?: string[]
-    cities?: string[]
-    sortOrder?: number
+function animationAppliesToVisitor(a: AnimationDoc, cityLower: string): boolean {
+  const hasCities = !!(a.cities && a.cities.length > 0)
+  const hasCountries = !!(a.countries && a.countries.length > 0)
+  if (!hasCities && !hasCountries) return true
+  if (hasCities) {
+    if (!cityLower) return false
+    return a.cities!.some((c) => c.toLowerCase() === cityLower)
   }
+  if (hasCountries && !hasCities) return false
+  return false
+}
 
-  const animations = await client.fetch<AnimationDoc[]>(
-    `*[
-      _type == "scrollAnimation"
-      && enabled == true
-      && (!defined(startDate) || startDate <= now())
-      && (!defined(endDate) || endDate >= now())
-    ] | order(sortOrder asc) {
-      _id,
-      title,
-      frames,
-      scrollHeight,
-      countries,
-      cities,
-      sortOrder
-    }`
-  )
+function sortByPriorityThenOrder(a: AnimationDoc, b: AnimationDoc): number {
+  const pa = typeof a.priority === 'number' ? a.priority : 5
+  const pb = typeof b.priority === 'number' ? b.priority : 5
+  if (pb !== pa) return pb - pa
+  return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+}
 
-  if (!animations || animations.length === 0) {
-    return Response.json({ animation: null })
-  }
+const FRAME_WIDTH = 1080
 
-  const cityLower = city.toLowerCase()
-
-  let matched: AnimationDoc | undefined
-
-  // First pass: find an animation that targets this specific city
-  if (city) {
-    matched = animations.find((a) => {
-      if (!a.cities || a.cities.length === 0) return false
-      return a.cities.some((c) => c.toLowerCase() === cityLower)
-    })
-  }
-
-  // Second pass: find an animation with no city/country restrictions (global)
-  if (!matched) {
-    matched = animations.find((a) => {
-      const noCityFilter = !a.cities || a.cities.length === 0
-      const noCountryFilter = !a.countries || a.countries.length === 0
-      return noCityFilter && noCountryFilter
-    })
-  }
-
-  // Last resort: first animation in sort order
-  if (!matched) {
-    matched = animations[0]
-  }
-
-  if (!matched) {
-    return Response.json({ animation: null })
-  }
-
-  const FRAME_WIDTH = 1080
-
+function toPayload(matched: AnimationDoc) {
   const frameUrls = (matched.frames ?? [])
     .map((f) => {
       if (!f?.asset?._ref) return null
@@ -84,13 +46,61 @@ export async function GET(req: NextRequest) {
     })
     .filter((url): url is string => url != null)
 
+  return {
+    _id: matched._id,
+    title: matched.title,
+    scrollHeight: matched.scrollHeight ?? 400,
+    frameCount: frameUrls.length,
+    frames: frameUrls,
+    priority: typeof matched.priority === 'number' ? matched.priority : 5,
+  }
+}
+
+/**
+ * GET /api/home/scroll-animations?city=Jerusalem
+ * Returns all matching scroll animations for the visitor, ordered by priority (10 first), then sortOrder.
+ */
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const city = searchParams.get('city') ?? ''
+  const cityLower = city.toLowerCase()
+
+  const animations = await client.fetch<AnimationDoc[]>(
+    `*[
+      _type == "scrollAnimation"
+      && enabled == true
+      && (!defined(startDate) || startDate <= now())
+      && (!defined(endDate) || endDate >= now())
+    ] | order(coalesce(priority, 5) desc, sortOrder asc) {
+      _id,
+      title,
+      frames,
+      scrollHeight,
+      countries,
+      cities,
+      sortOrder,
+      priority
+    }`
+  )
+
+  if (!animations || animations.length === 0) {
+    return Response.json({ animations: [], animation: null })
+  }
+
+  let matched = animations.filter((a) => animationAppliesToVisitor(a, cityLower))
+  if (matched.length === 0) {
+    matched = [...animations]
+  }
+
+  matched.sort(sortByPriorityThenOrder)
+
+  const payloads = matched
+    .map(toPayload)
+    .filter((p) => p.frames.length >= 2)
+
   return Response.json({
-    animation: {
-      _id: matched._id,
-      title: matched.title,
-      scrollHeight: matched.scrollHeight ?? 400,
-      frameCount: frameUrls.length,
-      frames: frameUrls,
-    },
+    animations: payloads,
+    /** @deprecated use `animations[0]` — kept for older clients */
+    animation: payloads[0] ?? null,
   })
 }

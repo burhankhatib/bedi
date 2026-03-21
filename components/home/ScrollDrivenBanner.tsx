@@ -220,51 +220,20 @@ function ScrollCanvas({
   )
 }
 
-type ScrollAnimationData = {
+export type ScrollAnimationData = {
   _id: string
   title: string
   scrollHeight: number
   frameCount: number
   frames: string[]
+  priority?: number
 }
 
-/**
- * Apple-style pinned scroll section. Fetches the best-matching scroll
- * animation from Sanity (filtered by user city, expiry, enabled).
- * Canvas renders frames in rAF — no React re-renders during scroll.
- */
-export function ScrollDrivenBanner() {
+function ScrollAnimationSection({ data }: { data: ScrollAnimationData }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [animationData, setAnimationData] = useState<ScrollAnimationData | null>(null)
-  const [frameUrls, setFrameUrls] = useState<string[]>([])
   const [framesReady, setFramesReady] = useState(false)
-  const [noAnimation, setNoAnimation] = useState(false)
-  const { city } = useLocation()
-
-  useEffect(() => {
-    const params = new URLSearchParams()
-    if (city) params.set('city', city)
-
-    const ac = new AbortController()
-    fetch(`/api/home/scroll-animations?${params.toString()}`, { signal: ac.signal })
-      .then((r) => r.json())
-      .then((data: { animation: ScrollAnimationData | null }) => {
-        if (ac.signal.aborted) return
-        if (data.animation && data.animation.frames.length >= 2) {
-          setAnimationData(data.animation)
-          setFrameUrls(data.animation.frames)
-        } else {
-          setNoAnimation(true)
-        }
-      })
-      .catch((e) => {
-        if (e instanceof DOMException && e.name === 'AbortError') return
-        if (!ac.signal.aborted) setNoAnimation(true)
-      })
-    return () => ac.abort()
-  }, [city])
-
-  const scrollHeight = animationData?.scrollHeight ?? 400
+  const frameUrls = data.frames
+  const scrollHeight = data.scrollHeight ?? 400
   const frameCount = Math.max(1, frameUrls.length)
 
   const { scrollYProgress } = useScroll({
@@ -293,24 +262,18 @@ export function ScrollDrivenBanner() {
 
   const handleFirstFrameReady = useCallback(() => setFramesReady(true), [])
 
-  if (noAnimation) return null
-
   return (
     <section
       ref={containerRef}
       className="relative w-full bg-black"
       style={{ height: `${scrollHeight}vh` }}
+      aria-label={data.title}
     >
       <div className="relative sticky top-0 h-screen w-full bg-black">
-        {/* Available area: from header bottom to viewport bottom, centered */}
         <div
           className="absolute inset-x-0 bottom-0 flex items-center justify-center overflow-hidden"
           style={{ top: 'calc(72px + env(safe-area-inset-top, 0px))' }}
         >
-          {/*
-            Explicit square: same expression for both axes (min(100vw, available height)).
-            aspect-ratio + max-* only collapses to 0 inside flex without base size.
-          */}
           <motion.div
             className="relative shrink-0 bg-black"
             style={{
@@ -322,19 +285,75 @@ export function ScrollDrivenBanner() {
               filter,
             }}
           >
-          <AnimatePresence>
-            {!framesReady && <BannerAnimationPlaceholder />}
-          </AnimatePresence>
-          {frameUrls.length > 0 && (
-            <ScrollCanvas
-              frameUrls={frameUrls}
-              progressMotionValue={progressToFrame}
-              onFirstFrameReady={handleFirstFrameReady}
-            />
-          )}
+            <AnimatePresence>
+              {!framesReady && <BannerAnimationPlaceholder />}
+            </AnimatePresence>
+            {frameUrls.length > 0 && (
+              <ScrollCanvas
+                frameUrls={frameUrls}
+                progressMotionValue={progressToFrame}
+                onFirstFrameReady={handleFirstFrameReady}
+              />
+            )}
           </motion.div>
         </div>
       </div>
     </section>
+  )
+}
+
+/**
+ * Apple-style pinned scroll sections. Fetches all matching scroll animations
+ * from Sanity (city / global filters, enabled, schedule), ordered by priority (10 = first).
+ */
+export function ScrollDrivenBanner() {
+  const [animations, setAnimations] = useState<ScrollAnimationData[]>([])
+  const [noAnimation, setNoAnimation] = useState(false)
+  const { city } = useLocation()
+
+  useEffect(() => {
+    setNoAnimation(false)
+    setAnimations([])
+
+    const params = new URLSearchParams()
+    if (city) params.set('city', city)
+
+    const ac = new AbortController()
+    fetch(`/api/home/scroll-animations?${params.toString()}`, { signal: ac.signal })
+      .then((r) => r.json())
+      .then(
+        (data: {
+          animations?: ScrollAnimationData[]
+          animation?: ScrollAnimationData | null
+        }) => {
+          if (ac.signal.aborted) return
+          const list = Array.isArray(data.animations)
+            ? data.animations
+            : data.animation && data.animation.frames.length >= 2
+              ? [data.animation]
+              : []
+          const valid = list.filter((a) => a.frames.length >= 2)
+          if (valid.length > 0) {
+            setAnimations(valid)
+          } else {
+            setNoAnimation(true)
+          }
+        }
+      )
+      .catch((e) => {
+        if (e instanceof DOMException && e.name === 'AbortError') return
+        if (!ac.signal.aborted) setNoAnimation(true)
+      })
+    return () => ac.abort()
+  }, [city])
+
+  if (noAnimation && animations.length === 0) return null
+
+  return (
+    <>
+      {animations.map((a) => (
+        <ScrollAnimationSection key={a._id} data={a} />
+      ))}
+    </>
   )
 }
