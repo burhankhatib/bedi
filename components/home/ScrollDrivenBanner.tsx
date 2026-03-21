@@ -268,18 +268,17 @@ function ScrollAnimationSection({ data }: { data: ScrollAnimationData }) {
       style={{ height: `${scrollHeight}vh` }}
       aria-label={data.title}
     >
-      <div className="relative sticky top-0 h-screen w-full bg-black">
+      <div className="relative sticky top-0 h-screen w-full max-w-full overflow-visible bg-black">
         <div
-          className="absolute inset-x-0 bottom-0 flex items-center justify-center overflow-hidden"
+          className="absolute inset-x-0 bottom-0 flex w-full max-w-full items-center justify-center overflow-hidden"
           style={{ top: 'calc(72px + env(safe-area-inset-top, 0px))' }}
         >
           <motion.div
-            className="relative shrink-0 bg-black"
+            className="relative w-full shrink-0 bg-black"
             style={{
-              width:
-                'min(100vw, calc(100vh - 72px - env(safe-area-inset-top, 0px)))',
+              width: '100%',
               height:
-                'min(100vw, calc(100vh - 72px - env(safe-area-inset-top, 0px)))',
+                'calc(100vh - 72px - env(safe-area-inset-top, 0px))',
               opacity,
               filter,
             }}
