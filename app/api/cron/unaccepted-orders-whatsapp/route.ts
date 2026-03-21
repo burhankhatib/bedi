@@ -28,7 +28,8 @@ export async function GET(req: Request) {
 
   // Orders still not accepted (status == new): send WhatsApp reminder using the same enhanced
   // `new_order` template (full details + Maps/Waze) as instant notifications.
-  // Gated by businessWhatsappUnacceptedReminderAt so instant WhatsApp (prioritizeWhatsapp) does not block this.
+  // Gated by businessWhatsappUnacceptedReminderAt only. Instant WhatsApp (prioritizeWhatsapp) must NOT
+  // exclude this job — tenants still need a ~3min nudge if they have not accepted yet.
   // Time windows:
   // 1. Regular: created 3–120 minutes ago.
   // 2. Scheduled: notifyAt 3–120 minutes ago.
@@ -50,8 +51,7 @@ export async function GET(req: Request) {
           _type == "order" &&
           _id == $orderId &&
           status == "new" &&
-          !defined(businessWhatsappUnacceptedReminderAt) &&
-          !defined(businessWhatsappInstantNotifiedAt)
+          !defined(businessWhatsappUnacceptedReminderAt)
         ][0]{
           _id,
           "tenantId": site._ref,
@@ -81,7 +81,8 @@ export async function GET(req: Request) {
         tenantName: order.tenantName,
         tenantNameAr: order.tenantNameAr,
         mode: 'unaccepted-reminder',
-        skipIfInstantAlreadySent: true,
+        // Send ~3min reminder even if instant WhatsApp already fired; order is still unaccepted
+        skipIfInstantAlreadySent: false,
       })
       if (notify.allFailed) {
         // Return non-2xx so /api/jobs/process-due retries this job.
@@ -114,7 +115,6 @@ export async function GET(req: Request) {
         _type == "order" &&
         status == "new" &&
         !defined(businessWhatsappUnacceptedReminderAt) &&
-        !defined(businessWhatsappInstantNotifiedAt) &&
         (
           (createdAt <= $cutoff3m && createdAt >= $cutoff2h) ||
           (defined(scheduledFor) && defined(notifyAt) && notifyAt <= $cutoff3m && notifyAt >= $cutoff2h)
@@ -154,7 +154,7 @@ export async function GET(req: Request) {
           tenantName: order.tenantName,
           tenantNameAr: order.tenantNameAr,
           mode: 'unaccepted-reminder',
-          skipIfInstantAlreadySent: true,
+          skipIfInstantAlreadySent: false,
         })
         if (notify.sent > 0) {
           notifiedCount++
