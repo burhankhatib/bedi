@@ -80,17 +80,17 @@ function formatItemsList(items: TenantOrderWhatsAppItem[] | null | undefined, cu
       const nameEn = i.productName
       const title = nameAr || nameEn || 'منتج غير معروف'
       const cur = currency || 'ILS'
-      let block = `▪️ *${i.quantity}×* ${title}\n   💵 *${i.total} ${cur}*`
+      let block = `▪️ *${i.quantity}×* ${title} (💵 *${i.total} ${cur}*)`
       if (nameAr && nameEn && nameAr !== nameEn) {
-        block += `\n   (${nameEn})`
+        block += ` [${nameEn}]`
       }
       return block
     })
-    .join('\n\n')
+    .join(' | ')
 }
 
 /**
- * Single string for Meta template body variable — avoid decorative separators; use blank lines.
+ * Single string for Meta template body variable — avoid newlines (WhatsApp API rejects them in parameters).
  */
 export function formatTenantNewOrderWhatsAppSummary(data: TenantOrderWhatsAppInput): string {
   const cur = data.currency?.trim() || 'ILS'
@@ -98,8 +98,8 @@ export function formatTenantNewOrderWhatsAppSummary(data: TenantOrderWhatsAppInp
   const total = data.totalAmount ?? 0
 
   let customer = `👤 *الاسم:* ${data.customerName?.trim() || 'غير معروف'}`
-  customer += `\n📞 *الهاتف:* ${data.customerPhone?.trim() || 'غير متوفر'}`
-  customer += `\n🚚 *نوع الطلب:* ${orderTypeLabelAr(data.orderType)}`
+  customer += ` - 📞 *الهاتف:* ${data.customerPhone?.trim() || 'غير متوفر'}`
+  customer += ` - 🚚 *نوع الطلب:* ${orderTypeLabelAr(data.orderType)}`
 
   const addrRaw = data.deliveryAddress?.trim()
   if (addrRaw && data.orderType === 'delivery') {
@@ -109,18 +109,14 @@ export function formatTenantNewOrderWhatsAppSummary(data: TenantOrderWhatsAppInp
       lat: data.deliveryLat,
       lng: data.deliveryLng,
     })
-    customer += `\n\n📍 *العنوان:* ${shortLabel}`
-    customer += `\n\n🗺 *فتح الملاحة (اختر التطبيق بعد الضغط):*`
-    customer += `\nGoogle Maps\n${googleMaps}`
-    customer += `\n\nWaze\n${waze}`
+    customer += ` - 📍 *العنوان:* ${shortLabel}`
+    customer += ` - 🗺 *خرائط جوجل:* ${googleMaps}`
+    customer += ` - 🚙 *ويز:* ${waze}`
   }
 
   return (
-    `🛒 *تفاصيل الطلب*\n\n` +
-    `${itemsBlock}\n\n` +
-    `💰 *الإجمالي*\n` +
-    `*${total} ${cur}*\n\n` +
-    `📋 *بيانات العميل*\n\n` +
-    customer
+    `🛒 *المنتجات:* ${itemsBlock} - ` +
+    `💰 *الإجمالي:* *${total} ${cur}* - ` +
+    `📋 *العميل:* ${customer}`
   )
 }

@@ -55,8 +55,8 @@ export async function PATCH(
     const check = await checkOrderOwnership(slug, orderId)
     if (!check.ok) return NextResponse.json({ error: 'Forbidden' }, { status: check.status })
 
-    const orderBefore = await writeClient.fetch<{ assignedDriver?: any, scheduledFor?: string } | null>(
-      `*[_type == "order" && _id == $orderId][0]{ assignedDriver, scheduledFor }`,
+    const orderBefore = await writeClient.fetch<{ assignedDriver?: any, scheduledFor?: string, prioritizeWhatsapp?: boolean } | null>(
+      `*[_type == "order" && _id == $orderId][0]{ assignedDriver, scheduledFor, "prioritizeWhatsapp": site->prioritizeWhatsapp }`,
       { orderId }
     )
 
@@ -122,13 +122,15 @@ export async function PATCH(
       await cancelOrderJobs(orderId)
     }
     if (status === 'new') {
-      const jobRes = await scheduleOrderUnacceptedWhatsapp(orderId, Date.now())
-      await recordOrderUnacceptedWhatsappJobResult(
-        writeClient,
-        orderId,
-        'PATCH /api/tenants/[slug]/orders/status (status=new)',
-        jobRes
-      )
+      if (!orderBefore?.prioritizeWhatsapp) {
+        const jobRes = await scheduleOrderUnacceptedWhatsapp(orderId, Date.now())
+        await recordOrderUnacceptedWhatsappJobResult(
+          writeClient,
+          orderId,
+          'PATCH /api/tenants/[slug]/orders/status (status=new)',
+          jobRes
+        )
+      }
     }
 
     await patch.set(updateData).commit()

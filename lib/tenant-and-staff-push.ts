@@ -217,32 +217,29 @@ export async function sendTenantAndStaffPush(
   let centralSubs: CentralSub[] = []
   if (clerkUserIds.length > 0 || tenantId) {
     try {
-      if (clerkUserIds.length > 0) {
-        centralSubs = await clientNoCdn.fetch<CentralSub[]>(
-          `*[
-            _type == "userPushSubscription" &&
-            roleContext == "tenant" &&
-            clerkUserId in $ids &&
-            isActive != false
-          ]{ _id, clerkUserId, roleContext, devices }`,
-          { ids: clerkUserIds }
-        )
-      } else {
-        centralSubs = await clientNoCdn.fetch<CentralSub[]>(
-          `*[
-            _type == "userPushSubscription" &&
-            roleContext == "tenant" &&
-            $tenantId in sites[]._ref &&
-            isActive != false
-          ]{ _id, clerkUserId, roleContext, devices }`,
-          { tenantId }
-        )
-      }
+      centralSubs = await clientNoCdn.fetch<CentralSub[]>(
+        `*[
+          _type == "userPushSubscription" &&
+          roleContext == "tenant" &&
+          (clerkUserId in $ids || $tenantId in sites[]._ref) &&
+          isActive != false
+        ]{ _id, clerkUserId, roleContext, devices }`,
+        { ids: clerkUserIds.length > 0 ? clerkUserIds : ['__dummy_id__'], tenantId }
+      )
     } catch (e) {
       console.error(`[tenant-push] FAILED to query central subscriptions for tenant ${tenantId}:`, e)
       centralSubs = []
     }
   }
+
+  // Deduplicate central subscriptions by _id just in case
+  const uniqueCentralSubsMap = new Map<string, CentralSub>()
+  for (const sub of centralSubs) {
+    if (!uniqueCentralSubsMap.has(sub._id)) {
+      uniqueCentralSubsMap.set(sub._id, sub)
+    }
+  }
+  centralSubs = Array.from(uniqueCentralSubsMap.values())
 
   console.log(`[tenant-push] Resolving central subs for tenant ${tenantId}. found: ${centralSubs.length}. clerkUserIds: ${clerkUserIds.join(', ')}`)
 

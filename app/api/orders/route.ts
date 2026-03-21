@@ -374,6 +374,7 @@ export async function POST(request: NextRequest) {
 
     let siteSlug: string | undefined = typeof tenantSlug === 'string' ? tenantSlug.trim() || undefined : undefined
     if (siteRef?._ref) {
+      let prioritizeWhatsapp = false
       try {
         // Fetch tenant to get the proper name for the notification
         const tenantDoc = await writeClient.fetch<{ name?: string; name_ar?: string; slug?: { current?: string }; ownerPhone?: string; prioritizeWhatsapp?: boolean } | null>(
@@ -381,6 +382,7 @@ export async function POST(request: NextRequest) {
           { id: siteRef._ref }
         )
         siteSlug = (tenantDoc?.slug?.current || siteSlug)?.trim() || undefined
+        prioritizeWhatsapp = tenantDoc?.prioritizeWhatsapp === true
 
         // Fire centralized notification service (handles Pusher, FCM, and WhatsApp)
         await NotificationService.onNewOrder({
@@ -391,7 +393,7 @@ export async function POST(request: NextRequest) {
           tenantName: tenantDoc?.name,
           tenantNameAr: tenantDoc?.name_ar,
           tenantPhone: tenantDoc?.ownerPhone,
-          prioritizeWhatsapp: tenantDoc?.prioritizeWhatsapp
+          prioritizeWhatsapp
         })
 
         if (orderType === 'delivery' && targetTenant?.supportsDriverPickup === true && !scheduledFor) {
@@ -408,7 +410,7 @@ export async function POST(request: NextRequest) {
       } finally {
         // Keep 3-minute WhatsApp backup independent from immediate push/pusher flow.
         // This ensures a transient push error does not prevent delayed business WhatsApp.
-        if (!scheduledFor) {
+        if (!scheduledFor && !prioritizeWhatsapp) {
           const jobRes = await scheduleOrderUnacceptedWhatsapp(result._id, Date.now())
           await recordOrderUnacceptedWhatsappJobResult(writeClient, result._id, 'POST /api/orders', jobRes)
         }

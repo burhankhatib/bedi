@@ -87,7 +87,7 @@ export async function sendTenantNewOrderWhatsApp(opts: {
   const var2 = sanitizeTemplateVariable(summaryRaw, MAX_ORDER_SUMMARY_CHARS)
   const button = buildNewOrderDynamicUrlSuffix(opts.tenantSlug)
 
-  let lastError: unknown = undefined
+  let firstError: unknown = undefined
 
   const run = async (
     label: string,
@@ -96,7 +96,7 @@ export async function sendTenantNewOrderWhatsApp(opts: {
     const r = await fn()
     attempts.push(`${label}:${r.success ? 'ok' : 'fail'}`)
     if (r.success) return true
-    lastError = r.error
+    if (firstError === undefined) firstError = r.error
     return false
   }
 
@@ -119,5 +119,5 @@ export async function sendTenantNewOrderWhatsApp(opts: {
     }
   }
 
-  return { success: false, error: lastError, attempts }
+  return { success: false, error: firstError, attempts }
 }

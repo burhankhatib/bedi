@@ -41,6 +41,7 @@ async function runLegacyFallbackCrons(req: Request): Promise<{
   scheduledReminders: unknown
   deliveryTierEscalation: unknown
   retryDeliveryRequests: unknown
+  unacceptedDeliveryWhatsapp: unknown
 }> {
   const baseUrl = getBaseUrl(req)
   const secret = process.env.CRON_SECRET || process.env.FIREBASE_JOB_SECRET || ''
@@ -55,14 +56,15 @@ async function runLegacyFallbackCrons(req: Request): Promise<{
     return body
   }
 
-  const [unacceptedOrders, scheduledReminders, deliveryTierEscalation, retryDeliveryRequests] = await Promise.all([
+  const [unacceptedOrders, scheduledReminders, deliveryTierEscalation, retryDeliveryRequests, unacceptedDeliveryWhatsapp] = await Promise.all([
     call(`${baseUrl}/api/cron/unaccepted-orders-whatsapp?allowLegacy=1`),
     call(`${baseUrl}/api/cron/scheduled-order-reminders?allowLegacy=1`),
     call(`${baseUrl}/api/cron/delivery-tier-escalation?allowLegacy=1`),
     call(`${baseUrl}/api/cron/retry-delivery-requests?allowLegacy=1`),
+    call(`${baseUrl}/api/cron/unaccepted-delivery-whatsapp?allowLegacy=1`),
   ])
 
-  return { unacceptedOrders, scheduledReminders, deliveryTierEscalation, retryDeliveryRequests }
+  return { unacceptedOrders, scheduledReminders, deliveryTierEscalation, retryDeliveryRequests, unacceptedDeliveryWhatsapp }
 }
 
 async function executeJob(req: Request, type: ScheduledJobType, orderId: string): Promise<void> {
@@ -111,6 +113,7 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
 
   const nowMs = Date.now()
   let pending
+  let firestoreFailed = false
   try {
     pending = await db
       .collection('scheduledJobs')
@@ -118,56 +121,60 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
       .limit(200)
       .get()
   } catch (error) {
-    const fallback = await runLegacyFallbackCrons(req)
-    return NextResponse.json({
-      ok: true,
-      processed: 0,
-      reason: 'scheduled-jobs-query-failed',
-      error: error instanceof Error ? error.message : String(error),
-      fallback,
-    })
+    firestoreFailed = true
+    console.error('[process-due] Firestore query failed:', error)
   }
-
-  const dueDocs = pending.docs.filter((d) => {
-    const runAtMs = Number((d.data() as JobDoc).runAtMs ?? 0)
-    return Number.isFinite(runAtMs) && runAtMs <= nowMs
-  }).slice(0, 50)
-
-  if (!dueDocs.length) return NextResponse.json({ ok: true, processed: 0 })
 
   let processed = 0
   let failed = 0
+  let dueDocs = []
 
-  for (const doc of dueDocs) {
-    const data = doc.data() as JobDoc
-    const type = data.type
-    const orderId = data.orderId
-    if (!type || !orderId) {
-      await doc.ref.update({ status: 'failed', updatedAtMs: Date.now(), error: 'missing-type-or-orderId' })
-      failed++
-      continue
-    }
+  if (!firestoreFailed && pending) {
+    dueDocs = pending.docs.filter((d) => {
+      const runAtMs = Number((d.data() as JobDoc).runAtMs ?? 0)
+      return Number.isFinite(runAtMs) && runAtMs <= nowMs
+    }).slice(0, 50)
 
-    try {
-      await doc.ref.update({ status: 'processing', updatedAtMs: Date.now() })
-      await executeJob(req, type, orderId)
-      await doc.ref.update({ status: 'done', doneAtMs: Date.now(), updatedAtMs: Date.now() })
-      processed++
-    } catch (error) {
-      const attempts = Number(data.attempts ?? 0) + 1
-      const retryAtMs = Date.now() + Math.min(5, attempts) * 60_000
-      await doc.ref.update({
-        status: 'pending',
-        attempts,
-        runAtMs: retryAtMs,
-        lastError: error instanceof Error ? error.message : String(error),
-        updatedAtMs: Date.now(),
-      })
-      failed++
+    for (const doc of dueDocs) {
+      const data = doc.data() as JobDoc
+      const type = data.type
+      const orderId = data.orderId
+      if (!type || !orderId) {
+        await doc.ref.update({ status: 'failed', updatedAtMs: Date.now(), error: 'missing-type-or-orderId' })
+        failed++
+        continue
+      }
+
+      try {
+        await doc.ref.update({ status: 'processing', updatedAtMs: Date.now() })
+        await executeJob(req, type, orderId)
+        await doc.ref.update({ status: 'done', doneAtMs: Date.now(), updatedAtMs: Date.now() })
+        processed++
+      } catch (error) {
+        const attempts = Number(data.attempts ?? 0) + 1
+        const retryAtMs = Date.now() + Math.min(5, attempts) * 60_000
+        await doc.ref.update({
+          status: 'pending',
+          attempts,
+          runAtMs: retryAtMs,
+          lastError: error instanceof Error ? error.message : String(error),
+          updatedAtMs: Date.now(),
+        })
+        failed++
+      }
     }
   }
 
-  return NextResponse.json({ ok: true, processed, failed })
+  // Always run fallback scan to catch any jobs that failed to queue in Firestore
+  const fallback = await runLegacyFallbackCrons(req)
+
+  return NextResponse.json({ 
+    ok: true, 
+    processed, 
+    failed, 
+    firestoreFailed,
+    fallback 
+  })
 }
 
 /** POST — Firebase scheduled function (`processDueJobs`) */
