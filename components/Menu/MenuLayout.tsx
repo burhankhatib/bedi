@@ -143,7 +143,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   const orderTypeOptions = tenantSlug
     ? { supportsDineIn: supportsDineIn ?? true, supportsReceiveInPerson: supportsReceiveInPerson ?? true, hasDelivery: hasDelivery ?? false }
     : null
-  const { totalItems, isOpen: cartOpen, setIsOpen, setTenantSlug, setLockedTableNumber, cartTenant, items } = useCart()
+  const { totalItems, isOpen: cartOpen, setIsOpen, setTenantSlug, setLockedTableNumber, cartTenant, items, setOrderType, setTableNumber } = useCart()
   const { city, isChosen } = useLocation()
   const router = useRouter()
   const orderAuth = useOrderAuth()
@@ -162,6 +162,8 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   useEffect(() => {
     if (tenantSlug && initialTableNumber) {
       setLockedTableNumber(initialTableNumber)
+      setOrderType('dine-in')
+      setTableNumber(initialTableNumber)
       if (typeof window !== 'undefined') {
         const url = new URL(window.location.href)
         if (url.searchParams.has('table')) {
@@ -169,10 +171,12 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
           window.history.replaceState({}, '', url.pathname + url.search + url.hash)
         }
       }
-      return () => setLockedTableNumber(null)
+      return () => {
+        setLockedTableNumber(null)
+      }
     }
     setLockedTableNumber(null)
-  }, [tenantSlug, initialTableNumber, setLockedTableNumber])
+  }, [tenantSlug, initialTableNumber, setLockedTableNumber, setOrderType, setTableNumber])
   // After sign-in/sign-up from cart, return with openCart=1 so we reopen the cart
   useEffect(() => {
     if (searchParams.get('openCart') === '1') {

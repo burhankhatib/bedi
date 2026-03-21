@@ -8,6 +8,7 @@ import { isVerifiedPhoneForUser } from '@/lib/order-auth'
 import { NotificationService } from '@/lib/notifications/NotificationService'
 import { pusherServer } from '@/lib/pusher'
 import { getShopperFeeByItemCount } from '@/lib/shopper-fee'
+import { sendHumorousHostPush } from '@/lib/humorous-host-push'
 import {
   scheduleDeliveryLifecycleJobs,
   scheduleOrderUnacceptedWhatsapp,
@@ -327,6 +328,10 @@ export async function POST(request: NextRequest) {
 
     if (orderType === 'dine-in' && tableNumber && tenantSlug) {
       await pusherServer.trigger(`tenant-${tenantSlug}-table-${tableNumber}-cart`, 'order-submitted', { trackingToken })
+      
+      // If the host placed the order, send them a funny collaborative message
+      // We don't await this so we don't block the API response
+      sendHumorousHostPush(userId, trackingToken, tenantSlug).catch(console.error)
     }
 
     // Upsert customer so we can see all customers across businesses in Sanity

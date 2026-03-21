@@ -354,13 +354,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
+    let active = true
     if (orderType === 'dine-in' && tableNumber && cartTenant?.slug && deviceId) {
       const channelName = `tenant-${cartTenant.slug}-table-${tableNumber}-cart`
       
       fetch(`/api/tenants/${cartTenant.slug}/table/${tableNumber}/cart`)
         .then(r => r.json())
         .then(data => {
-          if (data && data.items) {
+          if (active && data && data.items) {
             setItems(data.items)
             setHostId(data.hostId)
           }
@@ -369,11 +370,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       const channel = pusherClient?.subscribe(channelName)
       channel?.bind('cart-updated', (data: any) => {
-        setItems(data.items)
-        setHostId(data.hostId)
+        if (active) {
+          setItems(data.items)
+          setHostId(data.hostId)
+        }
       })
       channel?.bind('order-submitted', (data: { trackingToken: string }) => {
-        if (data.trackingToken) {
+        if (active && data.trackingToken) {
           setItems([])
           setIsOpen(false)
           router.replace(`/t/${cartTenant.slug}/track/${data.trackingToken}`)
@@ -381,12 +384,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       })
 
       return () => {
+        active = false
         pusherClient?.unsubscribe(channelName)
       }
     } else {
       setHostId(null)
     }
-  }, [orderType, tableNumber, cartTenant?.slug, deviceId])
+  }, [orderType, tableNumber, cartTenant?.slug, deviceId, router, setIsOpen])
 
   const updateItems = useCallback((updater: React.SetStateAction<CartItem[]>) => {
     setItems((prevItems) => {
