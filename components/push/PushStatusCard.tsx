@@ -219,8 +219,8 @@ export function PushStatusCard({
             <p className={`mt-2 text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{manualInstructions}</p>
           )}
         </div>
-        {/* PWA Reinstall: only when standalone, moved from header */}
-        {isStandalone && pwaConfig && (
+        {/* PWA Reinstall: only when standalone, moved from header. Hidden for customers to avoid confusion. */}
+        {isStandalone && pwaConfig && variant !== 'customer-track' && (
           <div className="shrink-0">
             <PWAReinstallHelp config={pwaConfig} variant="icon" className="h-9 w-9" />
           </div>

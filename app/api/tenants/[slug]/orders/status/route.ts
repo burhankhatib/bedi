@@ -55,8 +55,14 @@ export async function PATCH(
     const check = await checkOrderOwnership(slug, orderId)
     if (!check.ok) return NextResponse.json({ error: 'Forbidden' }, { status: check.status })
 
-    const orderBefore = await writeClient.fetch<{ assignedDriver?: any, scheduledFor?: string, prioritizeWhatsapp?: boolean } | null>(
-      `*[_type == "order" && _id == $orderId][0]{ assignedDriver, scheduledFor, "prioritizeWhatsapp": site->prioritizeWhatsapp }`,
+    const orderBefore = await writeClient.fetch<{
+      assignedDriver?: unknown
+      scheduledFor?: string
+      prioritizeWhatsapp?: boolean
+      orderType?: string
+      tableNumber?: string
+    } | null>(
+      `*[_type == "order" && _id == $orderId][0]{ assignedDriver, scheduledFor, "prioritizeWhatsapp": site->prioritizeWhatsapp, orderType, tableNumber }`,
       { orderId }
     )
 
@@ -120,6 +126,16 @@ export async function PATCH(
     }
     if (status === 'completed' || status === 'served') {
       await cancelOrderJobs(orderId)
+      if (orderBefore?.orderType === 'dine-in' && orderBefore?.tableNumber && slug) {
+        try {
+          const { redis } = await import('@/lib/redis')
+          if (redis) {
+            await redis.del(`cart:${slug}:${orderBefore.tableNumber}`)
+          }
+        } catch (e) {
+          console.error('[tenant/orders/status] Failed to clear Redis cart:', e)
+        }
+      }
     }
     if (status === 'new') {
       if (!orderBefore?.prioritizeWhatsapp) {

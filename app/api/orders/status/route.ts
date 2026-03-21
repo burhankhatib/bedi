@@ -42,6 +42,7 @@ export async function PATCH(request: Request) {
     // First verify the order exists
     const existingOrder = await writeClient.fetch(`*[_id == $orderId][0]{
       ...,
+      "tenantSlug": site->slug.current,
       "prioritizeWhatsapp": site->prioritizeWhatsapp
     }`, { orderId })
     if (!existingOrder) {
@@ -109,6 +110,16 @@ export async function PATCH(request: Request) {
     }
     if (status === 'completed' || status === 'served') {
       await cancelOrderJobs(orderId)
+      if (existingOrder.orderType === 'dine-in' && existingOrder.tableNumber && existingOrder.tenantSlug) {
+        try {
+          const { redis } = await import('@/lib/redis')
+          if (redis) {
+            await redis.del(`cart:${existingOrder.tenantSlug}:${existingOrder.tableNumber}`)
+          }
+        } catch (e) {
+          console.error('Failed to clear Redis cart:', e)
+        }
+      }
     }
     if (status === 'new') {
       if (!existingOrder.prioritizeWhatsapp) {

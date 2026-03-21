@@ -6,6 +6,7 @@ import { getTenantIdBySlug, getTenantBySlug } from '@/lib/tenant'
 import { toEnglishDigits } from '@/lib/phone'
 import { isVerifiedPhoneForUser } from '@/lib/order-auth'
 import { NotificationService } from '@/lib/notifications/NotificationService'
+import { pusherServer } from '@/lib/pusher'
 import { getShopperFeeByItemCount } from '@/lib/shopper-fee'
 import {
   scheduleDeliveryLifecycleJobs,
@@ -323,6 +324,10 @@ export async function POST(request: NextRequest) {
 
     const trackingToken = crypto.randomUUID().replace(/-/g, '')
     await writeClient.patch(result._id).set({ trackingToken }).commit()
+
+    if (orderType === 'dine-in' && tableNumber && tenantSlug) {
+      await pusherServer.trigger(`tenant-${tenantSlug}-table-${tableNumber}-cart`, 'order-submitted', { trackingToken })
+    }
 
     // Upsert customer so we can see all customers across businesses in Sanity
     try {

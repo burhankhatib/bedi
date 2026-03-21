@@ -7,6 +7,7 @@ import { useOrderAuth } from '@/lib/useOrderAuth'
 import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { X, Plus, Minus, ShoppingCart, QrCode, MessageCircle, Edit2, RotateCcw, Trash2, Send } from 'lucide-react'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
@@ -83,9 +84,14 @@ export function CartDrawer() {
     setScheduledFor,
     tenantSlug,
     cartTenant,
+    deviceId,
+    hostId,
   } = useCart()
   const orderAuth = useOrderAuth()
   const { t, lang } = useLanguage()
+
+  const isSharedCart = orderType === 'dine-in' && !!tableNumber && !!cartTenant?.slug && !!deviceId
+  const isHost = isSharedCart ? hostId === deviceId : true
   // Prefill phone from Clerk verified phone when available and cart phone is empty
   useEffect(() => {
     if (orderAuth.hasVerifiedPhone && orderAuth.verifiedPhoneValue && !customerPhone) {
@@ -106,6 +112,7 @@ export function CartDrawer() {
   const [orderData, setOrderData] = useState<string>('')
   const [showUnifiedDialog, setShowUnifiedDialog] = useState(false)
   const [isSendingOrder, setIsSendingOrder] = useState(false)
+  const [showHostConfirmDialog, setShowHostConfirmDialog] = useState(false)
 
   const getOrderData = () => {
     return items.map((item) => {
@@ -424,8 +431,8 @@ export function CartDrawer() {
         ''
       if (result.trackingToken && slugForRedirect) {
         router.replace(`/t/${slugForRedirect}/track/${result.trackingToken}`)
-      } else if (result.orderId && slugForRedirect && customerPhone?.trim()) {
-        router.replace(`/t/${slugForRedirect}/order/${result.orderId}?phone=${encodeURIComponent(customerPhone)}`)
+      } else if (result.orderId && slugForRedirect) {
+        router.replace(`/t/${slugForRedirect}/order/${result.orderId}`)
       }
     } catch (error) {
       console.error('Error sending order:', error)
@@ -571,6 +578,7 @@ export function CartDrawer() {
 
                       const itemPrice = basePrice + addOnPrice
                       const itemTotal = itemPrice * item.quantity
+                      const canEdit = isHost || item.ownerId === deviceId
 
                       return (
                         <div
@@ -591,9 +599,19 @@ export function CartDrawer() {
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-base mb-1 line-clamp-1">
-                              {lang === 'ar' ? item.title_ar : item.title_en}
-                            </h4>
+                            <div>
+                              <h4 className="font-bold text-base mb-1 line-clamp-1">
+                                {lang === 'ar' ? item.title_ar : item.title_en}
+                              </h4>
+                              {isSharedCart && item.ownerName && (
+                                <div className="text-xs font-bold text-slate-500 mb-1 flex items-center gap-1">
+                                  <span className="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[10px]">
+                                    👤
+                                  </span>
+                                  {item.ownerName}
+                                </div>
+                              )}
+                            </div>
                             {item.selectedAddOns && item.selectedAddOns.length > 0 && (
                               <div className="text-xs text-slate-600 mb-1 space-y-0.5">
                                 {groupAddOnsByKey(item.selectedAddOns, item.addOns).map(({ addOnKey, addOn, count }) => {
@@ -622,8 +640,9 @@ export function CartDrawer() {
                               <Input
                                 placeholder={t('Special requests...', 'طلبات خاصة...')}
                                 value={item.notes || ''}
+                                disabled={!canEdit}
                                 onChange={(e) => updateNotes(item.cartItemId, e.target.value)}
-                                className="text-sm h-9 bg-white"
+                                className="text-sm h-9 bg-white disabled:opacity-50"
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </div>
@@ -632,7 +651,8 @@ export function CartDrawer() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 rounded-lg"
+                                  disabled={!canEdit}
+                                  className="h-8 w-8 rounded-lg disabled:opacity-50"
                                   onClick={() => {
                                     const isWeight = isWeightBasedUnit(item.saleUnit)
                                     const step = isWeight ? WEIGHT_STEP : 1
@@ -653,7 +673,8 @@ export function CartDrawer() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 rounded-lg"
+                                  disabled={!canEdit}
+                                  className="h-8 w-8 rounded-lg disabled:opacity-50"
                                   onClick={() => {
                                     const isWeight = isWeightBasedUnit(item.saleUnit)
                                     const step = isWeight ? WEIGHT_STEP : 1
@@ -673,14 +694,16 @@ export function CartDrawer() {
                               </div>
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeFromCart(item.cartItemId)}
-                            className="shrink-0 rounded-full text-slate-400 hover:text-red-500"
-                          >
-                            <X className="w-5 h-5" />
-                          </Button>
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeFromCart(item.cartItemId)}
+                              className="shrink-0 rounded-full text-slate-400 hover:text-red-500"
+                            >
+                              <X className="w-5 h-5" />
+                            </Button>
+                          )}
                         </div>
                       )
                     })}
@@ -812,17 +835,27 @@ export function CartDrawer() {
                       </div>
 
                       {/* Main SEND Button */}
-                      <Button
-                        onClick={handleSendToKitchen}
-                        disabled={isSendingOrder}
-                        className="w-full h-16 rounded-xl font-black text-xl bg-green-600 hover:bg-green-700 shadow-xl shadow-green-600/20"
-                      >
-                        <Send className="w-6 h-6 mr-2" />
-                        {isSendingOrder
-                          ? t('Sending...', 'جارٍ الإرسال...')
-                          : t('SEND ORDER', 'إرسال الطلب')
-                        }
-                      </Button>
+                      {isSharedCart && !isHost ? (
+                        <Button
+                          disabled
+                          className="w-full h-16 rounded-xl font-black text-xl bg-slate-200 text-slate-500 shadow-none"
+                        >
+                          {t('Waiting for Host to send...', 'في انتظار المضيف لإرسال الطلب...')}
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={isSharedCart && isHost ? () => setShowHostConfirmDialog(true) : () => void handleSendToKitchen()}
+                          disabled={isSendingOrder}
+                          className="w-full h-16 rounded-xl font-black text-xl bg-green-600 hover:bg-green-700 shadow-xl shadow-green-600/20"
+                        >
+                          <Send className="w-6 h-6 mr-2" />
+                          {isSendingOrder
+                            ? t('Sending...', 'جارٍ الإرسال...')
+                            : isSharedCart
+                              ? t('Review & Send Order', 'مراجعة وإرسال الطلب')
+                              : t('SEND ORDER', 'إرسال الطلب')}
+                        </Button>
+                      )}
 
                       {/* QR code temporarily disabled – only SEND ORDER sends to Order Management. To re-enable: show when orderType === 'dine-in'. */}
                       {false && orderType === 'dine-in' && (
@@ -921,6 +954,37 @@ export function CartDrawer() {
         setDeliveryLocation={setDeliveryLocation}
         clearDeliveryLocation={clearDeliveryLocation}
       />
+      <Dialog open={showHostConfirmDialog} onOpenChange={setShowHostConfirmDialog}>
+        <DialogContent className="max-w-sm rounded-[24px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-center">
+              {t('Ready to send?', 'هل أنتم مستعدون للإرسال؟')}
+            </DialogTitle>
+            <DialogDescription className="text-center mt-2">
+              {t('Are you sure everyone at the table is finished ordering?', 'هل أنت متأكد أن جميع من على الطاولة قد انتهوا من الطلب؟')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-4">
+            <Button
+              onClick={() => {
+                setShowHostConfirmDialog(false)
+                void handleSendToKitchen()
+              }}
+              className="w-full h-14 rounded-2xl font-black text-lg bg-green-600 hover:bg-green-700 text-white"
+            >
+              {t('Yes, send order', 'نعم، أرسل الطلب')}
+            </Button>
+            <Button
+              onClick={() => setShowHostConfirmDialog(false)}
+              variant="outline"
+              className="w-full h-14 rounded-2xl font-bold"
+            >
+              {t('Wait, not yet', 'انتظر قليلاً')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </>
   )
 }

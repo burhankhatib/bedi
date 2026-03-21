@@ -31,6 +31,8 @@ export const CartSliderLineItem = memo(function CartSliderLineItem({
   onRemove,
   onUpdateQuantity,
   onUpdateNotes,
+  isSharedCart,
+  canEdit = true,
 }: {
   item: CartItem
   lang: string
@@ -38,6 +40,8 @@ export const CartSliderLineItem = memo(function CartSliderLineItem({
   onRemove: (cartItemId: string) => void
   onUpdateQuantity: (cartItemId: string, quantity: number) => void
   onUpdateNotes: (cartItemId: string, notes: string) => void
+  isSharedCart?: boolean
+  canEdit?: boolean
 }) {
   const isAr = lang === 'ar'
   const { unitPrice, lineTotal } = useMemo(
@@ -70,17 +74,29 @@ export const CartSliderLineItem = memo(function CartSliderLineItem({
         )}
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-start gap-2">
-            <h4 className="font-black text-base line-clamp-1">
-              {isAr ? item.title_ar : item.title_en}
-            </h4>
-            <button
-              type="button"
-              onClick={() => onRemove(item.cartItemId)}
-              className="text-slate-300 hover:text-red-500 transition-colors"
-              aria-label={t('Remove', 'إزالة')}
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div>
+              <h4 className="font-black text-base line-clamp-1">
+                {isAr ? item.title_ar : item.title_en}
+              </h4>
+              {isSharedCart && item.ownerName && (
+                <div className="text-xs font-bold text-slate-500 mt-0.5 flex items-center gap-1">
+                  <span className="w-4 h-4 rounded-full bg-slate-200 flex items-center justify-center text-[10px]">
+                    👤
+                  </span>
+                  {item.ownerName}
+                </div>
+              )}
+            </div>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => onRemove(item.cartItemId)}
+                className="text-slate-300 hover:text-red-500 transition-colors"
+                aria-label={t('Remove', 'إزالة')}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {item.selectedAddOns && item.selectedAddOns.length > 0 && (
@@ -116,7 +132,8 @@ export const CartSliderLineItem = memo(function CartSliderLineItem({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-xl hover:bg-white hover:shadow-sm"
+                disabled={!canEdit}
+                className="h-8 w-8 rounded-xl hover:bg-white hover:shadow-sm disabled:opacity-50"
                 onClick={() => {
                   const step = weight ? WEIGHT_STEP : 1
                   const next = item.quantity - step
@@ -137,7 +154,8 @@ export const CartSliderLineItem = memo(function CartSliderLineItem({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-xl hover:bg-white hover:shadow-sm"
+                disabled={!canEdit}
+                className="h-8 w-8 rounded-xl hover:bg-white hover:shadow-sm disabled:opacity-50"
                 onClick={() => {
                   const step = weight ? WEIGHT_STEP : 1
                   onUpdateQuantity(item.cartItemId, Math.round((item.quantity + step) * 100) / 100)
@@ -168,8 +186,9 @@ export const CartSliderLineItem = memo(function CartSliderLineItem({
           <Input
             placeholder={t('Any requests?', 'أي طلبات؟')}
             value={item.notes || ''}
+            disabled={!canEdit}
             onChange={(e) => onUpdateNotes(item.cartItemId, e.target.value)}
-            className="h-8 text-xs border-none bg-transparent focus-visible:ring-0 px-0 placeholder:text-slate-300 font-bold"
+            className="h-8 text-xs border-none bg-transparent focus-visible:ring-0 px-0 placeholder:text-slate-300 font-bold disabled:opacity-50"
           />
         </div>
       </div>

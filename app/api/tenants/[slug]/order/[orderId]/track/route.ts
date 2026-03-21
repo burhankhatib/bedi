@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import { client } from '@/sanity/lib/client'
 import { getTenantIdBySlug } from '@/lib/tenant'
-import { phonesMatchForOrderLookup } from '@/lib/driver-utils'
 
 export const dynamic = 'force-dynamic'
 
-/** GET: Fetch order for customer tracking. Requires query param phone; order must belong to tenant and customerPhone must match (normalized). */
+/** GET: Fetch order for customer tracking. Requires Clerk session. */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string; orderId: string }> }
 ) {
   const { slug, orderId } = await params
-  const phoneParam = req.nextUrl.searchParams.get('phone')
-  if (!phoneParam?.trim()) {
-    return NextResponse.json({ error: 'Phone required' }, { status: 400 })
+  
+  const { userId } = await auth()
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const tenantId = await getTenantIdBySlug(slug)
@@ -23,6 +24,7 @@ export async function GET(
 
   const order = await client.fetch<{
     _id: string
+    trackingToken?: string
     orderNumber?: string
     orderType?: string
     status?: string
@@ -43,9 +45,11 @@ export async function GET(
     driverArrivedAt?: string | null
     site?: { _ref?: string }
     assignedDriver?: { _ref?: string } | null
+    customer?: { clerkUserId?: string }
   } | null>(
     `*[_type == "order" && _id == $orderId && site._ref == $tenantId][0]{
       _id,
+      trackingToken,
       orderNumber,
       orderType,
       status,
@@ -65,7 +69,8 @@ export async function GET(
       estimatedDeliveryMinutes,
       driverArrivedAt,
       "site": site,
-      "assignedDriver": assignedDriver
+      "assignedDriver": assignedDriver,
+      customer->{ clerkUserId }
     }`,
     { orderId, tenantId }
   )
@@ -74,8 +79,8 @@ export async function GET(
     return NextResponse.json({ error: 'Order not found' }, { status: 404 })
   }
 
-  if (!phonesMatchForOrderLookup(phoneParam, order.customerPhone ?? '')) {
-    return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+  if (order.customer?.clerkUserId !== userId) {
+    return NextResponse.json({ error: 'Unauthorized order access' }, { status: 403 })
   }
 
   const driverRef = order.assignedDriver?._ref
@@ -98,6 +103,7 @@ export async function GET(
   return NextResponse.json({
     order: {
       _id: order._id,
+      trackingToken: order.trackingToken,
       orderNumber: order.orderNumber,
       orderType: order.orderType,
       status: order.status,

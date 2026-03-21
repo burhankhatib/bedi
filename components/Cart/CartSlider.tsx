@@ -8,6 +8,7 @@ import { useOrderAuth } from '@/lib/useOrderAuth'
 import { OrderAuthGate } from '@/components/OrderAuthGate'
 import { useToast } from '@/components/ui/ToastProvider'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { X, ShoppingCart, QrCode, Edit2, RotateCcw, Send, Store, ArrowRight } from 'lucide-react'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
@@ -86,8 +87,13 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     cartTenant,
     orderTypeOptions,
     lockedTableNumber,
+    deviceId,
+    hostId,
   } = useCart()
   const { t, lang } = useLanguage()
+
+  const isSharedCart = orderType === 'dine-in' && !!tableNumber && !!cartTenant?.slug && !!deviceId
+  const isHost = isSharedCart ? hostId === deviceId : true
   // Prefill phone from Clerk verified phone when available and cart phone is empty
   useEffect(() => {
     if (orderAuth.hasVerifiedPhone && orderAuth.verifiedPhoneValue && !customerPhone) {
@@ -108,6 +114,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
   const [orderData, setOrderData] = useState<string>('')
   const [showUnifiedDialog, setShowUnifiedDialog] = useState(false)
   const [isSendingOrder, setIsSendingOrder] = useState(false)
+  const [showHostConfirmDialog, setShowHostConfirmDialog] = useState(false)
 
   const isRTL = lang === 'ar'
   const cartCurrencyCode = items[0]?.currency ?? 'ILS'
@@ -370,8 +377,8 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         ''
       if (result.trackingToken && slugForTrack) {
         router.replace(`/t/${slugForTrack}/track/${result.trackingToken}`)
-      } else if (result.orderId && slugForTrack && customerPhone?.trim()) {
-        router.replace(`/t/${slugForTrack}/order/${result.orderId}?phone=${encodeURIComponent(customerPhone)}`)
+      } else if (result.orderId && slugForTrack) {
+        router.replace(`/t/${slugForTrack}/order/${result.orderId}`)
       }
     } catch (error) {
       console.error('Error sending order:', error)
@@ -510,6 +517,8 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                     onRemove={removeFromCart}
                     onUpdateQuantity={updateQuantity}
                     onUpdateNotes={updateNotes}
+                    isSharedCart={isSharedCart}
+                    canEdit={isHost || item.ownerId === deviceId}
                   />
                 ))}
               </div>
@@ -641,17 +650,26 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                   </div>
 
                   {/* Main SEND Button */}
-                  <Button
-                    onClick={handleSendOrder}
-                    disabled={isSendingOrder}
-                    className="w-full h-16 rounded-2xl font-black text-lg bg-green-600 hover:bg-green-700 text-white shadow-xl shadow-green-600/20 active:scale-[0.98] transition-all"
-                  >
-                    <Send className="w-5 h-5 mr-2" />
-                    {isSendingOrder
-                      ? t('Sending...', 'جارٍ الإرسال...')
-                      : t('SEND ORDER', 'إرسال الطلب')
-                    }
-                  </Button>
+                  {isSharedCart && !isHost ? (
+                    <Button
+                      disabled={true}
+                      className="w-full h-16 rounded-2xl font-black text-lg bg-slate-200 text-slate-500 shadow-none transition-all"
+                    >
+                      {t('Waiting for Host to send...', 'في انتظار المضيف لإرسال الطلب...')}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={isSharedCart && isHost ? () => setShowHostConfirmDialog(true) : handleSendOrder}
+                      disabled={isSendingOrder}
+                      className="w-full h-16 rounded-2xl font-black text-lg bg-green-600 hover:bg-green-700 text-white shadow-xl shadow-green-600/20 active:scale-[0.98] transition-all"
+                    >
+                      <Send className="w-5 h-5 mr-2" />
+                      {isSendingOrder
+                        ? t('Sending...', 'جارٍ الإرسال...')
+                        : isSharedCart ? t('Review & Send Order', 'مراجعة وإرسال الطلب') : t('SEND ORDER', 'إرسال الطلب')
+                      }
+                    </Button>
+                  )}
 
                   {/* QR code temporarily disabled – only SEND ORDER sends to Order Management. To re-enable: show when orderType === 'dine-in'. */}
                   {false && orderType === 'dine-in' && (
@@ -777,6 +795,37 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         setDeliveryLocation={setDeliveryLocation}
         clearDeliveryLocation={clearDeliveryLocation}
       />
+      <Dialog open={showHostConfirmDialog} onOpenChange={setShowHostConfirmDialog}>
+        <DialogContent className="max-w-sm rounded-[24px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-center">
+              {t('Ready to send?', 'هل أنتم مستعدون للإرسال؟')}
+            </DialogTitle>
+            <DialogDescription className="text-center mt-2">
+              {t('Are you sure everyone at the table is finished ordering?', 'هل أنت متأكد أن جميع من على الطاولة قد انتهوا من الطلب؟')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-4">
+            <Button
+              onClick={() => {
+                setShowHostConfirmDialog(false)
+                handleSendOrder()
+              }}
+              className="w-full h-14 rounded-2xl font-black text-lg bg-green-600 hover:bg-green-700 text-white"
+            >
+              {t('Yes, send order', 'نعم، أرسل الطلب')}
+            </Button>
+            <Button
+              onClick={() => setShowHostConfirmDialog(false)}
+              variant="outline"
+              className="w-full h-14 rounded-2xl font-bold"
+            >
+              {t('Wait, not yet', 'انتظر قليلاً')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </>
   )
 }

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { pusherClient } from '@/lib/pusher-client'
 import { Product, DayHours, CustomDateHours } from '@/app/types/menu'
 import {
   Dialog,
@@ -49,6 +50,8 @@ export interface CartItem extends Product {
   selectedAddOns?: string[]
   /** Option index per variant group; undefined = optional group not selected (e.g. [0, undefined, 1]) */
   selectedVariants?: (number | undefined)[]
+  ownerId?: string
+  ownerName?: string
 }
 
 interface ToastMessage {
@@ -60,6 +63,8 @@ interface ToastMessage {
 export type OrderType = 'receive-in-person' | 'dine-in' | 'delivery'
 
 interface CartContextType {
+  deviceId: string | null
+  hostId: string | null
   items: CartItem[]
   /** Pass tenantContext when adding from a menu page; enforces single-business cart. */
   addToCart: (product: Product, selectedAddOns?: string[], selectedVariants?: (number | undefined)[], tenantContext?: CartTenant, orderTypeOptions?: OrderTypeOptions, quantity?: number) => void
@@ -133,6 +138,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { t } = useLanguage()
   const [items, setItems] = useState<CartItem[]>([])
+  const [deviceId, setDeviceId] = useState<string | null>(null)
+  const [hostId, setHostId] = useState<string | null>(null)
   const [cartTenant, setCartTenant] = useState<CartTenant | null>(null)
   const [orderTypeOptions, setOrderTypeOptions] = useState<OrderTypeOptions | null>(null)
   const [lockedTableNumber, setLockedTableNumber] = useState<string | null>(null)
@@ -336,6 +343,80 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('beforeunload', flushPendingWrites)
   }, [items, cartTenant, orderTypeOptions, customerName, tableNumber, isReady, orderType, customerPhone, deliveryAreaId, deliveryAddress, deliveryLat, deliveryLng, deliveryAccuracyMeters, deliveryLocationSource, deliveryFee, deliveryFeePaidByBusiness, scheduledFor])
 
+
+  useEffect(() => {
+    let id = localStorage.getItem('deviceId')
+    if (!id) {
+      id = crypto.randomUUID()
+      localStorage.setItem('deviceId', id)
+    }
+    setDeviceId(id)
+  }, [])
+
+  useEffect(() => {
+    if (orderType === 'dine-in' && tableNumber && cartTenant?.slug && deviceId) {
+      const channelName = `tenant-${cartTenant.slug}-table-${tableNumber}-cart`
+      
+      fetch(`/api/tenants/${cartTenant.slug}/table/${tableNumber}/cart`)
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.items) {
+            setItems(data.items)
+            setHostId(data.hostId)
+          }
+        })
+        .catch(err => console.error('Failed to fetch shared cart:', err))
+
+      const channel = pusherClient?.subscribe(channelName)
+      channel?.bind('cart-updated', (data: any) => {
+        setItems(data.items)
+        setHostId(data.hostId)
+      })
+      channel?.bind('order-submitted', (data: { trackingToken: string }) => {
+        if (data.trackingToken) {
+          setItems([])
+          setIsOpen(false)
+          router.replace(`/t/${cartTenant.slug}/track/${data.trackingToken}`)
+        }
+      })
+
+      return () => {
+        pusherClient?.unsubscribe(channelName)
+      }
+    } else {
+      setHostId(null)
+    }
+  }, [orderType, tableNumber, cartTenant?.slug, deviceId])
+
+  const updateItems = useCallback((updater: React.SetStateAction<CartItem[]>) => {
+    setItems((prevItems) => {
+      const newItems = typeof updater === 'function' ? updater(prevItems) : updater
+      
+      if (orderType === 'dine-in' && tableNumber && cartTenant?.slug && deviceId) {
+         const isHost = hostId === deviceId
+         if (isHost) {
+           fetch(`/api/tenants/${cartTenant.slug}/table/${tableNumber}/cart`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ action: 'host_replace_items', deviceId, items: newItems })
+           }).catch(console.error)
+         } else {
+           const ourItems = newItems.filter(i => !i.ownerId || i.ownerId === deviceId).map(i => ({
+             ...i,
+             ownerId: deviceId,
+             ownerName: customerName || 'Guest'
+           }))
+           fetch(`/api/tenants/${cartTenant.slug}/table/${tableNumber}/cart`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ action: 'update_items', deviceId, ownerName: customerName, items: ourItems })
+           }).catch(console.error)
+         }
+      }
+      return newItems
+    })
+  }, [orderType, tableNumber, cartTenant?.slug, deviceId, hostId, customerName])
+
   const doAddItem = useCallback((
     product: Product,
     selectedAddOns: string[],
@@ -351,7 +432,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (variantsKey) parts.push(variantsKey)
     const cartItemId = parts.join('-')
 
-    setItems((prevItems) => {
+    updateItems((prevItems) => {
       const existingItem = prevItems.find((item) => item.cartItemId === cartItemId)
       if (existingItem) {
         return prevItems.map((item) =>
@@ -400,7 +481,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const resolveConflictReplace = useCallback(() => {
     if (!conflictState) return
     const { newTenant, pending } = conflictState
-    setItems([])
+    updateItems([])
     setCartTenant(newTenant)
     setOrderTypeOptions(null)
     setLockedTableNumber(null)
@@ -430,15 +511,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const removeFromCart = useCallback((cartItemId: string) => {
-    setItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))
+    updateItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))
   }, [])
 
   const updateQuantity = useCallback((cartItemId: string, quantity: number) => {
     if (quantity <= 0) {
-      setItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))
+      updateItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))
       return
     }
-    setItems((prevItems) =>
+    updateItems((prevItems) =>
       prevItems.map((item) =>
         item.cartItemId === cartItemId ? { ...item, quantity } : item
       )
@@ -446,7 +527,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const updateNotes = useCallback((cartItemId: string, notes: string) => {
-    setItems((prevItems) =>
+    updateItems((prevItems) =>
       prevItems.map((item) =>
         item.cartItemId === cartItemId ? { ...item, notes } : item
       )
@@ -458,7 +539,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const addonsKey = (selectedAddOns || []).sort().join('-')
     const newCartItemId = addonsKey ? `${productId}-${addonsKey}` : productId
 
-    setItems((prevItems) =>
+    updateItems((prevItems) =>
       prevItems.map((item) =>
         item.cartItemId === cartItemId ? { ...item, cartItemId: newCartItemId, selectedAddOns } : item
       )
@@ -466,7 +547,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }
 
   const clearCart = useCallback(() => {
-    setItems([])
+    updateItems([])
     setCartTenant(null)
     setIsReady(false)
     setCustomerName('')
@@ -513,6 +594,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   return (
     <CartContext.Provider
       value={{
+        deviceId,
+        hostId,
         items,
         addToCart,
         removeFromCart,
