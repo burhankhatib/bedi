@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -116,6 +116,8 @@ export function UnifiedOrderDialog({
   const prevOpenRef = useRef(false)
   /** Prevents overlapping getCurrentPosition calls (auto + tap, or double-tap). */
   const geoInFlightRef = useRef(false)
+  /** One automatic GPS attempt per dialog open on the delivery step (reset when modal opens). */
+  const autoDeliveryGeoRef = useRef(false)
 
   const [distanceFee, setDistanceFee] = useState<number | null>(null)
   const [distanceKm, setDistanceKm] = useState<number | null>(null)
@@ -181,6 +183,7 @@ export function UnifiedOrderDialog({
       setIsEditingName(false)
       setShowMapModal(false)
       setShowNotes(false)
+      autoDeliveryGeoRef.current = false
       clearDeliveryLocation?.()
     } else if (open && !isEditingName && initialName && name === t('Guest', 'ضيف')) {
       // If the modal is already open but the initialName just loaded from Clerk, update it
@@ -337,9 +340,16 @@ export function UnifiedOrderDialog({
     }
     setOrderType(type)
     setStep('details')
-    // Do not auto-request GPS here: it raced with "Share My Location" and caused duplicate getCurrentPosition calls.
-    // User taps Share My Location / map GPS (still on the same gesture flow as choosing Delivery).
   }
+
+  // Auto-detect delivery pin once when the delivery details step is shown (after choosing Delivery).
+  useLayoutEffect(() => {
+    if (!open || step !== 'details' || orderType !== 'delivery' || !setDeliveryLocation) return
+    if (deliveryLat != null && deliveryLng != null) return
+    if (autoDeliveryGeoRef.current) return
+    autoDeliveryGeoRef.current = true
+    requestDeliveryLocation()
+  }, [open, step, orderType, setDeliveryLocation, deliveryLat, deliveryLng, requestDeliveryLocation])
 
   const handleFinalSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -389,6 +399,7 @@ export function UnifiedOrderDialog({
       if (lockedTableNumber) {
         onOpenChange(false)
       } else {
+        autoDeliveryGeoRef.current = false
         setStep('type')
         setOrderType(null)
       }
@@ -519,7 +530,7 @@ export function UnifiedOrderDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md w-[95%] rounded-[32px] p-8 border-none shadow-2xl max-h-[90vh] overflow-y-auto pb-[max(2rem,calc(env(safe-area-inset-bottom)+100px))] scrollbar-thin">
+      <DialogContent className="sm:max-w-md w-[95%] rounded-[32px] p-5 sm:p-6 border-none shadow-2xl max-h-[92dvh] overflow-y-auto pb-[max(1rem,calc(env(safe-area-inset-bottom)+88px))] scrollbar-thin">
 
         {/* Step 2: Order Type Selection */}
         {step === 'type' && (
@@ -787,290 +798,329 @@ export function UnifiedOrderDialog({
           </>
         )}
 
-        {/* Step 3: Delivery Details */}
+        {/* Step 3: Delivery Details — compact single-screen layout */}
         {step === 'details' && orderType === 'delivery' && (
           <>
-            <DialogHeader className="mb-6">
-              <div className="w-12 h-12 bg-green-600 rounded-2xl flex items-center justify-center mb-4">
-                <Truck className="w-6 h-6 text-white" />
+            <DialogHeader className="mb-2 space-y-1 text-center sm:text-start rtl:sm:text-end">
+              <div className="flex items-center justify-center sm:justify-start gap-2.5 rtl:sm:flex-row-reverse">
+                <div className="w-9 h-9 shrink-0 bg-green-600 rounded-xl flex items-center justify-center">
+                  <Truck className="w-5 h-5 text-white" aria-hidden />
+                </div>
+                <DialogTitle className="text-xl font-black leading-tight mb-0">
+                  {t('Delivery Details', 'تفاصيل التوصيل')}
+                </DialogTitle>
               </div>
-              <DialogTitle className="text-2xl font-black">
-                {t('Delivery Details', 'تفاصيل التوصيل')}
-              </DialogTitle>
-              <DialogDescription className="font-medium text-slate-500">
+              <DialogDescription className="text-xs font-medium text-slate-500 leading-snug">
                 {t('Please provide your delivery information', 'يرجى تقديم معلومات التوصيل')}
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleFinalSubmit} className="space-y-5">
-              {customerInfoHeader}
+            <form onSubmit={handleFinalSubmit} className="space-y-2.5">
+              {/* Customer + delivery fee — one row */}
+              <div className="grid grid-cols-2 gap-2 items-stretch">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 min-h-[4.5rem] flex flex-col justify-center">
+                  {isEditingName ? (
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      onBlur={() => setIsEditingName(false)}
+                      autoFocus
+                      className="h-8 font-bold text-sm px-2 -ml-1 rtl:-mr-1 rtl:ml-0 mb-1 bg-white"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 cursor-pointer group text-start rtl:text-end w-full"
+                      onClick={() => setIsEditingName(true)}
+                    >
+                      <p className="font-bold text-sm text-slate-900 group-hover:text-green-600 transition-colors truncate">
+                        {name || t('Guest', 'ضيف')}
+                      </p>
+                      <Edit2 className="w-3.5 h-3.5 shrink-0 text-slate-400 group-hover:text-green-600" aria-hidden />
+                    </button>
+                  )}
+                  <p className="text-[11px] font-semibold text-slate-500 dir-ltr text-left w-full truncate mt-0.5" dir="ltr">
+                    {phone}
+                  </p>
+                </div>
 
-              {/* Delivery location: Use my location or type address */}
-              <div className="space-y-3">
-                {isDistanceMode && deliveryLat != null && deliveryLng != null && (
-                  <div className="rounded-2xl border border-green-200 bg-green-50 p-4 mb-4">
-                    {priceLoading ? (
-                      <div className="flex items-center gap-2 text-green-700">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm font-semibold">{t('Calculating delivery fee...', 'جاري حساب رسوم التوصيل...')}</span>
+                <div className="rounded-xl border border-green-200 bg-green-50/95 p-2.5 min-h-[4.5rem] flex flex-col justify-center text-start rtl:text-end">
+                  {isDistanceMode && deliveryLat != null && deliveryLng != null ? (
+                    priceLoading ? (
+                      <div className="flex items-center gap-1.5 text-green-700">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" aria-hidden />
+                        <span className="text-[11px] font-bold leading-tight">{t('Calculating…', 'جاري الحساب…')}</span>
                       </div>
                     ) : distanceFee !== null && distanceKm !== null ? (
-                      <div className="flex flex-col gap-1">
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-green-900">{t('Delivery Fee', 'رسوم التوصيل')}</span>
-                          <span className="font-black text-green-700 text-lg">
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <div className="flex justify-between items-baseline gap-1">
+                          <span className="text-[10px] font-black text-green-900 uppercase tracking-wide truncate">
+                            {t('Delivery Fee', 'رسوم التوصيل')}
+                          </span>
+                          <span className="font-black text-green-700 text-sm shrink-0">
                             {tenantDeliveryFlags?.freeDeliveryEnabled
                               ? t('FREE', 'مجاناً')
                               : `${Number(distanceFee).toFixed(2)} ${formatCurrency(items[0]?.currency ?? 'ILS')}`}
                           </span>
                         </div>
                         {tenantDeliveryFlags?.freeDeliveryEnabled && (
-                          <span className="text-xs font-semibold text-emerald-700">
+                          <span className="text-[10px] font-semibold text-emerald-700 leading-tight line-clamp-2">
                             {t('Business covers delivery fee.', 'المتجر يتحمل رسوم التوصيل.')}
                           </span>
                         )}
-                        <span className="text-xs font-medium text-green-600">
+                        <span className="text-[10px] font-medium text-green-600">
                           {t('Distance:', 'المسافة:')} ~{distanceKm.toFixed(1)} {t('km', 'كم')}
                         </span>
                       </div>
                     ) : (
-                      <div className="text-sm text-red-600 font-semibold">
-                        {t('Could not calculate delivery fee. Please try a different location.', 'تعذر حساب رسوم التوصيل. يرجى تجربة موقع آخر.')}
-                      </div>
-                    )}
-                  </div>
-                )}
+                      <p className="text-[10px] font-bold text-red-600 leading-tight">
+                        {t('Fee unavailable', 'تعذر حساب الرسوم')}
+                      </p>
+                    )
+                  ) : (
+                    <div className="flex flex-col gap-0.5 justify-center min-h-[2.5rem]">
+                      {locationLoading ? (
+                        <div className="flex items-center gap-1.5 text-green-700">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" aria-hidden />
+                          <span className="text-[11px] font-bold leading-tight">{t('Finding you…', 'جاري تحديد موقعك…')}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-bold text-green-800/80 leading-tight">
+                          {t('Waiting for location', 'بانتظار الموقع')}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                {(
-                  (
-                    cartTenant?.requiresPersonalShopper ||
-                    cartTenant?.supportsDriverPickup ||
-                    tenantDeliveryFlags?.requiresPersonalShopper ||
-                    tenantDeliveryFlags?.supportsDriverPickup
-                  ) &&
-                  items.length > 0
-                ) && (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-4">
-                    {(() => {
-                      const fee = getShopperFeeByItemCount(totalItems)
-                      const expl = getShopperFeeExplanation(totalItems, lang, '₪')
-                      const currencySymbol = items[0]?.currency === 'USD' ? '$' : items[0]?.currency === 'EUR' ? '€' : '₪'
-                      return (
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between items-start gap-2">
-                            <div>
-                              <span className="font-bold text-amber-900 flex items-center gap-1.5">
-                                <span aria-hidden>🛍️</span>
-                                {t('Save Time fee', 'رسوم توفير الوقت')}
-                              </span>
-                              <p className="text-xs text-amber-800 mt-1 leading-relaxed">
-                                {expl.body}
-                              </p>
-                            </div>
-                            <span className="font-black text-amber-700 text-lg shrink-0">
-                              {fee === 0
-                                ? t('FREE', 'مجاناً')
-                                : `${fee.toFixed(2)} ${currencySymbol}`}
-                            </span>
-                          </div>
+              {(
+                (cartTenant?.requiresPersonalShopper ||
+                  cartTenant?.supportsDriverPickup ||
+                  tenantDeliveryFlags?.requiresPersonalShopper ||
+                  tenantDeliveryFlags?.supportsDriverPickup) &&
+                items.length > 0
+              ) && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2">
+                  {(() => {
+                    const fee = getShopperFeeByItemCount(totalItems)
+                    const expl = getShopperFeeExplanation(totalItems, lang, '₪')
+                    const currencySymbol = items[0]?.currency === 'USD' ? '$' : items[0]?.currency === 'EUR' ? '€' : '₪'
+                    return (
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="min-w-0">
+                          <span className="font-bold text-amber-900 text-[11px] flex items-center gap-1">
+                            <span aria-hidden>🛍️</span>
+                            {t('Save Time fee', 'رسوم توفير الوقت')}
+                          </span>
+                          <p className="text-[10px] text-amber-800 mt-0.5 leading-snug line-clamp-2">{expl.body}</p>
                           {fee === 0 && (
-                            <p className="text-[11px] text-amber-700/90">
-                              {t('Up to 3 items = free. Your driver collects your order at the store at no extra cost.', 'حتى 3 أصناف = مجاناً. سائقنا يجمع طلبك من المتجر دون تكلفة إضافية.')}
+                            <p className="text-[9px] text-amber-700/90 mt-0.5 line-clamp-1">
+                              {t('Up to 3 items = free.', 'حتى 3 أصناف = مجاناً.')}
                             </p>
                           )}
                         </div>
-                      )
-                    })()}
-                  </div>
-                )}
-                {setDeliveryLocation && (
-                  <div className="rounded-2xl border-2 border-slate-200 bg-slate-50/80 p-4 flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-bold text-slate-800 mb-0.5">
-                          {t('Delivery Location', 'موقع التوصيل')}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {t('Required for precise delivery', 'مطلوب للتوصيل الدقيق')}
-                        </p>
+                        <span className="font-black text-amber-700 text-sm shrink-0">
+                          {fee === 0 ? t('FREE', 'مجاناً') : `${fee.toFixed(2)} ${currencySymbol}`}
+                        </span>
                       </div>
-                    </div>
+                    )
+                  })()}
+                </div>
+              )}
 
-                    {deliveryLat == null || deliveryLng == null ? (
+              {setDeliveryLocation && (
+                <div className="rounded-xl border-2 border-slate-200 bg-slate-50/80 p-2.5 flex flex-col gap-2">
+                  <div>
+                    <p className="text-xs font-bold text-slate-800 leading-tight">{t('Delivery Location', 'موقع التوصيل')}</p>
+                    <p className="text-[10px] text-slate-500 leading-tight">{t('Required for precise delivery', 'مطلوب للتوصيل الدقيق')}</p>
+                  </div>
+
+                  {deliveryLat == null || deliveryLng == null ? (
+                    <div className="space-y-2">
+                      <div className="h-[100px] rounded-lg bg-slate-200/80 animate-pulse flex items-center justify-center">
+                        {locationLoading ? (
+                          <div className="flex flex-col items-center gap-1 text-slate-600">
+                            <Loader2 className="w-6 h-6 animate-spin" aria-hidden />
+                            <span className="text-[11px] font-bold">{t('Detecting location…', 'جاري اكتشاف الموقع…')}</span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-slate-500 px-2 text-center">{t('Allow location or use link below', 'اسمح بالموقع أو استخدم الرابط أدناه')}</span>
+                        )}
+                      </div>
                       <Button
                         type="button"
                         onClick={() => requestDeliveryLocation()}
                         disabled={locationLoading}
-                        className="w-full h-14 rounded-xl font-bold text-base bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-md flex items-center justify-center gap-2"
+                        className="w-full h-11 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-sm flex items-center justify-center gap-2"
                       >
                         {locationLoading ? (
                           <>
-                            <Loader2 className="w-5 h-5 shrink-0 animate-spin" />
+                            <Loader2 className="w-4 h-4 shrink-0 animate-spin" aria-hidden />
                             {t('Getting your location…', 'جاري الحصول على موقعك…')}
                           </>
                         ) : (
                           <>
-                            <Locate className="w-5 h-5 shrink-0" />
+                            <Locate className="w-4 h-4 shrink-0" aria-hidden />
                             {t('Share My Location', 'مشاركة موقعي')}
                           </>
                         )}
                       </Button>
-                    ) : (
-                      <>
-                        <div className={`transition-all duration-300 w-full relative z-0 ${showMapModal ? 'h-[350px]' : 'h-[160px]'}`}>
-                          <LocationPickerMap
-                            lat={deliveryLat}
-                            lng={deliveryLng}
-                            onChange={async (lat, lng) => {
-                              setDeliveryLocation(lat, lng)
-                              const name = await reverseGeocode(lat, lng)
-                              if (name) setAddress(name)
-                            }}
-                            onRequestMyLocation={() => requestDeliveryLocation()}
-                            locationLoading={locationLoading}
-                            gpsAriaLabel={t('Use my current location', 'استخدام موقعي الحالي')}
-                            centerPinAriaLabel={t('Center map on pin', 'توسيط الخريطة على الدبوس')}
-                          />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => requestDeliveryLocation()}
-                            disabled={locationLoading}
-                            className="flex flex-1 min-h-11 items-center justify-center gap-2 rounded-xl border-emerald-200 bg-emerald-50/80 text-xs font-bold text-emerald-900 hover:bg-emerald-100"
-                          >
-                            {locationLoading ? (
-                              <Loader2 className="size-4 shrink-0 animate-spin" />
-                            ) : (
-                              <Locate className="size-4 shrink-0" />
-                            )}
-                            <span>{t('Refresh location', 'تحديث الموقع')}</span>
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => requestDeliveryLocation({ highAccuracy: true })}
-                            disabled={locationLoading}
-                            className="flex flex-1 min-h-11 items-center justify-center gap-2 rounded-xl border-slate-300 bg-white text-xs font-bold"
-                          >
-                            {t('Improve accuracy', 'تحسين الدقة')}
-                          </Button>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setShowMapModal(!showMapModal)}
-                            className="flex-1 h-11 rounded-xl text-sm font-bold border-slate-300 bg-white"
-                          >
-                            <MapIcon className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
-                            {showMapModal ? t('Close Map', 'إغلاق الخريطة') : t('Adjust on Map', 'تعديل على الخريطة')}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant={showNotes ? "default" : "outline"}
-                            onClick={() => setShowNotes(!showNotes)}
-                            className={`flex-1 h-11 rounded-xl text-sm font-bold ${showNotes ? 'bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-300 bg-white'}`}
-                          >
-                            <Edit2 className="w-4 h-4 mr-2 rtl:ml-2 rtl:mr-0" />
-                            {t('Add Details', 'إضافة تفاصيل')}
-                          </Button>
-                        </div>
-                      </>
-                    )}
-
-                    {!!setDeliveryLocation && (deliveryLat == null || deliveryLng == null) && (
-                      <div className="pt-2 border-t border-slate-200">
-                        <p className="text-xs font-semibold text-slate-500 mb-1.5">
-                          {t('Or paste your Google Maps link:', 'أو الصق رابط Google Maps الخاص بك:')}
-                        </p>
-                        <div className="relative">
-                          <Link className="absolute left-3 rtl:right-3 rtl:left-auto top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                          <input
-                            type="url"
-                            value={mapsLinkInput}
-                            onChange={(e) => handleMapsLinkChange(e.target.value)}
-                            placeholder={t('https://maps.google.com/...', 'https://maps.google.com/...')}
-                            className="w-full h-11 pl-9 pr-4 rtl:pr-9 rtl:pl-4 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 font-medium"
-                          />
-                        </div>
-                        {mapsLinkError && (
-                          <p className="text-xs text-red-600 mt-1 font-medium">{mapsLinkError}</p>
-                        )}
-                        <p className="text-[11px] text-slate-400 mt-1">
-                          {t('Open Google Maps → long press your location → tap "Share" → copy link.', 'افتح Google Maps ← اضغط طويلاً على موقعك ← اضغط "مشاركة" ← انسخ الرابط.')}
-                        </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div
+                        className={`transition-all duration-300 w-full relative z-0 rounded-lg overflow-hidden border border-slate-200/80 ${showMapModal ? 'h-[min(220px,32dvh)]' : 'h-[112px]'}`}
+                      >
+                        <LocationPickerMap
+                          lat={deliveryLat}
+                          lng={deliveryLng}
+                          onChange={async (lat, lng) => {
+                            setDeliveryLocation(lat, lng)
+                            const name = await reverseGeocode(lat, lng)
+                            if (name) setAddress(name)
+                          }}
+                          onRequestMyLocation={() => requestDeliveryLocation()}
+                          locationLoading={locationLoading}
+                          gpsAriaLabel={t('Use my current location', 'استخدام موقعي الحالي')}
+                          centerPinAriaLabel={t('Center map on pin', 'توسيط الخريطة على الدبوس')}
+                        />
                       </div>
-                    )}
-                  </div>
-                )}
-                {locationError && (
-                  <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3" role="alert">
-                    <p className="text-sm text-amber-800 font-medium">{locationError}</p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-2 rounded-lg border-amber-300 text-amber-800 hover:bg-amber-100"
-                      onClick={() => { setLocationError(null); requestDeliveryLocation() }}
-                    >
-                      {t('Try again', 'حاول مرة أخرى')}
-                    </Button>
-                  </div>
-                )}
-                {(!setDeliveryLocation || (deliveryLat != null && deliveryLng != null && showNotes)) && (
-                  <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0">
-                      {t('Detailed address', 'العنوان التفصيلي')} ({t('optional', 'اختياري')})
-                    </label>
-                    <textarea
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder={t('Street, building number, floor, apartment...', 'الشارع، رقم المبنى، الطابق، الشقة...')}
-                      className="w-full min-h-[100px] text-base rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white transition-all font-semibold px-5 py-4 resize-none"
-                      required={false}
-                    />
-                  </div>
-                )}
-              </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => requestDeliveryLocation()}
+                          disabled={locationLoading}
+                          className="h-auto min-h-[2.75rem] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 rounded-lg border-emerald-200 bg-emerald-50/80 text-[10px] font-bold text-emerald-900 hover:bg-emerald-100 leading-tight"
+                        >
+                          {locationLoading ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden /> : <Locate className="size-3.5 shrink-0" aria-hidden />}
+                          <span className="text-center px-0.5 line-clamp-2">{t('Refresh location', 'تحديث الموقع')}</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => requestDeliveryLocation({ highAccuracy: true })}
+                          disabled={locationLoading}
+                          className="h-auto min-h-[2.75rem] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 rounded-lg border-slate-300 bg-white text-[10px] font-bold text-slate-800 leading-tight"
+                        >
+                          <span className="text-center px-0.5 line-clamp-2">{t('Improve accuracy', 'تحسين الدقة')}</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowMapModal(!showMapModal)}
+                          className="h-auto min-h-[2.75rem] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 rounded-lg border-slate-300 bg-white text-[10px] font-bold text-slate-800 leading-tight"
+                        >
+                          <MapIcon className="size-3.5 shrink-0" aria-hidden />
+                          <span className="text-center px-0.5 line-clamp-2">
+                            {showMapModal ? t('Close Map', 'إغلاق الخريطة') : t('Adjust on Map', 'تعديل على الخريطة')}
+                          </span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={showNotes ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setShowNotes(!showNotes)}
+                          className={`h-auto min-h-[2.75rem] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 rounded-lg text-[10px] font-bold leading-tight ${showNotes ? 'bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-300 bg-white text-slate-800'}`}
+                        >
+                          <Edit2 className="size-3.5 shrink-0" aria-hidden />
+                          <span className="text-center px-0.5 line-clamp-2">{t('Add Details', 'إضافة تفاصيل')}</span>
+                        </Button>
+                      </div>
+                    </>
+                  )}
 
-              {/* Timing — when closed, only scheduling is allowed */}
-              <div className="space-y-3 pt-4 border-t border-slate-100">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 rtl:mr-1 rtl:ml-0 flex items-center gap-1">
+                  {(deliveryLat == null || deliveryLng == null) && (
+                    <div className="pt-1.5 border-t border-slate-200/80">
+                      <p className="text-[10px] font-semibold text-slate-500 mb-1">{t('Or paste Google Maps link', 'أو الصق رابط الخرائط')}</p>
+                      <div className="relative">
+                        <Link className="absolute left-2.5 rtl:right-2.5 rtl:left-auto top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" aria-hidden />
+                        <input
+                          type="url"
+                          value={mapsLinkInput}
+                          onChange={(e) => handleMapsLinkChange(e.target.value)}
+                          placeholder={t('Maps link…', 'رابط الخرائط…')}
+                          className="w-full h-9 pl-8 pr-2 rtl:pr-8 rtl:pl-2 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-400 font-medium"
+                        />
+                      </div>
+                      {mapsLinkError && <p className="text-[10px] text-red-600 mt-1 font-medium">{mapsLinkError}</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {locationError && (
+                <div className="rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-2" role="alert">
+                  <p className="text-[11px] text-amber-800 font-medium leading-snug">{locationError}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-1.5 h-8 rounded-lg border-amber-300 text-amber-900 bg-white text-xs font-bold hover:bg-amber-100"
+                    onClick={() => {
+                      setLocationError(null)
+                      requestDeliveryLocation()
+                    }}
+                  >
+                    {t('Try again', 'حاول مرة أخرى')}
+                  </Button>
+                </div>
+              )}
+
+              {(!setDeliveryLocation || (deliveryLat != null && deliveryLng != null && showNotes)) && (
+                <div className="space-y-1 animate-in fade-in slide-in-from-top-2">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-0.5 rtl:mr-0.5 rtl:ml-0">
+                    {t('Detailed address', 'العنوان التفصيلي')} ({t('optional', 'اختياري')})
+                  </label>
+                  <textarea
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder={t('Street, building, floor…', 'الشارع، المبنى، الطابق…')}
+                    className="w-full min-h-[68px] text-sm rounded-xl border border-slate-200 bg-slate-50 focus:bg-white transition-all font-semibold px-3 py-2 resize-none"
+                    required={false}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider ml-0.5 rtl:mr-0.5 rtl:ml-0">
                   {t('Timing', 'التوقيت')}
                 </label>
                 {effectiveClosed && (
-                  <p className="text-sm font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                  <p className="text-[11px] font-medium text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 leading-snug">
                     {t('Business is closed. Please schedule your order for when we open.', 'المتجر مغلق. يرجى جدولة طلبك لوقت الافتتاح.')}
                   </p>
                 )}
-                <div className="flex flex-col gap-3">
+                <div className={`grid gap-1.5 ${effectiveClosed ? 'grid-cols-1' : 'grid-cols-2'}`}>
                   {!effectiveClosed && (
-                    <label className="flex items-center gap-3 cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 transition-all">
+                    <label className="flex items-center gap-2 cursor-pointer rounded-xl border border-slate-200 bg-white p-2.5 has-[:checked]:border-green-600 has-[:checked]:bg-green-50/50 transition-all min-h-[3.25rem]">
                       <input
                         type="radio"
                         name="delivery_timing"
                         checked={!isScheduled}
                         onChange={() => setIsScheduled(false)}
-                        className="size-5 accent-slate-900"
+                        className="size-4 shrink-0 accent-green-600"
                       />
-                      <span className="font-bold text-slate-800">{t('As soon as possible (ASAP)', 'في أسرع وقت ممكن')}</span>
+                      <span className="font-bold text-slate-800 text-[11px] leading-tight">{t('As soon as possible (ASAP)', 'في أسرع وقت ممكن')}</span>
                     </label>
                   )}
-                  <label className="flex flex-col gap-3 cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 transition-all">
-                    <div className="flex items-center gap-3">
+                  <label
+                    className={`flex flex-col gap-1.5 cursor-pointer rounded-xl border border-slate-200 bg-white p-2.5 has-[:checked]:border-green-600 has-[:checked]:bg-green-50/50 transition-all min-h-[3.25rem] ${effectiveClosed ? 'col-span-full' : ''}`}
+                  >
+                    <div className="flex items-center gap-2">
                       <input
                         type="radio"
                         name="delivery_timing"
                         checked={isScheduled}
                         onChange={() => setIsScheduled(true)}
-                        className="size-5 accent-slate-900"
+                        className="size-4 shrink-0 accent-green-600"
                         disabled={effectiveClosed}
                       />
-                      <span className="font-bold text-slate-800">
+                      <span className="font-bold text-slate-800 text-[11px] leading-tight">
                         {effectiveClosed ? t('Schedule for when we open', 'جدولة لوقت الافتتاح') : t('Schedule for later', 'جدولة لوقت لاحق')}
                       </span>
                     </div>
@@ -1079,7 +1129,7 @@ export function UnifiedOrderDialog({
                         type="datetime-local"
                         value={scheduledFor}
                         onChange={(e) => setScheduledFor(e.target.value)}
-                        className="h-12 w-full mt-2"
+                        className="h-10 w-full text-sm"
                         required={isScheduled || effectiveClosed}
                         min={getMinDateTime()}
                       />
@@ -1088,25 +1138,31 @@ export function UnifiedOrderDialog({
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-2 pt-1">
+                <Button
+                  type="submit"
+                  className="w-full h-12 rounded-2xl font-black bg-green-600 text-white shadow-lg shadow-green-600/10 hover:bg-green-700 active:scale-[0.98] transition-all disabled:opacity-50"
+                  disabled={
+                    !phone.trim() ||
+                    deliveryLat == null ||
+                    deliveryLng == null ||
+                    ((isScheduled || effectiveClosed) && (!scheduledFor || !!scheduleError)) ||
+                    distanceFee === null
+                  }
+                >
+                  {t('Continue', 'متابعة')}
+                </Button>
+                {(isScheduled || effectiveClosed) && scheduleError && (
+                  <p className="text-[10px] text-red-500 font-bold text-center leading-tight px-1 -mt-1">{scheduleError}</p>
+                )}
                 <Button
                   type="button"
                   variant="ghost"
                   onClick={handleBack}
-                  className="flex-1 h-14 rounded-2xl font-black text-slate-400"
+                  className="w-full h-11 rounded-2xl font-black text-slate-500 hover:text-slate-800 hover:bg-slate-100"
                 >
                   {t('Back', 'رجوع')}
                 </Button>
-                <div className="flex-1 flex flex-col">
-                  <Button
-                    type="submit"
-                    className="w-full h-14 rounded-2xl font-black bg-green-600 text-white shadow-xl shadow-green-600/10 hover:bg-green-700 active:scale-[0.98] transition-all disabled:opacity-50"
-                    disabled={!phone.trim() || deliveryLat == null || deliveryLng == null || ((isScheduled || effectiveClosed) && (!scheduledFor || !!scheduleError)) || distanceFee === null}
-                  >
-                    {t('Continue', 'متابعة')}
-                  </Button>
-                  {(isScheduled || effectiveClosed) && scheduleError && <p className="text-[10px] text-red-500 font-bold text-center leading-tight mt-1 px-1">{scheduleError}</p>}
-                </div>
               </div>
             </form>
           </>
