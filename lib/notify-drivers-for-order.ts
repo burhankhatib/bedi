@@ -49,7 +49,8 @@ async function sendToDriverTokens(
   opts?: { dataOnly?: boolean }
 ): Promise<boolean> {
   let sent = false
-  const useDataOnly = opts?.dataOnly !== false
+  /** Default false so Android/iOS/Web show a real notification (data-only often shows nothing when app is backgrounded). */
+  const useDataOnly = opts?.dataOnly === true
   const fcmPayload = useDataOnly ? { ...payload, dataOnly: true as const } : payload
   for (const tok of tokens.fcmTokens) {
     if (!isFCMConfigured()) break
@@ -335,17 +336,28 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
       if (process.env.NODE_ENV === 'development') console.warn(`[request-driver] Tenant ${ctx.siteRef} has no GPS; full city blast.`)
     } else {
       // Tier 1: <= 1km AND fresh location
-      tier1Drivers = matching.filter(d => {
+      tier1Drivers = matching.filter((d) => {
         if (!d.lastKnownLat || !d.lastKnownLng || !isFresh(d.lastLocationAt)) return false
-        const dist = distanceKm(
-          { lat: d.lastKnownLat, lng: d.lastKnownLng },
-          ctx.businessLocation!
-        )
+        const dist = distanceKm({ lat: d.lastKnownLat, lng: d.lastKnownLng }, ctx.businessLocation!)
         return dist <= 1.0
       })
 
-      // If no drivers in Tier 1, we still want to proceed to Tier 2 via cron later, 
-      // but we shouldn't send anything right now.
+      // If nobody is in the 1km ring, widen immediately so drivers aren't stuck waiting
+      // on Firestore tier jobs (or data-only FCM) before anyone is notified.
+      if (tier1Drivers.length === 0) {
+        tier1Drivers = matching.filter((d) => {
+          if (!d.lastKnownLat || !d.lastKnownLng || !isFresh(d.lastLocationAt)) return false
+          const dist = distanceKm({ lat: d.lastKnownLat, lng: d.lastKnownLng }, ctx.businessLocation!)
+          return dist > 1.0 && dist <= 2.0
+        })
+      }
+      if (tier1Drivers.length === 0) {
+        tier1Drivers = matching.filter((d) => {
+          if (!d.lastKnownLat || !d.lastKnownLng || !isFresh(d.lastLocationAt)) return true
+          const dist = distanceKm({ lat: d.lastKnownLat, lng: d.lastKnownLng }, ctx.businessLocation!)
+          return dist > 2.0
+        })
+      }
     }
 
     const sentCount = await sendToTier(tier1Drivers, centralByClerk, payload)

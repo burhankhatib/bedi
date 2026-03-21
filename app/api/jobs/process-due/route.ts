@@ -31,7 +31,12 @@ function getBaseUrl(req: Request): string {
   return `${url.protocol}//${url.host}`
 }
 
-async function runLegacyFallbackCrons(req: Request): Promise<{ unacceptedOrders: unknown; scheduledReminders: unknown }> {
+async function runLegacyFallbackCrons(req: Request): Promise<{
+  unacceptedOrders: unknown
+  scheduledReminders: unknown
+  deliveryTierEscalation: unknown
+  retryDeliveryRequests: unknown
+}> {
   const baseUrl = getBaseUrl(req)
   const secret = process.env.CRON_SECRET || process.env.FIREBASE_JOB_SECRET || ''
   const headers: HeadersInit = secret ? { Authorization: `Bearer ${secret}` } : {}
@@ -45,12 +50,14 @@ async function runLegacyFallbackCrons(req: Request): Promise<{ unacceptedOrders:
     return body
   }
 
-  const [unacceptedOrders, scheduledReminders] = await Promise.all([
+  const [unacceptedOrders, scheduledReminders, deliveryTierEscalation, retryDeliveryRequests] = await Promise.all([
     call(`${baseUrl}/api/cron/unaccepted-orders-whatsapp?allowLegacy=1`),
     call(`${baseUrl}/api/cron/scheduled-order-reminders?allowLegacy=1`),
+    call(`${baseUrl}/api/cron/delivery-tier-escalation?allowLegacy=1`),
+    call(`${baseUrl}/api/cron/retry-delivery-requests?allowLegacy=1`),
   ])
 
-  return { unacceptedOrders, scheduledReminders }
+  return { unacceptedOrders, scheduledReminders, deliveryTierEscalation, retryDeliveryRequests }
 }
 
 async function executeJob(req: Request, type: ScheduledJobType, orderId: string): Promise<void> {

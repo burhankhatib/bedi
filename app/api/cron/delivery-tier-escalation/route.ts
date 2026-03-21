@@ -10,13 +10,18 @@ const writeClient = client.withConfig({ token: token || undefined, useCdn: false
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  
+  const m = authHeader?.match(/^Bearer\s+(.+)$/i)
+  const bearer = m?.[1]?.trim() || ''
+  const allowedSecrets = [process.env.CRON_SECRET, process.env.FIREBASE_JOB_SECRET].filter(
+    (s): s is string => typeof s === 'string' && s.length > 0
+  )
+
   // Try to read secret from URL parameter as a fallback (for cron-job.org testing)
   const url = new URL(req.url)
   const secretParam = url.searchParams.get('secret')
-  
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}` && secretParam !== cronSecret) {
+  const forceLegacyScan = url.searchParams.get('allowLegacy') === '1'
+
+  if (allowedSecrets.length && !allowedSecrets.includes(bearer) && !(secretParam && allowedSecrets.includes(secretParam))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
@@ -47,7 +52,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, tier2Count: 0, tier3Count: 1, orderId: orderIdParam })
   }
 
-  const allowLegacyScan = process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true'
+  const allowLegacyScan = process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true' || forceLegacyScan
   if (!allowLegacyScan) {
     return NextResponse.json({ ok: true, tier2Count: 0, tier3Count: 0, skipped: true, reason: 'legacy-scan-disabled' })
   }

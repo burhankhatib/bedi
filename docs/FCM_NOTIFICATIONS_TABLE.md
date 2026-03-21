@@ -30,6 +30,8 @@
 
 ## Notes
 
+0. **Driver delivery fan-out & troubleshooting**: See [drivers-fcm.md](./drivers-fcm.md).
+
 1. **Link behavior**: All links are relative paths. The service worker uses `self.location.origin` to build full URLs, so the app must be opened from the correct domain (e.g. `https://bedi.delivery`). Set `NEXT_PUBLIC_APP_URL` in production.
 
 2. **Super Admin push**: Super Admin must subscribe via the admin push flow (e.g. WhatsApp inbox setup) to receive FCM. Uses `userPushSubscription` with `roleContext: "admin"`.

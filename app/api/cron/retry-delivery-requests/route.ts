@@ -27,13 +27,18 @@ type PendingOrder = {
  */
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  const m = authHeader?.match(/^Bearer\s+(.+)$/i)
+  const bearer = m?.[1]?.trim() || ''
+  const allowedSecrets = [process.env.CRON_SECRET, process.env.FIREBASE_JOB_SECRET].filter(
+    (s): s is string => typeof s === 'string' && s.length > 0
+  )
+  if (allowedSecrets.length && !allowedSecrets.includes(bearer)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
   const url = new URL(req.url)
+  const forceLegacyScan = url.searchParams.get('allowLegacy') === '1'
   const singleOrderId = url.searchParams.get('orderId')?.trim()
   if (singleOrderId) {
     const eligible = await writeClient.fetch<PendingOrder | null>(
@@ -59,7 +64,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, retriedCount: 1, orderId: singleOrderId })
   }
 
-  const allowLegacyScan = process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true'
+  const allowLegacyScan = process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true' || forceLegacyScan
   if (!allowLegacyScan) {
     return NextResponse.json({ ok: true, retriedCount: 0, skipped: true, reason: 'legacy-scan-disabled' })
   }
