@@ -10,6 +10,7 @@ import {
   scheduleScheduledOrderReminder,
 } from '@/lib/delivery-job-scheduler'
 import { recordOrderUnacceptedWhatsappJobResult } from '@/lib/notification-diagnostics'
+import { createRatingPromptsForOrder } from '@/lib/rating/orchestrator'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -59,10 +60,22 @@ export async function PATCH(
       assignedDriver?: unknown
       scheduledFor?: string
       prioritizeWhatsapp?: boolean
-      orderType?: string
+      orderType?: 'delivery' | 'pickup' | 'dine-in'
       tableNumber?: string
+      siteId?: string
+      customerId?: string
+      assignedDriverRef?: string
     } | null>(
-      `*[_type == "order" && _id == $orderId][0]{ assignedDriver, scheduledFor, "prioritizeWhatsapp": site->prioritizeWhatsapp, orderType, tableNumber }`,
+      `*[_type == "order" && _id == $orderId][0]{
+        assignedDriver,
+        scheduledFor,
+        "prioritizeWhatsapp": site->prioritizeWhatsapp,
+        orderType,
+        tableNumber,
+        "siteId": site._ref,
+        "customerId": customer._ref,
+        "assignedDriverRef": assignedDriver._ref
+      }`,
       { orderId }
     )
 
@@ -126,6 +139,17 @@ export async function PATCH(
     }
     if (status === 'completed' || status === 'served') {
       await cancelOrderJobs(orderId)
+      
+      if (orderBefore?.siteId && orderBefore?.orderType) {
+        createRatingPromptsForOrder(
+          orderId,
+          orderBefore.siteId,
+          orderBefore.orderType,
+          orderBefore.customerId,
+          orderBefore.assignedDriverRef
+        ).catch(e => console.warn('[createRatingPromptsForOrder]', e))
+      }
+
       if (orderBefore?.orderType === 'dine-in' && orderBefore?.tableNumber && slug) {
         try {
           const { redis } = await import('@/lib/redis')

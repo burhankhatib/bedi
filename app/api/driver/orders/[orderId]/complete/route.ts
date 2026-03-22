@@ -5,6 +5,7 @@ import { token } from '@/sanity/lib/token'
 import { sendCustomerOrderStatusPush } from '@/lib/customer-order-push'
 import { sendTenantOrderUpdatePush } from '@/lib/tenant-order-push'
 import { cancelOrderJobs } from '@/lib/delivery-job-scheduler'
+import { createRatingPromptsForOrder } from '@/lib/rating/orchestrator'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -22,8 +23,22 @@ export async function POST(
     { userId }
   )
   if (!driver) return NextResponse.json({ error: 'Driver profile not found' }, { status: 404 })
-  const order = await client.fetch<{ _id: string; assignedDriverRef?: string; status: string } | null>(
-    `*[_type == "order" && _id == $orderId][0]{ _id, "assignedDriverRef": assignedDriver._ref, status }`,
+  const order = await client.fetch<{
+    _id: string;
+    assignedDriverRef?: string;
+    status: string;
+    siteId?: string;
+    customerId?: string;
+    orderType?: 'delivery' | 'pickup' | 'dine-in';
+  } | null>(
+    `*[_type == "order" && _id == $orderId][0]{
+      _id,
+      "assignedDriverRef": assignedDriver._ref,
+      status,
+      "siteId": site._ref,
+      "customerId": customer._ref,
+      orderType
+    }`,
     { orderId }
   )
   if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 })
@@ -31,6 +46,16 @@ export async function POST(
   const now = new Date().toISOString()
   await writeClient.patch(orderId).set({ status: 'completed', completedAt: now }).commit()
   await cancelOrderJobs(orderId)
+
+  if (order.siteId && order.orderType) {
+    createRatingPromptsForOrder(
+      orderId,
+      order.siteId,
+      order.orderType,
+      order.customerId,
+      order.assignedDriverRef
+    ).catch(e => console.warn('[createRatingPromptsForOrder]', e))
+  }
 
   sendCustomerOrderStatusPush({
     orderId,

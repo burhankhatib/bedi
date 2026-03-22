@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useLanguage } from '@/components/LanguageContext'
+import { OrderRatingPrompt } from '@/components/rating/OrderRatingPrompt'
 import { usePusherStream } from '@/lib/usePusherStream'
 import { usePusherSubscription } from '@/hooks/usePusherSubscription'
 
@@ -93,6 +94,8 @@ type TrackData = {
     driverCancelledAt?: string | null
     completedAt?: string | null
     estimatedDeliveryMinutes?: number | null
+    customer?: { _ref: string }
+    site?: { _ref: string }
     tipPercent?: number
     tipAmount?: number
     tipSentToDriver?: boolean
@@ -2329,6 +2332,17 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
                     ? t('Enjoyed your meal? A small tip next time goes a long way to show your appreciation!', 'استمتعت بوجبتك؟ إكرامية صغيرة في المرة القادمة تعني الكثير!')
                     : t('Enjoyed the service? Consider leaving a tip next time — it means a lot!', 'أعجبتك الخدمة؟ فكّر بإكرامية في المرة القادمة — تعني الكثير!')} 💛
                 </p>
+              </div>
+            )}
+            
+            {data.order.customer?._ref && (
+              <div className="mt-4 relative z-10">
+                <OrderRatingPrompt 
+                  orderId={data.order._id}
+                  raterRole="customer"
+                  raterId={data.order.customer._ref}
+                  targetName={restaurantName}
+                />
               </div>
             )}
           </div>

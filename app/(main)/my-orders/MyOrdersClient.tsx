@@ -15,6 +15,7 @@ import {
   CustomerM3TopAppBar,
   CustomerM3TonalLink,
 } from '@/components/customer/CustomerM3AccountChrome'
+import { OrderRatingPrompt } from '@/components/rating/OrderRatingPrompt'
 
 const BROWSE_RESTAURANTS = '/search?category=restaurant'
 const BROWSE_STORES = '/search?category=stores'
@@ -343,6 +344,11 @@ function OrderCard({
             <p className="mt-2 text-sm font-semibold" style={{ color: 'var(--m3-on-surface)' }}>
               {fmtAmount(order.totalAmount, order.currency)}
             </p>
+            {(order.status === 'completed' || order.status === 'served') && (
+              <div className="mt-4">
+                <OrderRatingPrompt orderId={order._id} raterRole="customer" targetName={businessName} />
+              </div>
+            )}
           </div>
           {trackHref ? (
             <CustomerM3OutlinedLink href={trackHref} className="h-9 shrink-0 gap-1 px-3 text-xs">

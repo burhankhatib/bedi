@@ -36,7 +36,12 @@ type JobDoc = {
 type ScheduledJobsSnapshot = {
   docs: Array<{
     id: string
-    ref: { update: (d: Record<string, unknown>) => Promise<unknown> }
+    ref: { 
+      id: string
+      update: (d: Record<string, unknown>) => Promise<unknown>
+      set: (d: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<unknown>
+      get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>
+    }
     data: () => Record<string, unknown>
   }>
 }

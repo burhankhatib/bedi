@@ -14,6 +14,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { getDriverDisplayNameForBusiness } from '@/lib/driver-display'
 import { SlideToCompleteOrder } from './SlideToCompleteOrder'
 import { ReportFormModal } from '@/components/Reports/ReportFormModal'
+import { OrderRatingPrompt } from '@/components/rating/OrderRatingPrompt'
 import { AutoDeliveryRequestControls, type AutoDeliveryDefaults } from '@/components/Orders/AutoDeliveryRequestControls'
 
 interface OrderItem {
@@ -1522,6 +1523,16 @@ Please deliver this order to the customer.
             </div>
           </div>
         </div>
+
+        {(localOrder.status === 'completed' || localOrder.status === 'served') && (
+          <div className="mb-8">
+            <OrderRatingPrompt 
+              orderId={localOrder._id}
+              raterRole="business"
+              targetName={localOrder.customerName || t('the customer', 'العميل')}
+            />
+          </div>
+        )}
 
         {/* Unified Status Timeline */}
         <div className="space-y-4 my-8">

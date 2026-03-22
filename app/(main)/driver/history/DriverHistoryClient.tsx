@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { Package, Search, Flag, Undo2 } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { getCityDisplayName } from '@/lib/registration-translations'
+import { OrderRatingPrompt } from '@/components/rating/OrderRatingPrompt'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
@@ -215,6 +216,14 @@ export function DriverHistoryClient() {
                   </Button>
                 )}
               </div>
+              {o.status === 'completed' && (
+                <div className="mt-3">
+                  <OrderRatingPrompt 
+                    orderId={o.orderId}
+                    raterRole="driver" 
+                  />
+                </div>
+              )}
             </li>
           ))}
         </ul>

@@ -9,6 +9,7 @@ import {
   scheduleScheduledOrderReminder,
 } from '@/lib/delivery-job-scheduler'
 import { recordOrderUnacceptedWhatsappJobResult } from '@/lib/notification-diagnostics'
+import { createRatingPromptsForOrder } from '@/lib/rating/orchestrator'
 
 export async function PATCH(request: Request) {
   try {
@@ -43,7 +44,10 @@ export async function PATCH(request: Request) {
     const existingOrder = await writeClient.fetch(`*[_id == $orderId][0]{
       ...,
       "tenantSlug": site->slug.current,
-      "prioritizeWhatsapp": site->prioritizeWhatsapp
+      "prioritizeWhatsapp": site->prioritizeWhatsapp,
+      "siteId": site._ref,
+      "customerId": customer._ref,
+      "assignedDriverRef": assignedDriver._ref
     }`, { orderId })
     if (!existingOrder) {
       console.error('Order not found:', orderId)
@@ -110,6 +114,17 @@ export async function PATCH(request: Request) {
     }
     if (status === 'completed' || status === 'served') {
       await cancelOrderJobs(orderId)
+      
+      if (existingOrder.siteId && existingOrder.orderType) {
+        createRatingPromptsForOrder(
+          orderId,
+          existingOrder.siteId,
+          existingOrder.orderType,
+          existingOrder.customerId,
+          existingOrder.assignedDriverRef
+        ).catch(e => console.warn('[createRatingPromptsForOrder]', e))
+      }
+
       if (existingOrder.orderType === 'dine-in' && existingOrder.tableNumber && existingOrder.tenantSlug) {
         try {
           const { redis } = await import('@/lib/redis')

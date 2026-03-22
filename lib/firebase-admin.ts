@@ -5,7 +5,12 @@ const SERVICE_ACCOUNT_FILENAME = 'bedi-delivery-firebase-adminsdk-fbsvc-9161982d
 
 type QueryDoc = {
   id: string
-  ref: { update: (d: Record<string, unknown>) => Promise<unknown> }
+  ref: { 
+    id: string
+    update: (d: Record<string, unknown>) => Promise<unknown>
+    set: (d: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<unknown>
+    get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>
+  }
   data: () => Record<string, unknown>
 }
 
@@ -13,7 +18,10 @@ type QueryDoc = {
 type QuerySnapshotLike = { empty: boolean; docs: QueryDoc[] }
 
 type DocRef = {
+  id: string
   update: (d: Record<string, unknown>) => Promise<unknown>
+  set: (d: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<unknown>
+  get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>
 }
 
 type FirestoreLike = {
@@ -21,13 +29,11 @@ type FirestoreLike = {
     fn: (t: {
       get: (ref: DocRef) => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>
       update: (ref: DocRef, data: Record<string, unknown>) => void
+      set: (ref: DocRef, data: Record<string, unknown>, opts?: { merge?: boolean }) => void
     }) => Promise<T>
   ) => Promise<T>
   collection: (name: string) => {
-    doc: (id: string) => {
-      set: (data: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<unknown>
-      get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>
-    }
+    doc: (id?: string) => DocRef
     orderBy: (field: string, dir?: 'asc' | 'desc') => {
       limit: (n: number) => {
         get: () => Promise<QuerySnapshotLike>
@@ -38,6 +44,12 @@ type FirestoreLike = {
     }
     where: (field: string, op: string, value: unknown) => {
       where: (field: string, op: string, value: unknown) => {
+        where: (field: string, op: string, value: unknown) => {
+          limit: (n: number) => {
+            get: () => Promise<QuerySnapshotLike>
+          }
+          get: () => Promise<QuerySnapshotLike>
+        }
         limit: (n: number) => {
           get: () => Promise<QuerySnapshotLike>
         }
