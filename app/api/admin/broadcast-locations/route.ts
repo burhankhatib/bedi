@@ -2,11 +2,15 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
-import { client } from '@/sanity/lib/client'
+import { getFirestoreAdmin, isFirebaseAdminConfigured } from '@/lib/firebase-admin'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(req: Request) {
+const SNAPSHOT_DOC = 'snapshot'
+const CACHE_COLLECTION = 'broadcastContactCache'
+
+/** Country/city pickers — served from Firestore contact snapshot (sync via POST /api/admin/broadcast-sync-contacts). */
+export async function GET() {
   const { userId, sessionClaims } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -15,26 +19,26 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  if (!isFirebaseAdminConfigured()) {
+    return NextResponse.json({ countries: [], cities: [] })
+  }
+  const db = getFirestoreAdmin()
+  if (!db) {
+    return NextResponse.json({ countries: [], cities: [] })
+  }
+
   try {
-    const tenants = await client.fetch<{ country?: string, city?: string }[]>(
-      `*[_type == "tenant" && defined(country) && defined(city)] { country, city }`
-    )
-
-    const countries = Array.from(new Set(tenants.map(t => t.country?.trim().toLowerCase()).filter(Boolean)))
-    const cities = Array.from(new Set(tenants.map(t => t.city?.trim().toLowerCase()).filter(Boolean)))
-
-      const formatProper = (s: string) => {
-        // preserve uppercase like IL or PS, otherwise capitalize first letter
-        if (s.length <= 2) return s.toUpperCase()
-        return s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-      }
-
-    return NextResponse.json({
-      countries: countries.map(c => typeof c === 'string' ? formatProper(c) : ''),
-      cities: cities.map(c => typeof c === 'string' ? formatProper(c) : '')
-    })
-  } catch (error: any) {
+    const doc = await db.collection(CACHE_COLLECTION).doc(SNAPSHOT_DOC).get()
+    if (!doc.exists) {
+      return NextResponse.json({ countries: [], cities: [] })
+    }
+    const data = doc.data()
+    const countries = Array.isArray(data?.locationCountries) ? data.locationCountries : []
+    const cities = Array.isArray(data?.locationCities) ? data.locationCities : []
+    return NextResponse.json({ countries, cities })
+  } catch (error: unknown) {
     console.error('[Admin Broadcast Locations]', error)
-    return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 })
+    const msg = error instanceof Error ? error.message : 'Internal error'
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

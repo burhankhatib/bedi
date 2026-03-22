@@ -1982,16 +1982,14 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
 
   return (
     <CustomerTrackPushGate slug={slug} token={effectiveTrackingToken || token || ''} forceBypass={hasPendingTipConfirmation}>
-    <div className="mx-auto max-w-lg pb-32">
-      <div className="px-4 pt-4 pb-2">
-        <Link
-          href={`/t/${slug}`}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-700 shadow-md hover:bg-slate-50 transition-colors"
-          aria-label={t('Back to menu', 'العودة إلى القائمة')}
-        >
-          <ArrowLeft className="h-5 w-5 rtl:rotate-180" />
-        </Link>
-      </div>
+    <div className="relative mx-auto max-w-lg pb-32">
+      <Link
+        href={`/t/${slug}`}
+        className="fixed z-[60] inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-700 shadow-lg ring-1 ring-black/5 hover:bg-slate-50 transition-colors left-4 top-[max(1rem,env(safe-area-inset-top,0px))] rtl:left-auto rtl:right-4"
+        aria-label={t('Back to menu', 'العودة إلى القائمة')}
+      >
+        <ArrowLeft className="h-5 w-5 rtl:rotate-180" />
+      </Link>
 
       {/* Status as main headline + dynamic header */}
       <div className={`rounded-b-[2.5rem] bg-gradient-to-b ${statusCfg.headerBg} px-6 pt-6 pb-14 text-white shadow-sm`}>

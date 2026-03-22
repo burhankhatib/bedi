@@ -33,10 +33,11 @@ export async function GET(req: Request) {
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
   // Orders still not accepted (status == new): send WhatsApp reminder using the same enhanced
-  // `new_order_v2` template (full details + Maps/Waze) as instant notifications.
-  // If instant WhatsApp already succeeded (`businessWhatsappInstantNotifiedAt`), do not send again —
-  // many businesses rely on a single WhatsApp ping only (no app).
-  // Gated by businessWhatsappUnacceptedReminderAt + no prior instant WhatsApp on the order.
+  // `new_order_v2` template (full details + Maps/Waze) as instant notifications, or a reminder-specific
+  // template if configured via WHATSAPP_UNACCEPTED_REMINDER_TEMPLATE.
+  // 
+  // NOTE: If instant WhatsApp already succeeded (`businessWhatsappInstantNotifiedAt`), we STILL send
+  // this reminder. The `businessWhatsappUnacceptedReminderAt` flag is used to deduplicate the reminder itself.
   // Time windows:
   // 1. Regular: created 3–120 minutes ago.
   // 2. Scheduled: notifyAt 3–120 minutes ago.

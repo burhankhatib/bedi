@@ -286,32 +286,50 @@ export async function notifyBusinessWhatsappForOrder(params: {
 
   const businessName = tenantNameAr?.trim() || tenantName?.trim() || 'Business'
   let sent = 0
+  const reminderMode = mode === 'unaccepted-reminder'
+  /** Meta occasionally returns transient errors; reminder path also benefits from a second try after ~2.5s. */
+  const maxSendAttempts = reminderMode ? 2 : 1
 
   for (const recipient of recipients) {
-    const result = await sendTenantNewOrderWhatsApp({
-      phone: recipient.phone,
-      businessName,
-      tenantSlug,
-      orderSummaryInput: {
-        currency: orderDoc?.currency,
-        items: orderDoc?.items,
-        totalAmount: orderDoc?.totalAmount,
-        customerName: orderDoc?.customerName,
-        customerPhone: orderDoc?.customerPhone,
-        orderType: orderDoc?.orderType,
-        deliveryAddress: orderDoc?.deliveryAddress,
-        deliveryLat: orderDoc?.deliveryLat,
-        deliveryLng: orderDoc?.deliveryLng,
-      },
-    })
-    if (result.success) {
-      sent++
-    } else {
+    let lastResult: Awaited<ReturnType<typeof sendTenantNewOrderWhatsApp>> | undefined
+    for (let attempt = 1; attempt <= maxSendAttempts; attempt++) {
+      lastResult = await sendTenantNewOrderWhatsApp({
+        phone: recipient.phone,
+        businessName,
+        tenantSlug,
+        reminderMode,
+        orderSummaryInput: {
+          currency: orderDoc?.currency,
+          items: orderDoc?.items,
+          totalAmount: orderDoc?.totalAmount,
+          customerName: orderDoc?.customerName,
+          customerPhone: orderDoc?.customerPhone,
+          orderType: orderDoc?.orderType,
+          deliveryAddress: orderDoc?.deliveryAddress,
+          deliveryLat: orderDoc?.deliveryLat,
+          deliveryLng: orderDoc?.deliveryLng,
+        },
+      })
+      if (lastResult.success) {
+        sent++
+        break
+      }
+      if (attempt < maxSendAttempts) {
+        await new Promise((r) => setTimeout(r, 2500))
+      }
+    }
+    if (!lastResult?.success) {
       await appendOrderNotificationDiagnostic(writeClient, orderId, {
         source: 'business-whatsapp-notifier',
         level: 'error',
         message: `Business WhatsApp send failed for recipient (${recipient.source})`,
-        detail: { mode, recipient: recipient.phone, attempts: result.attempts, error: result.error },
+        detail: {
+          mode,
+          recipient: recipient.phone,
+          attempts: lastResult?.attempts,
+          error: lastResult?.error,
+          reminderMode,
+        },
       })
     }
   }

@@ -1,11 +1,13 @@
+import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
-import { sendWhatsAppTemplateMessageWithLangFallback } from '@/lib/meta-whatsapp'
-import { WHATSAPP_TEMPLATE } from '@/lib/whatsapp-meta-templates'
-import { client } from '@/sanity/lib/client'
-import { token } from '@/sanity/lib/token'
+import { resolveRecipientsFromSnapshot, type BroadcastContactSnapshot } from '@/lib/broadcast-contact-snapshot'
+import { getFirestoreAdmin, isFirebaseAdminConfigured } from '@/lib/firebase-admin'
+
+const SNAPSHOT_DOC = 'snapshot'
+const CACHE_COLLECTION = 'broadcastContactCache'
 
 export async function POST(req: Request) {
   const { userId, sessionClaims } = await auth()
@@ -14,6 +16,14 @@ export async function POST(req: Request) {
   const email = await getEmailForUser(userId, sessionClaims as Record<string, unknown> | null)
   if (!isSuperAdminEmail(email)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  if (!isFirebaseAdminConfigured()) {
+    return NextResponse.json({ error: 'Firebase Admin not configured. Cannot queue broadcast.' }, { status: 500 })
+  }
+  const db = getFirestoreAdmin()
+  if (!db) {
+    return NextResponse.json({ error: 'Firestore unavailable.' }, { status: 500 })
   }
 
   try {
@@ -27,140 +37,81 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
 
-    const countries = country ? country.split(',').map((c: string) => c.trim().toLowerCase()).filter(Boolean) : []
-    const cities = city ? city.split(',').map((c: string) => c.trim().toLowerCase()).filter(Boolean) : []
-
-    const recipients = new Map<string, string>() // phone -> name
-
-    // Helper to check location
-    const matchLocation = (docCountry?: string, docCity?: string) => {
-      const cCode = (docCountry || '').trim().toLowerCase()
-      const cName = (docCity || '').trim().toLowerCase()
-
-      const countryMatch = countries.length === 0 || countries.includes(cCode)
-      const cityMatch = cities.length === 0 || cities.includes(cName)
-      
-      return countryMatch && cityMatch
-    }
-
-    if (targets?.includes('businesses')) {
-      const tenants = await client.fetch<{ name?: string, ownerPhone?: string, country?: string, city?: string }[]>(
-        `*[_type == "tenant" && defined(ownerPhone)] { name, ownerPhone, country, city }`
+    const snapDoc = await db.collection(CACHE_COLLECTION).doc(SNAPSHOT_DOC).get()
+    if (!snapDoc.exists) {
+      return NextResponse.json(
+        {
+          error:
+            'Contact cache is empty. Open Admin → Broadcast and run “Sync contacts from CMS” once, then try again.',
+        },
+        { status: 400 }
       )
-      for (const t of tenants) {
-        if (matchLocation(t.country, t.city) && t.ownerPhone) {
-          recipients.set(t.ownerPhone, t.name || 'صاحب العمل')
-        }
-      }
     }
-
-    if (targets?.includes('drivers')) {
-      const drivers = await client.fetch<{ name?: string, phoneNumber?: string, country?: string, city?: string, isVerifiedByAdmin?: boolean }[]>(
-        `*[_type == "driver" && isVerifiedByAdmin == true && defined(phoneNumber)] { name, phoneNumber, country, city, isVerifiedByAdmin }`
+    const raw = snapDoc.data()
+    if (!raw || !Array.isArray(raw.tenants) || !Array.isArray(raw.drivers)) {
+      return NextResponse.json(
+        {
+          error:
+            'Contact cache is invalid or incomplete. Run “Sync contacts from CMS” again.',
+        },
+        { status: 400 }
       )
-      for (const d of drivers) {
-        if (matchLocation(d.country, d.city) && d.phoneNumber && d.isVerifiedByAdmin) {
-          recipients.set(d.phoneNumber, d.name || 'كابتن')
-        }
-      }
     }
 
-    if (targets?.includes('customers')) {
-      if (countries.length > 0 || cities.length > 0) {
-        // If location filters are active, we must find customers based on the businesses they ordered from.
-        const cFilter = countries.length > 0 ? `site->country in $countries` : `true`
-        const tFilter = cities.length > 0 ? `site->city in $cities` : `true`
-        
-        // Due to GROQ limitations with dynamic arrays in string matching, we'll fetch orders and filter in JS if needed,
-        // or just fetch all orders with customers and filter by site location in JS for simplicity,
-        // since we're in an admin script and performance is less critical than correctness here.
-        const orders = await client.fetch<{ customerName?: string, customerPhone?: string, country?: string, city?: string }[]>(
-          `*[_type == "order" && defined(customerPhone)] { 
-            customerName, 
-            customerPhone, 
-            "country": site->country, 
-            "city": site->city 
-          }`
-        )
-        for (const o of orders) {
-          if (matchLocation(o.country, o.city) && o.customerPhone) {
-            if (!recipients.has(o.customerPhone)) {
-              recipients.set(o.customerPhone, o.customerName || 'عميلنا العزيز')
-            }
-          }
-        }
-      } else {
-        // No location filter, just fetch all customers
-        const customers = await client.fetch<{ name?: string, primaryPhone?: string }[]>(
-          `*[_type == "customer" && defined(primaryPhone)] { name, primaryPhone }`
-        )
-        for (const c of customers) {
-          if (c.primaryPhone && !recipients.has(c.primaryPhone)) {
-            recipients.set(c.primaryPhone, c.name || 'عميلنا العزيز')
-          }
-        }
-      }
+    const snapshot: Omit<BroadcastContactSnapshot, 'syncedAtMs'> = {
+      tenants: raw.tenants as BroadcastContactSnapshot['tenants'],
+      drivers: raw.drivers as BroadcastContactSnapshot['drivers'],
+      customersFromOrders: Array.isArray(raw.customersFromOrders)
+        ? (raw.customersFromOrders as BroadcastContactSnapshot['customersFromOrders'])
+        : [],
+      customersDirect: Array.isArray(raw.customersDirect)
+        ? (raw.customersDirect as BroadcastContactSnapshot['customersDirect'])
+        : [],
+      locationCountries: Array.isArray(raw.locationCountries) ? raw.locationCountries : [],
+      locationCities: Array.isArray(raw.locationCities) ? raw.locationCities : [],
     }
 
-    if (specificUsers && Array.isArray(specificUsers)) {
-      for (const u of specificUsers) {
-        if (u.phone && u.name) {
-          recipients.set(u.phone, u.name)
-        }
-      }
+    const recipients = resolveRecipientsFromSnapshot(snapshot, {
+      targets: targets || [],
+      country,
+      city,
+      specificUsers,
+    })
+    const totalFound = recipients.length
+
+    if (totalFound === 0) {
+      return NextResponse.json({ error: 'No recipients found matching criteria.' }, { status: 400 })
     }
 
-    let sentCount = 0
-    let failedCount = 0
-    const errors: any[] = []
-    const successfulNumbers: string[] = []
-    const failedNumbers: string[] = []
-
-    for (const [phone, name] of recipients.entries()) {
-      // name is {{1}}, message is {{2}}
-      const firstName = name.split(' ')[0] || 'User'
-      const result = await sendWhatsAppTemplateMessageWithLangFallback(
-        phone,
-        WHATSAPP_TEMPLATE.BROADCAST,
-        [firstName, message]
-      )
-
-      if (result.success) {
-        sentCount++
-        successfulNumbers.push(`${name} (${phone})`)
-      } else {
-        failedCount++
-        failedNumbers.push(`${name} (${phone})`)
-        errors.push({ phone, error: result.error })
-      }
-    }
-
-    const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
-    await writeClient.create({
-      _type: 'broadcastHistory',
+    const jobId = randomUUID()
+    const jobRef = db.collection('broadcastJobs').doc(jobId)
+    await jobRef.set({
+      type: 'broadcast',
+      status: 'pending',
+      recipients,
+      cursor: 0,
+      sentCount: 0,
+      failedCount: 0,
       message,
       targets: targets || [],
       countries: country || '',
       cities: city || '',
-      specificNumbers: specificUsers && Array.isArray(specificUsers) ? specificUsers.map((u: any) => `${u.name} (${u.phone})`).join(', ') : '',
-      successfulNumbers,
-      failedNumbers,
-      sentCount,
-      failedCount,
-      totalFound: recipients.size,
-      errors: errors.length > 0 ? JSON.stringify(errors, null, 2) : '',
+      specificNumbers: specificUsers && Array.isArray(specificUsers) ? specificUsers.map((u: { name?: string; phone?: string }) => `${u.name} (${u.phone})`).join(', ') : '',
+      successfulNumbers: [],
+      failedNumbers: [],
+      errorsList: [],
+      createdAtMs: Date.now(),
+      updatedAtMs: Date.now(),
     })
 
-    return NextResponse.json({ 
-      success: true, 
-      totalFound: recipients.size,
-      sentCount, 
-      failedCount,
-      errors: errors.length > 0 ? errors : undefined
+    return NextResponse.json({
+      success: true,
+      totalFound,
+      jobId,
     })
-
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Admin Broadcast WhatsApp]', error)
-    return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 })
+    const msg = error instanceof Error ? error.message : 'Internal error'
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

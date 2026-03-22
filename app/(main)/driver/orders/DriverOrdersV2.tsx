@@ -110,6 +110,8 @@ type ReplacementProduct = {
 const NEW_ORDER_SOUND = '/sounds/1.wav'
 const MAX_ACTIVE_DELIVERIES = 1
 const OFFLINE_PUSH_SENT_KEY = 'driverOfflinePushSent'
+/** After accept/confirm, ignore Bedi Maps taps briefly so the finger-up from slide-to-accept cannot ghost-open the map (PWA stuck map). */
+const BEDI_MAP_OPEN_GUARD_MS = 700
 
 function formatDriverOrderNumber(orderNumber: string): string {
   if (!orderNumber || orderNumber.length <= 4) return orderNumber
@@ -217,6 +219,10 @@ function DriverOrdersV2Content() {
   const [reportOrderId, setReportOrderId] = useState<string | null>(null)
   const [mapState, setMapState] = useState<'hidden' | 'minimized' | 'maximized'>('hidden')
   const [activeMapOrderId, setActiveMapOrderId] = useState<string | null>(null)
+  /** Incremented on each explicit Bedi Maps open so Leaflet remounts cleanly (avoids blank/stuck tiles in PWA). */
+  const [bediMapMountKey, setBediMapMountKey] = useState(0)
+  /** Waze / Google Maps tucked behind chevron so Bedi Maps stays primary. */
+  const [thirdPartyNavOpen, setThirdPartyNavOpen] = useState(false)
   const [calcOpen, setCalcOpen] = useState(false)
   const [calcOrderTotal, setCalcOrderTotal] = useState(0)
   const [calcCurrency, setCalcCurrency] = useState('ILS')
@@ -260,6 +266,7 @@ function DriverOrdersV2Content() {
   const pickedUpAtRef = useRef<number | null>(null)
   const activeMapOrderIdRef = useRef<string | null>(null)
   const bediMapsHandledAtRef = useRef(0)
+  const suppressBediMapOpenUntilRef = useRef(0)
 
   const [startY, setStartY] = useState<number | null>(null)
   const [pullDistance, setPullDistance] = useState(0)
@@ -478,6 +485,14 @@ function DriverOrdersV2Content() {
     activeOrder?.status === 'driver_on_the_way' ||
     activeOrder?.status === 'waiting_for_delivery'
 
+  useEffect(() => {
+    setThirdPartyNavOpen(false)
+  }, [activeOrder?.orderId])
+
+  useEffect(() => {
+    if (mapState === 'maximized') setThirdPartyNavOpen(false)
+  }, [mapState])
+
   /* ── delivery countdown tick ────────────────────────── */
   useEffect(() => {
     if (!isEnRouteToCustomer || activeOrder?.driverArrivedAt) return
@@ -531,6 +546,7 @@ function DriverOrdersV2Content() {
       ...prev,
     ])
     acceptedAtRef.current.set(orderId, Date.now())
+    suppressBediMapOpenUntilRef.current = Date.now() + BEDI_MAP_OPEN_GUARD_MS
     try {
       const res = await fetch(`/api/driver/orders/${orderId}/accept`, {
         method: 'POST',
@@ -569,6 +585,7 @@ function DriverOrdersV2Content() {
         t('Order confirmed. Head to the business.', 'تم التأكيد. توجّه إلى المتجر.'),
         'success',
       )
+      suppressBediMapOpenUntilRef.current = Date.now() + BEDI_MAP_OPEN_GUARD_MS
       fetchOrders()
     } catch {
       showToast(
@@ -1895,52 +1912,114 @@ function DriverOrdersV2Content() {
                 </p>
               </div>
             )}
-            {/* Navigation Bar: Bedi Maps (6 cols) | Waze (3) | Google Maps (3) */}
+            {/* Navigation: large Bedi Maps CTA; Waze/Google in chevron panel (no auto-open map). */}
             {mapState !== 'maximized' &&
               (() => {
                 const urls = getNavUrls(activeOrder)
                 const handleOpenBediMaps = () => {
                   const now = Date.now()
+                  if (now < suppressBediMapOpenUntilRef.current) return
                   if (now - bediMapsHandledAtRef.current < 400) return
                   bediMapsHandledAtRef.current = now
+                  setBediMapMountKey((k) => k + 1)
                   setActiveMapOrderId(activeOrder.orderId)
                   setMapState('maximized')
                 }
                 return (
-                  <div className="grid grid-cols-12 gap-2 mb-4">
-                    <button
-                      type="button"
-                      onClick={handleOpenBediMaps}
-                      onPointerDown={(e) => {
-                        if (e.pointerType === 'touch') {
-                          e.preventDefault()
-                          handleOpenBediMaps()
-                        }
-                      }}
-                      className="col-span-6 flex items-center justify-center gap-2 rounded-2xl bg-[#ef9f20] hover:bg-[#f5ad2e] text-[#231f20] font-black py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all border-2 border-[#aa1f23] shadow-lg shadow-amber-900/40 touch-manipulation select-none"
-                      style={{ WebkitTapHighlightColor: 'transparent' }}
-                    >
-                      <MapPin className="w-5 h-5 shrink-0" />
-                      Bedi Maps
-                    </button>
-                    <a
-                      href={urls.waze}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="col-span-3 flex items-center justify-center gap-1 rounded-2xl bg-[#33CCFF] hover:bg-[#4dd4ff] text-white font-bold py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all border border-white/20"
-                    >
-                      <SiWaze className="w-5 h-5 shrink-0" />
-                      Waze
-                    </a>
-                    <a
-                      href={urls.google}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="col-span-3 flex items-center justify-center gap-1 rounded-2xl bg-[#34A853] hover:bg-[#3db85d] text-white font-bold py-3.5 text-sm min-h-[48px] active:scale-[0.97] transition-all border border-white/20"
-                    >
-                      <SiGooglemaps className="w-5 h-5 shrink-0" />
-                      Maps
-                    </a>
+                  <div className="mb-4">
+                    <p className="text-xs text-slate-500 mb-3 text-center leading-snug">
+                      {t(
+                        'Bedi Maps opens only when you tap it — not automatically.',
+                        'تفتح Bedi Maps فقط عند الضغط عليها — وليس تلقائياً.',
+                      )}
+                    </p>
+                    <div className="flex gap-2 items-stretch">
+                      <div className="relative min-w-0 flex-1">
+                        {/* Soft pulse ring — GPU-friendly opacity only */}
+                        <motion.div
+                          aria-hidden
+                          className="pointer-events-none absolute -inset-[3px] rounded-[1.35rem] bg-gradient-to-br from-amber-400/50 via-orange-500/35 to-rose-600/40"
+                          animate={{ opacity: [0.45, 0.9, 0.45] }}
+                          transition={{
+                            duration: 2.4,
+                            repeat: Infinity,
+                            ease: 'easeInOut',
+                          }}
+                        />
+                        <motion.button
+                          type="button"
+                          onClick={handleOpenBediMaps}
+                          whileTap={{ scale: 0.98 }}
+                          transition={{ type: 'spring', stiffness: 520, damping: 28 }}
+                          className="relative z-[1] flex w-full min-h-[56px] items-center justify-center gap-2.5 overflow-hidden rounded-3xl border-2 border-[#8a181c]/90 bg-gradient-to-br from-[#fff4d6] via-[#f5b73a] to-[#c97808] px-4 py-3.5 text-center font-black text-[#1a0f0a] shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_12px_28px_rgba(0,0,0,0.35)] touch-manipulation select-none sm:min-h-[60px] sm:py-4"
+                          style={{ WebkitTapHighlightColor: 'transparent' }}
+                        >
+                          <span
+                            aria-hidden
+                            className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-white/25"
+                          />
+                          <span className="relative flex items-center justify-center rounded-full bg-[#aa1f23]/15 p-1.5 ring-2 ring-[#aa1f23]/30">
+                            <Navigation className="relative h-6 w-6 shrink-0 text-[#7f1518]" strokeWidth={2.5} />
+                          </span>
+                          <span className="relative text-base font-black tracking-tight sm:text-lg">
+                            Bedi Maps
+                          </span>
+                        </motion.button>
+                      </div>
+                      <button
+                        type="button"
+                        id="driver-third-party-nav-trigger"
+                        aria-expanded={thirdPartyNavOpen}
+                        aria-controls="driver-third-party-nav"
+                        onClick={() => setThirdPartyNavOpen((o) => !o)}
+                        className="flex w-[52px] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-600/90 bg-slate-800/95 text-slate-100 shadow-inner transition-colors hover:bg-slate-700 touch-manipulation active:bg-slate-600 min-[380px]:w-14"
+                        style={{ WebkitTapHighlightColor: 'transparent' }}
+                      >
+                        <motion.span
+                          animate={{ rotate: thirdPartyNavOpen ? 180 : 0 }}
+                          transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
+                          className="inline-flex"
+                        >
+                          <ChevronDown className="h-7 w-7" aria-hidden />
+                        </motion.span>
+                        <span className="mt-0.5 max-w-[3rem] text-[9px] font-bold leading-tight text-slate-400">
+                          {t('Other', 'أخرى')}
+                        </span>
+                      </button>
+                    </div>
+                    <AnimatePresence initial={false}>
+                      {thirdPartyNavOpen && (
+                        <motion.div
+                          id="driver-third-party-nav"
+                          role="region"
+                          aria-labelledby="driver-third-party-nav-trigger"
+                          initial={{ opacity: 0, y: -6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
+                          className="mt-3 grid grid-cols-2 gap-2"
+                        >
+                          <a
+                            href={urls.waze}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex min-h-[48px] items-center justify-center gap-2 rounded-2xl border border-cyan-400/25 bg-[#33CCFF] py-3 text-sm font-bold text-white shadow-md transition-transform active:scale-[0.98] hover:bg-[#4dd4ff]"
+                          >
+                            <SiWaze className="h-5 w-5 shrink-0" />
+                            Waze
+                          </a>
+                          <a
+                            href={urls.google}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex min-h-[48px] items-center justify-center gap-2 rounded-2xl border border-emerald-400/25 bg-[#34A853] py-3 text-sm font-bold text-white shadow-md transition-transform active:scale-[0.98] hover:bg-[#3db85d]"
+                          >
+                            <SiGooglemaps className="h-5 w-5 shrink-0" />
+                            {t('Google Maps', 'خرائط Google')}
+                          </a>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )
               })()}
@@ -3221,6 +3300,7 @@ function DriverOrdersV2Content() {
           const hasCountdown = isEnRoute && order.driverPickedUpAt && order.estimatedDeliveryMinutes
           const mapEl = (
             <DriverNavigationMap
+              key={`${activeMapOrderId}-${bediMapMountKey}`}
               driverLat={driverLat}
               driverLng={driverLng}
               destLat={destLat ?? null}

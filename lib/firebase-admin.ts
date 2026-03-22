@@ -3,23 +3,50 @@ import path from 'path'
 
 const SERVICE_ACCOUNT_FILENAME = 'bedi-delivery-firebase-adminsdk-fbsvc-9161982d29.json'
 
+type QueryDoc = {
+  id: string
+  ref: { update: (d: Record<string, unknown>) => Promise<unknown> }
+  data: () => Record<string, unknown>
+}
+
+/** Minimal shape for Firestore QuerySnapshot used by API routes */
+type QuerySnapshotLike = { empty: boolean; docs: QueryDoc[] }
+
+type DocRef = {
+  update: (d: Record<string, unknown>) => Promise<unknown>
+}
+
 type FirestoreLike = {
+  runTransaction: <T>(
+    fn: (t: {
+      get: (ref: DocRef) => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>
+      update: (ref: DocRef, data: Record<string, unknown>) => void
+    }) => Promise<T>
+  ) => Promise<T>
   collection: (name: string) => {
     doc: (id: string) => {
       set: (data: Record<string, unknown>, opts?: { merge?: boolean }) => Promise<unknown>
       get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> | undefined }>
     }
+    orderBy: (field: string, dir?: 'asc' | 'desc') => {
+      limit: (n: number) => {
+        get: () => Promise<QuerySnapshotLike>
+      }
+    }
+    limit: (n: number) => {
+      get: () => Promise<QuerySnapshotLike>
+    }
     where: (field: string, op: string, value: unknown) => {
       where: (field: string, op: string, value: unknown) => {
         limit: (n: number) => {
-          get: () => Promise<{ docs: Array<{ id: string; ref: { update: (d: Record<string, unknown>) => Promise<unknown> }; data: () => Record<string, unknown> }> }>
+          get: () => Promise<QuerySnapshotLike>
         }
-        get: () => Promise<{ docs: Array<{ id: string; ref: { update: (d: Record<string, unknown>) => Promise<unknown> }; data: () => Record<string, unknown> }> }>
+        get: () => Promise<QuerySnapshotLike>
       }
       limit: (n: number) => {
-        get: () => Promise<{ docs: Array<{ id: string; ref: { update: (d: Record<string, unknown>) => Promise<unknown> }; data: () => Record<string, unknown> }> }>
+        get: () => Promise<QuerySnapshotLike>
       }
-      get: () => Promise<{ docs: Array<{ id: string; ref: { update: (d: Record<string, unknown>) => Promise<unknown> }; data: () => Record<string, unknown> }> }>
+      get: () => Promise<QuerySnapshotLike>
     }
   }
 }

@@ -127,9 +127,17 @@ function MapUpdater({
 
   // Force Leaflet to recalculate container size after mount / remount.
   // Without this, tiles may not load when the component is dynamically
-  // toggled (hidden → maximized).
+  // toggled (hidden → maximized). PWA/WebKit often needs a follow-up pass.
   useEffect(() => {
-    const timer = setTimeout(() => map.invalidateSize(), 100)
+    const timer = setTimeout(() => {
+      map.invalidateSize()
+      requestAnimationFrame(() => {
+        map.invalidateSize()
+        requestAnimationFrame(() => {
+          map.invalidateSize()
+        })
+      })
+    }, 100)
     return () => clearTimeout(timer)
   }, [map])
 

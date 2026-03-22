@@ -76,26 +76,48 @@ self.addEventListener('notificationclick', function (event) {
   event.notification.close()
   var url = event.notification.data?.url || self.location.origin + '/'
   var fullUrl = url.startsWith('http') ? url : self.location.origin + (url.startsWith('/') ? url : '/' + url)
-  var targetPath = fullUrl.replace(self.location.origin, '').split('?')[0].split('#')[0]
+  var origin = self.location.origin
+  var targetPath = fullUrl.replace(origin, '').split('?')[0].split('#')[0]
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      var focused = null
-      for (var i = 0; i < clientList.length; i++) {
-        var c = clientList[i]
-        if (c.url && c.url.indexOf(self.location.origin) !== -1 && 'focus' in c) {
-          var visible = c.visibilityState === 'visible' || (typeof c.focused !== 'undefined' && c.focused)
-          if (visible) {
-            focused = c
-            break
-          }
+      var i
+      var c
+      var p
+      // 1) Exact path match — focus without navigation
+      for (i = 0; i < clientList.length; i++) {
+        c = clientList[i]
+        if (!c.url || c.url.indexOf(origin) !== 0) continue
+        p = c.url.replace(origin, '').split('?')[0].split('#')[0]
+        if (p === targetPath && 'focus' in c) return c.focus()
+      }
+      // 2) Prefer installed PWA window (standalone / fullscreen) when multiple tabs exist (Chromium WindowClient.displayMode)
+      var standaloneClient = null
+      for (i = 0; i < clientList.length; i++) {
+        c = clientList[i]
+        if (!c.url || c.url.indexOf(origin) !== 0) continue
+        if (!('navigate' in c)) continue
+        var dm = c.displayMode
+        if (dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui') {
+          standaloneClient = c
+          break
         }
       }
-      if (focused) {
-        var clientPath = focused.url.replace(self.location.origin, '').split('?')[0].split('#')[0]
-        if (clientPath === targetPath) return focused.focus()
-        if ('navigate' in focused && typeof focused.navigate === 'function') {
-          return focused.navigate(fullUrl).then(function () { return focused.focus() }).catch(function () { return focused.focus() })
-        }
+      if (standaloneClient) {
+        return standaloneClient.navigate(fullUrl).then(function () { return standaloneClient.focus() }).catch(function () { return standaloneClient.focus() })
+      }
+      // 3) Prefer currently focused same-origin window
+      for (i = 0; i < clientList.length; i++) {
+        c = clientList[i]
+        if (!c.url || c.url.indexOf(origin) !== 0) continue
+        if (!c.focused || !('navigate' in c)) continue
+        return c.navigate(fullUrl).then(function () { return c.focus() }).catch(function () { return c.focus() })
+      }
+      // 4) Any same-origin window (e.g. PWA in background — visibility was hidden, old logic skipped these and opened a new browser tab)
+      for (i = 0; i < clientList.length; i++) {
+        c = clientList[i]
+        if (!c.url || c.url.indexOf(origin) !== 0) continue
+        if (!('navigate' in c)) continue
+        return c.navigate(fullUrl).then(function () { return c.focus() }).catch(function () { return c.focus() })
       }
       if (self.clients.openWindow) return self.clients.openWindow(fullUrl)
     })

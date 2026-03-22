@@ -1,6 +1,9 @@
+import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { getFirestoreAdmin, isFirebaseAdminConfigured } from '@/lib/firebase-admin'
 import type { ScheduledJobType } from '@/lib/delivery-job-scheduler'
+import { sendWhatsAppTemplateMessageWithLangFallback } from '@/lib/meta-whatsapp'
+import { WHATSAPP_TEMPLATE } from '@/lib/whatsapp-meta-templates'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +44,11 @@ type ScheduledJobsSnapshot = {
 function getBaseUrl(req: Request): string {
   const env = process.env.NEXT_PUBLIC_APP_URL?.trim()
   if (env) return env.replace(/\/$/, '')
+  const vercel = process.env.VERCEL_URL?.trim()
+  if (vercel) {
+    const host = vercel.replace(/^https?:\/\//, '')
+    return `https://${host}`
+  }
   const url = new URL(req.url)
   return `${url.protocol}//${url.host}`
 }
@@ -118,9 +126,12 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Always kick off the legacy fallback scan immediately (in parallel with any Firestore work).
-  // This guarantees the batch scan runs even when Firestore is disabled/unreachable.
-  const fallbackPromise = runLegacyFallbackCrons(req)
+  // Kick off the legacy fallback scan ONLY if Firestore is unavailable,
+  // or if explicitly forced via allowLegacy=1 URL param.
+  const isFallbackNeeded = !isFirebaseAdminConfigured() || req.url.includes('allowLegacy=1')
+  const fallbackPromise = isFallbackNeeded 
+    ? runLegacyFallbackCrons(req) 
+    : Promise.resolve({ skipped: true })
 
   if (!isFirebaseAdminConfigured()) {
     const fallback = await fallbackPromise
@@ -190,12 +201,121 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
     }
   }
 
+  // Handle broadcast jobs in a small chunk
+  let broadcastProcessed = 0
+  if (!firestoreFailed) {
+    try {
+      const broadcastSnap = await db.collection('broadcastJobs').where('status', '==', 'pending').limit(2).get()
+      if (!broadcastSnap.empty) {
+        for (const doc of broadcastSnap.docs) {
+          const data = doc.data()
+          if (!data || data.status !== 'pending') continue
+          
+          await doc.ref.update({ status: 'processing', updatedAtMs: Date.now() })
+          const recipients = Array.isArray(data.recipients) ? data.recipients : []
+          const cursor = typeof data.cursor === 'number' && Number.isFinite(data.cursor) ? data.cursor : 0
+          const message = typeof data.message === 'string' ? data.message : ''
+          const chunk = recipients.slice(cursor, cursor + 20) as Array<{ name: string; phone: string }>
+          
+          let newSent = 0
+          let newFailed = 0
+          const newSuccessList: string[] = []
+          const newFailedList: string[] = []
+          const newErrorsList: any[] = []
+
+          for (const u of chunk) {
+            const firstName = u.name.split(' ')[0] || 'User'
+            const result = await sendWhatsAppTemplateMessageWithLangFallback(
+              u.phone,
+              WHATSAPP_TEMPLATE.BROADCAST,
+              [firstName, message]
+            )
+            if (result.success) {
+              newSent++
+              newSuccessList.push(`${u.name} (${u.phone})`)
+            } else {
+              newFailed++
+              newFailedList.push(`${u.name} (${u.phone})`)
+              newErrorsList.push({ phone: u.phone, error: result.error })
+            }
+          }
+
+          const nextCursor = cursor + chunk.length
+          const totalFound = recipients.length
+          const isDone = nextCursor >= totalFound
+
+          // Atomically update progress
+          const updatedDoc = await db.runTransaction(async (t) => {
+            const freshDoc = await t.get(doc.ref)
+            const freshData = freshDoc.data()
+            if (!freshData) return null
+            
+            const updatedSent = (typeof freshData.sentCount === 'number' ? freshData.sentCount : 0) + newSent
+            const updatedFailed = (typeof freshData.failedCount === 'number' ? freshData.failedCount : 0) + newFailed
+            const prevSuccess = Array.isArray(freshData.successfulNumbers) ? freshData.successfulNumbers : []
+            const prevFailed = Array.isArray(freshData.failedNumbers) ? freshData.failedNumbers : []
+            const prevErrors = Array.isArray(freshData.errorsList) ? freshData.errorsList : []
+            const updatedSuccessList = [...prevSuccess, ...newSuccessList]
+            const updatedFailedList = [...prevFailed, ...newFailedList]
+            const updatedErrorsList = [...prevErrors, ...newErrorsList]
+
+            const updates = {
+              status: isDone ? 'done' : 'pending',
+              cursor: nextCursor,
+              sentCount: updatedSent,
+              failedCount: updatedFailed,
+              successfulNumbers: updatedSuccessList,
+              failedNumbers: updatedFailedList,
+              errorsList: updatedErrorsList,
+              updatedAtMs: Date.now(),
+            }
+            t.update(doc.ref, updates)
+            return { ...freshData, ...updates } as Record<string, unknown>
+          })
+          
+          broadcastProcessed += chunk.length
+
+          // If done, persist history in Firestore (avoids Sanity API on each broadcast)
+          if (isDone && updatedDoc) {
+            try {
+              const historyId = randomUUID()
+              const recipients = updatedDoc.recipients
+              const errorsList = updatedDoc.errorsList
+              await db.collection('broadcastHistory').doc(historyId).set({
+                message: typeof updatedDoc.message === 'string' ? updatedDoc.message : '',
+                targets: Array.isArray(updatedDoc.targets) ? updatedDoc.targets : [],
+                countries: typeof updatedDoc.countries === 'string' ? updatedDoc.countries : '',
+                cities: typeof updatedDoc.cities === 'string' ? updatedDoc.cities : '',
+                specificNumbers: typeof updatedDoc.specificNumbers === 'string' ? updatedDoc.specificNumbers : '',
+                successfulNumbers: Array.isArray(updatedDoc.successfulNumbers) ? updatedDoc.successfulNumbers : [],
+                failedNumbers: Array.isArray(updatedDoc.failedNumbers) ? updatedDoc.failedNumbers : [],
+                sentCount: typeof updatedDoc.sentCount === 'number' ? updatedDoc.sentCount : 0,
+                failedCount: typeof updatedDoc.failedCount === 'number' ? updatedDoc.failedCount : 0,
+                totalFound: Array.isArray(recipients) ? recipients.length : 0,
+                errors:
+                  Array.isArray(errorsList) && errorsList.length > 0
+                    ? JSON.stringify(errorsList, null, 2)
+                    : '',
+                createdAtMs: Date.now(),
+              })
+            } catch (err) {
+              console.error('[process-due] Failed to write broadcastHistory to Firestore', err)
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[process-due] Broadcast job scan failed:', err)
+    }
+  }
+
   const fallback = await fallbackPromise
 
   return NextResponse.json({ 
     ok: true, 
     processed, 
     failed, 
+    broadcastProcessed,
     firestoreFailed,
     fallback 
   })

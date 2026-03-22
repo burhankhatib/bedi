@@ -45,12 +45,20 @@ export function AdminBroadcastClient() {
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ success?: boolean, sentCount?: number, failedCount?: number, totalFound?: number, error?: string } | null>(null)
+  const [jobId, setJobId] = useState<string | null>(null)
+  const [jobStatus, setJobStatus] = useState<any>(null)
   
   const [history, setHistory] = useState<BroadcastHistory[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
 
   const [availableCountries, setAvailableCountries] = useState<string[]>([])
   const [availableCities, setAvailableCities] = useState<string[]>([])
+
+  const [contactSync, setContactSync] = useState<{
+    syncedAtMs: number | null
+    counts: { tenants: number; drivers: number; customersFromOrders: number; customersDirect: number } | null
+  }>({ syncedAtMs: null, counts: null })
+  const [syncingContacts, setSyncingContacts] = useState(false)
 
   // History filters
   const [filterDate, setFilterDate] = useState('')
@@ -142,9 +150,48 @@ export function AdminBroadcastClient() {
       .catch(err => console.error(err))
   }
 
+  const fetchContactSyncStatus = () => {
+    fetch('/api/admin/broadcast-sync-contacts', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && (data.syncedAtMs === null || typeof data.syncedAtMs === 'number')) {
+          setContactSync({
+            syncedAtMs: data.syncedAtMs,
+            counts: data.counts ?? null,
+          })
+        }
+      })
+      .catch(() => {})
+  }
+
+  const handleSyncContacts = async () => {
+    setSyncingContacts(true)
+    try {
+      const res = await fetch('/api/admin/broadcast-sync-contacts', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const data = await res.json()
+      if (res.ok && typeof data.syncedAtMs === 'number') {
+        setContactSync({
+          syncedAtMs: data.syncedAtMs,
+          counts: data.counts ?? null,
+        })
+        fetchLocations()
+      } else {
+        alert(data.error || 'Sync failed')
+      }
+    } catch {
+      alert('Sync failed')
+    } finally {
+      setSyncingContacts(false)
+    }
+  }
+
   useEffect(() => {
     fetchHistory()
     fetchLocations()
+    fetchContactSyncStatus()
   }, [])
 
   const toggleTarget = (t: string) => {
@@ -168,6 +215,8 @@ export function AdminBroadcastClient() {
 
     setSending(true)
     setResult(null)
+    setJobId(null)
+    setJobStatus(null)
 
     try {
       const res = await fetch('/api/admin/broadcast-whatsapp', {
@@ -184,18 +233,50 @@ export function AdminBroadcastClient() {
       const data = await res.json()
       if (!res.ok) {
         setResult({ error: data.error || 'Request failed' })
+        setSending(false)
       } else {
-        setResult(data)
+        setJobId(data.jobId)
+        setJobStatus({ totalFound: data.totalFound, sentCount: 0, failedCount: 0, status: 'pending' })
         setSpecificUsers([])
         setMessage('')
-        fetchHistory()
       }
     } catch (err: any) {
       setResult({ error: err.message || 'Error communicating with server' })
-    } finally {
       setSending(false)
     }
   }
+
+  useEffect(() => {
+    if (!jobId) return
+    let timeoutId: any
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/admin/broadcast-jobs/${jobId}`)
+        if (res.ok) {
+          const data = await res.json()
+          setJobStatus(data)
+          if (data.status === 'done' || data.status === 'failed') {
+            setSending(false)
+            setJobId(null)
+            setResult({
+              success: true,
+              totalFound: data.totalFound,
+              sentCount: data.sentCount,
+              failedCount: data.failedCount,
+              error: data.status === 'failed' ? 'Job failed' : undefined
+            })
+            fetchHistory()
+            return
+          }
+        }
+      } catch (e) {
+        console.error(e)
+      }
+      timeoutId = setTimeout(poll, 2000)
+    }
+    poll()
+    return () => clearTimeout(timeoutId)
+  }, [jobId])
 
   const toggleLocationFilter = (type: 'country' | 'city', val: string) => {
     if (type === 'country') {
@@ -392,6 +473,40 @@ export function AdminBroadcastClient() {
       ) : (
         /* Broadcast tab */
         <div className="rounded-2xl border border-slate-800/60 bg-slate-900/40 p-6">
+      <div className="mb-6 rounded-xl border border-slate-700/60 bg-slate-800/40 p-4 max-w-2xl">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-white">Contact list (cached in Firebase)</p>
+            <p className="text-xs text-slate-400 mt-1">
+              Broadcasts read from this cache only — no Sanity API per send. Sync after you change tenants, drivers, or customers in the CMS.
+            </p>
+            {contactSync.syncedAtMs != null ? (
+              <p className="text-xs text-emerald-400/90 mt-2">
+                Last synced: {new Date(contactSync.syncedAtMs).toLocaleString()}
+                {contactSync.counts && (
+                  <span className="text-slate-500 ml-2">
+                    ({contactSync.counts.tenants} businesses · {contactSync.counts.drivers} drivers ·{' '}
+                    {contactSync.counts.customersDirect} direct customers · {contactSync.counts.customersFromOrders}{' '}
+                    order rows)
+                  </span>
+                )}
+              </p>
+            ) : (
+              <p className="text-xs text-amber-400/90 mt-2">Not synced yet — run sync before your first broadcast.</p>
+            )}
+          </div>
+          <Button
+            type="button"
+            onClick={() => void handleSyncContacts()}
+            disabled={syncingContacts}
+            className="shrink-0 bg-slate-700 text-white hover:bg-slate-600 border border-slate-600"
+          >
+            {syncingContacts ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+            <span className="ml-2">Sync contacts from CMS</span>
+          </Button>
+        </div>
+      </div>
+
       <form onSubmit={handleSend} className="space-y-6 max-w-2xl">
         
         {/* Target Audience */}
@@ -556,7 +671,19 @@ export function AdminBroadcastClient() {
         </div>
 
         {/* Status / Result */}
-        {result && (
+        {jobStatus && jobId && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300">
+            <div className="flex items-center gap-2 mb-2">
+              <Loader2 className="size-4 animate-spin" />
+              <p className="font-semibold">Broadcasting in background...</p>
+            </div>
+            <div className="w-full bg-slate-800 rounded-full h-2 mb-2 overflow-hidden">
+              <div className="bg-amber-500 h-2 transition-all duration-300" style={{ width: `${jobStatus.totalFound ? ((jobStatus.sentCount + jobStatus.failedCount) / jobStatus.totalFound) * 100 : 0}%` }}></div>
+            </div>
+            <p>Sent: {jobStatus.sentCount} | Failed: {jobStatus.failedCount} | Remaining: {Math.max(0, jobStatus.totalFound - (jobStatus.sentCount + jobStatus.failedCount))}</p>
+          </div>
+        )}
+        {result && !jobId && (
           <div className={`rounded-lg border p-4 text-sm ${result.error ? 'border-rose-500/30 bg-rose-500/10 text-rose-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'}`}>
             {result.error ? (
               <p>Error: {result.error}</p>

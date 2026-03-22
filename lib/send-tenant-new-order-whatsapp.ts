@@ -1,6 +1,10 @@
 /**
  * Business "new order" WhatsApp: same Meta template (`new_order_v2`) for instant + 3‑minute reminder.
  * Retries alternate language codes, optional URL button, and 1 vs 2 body variables for template drift.
+ *
+ * 3‑minute reminder: if `reminderMode` is true and `WHATSAPP_UNACCEPTED_REMINDER_TEMPLATE` is set, that
+ * template name is tried **first** (same body/button shape as `new_order_v2`). Use when Meta delivery
+ * struggles after an instant `new_order_v2` was already sent to the same number.
  */
 
 import { sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
@@ -51,14 +55,22 @@ function sanitizeTemplateVariable(text: string, maxLen: number): string {
   return `${t.slice(0, cut).trim()} ...`
 }
 
-function templateNamesToTry(): string[] {
+function baseTemplateNamesFromEnv(): string[] {
   const raw = (process.env.WHATSAPP_NEW_ORDER_TEMPLATE_NAMES || '').trim()
   if (!raw) return [TENANT_NEW_ORDER_TEMPLATE]
   const list = raw
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
-  return list.length ? list : [TENANT_NEW_ORDER_TEMPLATE, 'neworder']
+  return list.length ? list : [TENANT_NEW_ORDER_TEMPLATE]
+}
+
+function templateNamesToTry(reminderMode: boolean): string[] {
+  const base = baseTemplateNamesFromEnv()
+  const reminderFirst = reminderMode ? process.env.WHATSAPP_UNACCEPTED_REMINDER_TEMPLATE?.trim() : ''
+  if (!reminderFirst) return base
+  const out = [reminderFirst, ...base.filter((n) => n !== reminderFirst)]
+  return out
 }
 
 export type SendTenantNewOrderWhatsAppResult = {
@@ -76,6 +88,8 @@ export async function sendTenantNewOrderWhatsApp(opts: {
   businessName: string
   orderSummaryInput: TenantOrderWhatsAppInput
   tenantSlug?: string | null
+  /** True for the ~3 min unaccepted reminder path (optional alternate template via env). */
+  reminderMode?: boolean
 }): Promise<SendTenantNewOrderWhatsAppResult> {
   const attempts: string[] = []
   const phone = cleanWhatsAppRecipientPhone(opts.phone)
@@ -101,7 +115,7 @@ export async function sendTenantNewOrderWhatsApp(opts: {
     return false
   }
 
-  for (const templateName of templateNamesToTry()) {
+  for (const templateName of templateNamesToTry(opts.reminderMode === true)) {
     for (const lang of LANGUAGE_TRIES) {
       if (await run(`2vars+button+${templateName}+${lang}`, () => sendWhatsAppTemplateMessage(phone, templateName, [var1, var2], lang, button))) {
         return { success: true, attempts }
