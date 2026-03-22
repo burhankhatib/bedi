@@ -248,70 +248,31 @@ export function UnifiedOrderDialog({
 
       const highAccuracy = opts?.highAccuracy === true
 
-      // Accumulate the best fix we get in a short window
-      let bestFix: GeolocationPosition | null = null
       let watchId: number | null = null
-      let timeoutId: number | null = null
       let fallbackTimeoutId: number | null = null
 
-      const finishAndApplyBestFix = () => {
+      const cleanup = () => {
         if (watchId !== null) navigator.geolocation.clearWatch(watchId)
-        if (timeoutId !== null) window.clearTimeout(timeoutId)
         if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
-        
         geoInFlightRef.current = false
         setLocationLoading(false)
-
-        if (bestFix) {
-          const lat = bestFix.coords.latitude
-          const lng = bestFix.coords.longitude
-          const accuracy = bestFix.coords.accuracy
-          
-          // Log for diagnostics
-          console.debug(`[GPS] Applied fix: accuracy ${accuracy}m`)
-          
-          setDeliveryLocation(lat, lng, accuracy, highAccuracy ? 'gps_high' : 'gps_low')
-          
-          void reverseGeocode(lat, lng).then((name) => {
-            if (name) setAddress((prev) => (prev.trim() ? prev : name))
-          })
-        } else {
-          setLocationError(
-            t(
-              'Could not get a precise location. Please try again or adjust on map.',
-              'تعذر الحصول على موقع دقيق. يرجى المحاولة مرة أخرى أو التعديل على الخريطة.'
-            )
-          )
-        }
       }
 
-      const onPosition = (pos: GeolocationPosition) => {
+      const applyFix = (pos: GeolocationPosition) => {
+        const lat = pos.coords.latitude
+        const lng = pos.coords.longitude
         const accuracy = pos.coords.accuracy
         
-        if (!bestFix || accuracy < bestFix.coords.accuracy) {
-          bestFix = pos
-        }
-
-        // If we got a really good fix (< 25m), accept it immediately and stop watching
-        if (accuracy <= 25) {
-          finishAndApplyBestFix()
-        }
+        console.debug(`[GPS] Applied fix: accuracy ${accuracy}m`)
+        setDeliveryLocation(lat, lng, accuracy, highAccuracy ? 'gps_high' : 'gps_low')
+        
+        void reverseGeocode(lat, lng).then((name) => {
+          if (name) setAddress((prev) => (prev.trim() ? prev : name))
+        })
       }
 
-      const onError = (err: GeolocationPositionError) => {
-        if (bestFix) {
-          // If we had at least one fix, just use it
-          finishAndApplyBestFix()
-          return
-        }
-        
-        if (watchId !== null) navigator.geolocation.clearWatch(watchId)
-        if (timeoutId !== null) window.clearTimeout(timeoutId)
-        if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
-
-        geoInFlightRef.current = false
-        setLocationLoading(false)
-
+      const handleError = (err: GeolocationPositionError | { code: number }) => {
+        cleanup()
         if (err.code === 1) {
           setLocationError(
             isIOS
@@ -341,30 +302,64 @@ export function UnifiedOrderDialog({
         }
       }
 
-      // Try for up to 8 seconds to get the best fix
-      const samplingWindowMs = highAccuracy ? 8000 : 4000
-      timeoutId = window.setTimeout(() => {
-        finishAndApplyBestFix()
-      }, samplingWindowMs)
-      
-      // Safety fallback: if no fix at all after max timeout, show error
-      const maxTimeoutMs = highAccuracy ? 15000 : 10000
+      // Watchdog timer to ensure we never get stuck in "Loading" state
+      const maxTimeoutMs = highAccuracy ? 20000 : 15000
       fallbackTimeoutId = window.setTimeout(() => {
-        if (!bestFix) {
-          finishAndApplyBestFix()
-        }
+        handleError({ code: 3 }) // Simulate timeout
       }, maxTimeoutMs)
 
-      // Start watching
-      watchId = navigator.geolocation.watchPosition(
-        onPosition,
-        onError,
-        {
-          enableHighAccuracy: true, // Always try for high accuracy when watching
-          timeout: 10000,
-          maximumAge: 0
+      if (!highAccuracy) {
+        // Standard first-pass: direct getCurrentPosition, more reliable on Android for prompting
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            cleanup()
+            applyFix(pos)
+          },
+          (err) => handleError(err),
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
+        )
+      } else {
+        // High accuracy pass: use watchPosition for a short window to find a better fix
+        let bestFix: GeolocationPosition | null = null
+        let samplingTimeoutId: number | null = null
+
+        const finishHighAccuracy = () => {
+          if (samplingTimeoutId !== null) window.clearTimeout(samplingTimeoutId)
+          cleanup()
+          if (bestFix) {
+            applyFix(bestFix)
+          } else {
+            handleError({ code: 3 })
+          }
         }
-      )
+
+        const onPosition = (pos: GeolocationPosition) => {
+          const accuracy = pos.coords.accuracy
+          if (!bestFix || accuracy < bestFix.coords.accuracy) {
+            bestFix = pos
+          }
+          if (accuracy <= 25) {
+            finishHighAccuracy()
+          }
+        }
+
+        samplingTimeoutId = window.setTimeout(() => {
+          finishHighAccuracy()
+        }, 8000)
+
+        watchId = navigator.geolocation.watchPosition(
+          onPosition,
+          (err) => {
+            if (bestFix) {
+              finishHighAccuracy()
+            } else {
+              if (samplingTimeoutId !== null) window.clearTimeout(samplingTimeoutId)
+              handleError(err)
+            }
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        )
+      }
     },
     [setDeliveryLocation, t, isIOS, reverseGeocode]
   )
@@ -402,8 +397,8 @@ export function UnifiedOrderDialog({
     if (deliveryLat != null && deliveryLng != null) return
     if (autoDeliveryGeoRef.current) return
     autoDeliveryGeoRef.current = true
-    requestDeliveryLocation()
-  }, [open, step, orderType, setDeliveryLocation, deliveryLat, deliveryLng, requestDeliveryLocation])
+    // requestDeliveryLocation() // Disabled to require explicit user tap for better permission reliability on Android
+  }, [open, step, orderType, setDeliveryLocation, deliveryLat, deliveryLng])
 
   const handleFinalSubmit = (e: React.FormEvent) => {
     e.preventDefault()
