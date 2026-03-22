@@ -11,7 +11,11 @@ import {
 } from 'react'
 import { getCityFromCoordinates } from '@/lib/geofencing'
 import type { Polygon } from '@/lib/geofencing'
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
 import { GEO_CITY_ALIASES } from '@/lib/registration-translations'
+
+/** Nominatim can hang on slow mobile networks (especially Android). */
+const REVERSE_GEOCODE_TIMEOUT_MS = 12_000
 
 const STORAGE_CITY = 'home_city'
 
@@ -94,6 +98,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const availableCitiesRef = useRef<string[]>([])
   const polygonsRef = useRef<Polygon[] | null>(null)
   const nominatimAbortRef = useRef<AbortController | null>(null)
+  const reverseGeocodeSeqRef = useRef(0)
+  const locationPermissionWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     availableCitiesRef.current = availableCities
@@ -182,6 +188,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const resolveCoordinates = useCallback(async (latitude: number, longitude: number) => {
+    const seq = ++reverseGeocodeSeqRef.current
     const cities = availableCitiesRef.current
 
     const polys = polygonsRef.current
@@ -189,6 +196,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     if (geofenceCity) {
       const match = cities.find((c) => c.toLowerCase() === geofenceCity.toLowerCase())
       if (match) {
+        if (seq !== reverseGeocodeSeqRef.current) return
         setCity(match)
         setIsChosen(true)
         setLocationStatus('in_service')
@@ -201,15 +209,22 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     nominatimAbortRef.current = ac
     let res: Response
     try {
-      res = await fetch(
+      res = await fetchWithTimeout(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
-        { headers: { 'Accept-Language': 'en' }, signal: ac.signal }
+        { headers: { 'Accept-Language': 'en' }, signal: ac.signal },
+        REVERSE_GEOCODE_TIMEOUT_MS
       )
     } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return
+      if (seq !== reverseGeocodeSeqRef.current) return
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        // Intentional cancel (new request or unmount) — ac is aborted; timeout uses merged signal only.
+        if (ac.signal.aborted) return
+        throw e
+      }
       throw e
     }
     const data = await res.json()
+    if (seq !== reverseGeocodeSeqRef.current) return
     if (ac.signal.aborted) return
     const address = data.address || {}
     const addressValues: string[] = [
@@ -242,6 +257,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         return enMatch
       })
       if (match) {
+        if (seq !== reverseGeocodeSeqRef.current) return
         setCity(match)
         setIsChosen(true)
         setLocationStatus('in_service')
@@ -249,6 +265,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    if (seq !== reverseGeocodeSeqRef.current) return
     setDetectedCityName(geofenceCity || foundCity || null)
     setLocationStatus('out_of_service')
   }, [])
@@ -259,9 +276,28 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    if (locationPermissionWatchdogRef.current) {
+      clearTimeout(locationPermissionWatchdogRef.current)
+      locationPermissionWatchdogRef.current = null
+    }
+
     setLocationStatus('detecting')
+    // Android WebView / Chrome occasionally never fires geolocation callbacks; bail out to manual city pick.
+    locationPermissionWatchdogRef.current = setTimeout(() => {
+      locationPermissionWatchdogRef.current = null
+      setLocationStatus((s) => (s === 'detecting' ? 'error' : s))
+    }, 22_000)
+
+    const clearWatchdog = () => {
+      if (locationPermissionWatchdogRef.current) {
+        clearTimeout(locationPermissionWatchdogRef.current)
+        locationPermissionWatchdogRef.current = null
+      }
+    }
+
     navigator.geolocation.getCurrentPosition(
       async (position) => {
+        clearWatchdog()
         try {
           await resolveCoordinates(position.coords.latitude, position.coords.longitude)
         } catch {
@@ -269,10 +305,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         }
       },
       (err) => {
+        clearWatchdog()
         if (err.code === 1) setLocationStatus('denied')
         else setLocationStatus('error')
       },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: false, timeout: 15_000, maximumAge: 0 }
     )
   }, [resolveCoordinates])
 
@@ -292,10 +329,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     const forceTimeout = window.setTimeout(() => {
       if (settled) return
       settled = true
-      // iOS Safari can occasionally stall geolocation without firing callbacks.
-      // Fall back to manual city selection screen instead of trapping users in loading.
+      // iOS Safari and some Android WebViews can stall geolocation without firing callbacks.
       setLocationStatus('error')
-    }, 12000)
+    }, 18_000)
 
     const onSuccess = async (position: GeolocationPosition) => {
       if (settled) return
@@ -321,7 +357,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
     navigator.geolocation.getCurrentPosition(onSuccess, onError, {
       enableHighAccuracy: false,
-      timeout: 10000,
+      timeout: 15_000,
       maximumAge: 0,
     })
 
@@ -348,7 +384,13 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    return () => nominatimAbortRef.current?.abort()
+    return () => {
+      nominatimAbortRef.current?.abort()
+      if (locationPermissionWatchdogRef.current) {
+        clearTimeout(locationPermissionWatchdogRef.current)
+        locationPermissionWatchdogRef.current = null
+      }
+    }
   }, [])
 
   return (

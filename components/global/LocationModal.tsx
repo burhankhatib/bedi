@@ -6,6 +6,9 @@ import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
 import { getCityDisplayName, GEO_CITY_ALIASES } from '@/lib/registration-translations'
 import { getCityFromCoordinates } from '@/lib/geofencing'
+import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
+
+const REVERSE_GEOCODE_TIMEOUT_MS = 12_000
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -48,6 +51,9 @@ export function LocationModal() {
     }
 
     setIsLocating(true)
+    const locateWatchdog = window.setTimeout(() => {
+      setIsLocating(false)
+    }, 45_000)
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
@@ -65,9 +71,11 @@ export function LocationModal() {
           }
 
           // 2) Fallback: Nominatim reverse geocoding for locations outside defined polygons
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`, {
-            headers: { 'Accept-Language': 'en' }
-          })
+          const res = await fetchWithTimeout(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } },
+            REVERSE_GEOCODE_TIMEOUT_MS
+          )
           const data = await res.json()
           const address = data.address || {}
           const addressValues: string[] = [
@@ -113,14 +121,17 @@ export function LocationModal() {
         } catch (error) {
           console.error("Geocoding failed", error)
         } finally {
+          clearTimeout(locateWatchdog)
           setIsLocating(false)
         }
       },
       (error) => {
         console.error(error)
+        clearTimeout(locateWatchdog)
         setIsLocating(false)
         alert(t('Unable to retrieve your location. Please check your permissions.', 'تعذر الوصول إلى موقعك. يرجى التحقق من الصلاحيات.'))
-      }
+      },
+      { enableHighAccuracy: false, timeout: 15_000, maximumAge: 0 }
     )
   }
 
