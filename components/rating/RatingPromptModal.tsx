@@ -65,7 +65,9 @@ export function RatingPromptModal({
         throw new Error(data.error || 'Failed to submit rating')
       }
       onSuccess?.()
-      onClose()
+      if (stepCount === 1 || currentStep === stepCount) {
+        onClose()
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {

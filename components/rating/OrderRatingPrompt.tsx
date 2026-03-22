@@ -11,11 +11,15 @@ export function OrderRatingPrompt({
   orderId, 
   raterRole, 
   raterId, 
-  targetName 
+  businessDisplayName,
+  driverDisplayName,
+  targetName // fallback for non-customer roles or simple single prompts
 }: { 
   orderId?: string
   raterRole: 'customer' | 'driver' | 'business'
   raterId?: string
+  businessDisplayName?: string
+  driverDisplayName?: string
   targetName?: string
 }) {
   const { t } = useLanguage()
@@ -71,6 +75,8 @@ export function OrderRatingPrompt({
         onClose={() => setShowModal(false)}
         promptId={currentPrompt.id}
         targetName={
+          (currentPrompt.targetRole === 'business' && businessDisplayName) ? businessDisplayName :
+          (currentPrompt.targetRole === 'driver' && driverDisplayName) ? driverDisplayName :
           targetName || 
           (currentPrompt.targetRole === 'customer' ? t('the customer', 'العميل') : 
            currentPrompt.targetRole === 'business' ? t('the restaurant', 'المطعم') : 

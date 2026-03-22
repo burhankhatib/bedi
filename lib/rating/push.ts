@@ -37,14 +37,20 @@ async function getClerkUserAndSlug(sanityDocId: string, role: string): Promise<{
 
 async function sendPushToSanityUser(sanityDocId: string, role: string, roleContext: RoleContext, payload: PushPayload | ((slug?: string) => PushPayload)) {
   const { clerkUserId, slug } = await getClerkUserAndSlug(sanityDocId, role)
-  if (!clerkUserId) return false
+  if (!clerkUserId) {
+    console.warn(`[rating-push] Missing clerkUserId for sanityDocId=${sanityDocId} role=${role}. Push skipped.`)
+    return false
+  }
 
   const finalPayload = typeof payload === 'function' ? payload(slug) : payload
 
   if (!isFCMConfigured() && !isPushConfigured()) return false
 
   const subs = await getActiveSubscriptionsForUser({ clerkUserId, roleContext })
-  if (subs.length === 0) return false
+  if (subs.length === 0) {
+    console.warn(`[rating-push] No active push subscriptions for clerkUserId=${clerkUserId} roleContext=${roleContext}.`)
+    return false
+  }
 
   let sentAny = false
   const cleanupPromises: Promise<void>[] = []
@@ -88,23 +94,40 @@ async function sendPushToSanityUser(sanityDocId: string, role: string, roleConte
   return sentAny
 }
 
-export async function sendRatingPromptPush(targetSanityId: string, targetRole: string, promptUrl: string) {
+export async function sendRatingPromptPush(raterSanityId: string, raterRole: string, targetRole: string, promptUrl: string) {
   const roleContextMap: Record<string, RoleContext> = {
     customer: 'customer',
     driver: 'driver',
     business: 'tenant'
   }
   
-  const roleContext = roleContextMap[targetRole]
+  const roleContext = roleContextMap[raterRole]
   if (!roleContext) return false
 
-  const payload: PushPayload = {
-    title: 'Rate your experience',
-    body: 'How was your recent order? Tap to leave a quick rating.',
-    url: promptUrl,
+  let title = 'Rate your experience'
+  let body = 'How was your recent order? Tap to leave a quick rating.'
+  let dir: 'rtl' | 'ltr' | undefined = undefined
+
+  if (raterRole === 'driver' && targetRole === 'business') {
+    title = 'قيّم المطعم'
+    body = 'نرجو تقييم تجربتك مع المطعم بعد التوصيل.'
+    dir = 'rtl'
+  } else if (raterRole === 'customer') {
+    title = 'Rate your experience | قيّم تجربتك'
+    body = 'How was your recent order? Tap to leave a quick rating. | كيف كان طلبك الأخير؟ اضغط للتقييم.'
+  } else if (raterRole === 'business' && targetRole === 'driver') {
+    title = 'Rate the driver'
+    body = 'How was the driver for your recent order?'
   }
 
-  return sendPushToSanityUser(targetSanityId, targetRole, roleContext, payload)
+  const payload = {
+    title,
+    body,
+    url: promptUrl,
+    ...(dir ? { dir } : {})
+  }
+
+  return sendPushToSanityUser(raterSanityId, raterRole, roleContext, payload as any)
 }
 
 export async function sendRatingReceivedPush(targetSanityId: string, targetRole: string, newScore: number) {

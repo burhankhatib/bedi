@@ -114,7 +114,7 @@ export async function createRatingPromptsForOrder(
     
     // Only send push if this is the first step in the flow
     if (prompt.flowStep === 1) {
-      await sendRatingPromptPush(prompt.raterId, prompt.raterRole, urlMap[prompt.raterRole] || '/').catch(e => {
+      await sendRatingPromptPush(prompt.raterId, prompt.raterRole, prompt.targetRole, urlMap[prompt.raterRole] || '/').catch(e => {
         console.error('[RatingOrchestrator] Failed to send push:', e)
       })
     }

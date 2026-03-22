@@ -29,7 +29,8 @@ export default async function MyOrdersPage() {
           scheduledFor,
           trackingToken,
           "siteSlug": site->slug.current,
-          "siteName": site->name
+          "siteName": site->name,
+          "assignedDriver": assignedDriver->{ name }
         }`,
         { customerId: customer._id }
       )

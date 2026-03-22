@@ -36,7 +36,6 @@ import {
   useClerk,
   useUser,
 } from '@clerk/nextjs'
-import { UserButtonWithSignOutUrl } from '@/components/Auth/UserButtonWithSignOutUrl'
 import { CustomerSidebarActions } from '@/components/saas/CustomerSidebarActions'
 import { PWAInstallIcon } from '@/components/pwa/PWAInstallIcon'
 import { getCustomerPWAConfig } from '@/lib/pwa/configs'
@@ -599,14 +598,6 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                     {t('Track order', 'تتبع الطلب')}
                   </Link>
                 )}
-                <Link
-                  href="/my-orders"
-                  className="inline-flex items-center gap-1.5 rounded-full h-9 px-3 border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-sm font-medium"
-                  title={t('My orders from all businesses', 'طلباتي من جميع المتاجر')}
-                >
-                  <ClipboardList className="w-5 h-5 shrink-0" />
-                  {t('My orders', 'طلباتي')}
-                </Link>
                 <FullPageLink
                     href="/"
                     className="inline-flex items-center gap-1.5 rounded-full h-9 px-3 bg-brand-yellow text-brand-black hover:bg-amber-500 text-sm font-semibold transition-colors shadow-sm"
@@ -632,7 +623,21 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   </Link>
                 </SignedOut>
                 <SignedIn>
-                  <UserButtonWithSignOutUrl />
+                  <Link
+                    href="/my-orders"
+                    className="inline-flex items-center gap-1.5 rounded-full h-9 px-3 border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-sm font-medium"
+                    title={t('My orders from all businesses', 'طلباتي من جميع المتاجر')}
+                  >
+                    <ClipboardList className="w-4 h-4 shrink-0" />
+                    {t('My orders', 'طلباتي')}
+                  </Link>
+                  <Link
+                    href="/profile"
+                    className="inline-flex items-center gap-1.5 rounded-full h-9 px-3 border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-sm font-medium"
+                  >
+                    <User className="w-4 h-4 shrink-0" />
+                    {t('My Profile', 'حسابي')}
+                  </Link>
                 </SignedIn>
               </div>
 
@@ -666,15 +671,6 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                           </Link>
                         </SheetClose>
                       )}
-                      <SheetClose asChild>
-                        <Link
-                          href="/my-orders"
-                          className="flex items-center gap-3 rounded-lg py-3 px-3 text-slate-700 hover:bg-slate-100 transition-colors"
-                        >
-                          <ClipboardList className="w-5 h-5 text-slate-500" />
-                          {t('My orders', 'طلباتي')}
-                        </Link>
-                      </SheetClose>
                       <div className="flex items-center gap-3 rounded-lg py-3 px-3">
                         <LanguageSwitcher />
                       </div>
@@ -707,6 +703,24 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                                 <span className="text-sm font-medium text-slate-700 truncate">{user.fullName || user.primaryEmailAddress?.emailAddress || t('Account', 'الحساب')}</span>
                               </div>
                             )}
+                            <SheetClose asChild>
+                              <Link
+                                href="/profile"
+                                className="flex w-full items-center gap-3 rounded-lg py-3 px-3 text-slate-700 hover:bg-slate-100 transition-colors text-left"
+                              >
+                                <User className="w-5 h-5 shrink-0 text-slate-500" />
+                                {t('My Profile', 'حسابي')}
+                              </Link>
+                            </SheetClose>
+                            <SheetClose asChild>
+                              <Link
+                                href="/my-orders"
+                                className="flex w-full items-center gap-3 rounded-lg py-3 px-3 text-slate-700 hover:bg-slate-100 transition-colors text-left"
+                              >
+                                <ClipboardList className="w-5 h-5 shrink-0 text-slate-500" />
+                                {t('My orders', 'طلباتي')}
+                              </Link>
+                            </SheetClose>
                             <button
                               type="button"
                               onClick={() => signOut({ redirectUrl: '/' })}

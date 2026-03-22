@@ -6,6 +6,8 @@ import { Star, ArrowLeft, ArrowRight, User } from 'lucide-react'
 import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 import { arSA } from 'date-fns/locale'
+import Image from 'next/image'
+import { urlFor } from '@/sanity/lib/image'
 
 export function maskCustomerName(name: string | null | undefined): string {
   if (!name) return 'A***'
@@ -24,14 +26,29 @@ export default function ReviewsClient({ tenant, aggregate, initialReviews }: any
 
   return (
     <div className="min-h-screen bg-slate-50" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 px-4 py-3 sm:py-4">
-        <div className="max-w-3xl mx-auto flex items-center gap-3">
-          <Link href={`/t/${tenant.slug}`} className="p-2 -ml-2 rounded-full hover:bg-slate-100 transition-colors">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 px-4 py-3 sm:py-3.5">
+        <div className="max-w-3xl mx-auto flex items-center gap-3 sm:gap-4">
+          <Link href={`/t/${tenant.slug}`} className="p-2 -ml-2 rounded-full hover:bg-slate-100 transition-colors shrink-0">
             {lang === 'ar' ? <ArrowRight className="w-5 h-5" /> : <ArrowLeft className="w-5 h-5" />}
           </Link>
-          <div className="flex-1">
-            <h1 className="text-lg font-bold text-slate-900">{name}</h1>
-            <p className="text-sm text-slate-500">{t('Customer Reviews', 'تقييمات العملاء')}</p>
+          <div className="flex items-center gap-3 shrink-0 min-w-0 flex-1">
+            {restaurantInfo?.logo && (
+              <div className="relative w-10 h-10 sm:w-11 sm:h-11 flex-shrink-0">
+                <Image
+                  src={urlFor(restaurantInfo.logo).width(100).height(100).url()}
+                  alt={name}
+                  fill
+                  sizes="44px"
+                  loading="eager"
+                  priority
+                  className="object-contain"
+                />
+              </div>
+            )}
+            <div className="min-w-0">
+              <h1 className="text-lg font-black tracking-tighter uppercase leading-tight truncate text-slate-900">{name}</h1>
+              <p className="mt-0.5 text-xs font-medium text-slate-500">{t('Customer Reviews', 'تقييمات العملاء')}</p>
+            </div>
           </div>
         </div>
       </header>

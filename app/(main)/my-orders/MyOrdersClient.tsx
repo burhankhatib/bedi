@@ -33,6 +33,7 @@ export type MyOrderRow = {
   siteSlug?: string
   siteName?: string
   scheduledFor?: string
+  assignedDriver?: { name?: string }
 }
 
 const ACTIVE_STATUSES = new Set([
@@ -346,7 +347,13 @@ function OrderCard({
             </p>
             {(order.status === 'completed' || order.status === 'served') && (
               <div className="mt-4">
-                <OrderRatingPrompt orderId={order._id} raterRole="customer" targetName={businessName} />
+                <OrderRatingPrompt 
+                  orderId={order._id} 
+                  raterRole="customer" 
+                  businessDisplayName={businessName}
+                  driverDisplayName={order.assignedDriver?.name}
+                  targetName={businessName} 
+                />
               </div>
             )}
           </div>

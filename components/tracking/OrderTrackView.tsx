@@ -2293,8 +2293,8 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
         </div>
       )}
 
-      {/* Non-delivery completed/served state */}
-      {!isDelivery && (data.order.status === 'completed' || data.order.status === 'served') && (
+      {/* Completed/served state (for all order types) */}
+      {(data.order.status === 'completed' || data.order.status === 'served') && (
         <div className="mt-6 px-4">
           <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm relative overflow-hidden">
             <div className="absolute -right-4 -top-4 text-emerald-200/40 pointer-events-none">
@@ -2341,6 +2341,8 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
                   orderId={data.order._id}
                   raterRole="customer"
                   raterId={data.order.customer._ref}
+                  businessDisplayName={restaurantName}
+                  driverDisplayName={data.driver?.name}
                   targetName={restaurantName}
                 />
               </div>
@@ -2610,13 +2612,6 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
           </div>
         </div>
       </div>
-
-      {/* Driver Rating - shown below order details if completed/delivered */}
-      {isDelivery && (data.order.status === 'completed' || data.order.status === 'served') && data.driver && data.order.customer?._ref && (
-        <div className="mt-4 relative z-10 px-4">
-          <OrderRatingPrompt orderId={data.order._id} raterRole="customer" raterId={data.order.customer._ref} targetName={data.driver.name} />
-        </div>
-      )}
 
       {/* Edit Order — delivery only, before picked up / completed / cancelled. Hide once driver confirms pickup. */}
       {isDelivery && data.order && !['completed', 'cancelled', 'refunded', 'out-for-delivery'].includes(data.order.status ?? '') && !data.order.driverPickedUpAt && (
