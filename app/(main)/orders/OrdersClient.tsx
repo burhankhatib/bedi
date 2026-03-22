@@ -8,6 +8,7 @@ import { AdminProtection } from '@/components/Auth/AdminProtection'
 import { OrderDetailsModal } from '@/components/Orders/OrderDetailsModal'
 import { AutoDeliveryRequestControls, type AutoDeliveryDefaults } from '@/components/Orders/AutoDeliveryRequestControls'
 import { OrderNotifications } from '@/components/Orders/OrderNotifications'
+import { EntityRatingBadge } from '@/components/rating/EntityRatingBadge'
 import { Input } from '@/components/ui/input'
 import { getDriverDisplayNameForBusiness } from '@/lib/driver-display'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -48,6 +49,7 @@ export interface Order {
       name_en: string
       name_ar: string
     }>
+    rating?: { averageScore: number; totalCount: number } | null
   }
   items: OrderItem[]
   subtotal: number
@@ -1417,7 +1419,16 @@ export function OrdersClient({
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 text-orange-600">
                     <Truck className="h-8 w-8" />
                   </div>
-                  <h3 className="mb-1 text-2xl font-black text-slate-900">{getDriverDisplayNameForBusiness(driverModalOrder.assignedDriver)}</h3>
+                  <h3 className="mb-1 text-2xl font-black text-slate-900 flex items-center gap-2">
+                    {getDriverDisplayNameForBusiness(driverModalOrder.assignedDriver)}
+                    {driverModalOrder.assignedDriver.rating && driverModalOrder.assignedDriver.rating.totalCount > 0 && (
+                      <EntityRatingBadge 
+                        averageScore={driverModalOrder.assignedDriver.rating.averageScore} 
+                        totalCount={driverModalOrder.assignedDriver.rating.totalCount} 
+                        size="md" 
+                      />
+                    )}
+                  </h3>
                   {driverModalOrder.assignedDriver.phoneNumber && <p className="mb-6 text-slate-500 font-mono" dir="ltr">{driverModalOrder.assignedDriver.phoneNumber}</p>}
                   
                   <div className="flex flex-col gap-3">

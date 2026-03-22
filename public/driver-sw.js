@@ -46,13 +46,17 @@ self.addEventListener('push', function (event) {
       var raw = event.data.json()
       var notif = raw.notification || {}
       var dataPayload = raw.data || raw
-      data = {
-        title: notif.title || dataPayload.title || raw.title || data.title,
-        body: notif.body || dataPayload.body || raw.body || data.body,
-        url: dataPayload.url || raw.url || data.url,
-        icon: notif.icon || dataPayload.icon || raw.icon || data.icon,
-        dir: dataPayload.dir || raw.dir || data.dir,
-      }
+    // Support explicit tags for stacking rules
+    var tag = dataPayload.tag || raw.tag || PWA_TAG;
+
+    data = {
+      title: notif.title || dataPayload.title || raw.title || data.title,
+      body: notif.body || dataPayload.body || raw.body || data.body,
+      url: dataPayload.url || raw.url || data.url,
+      icon: notif.icon || dataPayload.icon || raw.icon || data.icon,
+      dir: dataPayload.dir || raw.dir || data.dir,
+      tag: tag
+    }
     } catch (_) {}
   }
 
@@ -62,7 +66,7 @@ self.addEventListener('push', function (event) {
     icon: data.icon || PWA_DEFAULT_ICON,
     badge: data.icon || PWA_DEFAULT_ICON,
     data: { url: notifUrl },
-    tag: PWA_TAG,
+    tag: data.tag || PWA_TAG,
     renotify: true,
     requireInteraction: true,
     vibrate: [200, 100, 200, 100, 200],
@@ -86,7 +90,7 @@ self.addEventListener('notificationclick', function (event) {
     ? event.notification.data.url
     : PWA_DEFAULT_URL
 
-  // Ensure we open Orders (main page), not /driver which redirects
+  // Ensure we open Orders (main page) when default URL is used, otherwise use exact URL provided
   var normPath = (typeof path === 'string' ? path : '').split('?')[0]
   if (normPath === '/driver' || normPath === self.location.origin + '/driver' ||
       normPath.endsWith('/driver') || normPath.endsWith('/driver/')) {
@@ -106,8 +110,10 @@ self.addEventListener('notificationclick', function (event) {
     fullUrl = self.location.origin + PWA_DEFAULT_URL
   }
 
-  // Driver: ensure ?goOnline=1 when routing to orders
+  // Driver: ensure ?goOnline=1 when routing explicitly to /driver/orders
   if (fullUrl.indexOf('/driver/orders') !== -1 && fullUrl.indexOf('goOnline=1') === -1) {
+    // Only append goOnline=1 if we are genuinely falling back to the default orders page,
+    // not if we have a specific URL like /driver/history we want to go to instead
     fullUrl += (fullUrl.indexOf('?') !== -1 ? '&' : '?') + 'goOnline=1'
   }
 

@@ -22,6 +22,7 @@ type Tenant = {
   logoUrl: string | null
   sections: Localized[]
   popularItems: Localized[]
+  rating?: { averageScore: number; totalCount: number } | null
 }
 
 type FeaturedTenantsProps = {
@@ -117,6 +118,7 @@ export function FeaturedTenants({ category }: FeaturedTenantsProps) {
               businessType={tStore.businessType}
               freeDeliveryEnabled={tStore.freeDeliveryEnabled}
               sections={tStore.sections}
+              rating={tStore.rating}
               lang={lang}
               t={t}
               titleTag="h2"

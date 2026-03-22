@@ -49,11 +49,13 @@ self.addEventListener('push', function (event) {
       const raw = event.data.json()
       const notif = raw.notification || {}
       const dataPayload = raw.data || raw
+      const tag = dataPayload.tag || raw.tag || (data.driverArrived ? 'bedi-customer-arrived' : 'bedi-customer');
       data = {
         title: notif.title ?? dataPayload.title ?? raw.title ?? data.title,
         body: notif.body ?? dataPayload.body ?? raw.body ?? data.body,
         url: dataPayload.url ?? raw.url ?? data.url ?? '/',
         driverArrived: dataPayload.driverArrived === '1' || dataPayload.driverArrived === true,
+        tag: tag
       }
     } catch (_) {}
   }
@@ -63,7 +65,7 @@ self.addEventListener('push', function (event) {
     icon: '/customersLogo.webp',
     badge: '/customersLogo.webp',
     data: { url: path },
-    tag: data.driverArrived ? 'bedi-customer-arrived' : 'bedi-customer',
+    tag: data.tag || (data.driverArrived ? 'bedi-customer-arrived' : 'bedi-customer'),
     renotify: true,
     requireInteraction: true,
     vibrate: data.driverArrived ? [500, 200, 500, 200, 500, 200, 500] : [200, 100, 200, 100, 200],

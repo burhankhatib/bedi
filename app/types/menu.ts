@@ -167,4 +167,5 @@ export interface InitialData {
   requiresPersonalShopper?: boolean
   supportsDriverPickup?: boolean
   shopperFee?: number
+  tenantId?: string
 }

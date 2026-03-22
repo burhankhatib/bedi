@@ -18,6 +18,9 @@ export interface RatingPrompt {
   createdAtMs: number
   expiresAtMs: number
   completedAtMs?: number
+  
+  /** Used to sequence prompts for a single rater. Lower number = shown first. */
+  flowStep?: number
 }
 
 export interface ActiveRating {

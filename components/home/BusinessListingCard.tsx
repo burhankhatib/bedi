@@ -11,6 +11,8 @@ import { BUSINESS_TYPES } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { BUSINESS_LISTING_CARD_GRID_CLASS } from '@/lib/ui/businessListingGrid'
 
+import { EntityRatingBadge } from '@/components/rating/EntityRatingBadge'
+
 export { BUSINESS_LISTING_CARD_GRID_CLASS }
 
 type LocalizedSection = { en: string; ar: string }
@@ -29,6 +31,7 @@ export type BusinessListingCardProps = {
   titleTag?: 'h2' | 'h3'
   className?: string
   dir?: 'ltr' | 'rtl'
+  rating?: { averageScore: number; totalCount: number } | null
 }
 
 const CARD_SURFACE_CLASS =
@@ -47,6 +50,7 @@ export function BusinessListingCard({
   titleTag = 'h3',
   className,
   dir,
+  rating,
 }: BusinessListingCardProps) {
   const { containerRef, backgroundColor } = useAdaptiveLogoBackground(logoUrl)
   const typeLabel =
@@ -99,8 +103,14 @@ export function BusinessListingCard({
         </h3>
       )}
 
-      <p className="mt-1 text-[13px] font-medium capitalize text-slate-600" dir={dir}>
+      <p className="mt-1 text-[13px] font-medium capitalize text-slate-600 flex items-center justify-center gap-2" dir={dir}>
         {typeLabel}
+        {rating && rating.totalCount > 0 && (
+          <>
+            <span className="text-slate-300">•</span>
+            <EntityRatingBadge averageScore={rating.averageScore} totalCount={rating.totalCount} size="sm" />
+          </>
+        )}
       </p>
 
       {sections && sections.length > 0 && (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,8 @@ interface RatingPromptModalProps {
   promptId: string
   targetName: string
   targetRole: 'driver' | 'business' | 'customer'
+  stepCount?: number
+  currentStep?: number
   onSuccess?: () => void
 }
 
@@ -27,6 +29,8 @@ export function RatingPromptModal({
   promptId,
   targetName,
   targetRole,
+  stepCount = 1,
+  currentStep = 1,
   onSuccess
 }: RatingPromptModalProps) {
   const { t } = useLanguage()
@@ -34,6 +38,15 @@ export function RatingPromptModal({
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Reset internal state when promptId changes
+  useEffect(() => {
+    if (open) {
+      setScore(0)
+      setFeedback('')
+      setError(null)
+    }
+  }, [promptId, open])
 
   const isDark = targetRole === 'customer' || targetRole === 'driver' // e.g. business/driver dashboards are usually dark
 
@@ -76,11 +89,18 @@ export function RatingPromptModal({
         overlayClassName="z-[350]"
       >
         <DialogHeader>
-          <DialogTitle className="text-center text-xl">
-            {t('Rate your experience', 'قيم تجربتك')}
-          </DialogTitle>
-          <DialogDescription className="text-center">
-            {t('How was your experience with', 'كيف كانت تجربتك مع')} {targetName}?
+          <div className="flex justify-between items-center mb-2">
+            <DialogTitle className="text-xl font-bold">
+              {t('Rate your experience', 'قيم تجربتك')}
+            </DialogTitle>
+            {stepCount > 1 && (
+              <span className="text-sm font-semibold text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-500/10 px-2 py-0.5 rounded-full">
+                {currentStep} / {stepCount}
+              </span>
+            )}
+          </div>
+          <DialogDescription className="text-left text-base text-slate-600 dark:text-slate-400">
+            {t('How was your experience with', 'كيف كانت تجربتك مع')} <strong className="text-slate-900 dark:text-white">{targetName}</strong>?
           </DialogDescription>
         </DialogHeader>
 
@@ -117,15 +137,23 @@ export function RatingPromptModal({
               "bg-amber-500 text-slate-950 hover:bg-amber-400"
             )}
           >
-            {submitting ? t('Submitting...', 'جاري التقييم...') : t('Submit Rating', 'إرسال التقييم')}
+            {submitting ? t('Submitting...', 'جاري التقييم...') : 
+             stepCount > 1 && currentStep < stepCount ? t('Next', 'التالي') : 
+             t('Submit Rating', 'إرسال التقييم')}
           </Button>
           <Button
             variant="ghost"
-            onClick={onClose}
+            onClick={() => {
+              // On skip, still consider it a success for advancing flow, but we didn't submit
+              onSuccess?.()
+              if (stepCount === 1 || currentStep === stepCount) {
+                onClose()
+              }
+            }}
             disabled={submitting}
             className="w-full rounded-full min-h-12"
           >
-            {t('Not now', 'ليس الآن')}
+            {stepCount > 1 ? t('Skip this step', 'تخطي هذه الخطوة') : t('Not now', 'ليس الآن')}
           </Button>
         </div>
       </DialogContent>

@@ -48,34 +48,40 @@ export async function GET(req: NextRequest) {
       const db = getFirestoreAdmin()
       if (!db) return NextResponse.json({ error: 'Firestore config error' }, { status: 500 })
 
-      const promptsSnapshot = await db.collection('ratingPrompts')
-        .where('raterId', '==', raterId)
+      const promptsSnapshot = await (db.collection('ratingPrompts')
+        .where('raterId', '==', raterId) as any)
         .where('status', '==', 'pending')
-        .limit(1)
+        .orderBy('flowStep', 'asc')
         .get()
 
       if (promptsSnapshot.empty) {
-        return NextResponse.json({ prompt: null })
+        return NextResponse.json({ prompts: [] })
       }
 
-      return NextResponse.json({ prompt: promptsSnapshot.docs[0].data() as unknown as RatingPrompt })
+      // We only return prompts for the FIRST order we find, so they can rate that order's things together
+      const firstOrderId = (promptsSnapshot.docs[0].data() as unknown as RatingPrompt).orderId
+      const relatedPrompts = promptsSnapshot.docs
+        .map((d: any) => d.data() as unknown as RatingPrompt)
+        .filter((p: any) => p.orderId === firstOrderId)
+
+      return NextResponse.json({ prompts: relatedPrompts })
     }
 
     const db = getFirestoreAdmin()
     if (!db) return NextResponse.json({ error: 'Firestore config error' }, { status: 500 })
 
-    const promptsSnapshot = await db.collection('ratingPrompts')
-      .where('orderId', '==', orderId)
+    const promptsSnapshot = await (db.collection('ratingPrompts')
+      .where('orderId', '==', orderId) as any)
       .where('raterId', '==', raterId)
       .where('status', '==', 'pending')
-      .limit(1)
+      .orderBy('flowStep', 'asc')
       .get()
 
     if (promptsSnapshot.empty) {
-      return NextResponse.json({ prompt: null })
+      return NextResponse.json({ prompts: [] })
     }
 
-    return NextResponse.json({ prompt: promptsSnapshot.docs[0].data() as unknown as RatingPrompt })
+    return NextResponse.json({ prompts: promptsSnapshot.docs.map((d: any) => d.data() as unknown as RatingPrompt) })
   } catch (error) {
     console.error('[RatingPending]', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })

@@ -37,13 +37,17 @@ self.addEventListener('push', function (event) {
       var raw = event.data.json()
       var notif = raw.notification || {}
       var dataPayload = raw.data || raw
-      data = {
-        title: notif.title || dataPayload.title || raw.title || data.title,
-        body: notif.body || dataPayload.body || raw.body || data.body,
-        url: dataPayload.url || raw.url || data.url,
-        icon: notif.icon || dataPayload.icon || raw.icon || data.icon,
-        dir: dataPayload.dir || raw.dir || data.dir,
-      }
+    // Optional: extract tag for distinct notification grouping
+    var tag = dataPayload.tag || raw.tag || PWA_TAG;
+
+    data = {
+      title: notif.title || dataPayload.title || raw.title || data.title,
+      body: notif.body || dataPayload.body || raw.body || data.body,
+      url: dataPayload.url || raw.url || data.url,
+      icon: notif.icon || dataPayload.icon || raw.icon || data.icon,
+      dir: dataPayload.dir || raw.dir || data.dir,
+      tag: tag
+    }
     } catch (_) {}
   }
   var notifUrl = data.url || PWA_DEFAULT_URL
@@ -52,7 +56,7 @@ self.addEventListener('push', function (event) {
     icon: data.icon || PWA_DEFAULT_ICON,
     badge: data.icon || PWA_DEFAULT_ICON,
     data: { url: notifUrl },
-    tag: PWA_TAG,
+    tag: data.tag || PWA_TAG,
     renotify: true,
     requireInteraction: true,
     vibrate: [200, 100, 200, 100, 200],

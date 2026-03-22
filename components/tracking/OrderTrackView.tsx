@@ -132,7 +132,7 @@ type TrackData = {
     }>
   }
   restaurant: { name_en?: string; name_ar?: string; whatsapp?: string } | null
-  driver: { _id: string; name: string; phoneNumber: string; lat: number | null; lng: number | null } | null
+  driver: { _id: string; name: string; phoneNumber: string; lat: number | null; lng: number | null; rating?: { averageScore: number; totalCount: number } | null } | null
   country?: string
   businessLocation: { lat: number; lng: number } | null
 }
@@ -2610,6 +2610,13 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
           </div>
         </div>
       </div>
+
+      {/* Driver Rating - shown below order details if completed/delivered */}
+      {isDelivery && (data.order.status === 'completed' || data.order.status === 'served') && data.driver && data.order.customer?._ref && (
+        <div className="mt-4 relative z-10 px-4">
+          <OrderRatingPrompt orderId={data.order._id} raterRole="customer" raterId={data.order.customer._ref} targetName={data.driver.name} />
+        </div>
+      )}
 
       {/* Edit Order — delivery only, before picked up / completed / cancelled. Hide once driver confirms pickup. */}
       {isDelivery && data.order && !['completed', 'cancelled', 'refunded', 'out-for-delivery'].includes(data.order.status ?? '') && !data.order.driverPickedUpAt && (

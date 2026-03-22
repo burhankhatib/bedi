@@ -20,29 +20,35 @@ export async function createRatingPromptsForOrder(
 
   const prompts: RatingPrompt[] = []
 
-  // Helper to create prompt ID
-  const makeId = (raterRole: string, raterId: string, targetRole: string, targetId: string) =>
-    `${orderId}_${raterRole}_${raterId}_${targetRole}_${targetId}`
+    const makeId = (raterRole: string, raterId: string, targetRole: string, targetId: string) =>
+      `${orderId}_${raterRole}_${raterId}_${targetRole}_${targetId}`
 
-  // Customer rates Business
+    // Optionally get rater names if we want to store them, but for privacy we don't need to.
+    // The active rating creation doesn't store raterName right now.
+
+
+  // Customer rates Business (Step 1)
   if (customerId) {
     prompts.push({
-      id: makeId('customer', customerId, 'business', siteId),
-      orderId,
-      siteId,
-      orderType,
-      raterRole: 'customer',
-      raterId: customerId,
-      targetRole: 'business',
-      targetId: siteId,
-      status: 'pending',
-      createdAtMs: nowMs,
-      expiresAtMs,
-    })
+        id: makeId('customer', customerId, 'business', siteId),
+        orderId,
+        siteId,
+        orderType,
+        raterRole: 'customer',
+        raterId: customerId,
+        targetRole: 'business',
+        targetId: siteId,
+        status: 'pending',
+        createdAtMs: nowMs,
+        expiresAtMs,
+        flowStep: 1,
+        // Since we don't fetch customer name directly in this function, we skip raterName here
+        // We'll modify ActiveRating creation to just have 'customer' -> masked behavior in UI
+      })
   }
 
   if (orderType === 'delivery' && driverId) {
-    // Customer rates Driver
+    // Customer rates Driver (Step 2)
     if (customerId) {
       prompts.push({
         id: makeId('customer', customerId, 'driver', driverId),
@@ -56,23 +62,7 @@ export async function createRatingPromptsForOrder(
         status: 'pending',
         createdAtMs: nowMs,
         expiresAtMs,
-      })
-    }
-
-    // Driver rates Customer
-    if (customerId) {
-      prompts.push({
-        id: makeId('driver', driverId, 'customer', customerId),
-        orderId,
-        siteId,
-        orderType,
-        raterRole: 'driver',
-        raterId: driverId,
-        targetRole: 'customer',
-        targetId: customerId,
-        status: 'pending',
-        createdAtMs: nowMs,
-        expiresAtMs,
+        flowStep: 2,
       })
     }
 
@@ -89,6 +79,7 @@ export async function createRatingPromptsForOrder(
       status: 'pending',
       createdAtMs: nowMs,
       expiresAtMs,
+      flowStep: 1,
     })
 
     // Business rates Driver
@@ -104,40 +95,28 @@ export async function createRatingPromptsForOrder(
       status: 'pending',
       createdAtMs: nowMs,
       expiresAtMs,
+      flowStep: 1,
     })
   }
 
-  // Business rates Customer
-  if (customerId) {
-    prompts.push({
-      id: makeId('business', siteId, 'customer', customerId),
-      orderId,
-      siteId,
-      orderType,
-      raterRole: 'business',
-      raterId: siteId,
-      targetRole: 'customer',
-      targetId: customerId,
-      status: 'pending',
-      createdAtMs: nowMs,
-      expiresAtMs,
-    })
-  }
-
-  // Write prompts to Firestore
-  const promptsCollection = db.collection('ratingPrompts')
-  for (const prompt of prompts) {
-    await promptsCollection.doc(prompt.id).set(prompt as unknown as Record<string, unknown>, { merge: true }).catch(e => {
-      console.error('[RatingOrchestrator] Failed to save prompt:', prompt.id, e)
-    })
+    // Write prompts to Firestore
+    const promptsCollection = db.collection('ratingPrompts')
+    for (const prompt of prompts) {
+      await promptsCollection.doc(prompt.id).set(prompt as unknown as Record<string, unknown>, { merge: true }).catch(e => {
+        console.error('[RatingOrchestrator] Failed to save prompt:', prompt.id, e)
+      })
+      
+      const urlMap: Record<string, string> = {
+        customer: '/my-orders',
+        driver: '/driver/history',
+        business: '/dashboard' // Let dashboard redirect to the correct slug
+      }
     
-    const urlMap: Record<string, string> = {
-      customer: '/my-orders',
-      driver: '/driver/history',
-      business: `/t/${siteId}/manage/history`
+    // Only send push if this is the first step in the flow
+    if (prompt.flowStep === 1) {
+      await sendRatingPromptPush(prompt.raterId, prompt.raterRole, urlMap[prompt.raterRole] || '/').catch(e => {
+        console.error('[RatingOrchestrator] Failed to send push:', e)
+      })
     }
-    await sendRatingPromptPush(prompt.raterId, prompt.raterRole, urlMap[prompt.raterRole] || '/').catch(e => {
-      console.error('[RatingOrchestrator] Failed to send push:', e)
-    })
   }
 }

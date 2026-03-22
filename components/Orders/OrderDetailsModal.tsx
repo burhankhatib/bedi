@@ -77,6 +77,7 @@ interface Order {
       name_en: string
       name_ar: string
     }>
+    rating?: { averageScore: number; totalCount: number } | null
   }
   items: OrderItem[]
   subtotal: number
@@ -110,6 +111,8 @@ interface Order {
   autoDeliveryRequestScheduledAt?: string | null
   autoDeliveryRequestTriggeredAt?: string | null
 }
+
+import { EntityRatingBadge } from '@/components/rating/EntityRatingBadge'
 
 interface OrderDetailsModalProps {
   order: Order
@@ -1600,7 +1603,16 @@ Please deliver this order to the customer.
                       <div className="w-[calc(100%-2rem)] md:w-[calc(50%-1.5rem)] p-3 rounded-xl bg-white shadow-sm border border-slate-100 flex flex-col">
                         <p className="text-xs font-bold text-slate-800">{t('Driver on the way to business', 'السائق في الطريق إلى المتجر')}</p>
                         {localOrder.assignedDriver && (
-                          <p className="text-xs font-medium text-slate-700">{getDriverDisplayNameForBusiness(localOrder.assignedDriver)} ({localOrder.assignedDriver.phoneNumber})</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-medium text-slate-700">{getDriverDisplayNameForBusiness(localOrder.assignedDriver)} ({localOrder.assignedDriver.phoneNumber})</p>
+                            {localOrder.assignedDriver.rating && localOrder.assignedDriver.rating.totalCount > 0 && (
+                              <EntityRatingBadge 
+                                averageScore={localOrder.assignedDriver.rating.averageScore} 
+                                totalCount={localOrder.assignedDriver.rating.totalCount} 
+                                size="sm" 
+                              />
+                            )}
+                          </div>
                         )}
                         <p className="text-xs text-slate-500 mt-1">{fmt(localOrder.driverAcceptedAt)}</p>
                       </div>

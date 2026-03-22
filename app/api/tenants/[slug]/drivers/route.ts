@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { checkTenantAuth } from '@/lib/tenant-auth'
+import { getFirestoreAdmin } from '@/lib/firebase-admin'
 
 /** List drivers registered in the system (have clerkUserId) in the same country and city as the tenant. Invite-only: tenants cannot add drivers. */
 export async function GET(

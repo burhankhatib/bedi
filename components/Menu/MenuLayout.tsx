@@ -19,6 +19,7 @@ import { useOrderAuth } from '@/lib/useOrderAuth'
 import { FirebaseClerkSync } from '@/components/FirebaseClerkSync'
 import { TableChoiceModal } from '@/components/Menu/TableChoiceModal'
 import { Star, Facebook, Instagram, Globe, MessageCircle, ShoppingCart, MapPin, Clock, Package, ShieldAlert, Menu, LogOut, LogIn, User, Home, ClipboardList } from 'lucide-react'
+import { EntityRatingBadge } from '@/components/rating/EntityRatingBadge'
 import { getTodaysHours, isWithinHours, getNextOpening, formatCountdown, getTimeZoneForCountry, getNowInTimeZone, getTodayActiveOrNextShift } from '@/lib/business-hours'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
@@ -135,7 +136,24 @@ function ClosedBanner({
 }
 
 export default function MenuLayout({ initialData, tenantSlug, initialTableNumber }: MenuLayoutProps) {
-  const { categories, popularProducts, restaurantInfo, aboutUs, storeName, supportsDineIn, supportsReceiveInPerson, hasDelivery, freeDeliveryEnabled, isManuallyClosed, deactivateUntil, locationLat, locationLng } = initialData
+  const { categories, popularProducts, restaurantInfo, aboutUs, storeName, supportsDineIn, supportsReceiveInPerson, hasDelivery, freeDeliveryEnabled, isManuallyClosed, deactivateUntil, locationLat, locationLng, tenantId } = initialData
+  const [rating, setRating] = useState<{ averageScore: number; totalCount: number } | null>(null)
+
+  useEffect(() => {
+    if (tenantId) {
+      fetch(`/api/rating/aggregate?targetId=${tenantId}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.aggregate) {
+            setRating({
+              averageScore: data.aggregate.averageScore,
+              totalCount: data.aggregate.totalCount
+            })
+          }
+        })
+        .catch(console.error)
+    }
+  }, [tenantId])
   const catalogOnlyBySettings = supportsDineIn === false && supportsReceiveInPerson === false && hasDelivery === false
   /** When true, allow add-to-cart and checkout. False only when business has no order types (truly catalog only). */
   const canOrderFromMenu = !catalogOnlyBySettings
@@ -530,9 +548,16 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
                   </div>
                 )}
                 <div className="hidden md:block min-w-0">
-                  <h1 className="text-lg font-black tracking-tighter uppercase leading-tight truncate">
-                    {headerTitle}
-                  </h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-lg font-black tracking-tighter uppercase leading-tight truncate">
+                      {headerTitle}
+                    </h1>
+                    {rating && rating.totalCount > 0 && (
+                      <Link href={`/t/${tenantSlug}/reviews`} className="shrink-0 transition-opacity hover:opacity-80">
+                        <EntityRatingBadge averageScore={rating.averageScore} totalCount={rating.totalCount} size="sm" />
+                      </Link>
+                    )}
+                  </div>
                   {hoursLabel && (
                     <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-slate-500">
                       <Clock className="size-3.5 shrink-0" />
@@ -712,9 +737,18 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
               </div>
             </div>
             {hoursLabel && (
-              <div className="mt-2 flex items-center gap-1.5 text-xs font-medium text-slate-500 md:hidden">
-                <Clock className="size-3.5 shrink-0" />
-                {hoursLabel}
+              <div className="mt-2 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 md:hidden">
+                  <Clock className="size-3.5 shrink-0" />
+                  {hoursLabel}
+                </div>
+                {rating && rating.totalCount > 0 && (
+                  <div className="md:hidden">
+                    <Link href={`/t/${tenantSlug}/reviews`}>
+                      <EntityRatingBadge averageScore={rating.averageScore} totalCount={rating.totalCount} size="sm" />
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </div>

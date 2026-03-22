@@ -11,13 +11,13 @@ type PushPayload = {
   icon?: string
 }
 
-async function getClerkUserId(sanityDocId: string, role: string): Promise<string | null> {
+async function getClerkUserAndSlug(sanityDocId: string, role: string): Promise<{ clerkUserId: string | null; slug?: string }> {
   if (role === 'business' || role === 'tenant') {
-    const doc = await clientNoCdn.fetch<{ clerkUserId?: string, coOwnerEmails?: string[] } | null>(
-      `*[_type == "tenant" && _id == $id][0]{ clerkUserId, coOwnerEmails }`,
+    const doc = await clientNoCdn.fetch<{ clerkUserId?: string, 'slug': string } | null>(
+      `*[_type == "tenant" && _id == $id][0]{ clerkUserId, "slug": slug.current }`,
       { id: sanityDocId }
     )
-    return doc?.clerkUserId || null
+    return { clerkUserId: doc?.clerkUserId || null, slug: doc?.slug }
   }
   
   const typeMap: Record<string, string> = {
@@ -26,18 +26,20 @@ async function getClerkUserId(sanityDocId: string, role: string): Promise<string
   }
   
   const type = typeMap[role]
-  if (!type) return null
+  if (!type) return { clerkUserId: null }
 
   const doc = await clientNoCdn.fetch<{ clerkUserId?: string } | null>(
     `*[_type == $type && _id == $id][0]{ clerkUserId }`,
     { type, id: sanityDocId }
   )
-  return doc?.clerkUserId || null
+  return { clerkUserId: doc?.clerkUserId || null }
 }
 
-async function sendPushToSanityUser(sanityDocId: string, role: string, roleContext: RoleContext, payload: PushPayload) {
-  const clerkUserId = await getClerkUserId(sanityDocId, role)
+async function sendPushToSanityUser(sanityDocId: string, role: string, roleContext: RoleContext, payload: PushPayload | ((slug?: string) => PushPayload)) {
+  const { clerkUserId, slug } = await getClerkUserAndSlug(sanityDocId, role)
   if (!clerkUserId) return false
+
+  const finalPayload = typeof payload === 'function' ? payload(slug) : payload
 
   if (!isFCMConfigured() && !isPushConfigured()) return false
 
@@ -55,8 +57,8 @@ async function sendPushToSanityUser(sanityDocId: string, role: string, roleConte
 
       if (device.fcmToken && isFCMConfigured()) {
         const res = await sendFCMToTokenDetailed(device.fcmToken, {
-          ...payload,
-          dataOnly: false // Let FCM handle it directly if needed, or stick to dataOnly if PWA requires
+          ...finalPayload,
+          dataOnly: false
         })
         if (res.ok) delivered = true
         else if (res.permanent) {
@@ -67,7 +69,7 @@ async function sendPushToSanityUser(sanityDocId: string, role: string, roleConte
       if (!delivered && device.webPush?.endpoint && isPushConfigured()) {
         const res = await sendPushNotificationDetailed(
           { endpoint: device.webPush.endpoint, keys: device.webPush },
-          payload
+          finalPayload
         )
         if (res.ok) delivered = true
         else if (res.permanent) {
@@ -115,11 +117,9 @@ export async function sendRatingReceivedPush(targetSanityId: string, targetRole:
   const roleContext = roleContextMap[targetRole]
   if (!roleContext) return false
 
-  const payload: PushPayload = {
+  return sendPushToSanityUser(targetSanityId, targetRole, roleContext, (slug) => ({
     title: 'New Rating Received',
     body: `You received a ${newScore}-star rating on a recent order.`,
-    url: targetRole === 'business' ? '/manage/reviews' : targetRole === 'driver' ? '/driver/profile' : '/profile',
-  }
-
-  return sendPushToSanityUser(targetSanityId, targetRole, roleContext, payload)
+    url: targetRole === 'business' ? (slug ? `/t/${slug}/reviews` : '/dashboard') : targetRole === 'driver' ? '/driver/profile' : '/profile',
+  }))
 }

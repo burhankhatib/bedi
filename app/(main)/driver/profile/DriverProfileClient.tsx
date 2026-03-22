@@ -11,6 +11,7 @@ import { toEnglishDigits } from '@/lib/phone'
 import { getCountryNameAr, getCityNameAr } from '@/lib/registration-translations'
 import { detectCityAndCountry } from '@/lib/geofencing-utils'
 import { compressImageForUpload } from '@/lib/compress-image'
+import { EntityRatingBadge } from '@/components/rating/EntityRatingBadge'
 import { Truck, Upload, ImageIcon, Trash2, AlertTriangle, LocateFixed } from 'lucide-react'
 
 const VEHICLE_OPTIONS = [
@@ -64,6 +65,8 @@ export function DriverProfileClient() {
 
   const searchParams = useSearchParams()
 
+  const [rating, setRating] = useState<{ averageScore: number; totalCount: number } | null>(null)
+
   useEffect(() => {
     fetch('/api/countries?registration=1')
       .then((r) => r.json())
@@ -111,6 +114,21 @@ export function DriverProfileClient() {
             rulesAcknowledged: data.rulesAcknowledged ?? true,
             receiveOfflineWhatsapp: data.receiveOfflineWhatsapp ?? true,
           })
+          
+          if (data._id) {
+            fetch(`/api/rating/aggregate?targetId=${data._id}`)
+              .then(r => r.json())
+              .then(aggData => {
+                if (aggData.aggregate) {
+                  setRating({
+                    averageScore: aggData.aggregate.averageScore,
+                    totalCount: aggData.aggregate.totalCount
+                  })
+                }
+              })
+              .catch(console.error)
+          }
+
           setRecommendations({
             recommendedBy: data.recommendedBy,
             recommendedDrivers: data.recommendedDrivers,
@@ -276,13 +294,18 @@ export function DriverProfileClient() {
 
   return (
     <div className="max-w-xl rounded-xl border border-slate-800/60 bg-slate-900/40 p-4 sm:p-6">
-      <div className="mb-4 flex items-center gap-2">
-        <Truck className="size-6 shrink-0 text-amber-400" />
-        <h1 className="text-xl font-bold">
-          {isNewRegistration
-            ? t('Welcome! Complete your profile', 'مرحباً! أكمل ملفك الشخصي')
-            : t('Your driver profile', 'ملف السائق')}
-        </h1>
+      <div className="mb-4 flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Truck className="size-6 shrink-0 text-amber-400" />
+          <h1 className="text-xl font-bold">
+            {isNewRegistration
+              ? t('Welcome! Complete your profile', 'مرحباً! أكمل ملفك الشخصي')
+              : t('Your driver profile', 'ملف السائق')}
+          </h1>
+        </div>
+        {!isNewRegistration && rating && rating.totalCount > 0 && (
+          <EntityRatingBadge averageScore={rating.averageScore} totalCount={rating.totalCount} size="md" />
+        )}
       </div>
       <p className="mb-6 text-base text-slate-400">
         {isNewRegistration

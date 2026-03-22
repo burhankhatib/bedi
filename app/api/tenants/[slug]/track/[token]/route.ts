@@ -150,7 +150,7 @@ export async function GET(
   }
 
   const driverRef = order.assignedDriver?._ref
-  let driver: { _id: string; name: string; phoneNumber: string; lat: number | null; lng: number | null } | null = null
+  let driver: { _id: string; name: string; phoneNumber: string; lat: number | null; lng: number | null; rating?: { averageScore: number; totalCount: number } | null } | null = null
   if (driverRef) {
     const driverDoc = await freshClient.fetch<{
       _id: string
@@ -171,6 +171,25 @@ export async function GET(
         phoneNumber: driverDoc.phoneNumber,
         lat: driverDoc.lastKnownLat ?? null,
         lng: driverDoc.lastKnownLng ?? null,
+      }
+      
+      // Fetch driver rating from API
+      try {
+        const port = req.nextUrl.port ? `:${req.nextUrl.port}` : ''
+        const host = req.headers.get('host') || `${req.nextUrl.hostname}${port}`
+        const protocol = host.includes('localhost') ? 'http' : 'https'
+        const res = await fetch(`${protocol}://${host}/api/rating/aggregate?targetId=${driverDoc._id}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.aggregate) {
+            driver.rating = {
+              averageScore: data.aggregate.averageScore,
+              totalCount: data.aggregate.totalCount
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[TrackAPI] Error fetching driver rating:', err)
       }
     }
   }

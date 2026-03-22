@@ -9,6 +9,8 @@ import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { getDriverInviteMessageAr } from '@/lib/driver-invite'
 import { toEnglishDigits } from '@/lib/phone'
 
+import { EntityRatingBadge } from '@/components/rating/EntityRatingBadge'
+
 const COUNTRY_CODES = [
   { value: '972', label: '+972' },
   { value: '970', label: '+970' },
@@ -24,6 +26,7 @@ type DriverInArea = {
   isOnline?: boolean
   isVerifiedByAdmin?: boolean
   picture?: { asset?: { _ref: string } }
+  rating?: { averageScore: number; totalCount: number } | null
 }
 
 export function DriversManageClient({
@@ -198,6 +201,9 @@ export function DriversManageClient({
                         </div>
                       )}
                     </span>
+                    {d.rating && d.rating.totalCount > 0 && (
+                      <EntityRatingBadge averageScore={d.rating.averageScore} totalCount={d.rating.totalCount} size="sm" />
+                    )}
                     {d.nickname && d.nickname !== d.name && (
                       <span className="text-xs text-slate-500">({d.name})</span>
                     )}

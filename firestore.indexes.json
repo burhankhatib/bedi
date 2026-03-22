@@ -1,0 +1,33 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "ratingsActive",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "targetId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "updatedAtMs", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "ratingPrompts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "raterId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "flowStep", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "ratingPrompts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "orderId", "order": "ASCENDING" },
+        { "fieldPath": "raterId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "flowStep", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

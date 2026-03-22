@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { getFirestoreAdmin } from '@/lib/firebase-admin'
 import { sanityFetch } from '@/sanity/lib/fetch'
 import { urlFor } from '@/sanity/lib/image'
 import { normalizeSectionKey } from '@/lib/section-key'
@@ -209,6 +210,38 @@ export async function GET(req: NextRequest) {
   }
   availableAreasList.sort((a, b) => (a.name_en || a.name_ar).localeCompare(b.name_en || b.name_ar))
 
+  const db = getFirestoreAdmin()
+  const tenantIds = tenants.map(t => t._id)
+  
+  // Fetch aggregates for all tenants returned
+  const ratingsMap = new Map<string, { averageScore: number; totalCount: number }>()
+  
+  if (db && tenantIds.length > 0) {
+    try {
+      // Chunk to avoid "in" limits, though limit is usually 30. We'll just fetch them all or do batches.
+      // Easiest is to fetch all docs from ratingAggregates where id in tenantIds. 
+      // Since tenantIds might be large, we'll slice it into chunks of 30
+      for (let i = 0; i < tenantIds.length; i += 30) {
+        const chunk = tenantIds.slice(i, i + 30)
+        const aggsSnap = await db.collection('ratingAggregates')
+          .where('targetRole', '==', 'business')
+          // Using where in requires `id` or Document ID. We used targetId as doc ID in previous phase.
+          .where('id', 'in', chunk)
+          .get()
+        
+        for (const doc of aggsSnap.docs) {
+          const data = doc.data()
+          ratingsMap.set(doc.id, {
+            averageScore: typeof data.averageScore === 'number' ? data.averageScore : 0,
+            totalCount: typeof data.totalCount === 'number' ? data.totalCount : 0
+          })
+        }
+      }
+    } catch (err) {
+      console.error('[home/tenants] Failed to fetch ratings:', err)
+    }
+  }
+
   const result = tenants.map((t) => {
     const slug = typeof t.slug === 'string' ? t.slug : null
     const logoSource = t.businessLogo?.asset?._ref ? t.businessLogo : t.restaurantLogo?.asset?._ref ? t.restaurantLogo : null
@@ -233,6 +266,7 @@ export async function GET(req: NextRequest) {
       logoUrl,
       sections,
       popularItems,
+      rating: ratingsMap.get(t._id) || null
     }
   })
 

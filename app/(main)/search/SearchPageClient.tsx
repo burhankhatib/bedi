@@ -34,6 +34,7 @@ type Tenant = {
   logoUrl: string | null
   sections: Localized[]
   popularItems: Localized[]
+  rating?: { averageScore: number; totalCount: number } | null
 }
 
 type Meta = {
@@ -679,6 +680,7 @@ export function SearchPageClient() {
                               displayName={(lang === 'ar' ? b.name_ar : b.name_en) || b.name}
                               businessType={b.businessType}
                               freeDeliveryEnabled={b.freeDeliveryEnabled}
+                              rating={(b as any).rating}
                               lang={lang}
                               t={t}
                               useFullPageLink
@@ -790,6 +792,7 @@ export function SearchPageClient() {
                     businessType={tenant.businessType}
                     freeDeliveryEnabled={tenant.freeDeliveryEnabled}
                     sections={tenant.sections}
+                    rating={tenant.rating}
                     lang={lang}
                     t={t}
                     useFullPageLink

@@ -149,6 +149,7 @@ export default async function TenantMenuPage({
     requiresPersonalShopper: tenant.requiresPersonalShopper ?? false,
     supportsDriverPickup: tenant.supportsDriverPickup ?? false,
     shopperFee: tenant.shopperFee ?? 10,
+    tenantId: tenant._id,
   }
 
   return (
