@@ -69,11 +69,15 @@ export async function POST(
   const url = baseUrl ? `${baseUrl.replace(/\/$/, '')}${path}` : path
 
   if (isFCMConfigured() || isPushConfigured()) {
-    await sendTenantAndStaffPush(tenantId, {
-      title: `${tableLabel} needs assistance`,
-      body: 'A customer requested a waiter. Tap to open orders.',
-      url,
-    })
+    await sendTenantAndStaffPush(
+      tenantId,
+      {
+        title: `${tableLabel} needs assistance`,
+        body: 'A customer requested a waiter. Tap to open orders.',
+        url,
+      },
+      { eventType: 'table_service' }
+    )
   }
 
   return NextResponse.json({ success: true })

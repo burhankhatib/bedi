@@ -94,7 +94,7 @@ export async function POST(
       : `Customer would like to pay with ${paymentMethod === 'cash' ? 'cash' : 'card'}.`
     const path = `/t/${slug}/orders?open=${order._id}`
     const url = baseUrl ? `${baseUrl.replace(/\/$/, '')}${path}` : path
-    await sendTenantAndStaffPush(order.site._ref, { title, body, url })
+    await sendTenantAndStaffPush(order.site._ref, { title, body, url }, { eventType: 'table_service' })
   }
 
   return NextResponse.json({ success: true })

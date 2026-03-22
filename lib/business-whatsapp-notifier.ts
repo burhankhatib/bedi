@@ -2,6 +2,9 @@ import type { SanityClient } from '@sanity/client'
 import { appendOrderNotificationDiagnostic } from '@/lib/notification-diagnostics'
 import { cleanWhatsAppRecipientPhone, sendTenantNewOrderWhatsApp } from '@/lib/send-tenant-new-order-whatsapp'
 import { isStaffOnShiftNow } from '@/lib/staff-shift-availability'
+import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
+import { isFCMConfigured } from '@/lib/fcm'
+import { isPushConfigured } from '@/lib/push'
 
 type NotifyMode = 'instant' | 'unaccepted-reminder'
 
@@ -29,6 +32,8 @@ type StaffWorkSchedule = {
 }
 
 type OrderWhatsAppSummary = {
+  status?: string
+  orderNumber?: string
   customerName?: string
   customerPhone?: string
   orderType?: string
@@ -97,7 +102,8 @@ async function getBusinessWhatsappRecipients(
 
   for (const s of data?.staff ?? []) {
     if (s.status && s.status !== 'active') continue
-    if (!isStaffOnShiftNow(s.workSchedule)) continue
+    // 3‑min unaccepted reminder: same urgency as delivery — notify staff even if not “on shift”
+    if (mode !== 'unaccepted-reminder' && !isStaffOnShiftNow(s.workSchedule)) continue
     if (!allowStaffForMode(s.notificationRules)) continue
     const phone = asCleanPhone(s.whatsappPhone || s.phoneNumber || s.phone || s.mobile)
     if (phone) candidates.push({ phone, source: 'tenantStaff.phone' })
@@ -127,7 +133,11 @@ export async function notifyBusinessWhatsappForOrder(params: {
   attempted: number
   sent: number
   allFailed: boolean
-  skippedReason?: 'instant_already_sent' | 'no_recipients' | 'order_whatsapp_already_handled'
+  skippedReason?:
+    | 'instant_already_sent'
+    | 'no_recipients'
+    | 'order_whatsapp_already_handled'
+    | 'order_not_new'
 }> {
   const {
     writeClient,
@@ -147,6 +157,8 @@ export async function notifyBusinessWhatsappForOrder(params: {
     }) | null
   >(
     `*[_type == "order" && _id == $orderId][0]{
+      status,
+      orderNumber,
       customerName,
       customerPhone,
       orderType,
@@ -161,6 +173,20 @@ export async function notifyBusinessWhatsappForOrder(params: {
     }`,
     { orderId }
   )
+
+  if (!orderDoc) {
+    return { attempted: 0, sent: 0, allFailed: false, skippedReason: 'order_whatsapp_already_handled' }
+  }
+
+  if (mode === 'unaccepted-reminder' && orderDoc.status !== 'new') {
+    await appendOrderNotificationDiagnostic(writeClient, orderId, {
+      source: 'business-whatsapp-notifier',
+      level: 'info',
+      message: 'Unaccepted reminder skipped: order missing or no longer in status "new"',
+      detail: { status: orderDoc?.status },
+    })
+    return { attempted: 0, sent: 0, allFailed: false, skippedReason: 'order_not_new' }
+  }
 
   // One business WhatsApp per order (instant takes precedence over ~3min reminder).
   if (mode === 'instant' && orderDoc?.businessWhatsappInstantNotifiedAt) {
@@ -199,6 +225,45 @@ export async function notifyBusinessWhatsappForOrder(params: {
       detail: { mode, instantAt: orderDoc.businessWhatsappInstantNotifiedAt },
     })
     return { attempted: 0, sent: 0, allFailed: false, skippedReason: 'instant_already_sent' }
+  }
+
+  // FCM / Web Push: same fan-out as new orders (3a tenant legacy → 3b central → 3c staff legacy) for every order type still in "new" after ~3 min (dine-in, pickup, delivery, collaborative QR, etc.)
+  if (
+    mode === 'unaccepted-reminder' &&
+    orderDoc?.status === 'new' &&
+    (isFCMConfigured() || isPushConfigured())
+  ) {
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? ''
+      const base = baseUrl ? baseUrl.replace(/\/$/, '') : ''
+      let slug = (tenantSlug || '').trim()
+      if (!slug) {
+        const s = await writeClient.fetch<{ slug?: string } | null>(
+          `*[_type == "tenant" && _id == $tenantId][0]{ "slug": slug.current }`,
+          { tenantId }
+        )
+        slug = (s?.slug ?? '').trim()
+      }
+      const path = slug ? `/t/${slug}/orders?open=${encodeURIComponent(orderId)}` : '/orders'
+      const url = base ? `${base}${path}` : path
+      const orderNum = orderDoc.orderNumber != null ? String(orderDoc.orderNumber) : orderId.slice(-6)
+      const title = `طلب لم يُقبل بعد — #${orderNum}`
+      const body =
+        'الطلب ما زال جديداً بعد 3 دقائق. افتح التطبيق للقبول أو المراجعة.'
+      await sendTenantAndStaffPush(
+        tenantId,
+        { title, body, url, dir: 'rtl' },
+        { eventType: 'unaccepted_reminder' }
+      )
+    } catch (e) {
+      console.warn('[business-whatsapp-notifier] unaccepted-reminder FCM fan-out failed', orderId, e)
+      await appendOrderNotificationDiagnostic(writeClient, orderId, {
+        source: 'business-whatsapp-notifier',
+        level: 'warn',
+        message: 'Unaccepted-reminder FCM fan-out failed (WhatsApp may still send)',
+        detail: { error: e instanceof Error ? e.message : String(e) },
+      })
+    }
   }
 
   const recipients = await getBusinessWhatsappRecipients(writeClient, tenantId, mode)

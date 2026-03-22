@@ -3,6 +3,11 @@
  * Primary: queries central userPushSubscription table (same system as Customer FCM).
  * Fallback: legacy fcmTokens arrays on tenant / tenantStaff documents.
  *
+ * Order of delivery (important for solo tenants with no staff):
+ * 1) Legacy tokens on the **tenant** document first (owner devices).
+ * 2) Central userPushSubscription fan-out (owner + staff).
+ * 3) Legacy tokens on **tenantStaff** documents only.
+ *
  * IMPORTANT: Uses noCdnClient for ALL reads so newly-saved subscriptions are
  * always visible (CDN cache can lag by up to 60 s, causing missed notifications).
  */
@@ -23,7 +28,12 @@ export type TenantPushPayload = {
   dir?: 'rtl' | 'ltr'
 }
 
-export type TenantPushEventType = 'new_order' | 'unaccepted_reminder' | 'order_update'
+export type TenantPushEventType =
+  | 'new_order'
+  | 'unaccepted_reminder'
+  | 'order_update'
+  /** Waiter / check requests from dine-in QR or tracking — notify all active staff, not only “on shift” */
+  | 'table_service'
 
 // ──────────────────────────────────────────────────────────
 // Types for legacy docs
@@ -101,6 +111,7 @@ async function sendToLegacyDoc(
       const result = await sendFCMToTokenDetailed(tok, payload)
       if (result.ok) {
         sent = true
+        alreadySentTokens.add(tok)
       } else if (result.permanent) {
         staleTokens.push({ docId: doc._id, token: tok, docType })
       }
@@ -113,7 +124,10 @@ async function sendToLegacyDoc(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
       payload
     )
-    if (ok) sent = true
+    if (ok) {
+      sent = true
+      alreadySentTokens.add(sub.endpoint)
+    }
   }
 
   return { sent, staleTokens }
@@ -165,6 +179,7 @@ export async function sendTenantAndStaffPush(
   const eventType = options?.eventType ?? 'order_update'
   const allowStaffForEvent = (rules?: StaffNotificationRules): boolean => {
     if (rules?.receiveFcm === false) return false
+    if (eventType === 'table_service') return true
     if (eventType === 'new_order') return rules?.newOrder !== false
     if (eventType === 'unaccepted_reminder') return rules?.unacceptedOrderReminder !== false
     return true
@@ -203,7 +218,14 @@ export async function sendTenantAndStaffPush(
 
   const eligibleStaff = (staffList ?? []).filter((s) => {
     if (s.status && s.status !== 'active') return false
-    if (!isStaffOnShiftNow(s.workSchedule)) return false
+    // Table / waiter / check + 3‑min unaccepted FCM must reach active employees, not only those “on shift”
+    if (
+      eventType !== 'table_service' &&
+      eventType !== 'unaccepted_reminder' &&
+      !isStaffOnShiftNow(s.workSchedule)
+    ) {
+      return false
+    }
     return allowStaffForEvent(s.notificationRules)
   })
 
@@ -213,7 +235,8 @@ export async function sendTenantAndStaffPush(
     ...eligibleStaff.map((s) => s.clerkUserId),
   ].filter((id): id is string => !!id)
 
-  // Step 2: query central userPushSubscription table for eligible users (noCdn)
+  // Step 2: query central userPushSubscription for this business (noCdn).
+  // Include: owner/staff by Clerk id, site-linked subs, and any doc that references the tenant (covers edge cases where sites[] shape differs).
   let centralSubs: CentralSub[] = []
   if (clerkUserIds.length > 0 || tenantId) {
     try {
@@ -221,8 +244,12 @@ export async function sendTenantAndStaffPush(
         `*[
           _type == "userPushSubscription" &&
           roleContext == "tenant" &&
-          (clerkUserId in $ids || $tenantId in sites[]._ref) &&
-          isActive != false
+          isActive != false &&
+          (
+            clerkUserId in $ids ||
+            $tenantId in sites[]._ref ||
+            references($tenantId)
+          )
         ]{ _id, clerkUserId, roleContext, devices }`,
         { ids: clerkUserIds.length > 0 ? clerkUserIds : ['__dummy_id__'], tenantId }
       )
@@ -244,7 +271,7 @@ export async function sendTenantAndStaffPush(
   console.log(`[tenant-push] Resolving central subs for tenant ${tenantId}. found: ${centralSubs.length}. clerkUserIds: ${clerkUserIds.join(', ')}`)
 
   let sent = false
-  // Track tokens already sent via central so we don't double-send via legacy
+  // Track tokens/endpoints already delivered so we don't double-send
   const sentTokens = new Set<string>()
 
   // Array to hold cleanup promises for central devices
@@ -257,13 +284,24 @@ export async function sendTenantAndStaffPush(
     console.warn(`[tenant-push] No clerkUserIds found for tenant ${tenantId} or its staff`)
   }
 
-  // Step 3: send via central subscriptions
+  const allStaleTokens: StaleToken[] = []
+
+  // Step 3a: Tenant document FIRST — solo businesses (no staff) rely on legacy fcmTokens / web push on the tenant doc.
+  // This guarantees the owner is always attempted before staff-heavy central fan-out.
+  if (tenantDoc) {
+    console.log(`[tenant-push] Sending to tenant doc first (owner legacy): ${tenantDoc._id}`)
+    const { sent: ok, staleTokens } = await sendToLegacyDoc(tenantDoc, 'tenant', payload, sentTokens)
+    if (ok) sent = true
+    allStaleTokens.push(...staleTokens)
+  }
+
+  // Step 3b: send via central subscriptions (owner + staff devices registered in userPushSubscription)
   for (const sub of centralSubs) {
     if (!sub.devices || sub.devices.length === 0) continue
 
     for (const device of sub.devices) {
       let fcmSent = false
-      if (device.fcmToken) {
+      if (device.fcmToken && !sentTokens.has(device.fcmToken)) {
         console.log(`[tenant-push] Sending to central FCM token: ${device.fcmToken.substring(0, 10)}...`)
         const { sent: ok, permanent } = await sendCentralFcm(device.fcmToken, payload)
         if (ok) {
@@ -284,7 +322,7 @@ export async function sendTenantAndStaffPush(
       // Web push via central sub
       if (!fcmSent && device.webPush) {
         const wp = device.webPush
-        if (wp.endpoint && wp.p256dh && wp.auth && isPushConfigured()) {
+        if (wp.endpoint && !sentTokens.has(wp.endpoint) && wp.p256dh && wp.auth && isPushConfigured()) {
           console.log(`[tenant-push] Sending to central WebPush endpoint: ${wp.endpoint.substring(0, 20)}...`)
           const ok = await sendPushNotification(
             { endpoint: wp.endpoint, keys: { p256dh: wp.p256dh, auth: wp.auth } },
@@ -307,23 +345,18 @@ export async function sendTenantAndStaffPush(
     }
   }
 
-  // Step 4: send via legacy fields (only tokens not already sent above)
-  const allLegacy: Array<{ doc: LegacyDoc; docType: 'tenant' | 'tenantStaff' }> = []
-  if (tenantDoc) allLegacy.push({ doc: tenantDoc, docType: 'tenant' })
-  for (const staff of eligibleStaff) allLegacy.push({ doc: staff, docType: 'tenantStaff' })
-  
-  console.log(`[tenant-push] Resolving legacy docs. Found: ${allLegacy.length}`)
-
-  const allStaleTokens: StaleToken[] = []
-  for (const { doc, docType } of allLegacy) {
-    console.log(`[tenant-push] Sending to legacy doc: ${doc._id} (${docType})`)
-    const { sent: ok, staleTokens } = await sendToLegacyDoc(doc, docType, payload, sentTokens)
+  // Step 3c: Staff legacy only (tenant doc was already handled in 3a)
+  for (const staff of eligibleStaff) {
+    console.log(`[tenant-push] Sending to legacy staff doc: ${staff._id}`)
+    const { sent: ok, staleTokens } = await sendToLegacyDoc(staff, 'tenantStaff', payload, sentTokens)
     if (ok) sent = true
     allStaleTokens.push(...staleTokens)
   }
-  
-  if (allLegacy.length > 0) {
-    console.log(`[tenant-push] Legacy docs processed. Outcome: sent=${sent}, staleTokens=${allStaleTokens.length}`)
+
+  if (tenantDoc || eligibleStaff.length > 0) {
+    console.log(
+      `[tenant-push] Legacy pass complete. tenantDoc=${!!tenantDoc}, staffDocs=${eligibleStaff.length}, sent=${sent}, staleTokens=${allStaleTokens.length}`
+    )
   }
 
   // Fire-and-forget cleanup
@@ -339,7 +372,7 @@ export async function sendTenantAndStaffPush(
       `[tenant-push] ⚠️ PUSH NOT DELIVERED for tenant ${tenantId}. ` +
       `centralSubs=${centralSubs.length}, ` +
       `totalDevices=${centralSubs.reduce((n, s) => n + (s.devices?.length ?? 0), 0)}, ` +
-      `legacyDocs=${allLegacy.length}, ` +
+      `tenantLegacy=${tenantDoc ? 1 : 0}, staffLegacyDocs=${eligibleStaff.length}, ` +
       `clerkUserIds=[${clerkUserIds.join(',')}]. ` +
       `Payload: ${payload.title}`
     )
