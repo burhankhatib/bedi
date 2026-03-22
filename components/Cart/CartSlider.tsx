@@ -375,11 +375,16 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         (cartTenant?.slug && String(cartTenant.slug).trim()) ||
         (typeof result.siteSlug === 'string' && result.siteSlug.trim()) ||
         ''
-      if (result.trackingToken && slugForTrack) {
-        router.replace(`/t/${slugForTrack}/track/${result.trackingToken}`)
-      } else if (result.orderId && slugForTrack) {
-        router.replace(`/t/${slugForTrack}/order/${result.orderId}`)
+      // Defer soft navigation until after React commits cart closed — otherwise router.replace
+      // can run while cartOpen is still true and the track page stays behind pointer-events-none / Sheet overlay.
+      const go = () => {
+        if (result.trackingToken && slugForTrack) {
+          router.replace(`/t/${slugForTrack}/track/${result.trackingToken}`)
+        } else if (result.orderId && slugForTrack) {
+          router.replace(`/t/${slugForTrack}/order/${result.orderId}`)
+        }
       }
+      setTimeout(go, 0)
     } catch (error) {
       console.error('Error sending order:', error)
       showToast(

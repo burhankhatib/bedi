@@ -1,4 +1,5 @@
 import { normalizePhoneForWhatsApp } from '@/lib/whatsapp'
+import { WHATSAPP_TEMPLATE, WHATSAPP_TEMPLATE_LANGUAGE_FALLBACK } from '@/lib/whatsapp-meta-templates'
 
 function graphApiVersion(): string {
   const v = (process.env.WHATSAPP_GRAPH_API_VERSION || 'v21.0').trim()
@@ -25,6 +26,8 @@ async function readJsonOrText(res: Response): Promise<unknown> {
 export type WhatsAppTemplateSendResult = {
   success: boolean
   error?: unknown
+  /** Graph `messages[0].id` — use in Meta Business Suite to trace delivery. */
+  messageId?: string
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -86,7 +89,9 @@ export async function sendWhatsAppTemplateMessage(
   templateName: string,
   variables: string[] = [],
   languageCode: string = 'ar',
-  buttonVariable?: string
+  buttonVariable?: string,
+  /** Required when the template has a dynamic HEADER IMAGE (Meta error 132012). */
+  headerImageUrl?: string
 ): Promise<WhatsAppTemplateSendResult> {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
@@ -120,8 +125,20 @@ export async function sendWhatsAppTemplateMessage(
     },
   }
 
-  if (variables.length > 0 || buttonVariable) {
+  if (variables.length > 0 || buttonVariable || headerImageUrl) {
     payload.template.components = []
+
+    if (headerImageUrl) {
+      payload.template.components.push({
+        type: 'header',
+        parameters: [
+          {
+            type: 'image',
+            image: { link: headerImageUrl },
+          },
+        ],
+      })
+    }
 
     if (variables.length > 0) {
       payload.template.components.push({
@@ -164,7 +181,18 @@ export async function sendWhatsAppTemplateMessage(
         body: JSON.stringify(payload),
       })
 
-      if (res.ok) return { success: true }
+      if (res.ok) {
+        const data = (await readJsonOrText(res)) as {
+          messages?: Array<{ id?: string }>
+        }
+        const messageId = typeof data?.messages?.[0]?.id === 'string' ? data.messages[0].id : undefined
+        if (messageId) {
+          console.log('[Meta WhatsApp] Accepted. wamid:', messageId)
+        } else {
+          console.log('[Meta WhatsApp] Accepted (no wamid in response — unusual; verify delivery in Meta)')
+        }
+        return { success: true, messageId }
+      }
 
       const errorData = await readJsonOrText(res)
       console.error('[Meta WhatsApp] API error:', JSON.stringify(errorData, null, 2))
@@ -181,6 +209,38 @@ export async function sendWhatsAppTemplateMessage(
     console.error('[Meta WhatsApp] Exception sending message:', error)
     return { success: false, error }
   }
+}
+
+/**
+ * Same as sendWhatsAppTemplateMessage but tries approved language codes in order
+ * (ar_EG → ar → en_US → en) so one template works across Meta locale drift.
+ */
+export async function sendWhatsAppTemplateMessageWithLangFallback(
+  phone: string,
+  templateName: string,
+  variables: string[] = [],
+  buttonVariable?: string,
+  headerImageUrl?: string
+): Promise<WhatsAppTemplateSendResult> {
+  let lastError: unknown
+  for (const lang of WHATSAPP_TEMPLATE_LANGUAGE_FALLBACK) {
+    const r = await sendWhatsAppTemplateMessage(phone, templateName, variables, lang, buttonVariable, headerImageUrl)
+    if (r.success) return r
+    lastError = r.error
+  }
+  return { success: false, error: lastError }
+}
+
+/**
+ * subscription_reminder_v2: body only, {{1}} = days remaining (Marketing; static header in Meta if any).
+ */
+export async function sendSubscriptionReminderWhatsApp(
+  phone: string,
+  templateName: string,
+  daysLeft: number
+): Promise<WhatsAppTemplateSendResult> {
+  const vars = [String(Math.max(1, Math.round(daysLeft)))]
+  return sendWhatsAppTemplateMessageWithLangFallback(phone, templateName, vars)
 }
 
 /**
@@ -256,59 +316,65 @@ export async function sendWhatsAppAuthOTP(phone: string, code: string) {
 
   const url = `https://graph.facebook.com/${graphApiVersion()}/${phoneNumberId}/messages`
 
-  const payload = {
-    messaging_product: 'whatsapp',
-    to,
-    type: 'template',
-    template: {
-      name: 'otp',
-      language: {
-        code: 'ar_EG',
-      },
-      components: [
-        {
-          type: 'body',
-          parameters: [
-            {
-              type: 'text',
-              text: code,
-            },
-          ],
+  let lastError: unknown
+  for (const lang of WHATSAPP_TEMPLATE_LANGUAGE_FALLBACK) {
+    const payload = {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'template',
+      template: {
+        name: WHATSAPP_TEMPLATE.OTP,
+        language: {
+          code: lang,
         },
-        {
-          type: 'button',
-          sub_type: 'url',
-          index: '0',
-          parameters: [
-            {
-              type: 'text',
-              text: code,
-            },
-          ],
-        },
-      ],
-    },
-  }
-
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
+        components: [
+          {
+            type: 'body',
+            parameters: [
+              {
+                type: 'text',
+                text: code,
+              },
+            ],
+          },
+          {
+            type: 'button',
+            sub_type: 'url',
+            index: '0',
+            parameters: [
+              {
+                type: 'text',
+                text: code,
+              },
+            ],
+          },
+        ],
       },
-      body: JSON.stringify(payload),
-    })
-
-    if (!res.ok) {
-      const errorData = await readJsonOrText(res)
-      console.error('[Meta WhatsApp OTP] API error:', JSON.stringify(errorData, null, 2))
-      return { success: false, error: errorData }
     }
 
-    return { success: true }
-  } catch (error) {
-    console.error('[Meta WhatsApp OTP] Exception sending OTP:', error)
-    return { success: false, error }
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (res.ok) {
+        const data = (await readJsonOrText(res)) as { messages?: Array<{ id: string }> }
+        return { success: true, messageId: data.messages?.[0]?.id }
+      }
+
+      const errorData = await readJsonOrText(res)
+      lastError = errorData
+      console.error('[Meta WhatsApp OTP] API error:', JSON.stringify(errorData, null, 2))
+    } catch (error) {
+      lastError = error
+      console.error('[Meta WhatsApp OTP] Exception sending OTP:', error)
+    }
   }
+
+  return { success: false, error: lastError }
 }

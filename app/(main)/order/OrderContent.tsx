@@ -148,7 +148,9 @@ export default function OrderContent() {
       const slug =
         (typeof result.siteSlug === 'string' && result.siteSlug.trim()) || ''
       if (result.trackingToken && slug) {
-        router.replace(`/t/${slug}/track/${result.trackingToken}`)
+        setTimeout(() => {
+          router.replace(`/t/${slug}/track/${result.trackingToken}`)
+        }, 0)
       }
     } catch (e) {
       setSendToManagementError(e instanceof Error ? e.message : t('Failed to send order', 'فشل إرسال الطلب'))

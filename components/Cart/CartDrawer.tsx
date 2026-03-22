@@ -429,11 +429,14 @@ export function CartDrawer() {
         (cartTenant?.slug && String(cartTenant.slug).trim()) ||
         (typeof result.siteSlug === 'string' && result.siteSlug.trim()) ||
         ''
-      if (result.trackingToken && slugForRedirect) {
-        router.replace(`/t/${slugForRedirect}/track/${result.trackingToken}`)
-      } else if (result.orderId && slugForRedirect) {
-        router.replace(`/t/${slugForRedirect}/order/${result.orderId}`)
+      const go = () => {
+        if (result.trackingToken && slugForRedirect) {
+          router.replace(`/t/${slugForRedirect}/track/${result.trackingToken}`)
+        } else if (result.orderId && slugForRedirect) {
+          router.replace(`/t/${slugForRedirect}/order/${result.orderId}`)
+        }
       }
+      setTimeout(go, 0)
     } catch (error) {
       console.error('Error sending order:', error)
       showToast(

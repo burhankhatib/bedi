@@ -11,7 +11,7 @@ import { sendAdminNotification } from '@/lib/admin-push'
  * Configure in Meta Developer Console:
  * - Callback URL: https://yourdomain.com/api/webhooks/whatsapp
  * - Verify token: Set WHATSAPP_VERIFY_TOKEN in .env
- * - Subscribe to: messages
+ * - Subscribe to: messages (includes inbound messages + outbound status: sent/delivered/failed)
  */
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -39,10 +39,43 @@ export async function POST(request: NextRequest) {
       for (const change of changes) {
         if (change.field !== 'messages') continue
         const value = change.value ?? {}
-        const messages = value.messages ?? []
         const phoneNumberId = value.metadata?.phone_number_id
         const phoneNumberIdEnv = process.env.WHATSAPP_PHONE_NUMBER_ID
-        if (phoneNumberId !== phoneNumberIdEnv) continue
+        if (phoneNumberIdEnv && phoneNumberId && phoneNumberId !== phoneNumberIdEnv) continue
+
+        /** Outbound template/status updates — Meta reports delivery failures here (user "sees nothing"). */
+        const statuses = (value.statuses ?? []) as Array<{
+          id?: string
+          status?: string
+          recipient_id?: string
+          errors?: Array<{ code?: number; title?: string; message?: string; error_data?: unknown }>
+        }>
+        for (const st of statuses) {
+          const id = st.id ?? ''
+          const status = st.status ?? ''
+          const errs = st.errors ?? []
+          if (status === 'failed' || errs.length > 0) {
+            console.error(
+              '[WhatsApp Webhook] OUTBOUND FAILED',
+              JSON.stringify({
+                wamid: id,
+                status,
+                recipient_id: st.recipient_id,
+                errors: errs,
+              })
+            )
+          } else if (id || status) {
+            console.log(
+              '[WhatsApp Webhook] outbound',
+              status || '?',
+              'to',
+              st.recipient_id ?? '?',
+              id ? `wamid=${id.slice(0, 24)}…` : ''
+            )
+          }
+        }
+
+        const messages = value.messages ?? []
 
         for (const msg of messages) {
           const from = String(msg.from ?? '')

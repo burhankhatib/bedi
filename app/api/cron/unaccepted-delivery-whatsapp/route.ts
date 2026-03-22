@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { GROQ_STATUS_AWAITING_DRIVER } from '@/lib/delivery-awaiting-driver-status'
-import { formatMetaWhatsAppApiError, sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
+import { sendWhatsAppTemplateMessageWithLangFallback } from '@/lib/meta-whatsapp'
+import { WHATSAPP_TEMPLATE } from '@/lib/whatsapp-meta-templates'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,21 +84,11 @@ export async function GET(req: Request) {
         for (const driver of drivers || []) {
           const phone = driver.phoneNumber?.trim()
           if (!phone) continue
-          let result = await sendWhatsAppTemplateMessage(phone, 'new_delivery', [], 'ar_EG')
-          if (!result.success) {
-            let errorStr = ''
-            if (result.error) {
-              if (typeof result.error === 'string') errorStr = result.error
-              else if ((result.error as { error?: { error_data?: { details?: string } } }).error?.error_data?.details) {
-                errorStr = (result.error as { error?: { error_data?: { details?: string } } }).error?.error_data?.details || ''
-              } else if ((result.error as { error?: { message?: string } }).error?.message) {
-                errorStr = (result.error as { error?: { message?: string } }).error?.message || ''
-              } else errorStr = JSON.stringify(result.error)
-            }
-            if (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar')) {
-              result = await sendWhatsAppTemplateMessage(phone, 'new_delivery', [], 'ar')
-            }
-          }
+          const result = await sendWhatsAppTemplateMessageWithLangFallback(
+            phone,
+            WHATSAPP_TEMPLATE.NEW_DELIVERY,
+            []
+          )
           if (result.success) {
             messagesSentForOrder++
             if (!driver.isOnline) {
@@ -205,25 +196,11 @@ export async function GET(req: Request) {
           for (const driver of drivers) {
             const phone = driver.phoneNumber?.trim()
             if (phone) {
-              let result = await sendWhatsAppTemplateMessage(
+              const result = await sendWhatsAppTemplateMessageWithLangFallback(
                 phone,
-                'new_delivery',
-                [],
-                'ar_EG'
+                WHATSAPP_TEMPLATE.NEW_DELIVERY,
+                []
               )
-
-              if (!result.success) {
-                const errorStr = formatMetaWhatsAppApiError(result.error)
-
-                if (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar')) {
-                  result = await sendWhatsAppTemplateMessage(
-                    phone,
-                    'new_delivery',
-                    [],
-                    'ar'
-                  )
-                }
-              }
 
               if (result.success) {
                 messagesSentForOrder++

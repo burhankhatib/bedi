@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
-import { sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
+import { sendWhatsAppTemplateMessageWithLangFallback } from '@/lib/meta-whatsapp'
+import { TENANT_NEW_ORDER_TEMPLATE } from '@/lib/send-tenant-new-order-whatsapp'
 
 export async function POST(req: Request) {
   const { userId, sessionClaims } = await auth()
@@ -19,11 +20,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Phone is required' }, { status: 400 })
     }
 
-    const result = await sendWhatsAppTemplateMessage(
+    const result = await sendWhatsAppTemplateMessageWithLangFallback(
       phone,
-      'new_order',
-      [tenantName || 'Business'],
-      'ar_EG'
+      TENANT_NEW_ORDER_TEMPLATE,
+      [
+        tenantName || 'Business',
+        '📦 الطلبات: 1× اختبار (10 ILS) ⸻ 💰 الإجمالي: 10 ILS ⸻ 👤 عميل ⸻ 📞 — ⸻ استلام 🏃',
+      ]
     )
 
     if (result.success) {

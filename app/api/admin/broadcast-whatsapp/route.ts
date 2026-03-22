@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
-import { formatMetaWhatsAppApiError, sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
+import { sendWhatsAppTemplateMessageWithLangFallback } from '@/lib/meta-whatsapp'
+import { WHATSAPP_TEMPLATE } from '@/lib/whatsapp-meta-templates'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 
@@ -118,25 +119,11 @@ export async function POST(req: Request) {
     for (const [phone, name] of recipients.entries()) {
       // name is {{1}}, message is {{2}}
       const firstName = name.split(' ')[0] || 'User'
-      let result = await sendWhatsAppTemplateMessage(
+      const result = await sendWhatsAppTemplateMessageWithLangFallback(
         phone,
-        'broadcast_message',
-        [firstName, message],
-        'ar_EG'
+        WHATSAPP_TEMPLATE.BROADCAST,
+        [firstName, message]
       )
-
-      if (!result.success) {
-        const errorStr = formatMetaWhatsAppApiError(result.error)
-
-        if (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar')) {
-          result = await sendWhatsAppTemplateMessage(
-            phone,
-            'broadcast_message',
-            [firstName, message],
-            'ar'
-          )
-        }
-      }
 
       if (result.success) {
         sentCount++

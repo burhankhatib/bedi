@@ -379,7 +379,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         if (active && data.trackingToken) {
           setItems([])
           setIsOpen(false)
-          router.replace(`/t/${cartTenant.slug}/track/${data.trackingToken}`)
+          setTimeout(() => {
+            router.replace(`/t/${cartTenant.slug}/track/${data.trackingToken}`)
+          }, 0)
         }
       })
 

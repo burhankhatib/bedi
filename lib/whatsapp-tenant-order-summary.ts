@@ -1,8 +1,13 @@
 /**
  * Formats the tenant "new order" WhatsApp template body (variable {{2}}).
- * Meta Cloud API template parameters do not allow newlines (\n, \r), tabs, or
- * Unicode line/paragraph separators — the sanitiser in send-tenant-new-order-whatsapp.ts
- * strips them.  We use  ·  (middle dot) and  |  as visual separators instead.
+ *
+ * Meta Cloud API rejects newlines, tabs, and 4+ consecutive spaces in template
+ * body parameters ("Param text cannot have new-line/tab characters…"). The
+ * sanitiser in send-tenant-new-order-whatsapp.ts enforces that, so we cannot
+ * produce true multi-line messages from code alone — only denser one-line text
+ * with strong visual section breaks (⸻ · • numbered items). For real
+ * paragraphs, Meta requires a new approved template (e.g. multiple body
+ * variables or fixed line breaks in the template text).
  */
 
 /** Strip country / macro-region tails; keep street + locality (e.g. أبو ديس - منطقة ب). */
@@ -74,20 +79,37 @@ function orderTypeLabelAr(orderType?: string | null): string {
   return 'استلام 🏃'
 }
 
+/** LTR embed so phone numbers and URLs are readable inside Arabic RTL bubbles. */
+function ltrEmbed(s: string): string {
+  const t = s.trim()
+  if (!t) return '—'
+  return `\u200E${t}\u200E`
+}
+
+const SECTION = ' ⸻ '
+
+/**
+ * One line per item when multiple (still one string for Meta); bullets for scanability.
+ */
 function formatItemsList(items: TenantOrderWhatsAppItem[] | null | undefined, currency: string): string {
   if (!items?.length) return 'لا توجد منتجات'
+  const cur = currency || 'ILS'
+  if (items.length === 1) {
+    const i = items[0]!
+    const name = i.productNameAr || i.productName || 'منتج'
+    return `${i.quantity}× ${name} (${i.total} ${cur})`
+  }
   return items
-    .map((i) => {
+    .map((i, idx) => {
       const name = i.productNameAr || i.productName || 'منتج'
-      const cur = currency || 'ILS'
-      return `${i.quantity}x ${name} (${i.total} ${cur})`
+      return `${idx + 1}) ${i.quantity}× ${name} (${i.total} ${cur})`
     })
-    .join(' | ')
+    .join('  •  ')
 }
 
 /**
- * Single string for Meta template body variable — avoid newlines (WhatsApp API rejects them in parameters).
- * Uses  ·  and  |  as separators for readability inside a single line.
+ * Single string for Meta template body variable — no newlines (API rejects them).
+ * Uses ⸻ (section), · (minor), and numbered lines for multi-item orders.
  */
 export function formatTenantNewOrderWhatsAppSummary(data: TenantOrderWhatsAppInput): string {
   const cur = (data.currency?.trim() || 'ILS')
@@ -112,16 +134,17 @@ export function formatTenantNewOrderWhatsAppSummary(data: TenantOrderWhatsAppInp
       lng: data.deliveryLng,
     })
     deliveryBlock =
-      ` | 📍 ${shortLabel}` +
-      ` | 🗺 خرائط: ${googleMaps}` +
-      ` | 🚙 ويز: ${waze}`
+      `${SECTION}📍 ${shortLabel}` +
+      `${SECTION}🗺 Google Maps: ${ltrEmbed(googleMaps)}` +
+      `${SECTION}🚙 Waze: ${ltrEmbed(waze)}`
   }
 
   return (
-    `🛒 ${itemsBlock}` +
-    ` | 💰 الإجمالي: ${total} ${cur}` +
-    ` | 👤 ${customerName}  📞 ${customerPhone}` +
-    ` | ${orderTypeLabel}` +
+    `📦 الطلبات: ${itemsBlock}` +
+    `${SECTION}💰 الإجمالي: ${total} ${cur}` +
+    `${SECTION}👤 ${customerName}` +
+    `${SECTION}📞 ${ltrEmbed(customerPhone)}` +
+    `${SECTION}${orderTypeLabel}` +
     deliveryBlock
   )
 }

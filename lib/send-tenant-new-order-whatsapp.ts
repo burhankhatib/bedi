@@ -1,18 +1,19 @@
 /**
- * Business "new order" WhatsApp: same Meta template (`new_order`) for instant + 3‑minute reminder.
+ * Business "new order" WhatsApp: same Meta template (`new_order_v2`) for instant + 3‑minute reminder.
  * Retries alternate language codes, optional URL button, and 1 vs 2 body variables for template drift.
  */
 
 import { sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
+import { WHATSAPP_TEMPLATE, WHATSAPP_TEMPLATE_LANGUAGE_FALLBACK } from '@/lib/whatsapp-meta-templates'
 import {
   formatTenantNewOrderWhatsAppSummary,
   type TenantOrderWhatsAppInput,
 } from '@/lib/whatsapp-tenant-order-summary'
 
-export const TENANT_NEW_ORDER_TEMPLATE = 'new_order'
+export const TENANT_NEW_ORDER_TEMPLATE = WHATSAPP_TEMPLATE.NEW_ORDER
 
 /** Template-approved language codes to try (first match wins). */
-const LANGUAGE_TRIES = ['ar_EG', 'ar', 'en_US', 'en'] as const
+const LANGUAGE_TRIES = WHATSAPP_TEMPLATE_LANGUAGE_FALLBACK
 
 /** WhatsApp body variables: stay under common Cloud API / template limits. */
 const MAX_BUSINESS_NAME_CHARS = 280
@@ -52,7 +53,7 @@ function sanitizeTemplateVariable(text: string, maxLen: number): string {
 
 function templateNamesToTry(): string[] {
   const raw = (process.env.WHATSAPP_NEW_ORDER_TEMPLATE_NAMES || '').trim()
-  if (!raw) return [TENANT_NEW_ORDER_TEMPLATE, 'neworder']
+  if (!raw) return [TENANT_NEW_ORDER_TEMPLATE]
   const list = raw
     .split(',')
     .map((s) => s.trim())
@@ -68,7 +69,7 @@ export type SendTenantNewOrderWhatsAppResult = {
 }
 
 /**
- * Send `new_order` to the business owner with full order summary + optional Maps/Waze (from formatter).
+ * Send `new_order_v2` to the business owner with full order summary + optional Maps/Waze (from formatter).
  */
 export async function sendTenantNewOrderWhatsApp(opts: {
   phone: string

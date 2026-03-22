@@ -33,7 +33,7 @@ export async function GET(req: Request) {
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
   // Orders still not accepted (status == new): send WhatsApp reminder using the same enhanced
-  // `new_order` template (full details + Maps/Waze) as instant notifications.
+  // `new_order_v2` template (full details + Maps/Waze) as instant notifications.
   // If instant WhatsApp already succeeded (`businessWhatsappInstantNotifiedAt`), do not send again —
   // many businesses rely on a single WhatsApp ping only (no app).
   // Gated by businessWhatsappUnacceptedReminderAt + no prior instant WhatsApp on the order.

@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
-import { formatMetaWhatsAppApiError, sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
+import { sendSubscriptionReminderWhatsApp } from '@/lib/meta-whatsapp'
+import { WHATSAPP_TEMPLATE } from '@/lib/whatsapp-meta-templates'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,25 +92,15 @@ export async function GET(req: Request) {
           })
 
           if (tenant.ownerPhone) {
-            let waResult = await sendWhatsAppTemplateMessage(
+            /** Meta body: `عدد الأيام … *{{1}}*` — {{1}} is the number of days only; language ar_EG. */
+            const subscriptionTemplate =
+              process.env.WHATSAPP_SUBSCRIPTION_REMINDER_TEMPLATE?.trim() ||
+              WHATSAPP_TEMPLATE.SUBSCRIPTION_REMINDER
+            const waResult = await sendSubscriptionReminderWhatsApp(
               tenant.ownerPhone,
-              'subscription_reminder',
-              [],
-              'ar_EG'
+              subscriptionTemplate,
+              daysLeft
             )
-            
-            if (!waResult.success) {
-              const errorStr = formatMetaWhatsAppApiError(waResult.error)
-
-              if (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar')) {
-                waResult = await sendWhatsAppTemplateMessage(
-                  tenant.ownerPhone,
-                  'subscription_reminder',
-                  [],
-                  'ar'
-                )
-              }
-            }
             if (!waResult.success) {
               console.error(`Failed to send WhatsApp reminder to ${tenant.ownerPhone}:`, waResult.error)
             }

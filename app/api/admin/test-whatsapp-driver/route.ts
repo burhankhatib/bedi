@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
-import { formatMetaWhatsAppApiError, sendWhatsAppTemplateMessage } from '@/lib/meta-whatsapp'
+import { sendWhatsAppTemplateMessageWithLangFallback } from '@/lib/meta-whatsapp'
+import { WHATSAPP_TEMPLATE } from '@/lib/whatsapp-meta-templates'
 
 export async function POST(req: Request) {
   const { userId, sessionClaims } = await auth()
@@ -19,24 +20,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Phone is required' }, { status: 400 })
     }
 
-    let result = await sendWhatsAppTemplateMessage(
+    const result = await sendWhatsAppTemplateMessageWithLangFallback(
       phone,
-      'new_delivery',
-      [],
-      'ar_EG'
+      WHATSAPP_TEMPLATE.NEW_DELIVERY,
+      []
     )
-
-    // Fallback if ar_EG fails due to template language mismatch
-    const errorStr = formatMetaWhatsAppApiError(result.error)
-
-    if (!result.success && (errorStr.includes('does not exist in ar_EG') || errorStr.includes('does not exist in ar'))) {
-      result = await sendWhatsAppTemplateMessage(
-        phone,
-        'new_delivery',
-        [],
-        'ar'
-      )
-    }
 
     if (result.success) {
       return NextResponse.json({ success: true })

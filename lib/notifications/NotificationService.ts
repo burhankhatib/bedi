@@ -18,7 +18,7 @@ export const NotificationService = {
   /**
    * Fires immediate notifications when a new order is placed.
    * 1) Pusher + FCM/Web Push to tenant staff (always when configured).
-   * 2) Instant WhatsApp (new_order + full order summary) when tenant.prioritizeWhatsapp is true.
+   * 2) Instant WhatsApp (new_order_v2 + full order summary) when tenant.prioritizeWhatsapp is true.
    *    Does not set the 3-minute-unaccepted gate — that uses businessWhatsappUnacceptedReminderAt.
    */
   async onNewOrder(params: {
