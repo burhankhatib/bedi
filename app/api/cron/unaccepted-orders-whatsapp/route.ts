@@ -52,8 +52,7 @@ export async function GET(req: Request) {
           _type == "order" &&
           _id == $orderId &&
           status == "new" &&
-          !defined(businessWhatsappUnacceptedReminderAt) &&
-          !defined(businessWhatsappInstantNotifiedAt)
+          !defined(businessWhatsappUnacceptedReminderAt)
         ][0]{
           _id,
           "tenantId": site._ref,
@@ -83,7 +82,7 @@ export async function GET(req: Request) {
         tenantName: order.tenantName,
         tenantNameAr: order.tenantNameAr,
         mode: 'unaccepted-reminder',
-        skipIfInstantAlreadySent: true,
+        skipIfInstantAlreadySent: false,
       })
       if (notify.allFailed) {
         // Return non-2xx so /api/jobs/process-due retries this job.
@@ -116,7 +115,6 @@ export async function GET(req: Request) {
         _type == "order" &&
         status == "new" &&
         !defined(businessWhatsappUnacceptedReminderAt) &&
-        !defined(businessWhatsappInstantNotifiedAt) &&
         (
           (createdAt <= $cutoff3m && createdAt >= $cutoff2h) ||
           (defined(scheduledFor) && defined(notifyAt) && notifyAt <= $cutoff3m && notifyAt >= $cutoff2h)
@@ -156,7 +154,7 @@ export async function GET(req: Request) {
           tenantName: order.tenantName,
           tenantNameAr: order.tenantNameAr,
           mode: 'unaccepted-reminder',
-          skipIfInstantAlreadySent: true,
+          skipIfInstantAlreadySent: false,
         })
         if (notify.sent > 0) {
           notifiedCount++
