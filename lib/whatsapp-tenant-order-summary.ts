@@ -1,6 +1,8 @@
 /**
  * Formats the tenant "new order" WhatsApp template body (variable {{2}}).
- * Plain structure and separate lines so WhatsApp linkifies URLs reliably.
+ * Meta Cloud API template parameters do not allow newlines (\n, \r), tabs, or
+ * Unicode line/paragraph separators — the sanitiser in send-tenant-new-order-whatsapp.ts
+ * strips them.  We use  ·  (middle dot) and  |  as visual separators instead.
  */
 
 /** Strip country / macro-region tails; keep street + locality (e.g. أبو ديس - منطقة ب). */
@@ -25,9 +27,9 @@ export function shortenDeliveryAddressForDisplay(raw: string): string {
   const parts = t.split(/[,،]/).map((p) => p.trim()).filter(Boolean)
   const kept = parts.filter((part) => !ADDRESS_PART_EXCLUDE.some((re) => re.test(part)))
   if (kept.length > 0) {
-    return kept.slice(0, 3).join(' - ')
+    return kept.slice(0, 3).join(' · ')
   }
-  return parts.slice(0, 2).join(' - ') || t
+  return parts.slice(0, 2).join(' · ') || t
 }
 
 export function buildNavigationUrls(params: { address: string; lat?: number | null; lng?: number | null }) {
@@ -67,40 +69,40 @@ export type TenantOrderWhatsAppInput = {
 }
 
 function orderTypeLabelAr(orderType?: string | null): string {
-  if (orderType === 'delivery') return 'توصيل'
-  if (orderType === 'dine-in') return 'محلي'
-  return 'استلام'
+  if (orderType === 'delivery') return 'توصيل 🚚'
+  if (orderType === 'dine-in') return 'محلي 🪑'
+  return 'استلام 🏃'
 }
 
 function formatItemsList(items: TenantOrderWhatsAppItem[] | null | undefined, currency: string): string {
   if (!items?.length) return 'لا توجد منتجات'
   return items
     .map((i) => {
-      const nameAr = i.productNameAr
-      const nameEn = i.productName
-      const title = nameAr || nameEn || 'منتج غير معروف'
+      const name = i.productNameAr || i.productName || 'منتج'
       const cur = currency || 'ILS'
-      let block = `▪️ *${i.quantity}×* ${title} (💵 *${i.total} ${cur}*)`
-      if (nameAr && nameEn && nameAr !== nameEn) {
-        block += ` [${nameEn}]`
-      }
-      return block
+      return `${i.quantity}x ${name} (${i.total} ${cur})`
     })
     .join(' | ')
 }
 
 /**
  * Single string for Meta template body variable — avoid newlines (WhatsApp API rejects them in parameters).
+ * Uses  ·  and  |  as separators for readability inside a single line.
  */
 export function formatTenantNewOrderWhatsAppSummary(data: TenantOrderWhatsAppInput): string {
-  const cur = data.currency?.trim() || 'ILS'
-  const itemsBlock = formatItemsList(data.items ?? null, cur)
+  const cur = (data.currency?.trim() || 'ILS')
   const total = data.totalAmount ?? 0
+  const orderTypeLabel = orderTypeLabelAr(data.orderType)
 
-  let customer = `👤 *الاسم:* ${data.customerName?.trim() || 'غير معروف'}`
-  customer += ` - 📞 *الهاتف:* ${data.customerPhone?.trim() || 'غير متوفر'}`
-  customer += ` - 🚚 *نوع الطلب:* ${orderTypeLabelAr(data.orderType)}`
+  // ── Items block ──────────────────────────────────────────────────────────
+  const itemsBlock = formatItemsList(data.items ?? null, cur)
 
+  // ── Customer block ────────────────────────────────────────────────────────
+  const customerName = data.customerName?.trim() || 'غير معروف'
+  const customerPhone = data.customerPhone?.trim() || '—'
+
+  // ── Delivery block (only for delivery orders with an address) ─────────────
+  let deliveryBlock = ''
   const addrRaw = data.deliveryAddress?.trim()
   if (addrRaw && data.orderType === 'delivery') {
     const shortLabel = shortenDeliveryAddressForDisplay(addrRaw)
@@ -109,14 +111,17 @@ export function formatTenantNewOrderWhatsAppSummary(data: TenantOrderWhatsAppInp
       lat: data.deliveryLat,
       lng: data.deliveryLng,
     })
-    customer += ` - 📍 *العنوان:* ${shortLabel}`
-    customer += ` - 🗺 *خرائط جوجل:* ${googleMaps}`
-    customer += ` - 🚙 *ويز:* ${waze}`
+    deliveryBlock =
+      ` | 📍 ${shortLabel}` +
+      ` | 🗺 خرائط: ${googleMaps}` +
+      ` | 🚙 ويز: ${waze}`
   }
 
   return (
-    `🛒 *المنتجات:* ${itemsBlock} - ` +
-    `💰 *الإجمالي:* *${total} ${cur}* - ` +
-    `📋 *العميل:* ${customer}`
+    `🛒 ${itemsBlock}` +
+    ` | 💰 الإجمالي: ${total} ${cur}` +
+    ` | 👤 ${customerName}  📞 ${customerPhone}` +
+    ` | ${orderTypeLabel}` +
+    deliveryBlock
   )
 }

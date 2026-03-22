@@ -29,6 +29,15 @@ type JobDoc = {
   attempts?: number
 }
 
+/** Matches `lib/firebase-admin` FirestoreLike query snapshot (avoid fragile `ReturnType` chains). */
+type ScheduledJobsSnapshot = {
+  docs: Array<{
+    id: string
+    ref: { update: (d: Record<string, unknown>) => Promise<unknown> }
+    data: () => Record<string, unknown>
+  }>
+}
+
 function getBaseUrl(req: Request): string {
   const env = process.env.NEXT_PUBLIC_APP_URL?.trim()
   if (env) return env.replace(/\/$/, '')
@@ -96,30 +105,47 @@ async function executeJob(req: Request, type: ScheduledJobType, orderId: string)
   }
 }
 
+/** Wrap a promise with a hard timeout; resolves to null on timeout rather than throwing. */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    p,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ])
+}
+
 async function runProcessDue(req: Request): Promise<NextResponse> {
   if (!isAuthorizedJobProcessor(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Always kick off the legacy fallback scan immediately (in parallel with any Firestore work).
+  // This guarantees the batch scan runs even when Firestore is disabled/unreachable.
+  const fallbackPromise = runLegacyFallbackCrons(req)
+
   if (!isFirebaseAdminConfigured()) {
-    const fallback = await runLegacyFallbackCrons(req)
+    const fallback = await fallbackPromise
     return NextResponse.json({ ok: true, processed: 0, reason: 'firebase-admin-not-configured', fallback })
   }
   const db = getFirestoreAdmin()
   if (!db) {
-    const fallback = await runLegacyFallbackCrons(req)
+    const fallback = await fallbackPromise
     return NextResponse.json({ ok: true, processed: 0, reason: 'firestore-unavailable', fallback })
   }
 
   const nowMs = Date.now()
-  let pending
+  let pending: ScheduledJobsSnapshot | null = null
   let firestoreFailed = false
   try {
-    pending = await db
-      .collection('scheduledJobs')
-      .where('status', '==', 'pending')
-      .limit(200)
-      .get()
+    // 5-second timeout: Firestore PERMISSION_DENIED can hang if the project is misconfigured.
+    // Failing fast ensures the legacy fallback (already running) completes within the function budget.
+    pending = await withTimeout(
+      db.collection('scheduledJobs').where('status', '==', 'pending').limit(200).get() as Promise<ScheduledJobsSnapshot>,
+      5000
+    )
+    if (!pending) {
+      firestoreFailed = true
+      console.warn('[process-due] Firestore query timed out (5s) — Firestore API may be disabled')
+    }
   } catch (error) {
     firestoreFailed = true
     console.error('[process-due] Firestore query failed:', error)
@@ -127,10 +153,9 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
 
   let processed = 0
   let failed = 0
-  let dueDocs = []
 
   if (!firestoreFailed && pending) {
-    dueDocs = pending.docs.filter((d) => {
+    const dueDocs = pending.docs.filter((d) => {
       const runAtMs = Number((d.data() as JobDoc).runAtMs ?? 0)
       return Number.isFinite(runAtMs) && runAtMs <= nowMs
     }).slice(0, 50)
@@ -165,8 +190,7 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
     }
   }
 
-  // Always run fallback scan to catch any jobs that failed to queue in Firestore
-  const fallback = await runLegacyFallbackCrons(req)
+  const fallback = await fallbackPromise
 
   return NextResponse.json({ 
     ok: true, 

@@ -422,9 +422,10 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         console.error('[API] Tenant pusher trigger or push notification on new order failed:', e)
       } finally {
-        // Keep 3-minute WhatsApp backup independent from immediate push/pusher flow.
-        // This ensures a transient push error does not prevent delayed business WhatsApp.
-        if (!scheduledFor && !prioritizeWhatsapp) {
+        // Always schedule the 3-minute unaccepted WhatsApp reminder, regardless of whether
+        // an instant WhatsApp was already sent (prioritizeWhatsapp). The notifier itself
+        // handles deduplication via businessWhatsappUnacceptedReminderAt.
+        if (!scheduledFor) {
           const jobRes = await scheduleOrderUnacceptedWhatsapp(result._id, Date.now())
           await recordOrderUnacceptedWhatsappJobResult(writeClient, result._id, 'POST /api/orders', jobRes)
         }

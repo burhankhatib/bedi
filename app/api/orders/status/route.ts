@@ -122,15 +122,13 @@ export async function PATCH(request: Request) {
       }
     }
     if (status === 'new') {
-      if (!existingOrder.prioritizeWhatsapp) {
-        const jobRes = await scheduleOrderUnacceptedWhatsapp(orderId, Date.now())
-        await recordOrderUnacceptedWhatsappJobResult(
-          writeClient,
-          orderId,
-          'PATCH /api/orders/status (status=new)',
-          jobRes
-        )
-      }
+      const jobRes = await scheduleOrderUnacceptedWhatsapp(orderId, Date.now())
+      await recordOrderUnacceptedWhatsappJobResult(
+        writeClient,
+        orderId,
+        'PATCH /api/orders/status (status=new)',
+        jobRes
+      )
     }
 
     console.log('Updating order with data:', updateData)

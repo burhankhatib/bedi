@@ -21,7 +21,13 @@ export async function GET(req: Request) {
   const secretParam = url.searchParams.get('secret')
   const forceLegacyScan = url.searchParams.get('allowLegacy') === '1'
 
-  if (allowed.length && !allowed.includes(bearer) && !(secretParam && allowed.includes(secretParam))) {
+  // isAuthenticated = caller provided a valid secret (Bearer header or ?secret=)
+  const isAuthenticated =
+    !allowed.length || // no secrets configured → open
+    allowed.includes(bearer) ||
+    (secretParam != null && allowed.includes(secretParam))
+
+  if (!isAuthenticated) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
@@ -98,8 +104,15 @@ export async function GET(req: Request) {
     }
   }
 
-  const allowLegacyScan = process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true'
-  if (!allowLegacyScan && !forceLegacyScan) {
+  // Run the batch scan when:
+  //  a) explicitly requested via ?allowLegacy=1 (called from process-due or cron-job.org), OR
+  //  b) ENABLE_LEGACY_SANITY_SCAN_CRONS=true env flag is set, OR
+  //  c) any authenticated direct call (e.g. a standalone Vercel cron on this path)
+  const allowLegacyScan =
+    process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true' ||
+    forceLegacyScan ||
+    isAuthenticated
+  if (!allowLegacyScan) {
     return NextResponse.json({ ok: true, notifiedCount: 0, skipped: true, reason: 'legacy-scan-disabled' })
   }
 
