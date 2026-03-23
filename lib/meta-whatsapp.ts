@@ -2,13 +2,13 @@ import { normalizePhoneForWhatsApp } from '@/lib/whatsapp'
 import { WHATSAPP_TEMPLATE, WHATSAPP_TEMPLATE_LANGUAGE_FALLBACK } from '@/lib/whatsapp-meta-templates'
 
 function graphApiVersion(): string {
-  const v = (process.env.WHATSAPP_GRAPH_API_VERSION || 'v21.0').trim()
+  const v = (process.env.WHATSAPP_GRAPH_API_VERSION || 'v22.0').trim()
   return v.startsWith('v') ? v : `v${v}`
 }
 
 function graphApiVersionsToTry(): string[] {
   const primary = graphApiVersion()
-  const fallbacks = ['v21.0', 'v20.0', 'v19.0']
+  const fallbacks = ['v22.0', 'v21.0', 'v20.0']
   return [primary, ...fallbacks].filter((v, i, arr) => arr.indexOf(v) === i)
 }
 

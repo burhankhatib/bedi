@@ -208,10 +208,25 @@ export async function GET(
     city?: string
     locationLat?: number | null
     locationLng?: number | null
+    name?: string
+    name_ar?: string
+    ownerPhone?: string
   } | null>(
-    `*[_type == "tenant" && _id == $tenantId][0]{ country, city, locationLat, locationLng }`,
+    `*[_type == "tenant" && _id == $tenantId][0]{ country, city, locationLat, locationLng, name, name_ar, ownerPhone }`,
     { tenantId }
   )
+
+  const profileWhatsapp = restaurantInfo?.socials?.whatsapp?.trim()
+  const ownerPhone = tenant?.ownerPhone?.trim()
+  const businessContactPhone = profileWhatsapp || ownerPhone
+  const restaurantPayload =
+    restaurantInfo || businessContactPhone
+      ? {
+          name_en: restaurantInfo?.name_en ?? tenant?.name,
+          name_ar: restaurantInfo?.name_ar ?? tenant?.name_ar ?? tenant?.name,
+          ...(businessContactPhone ? { whatsapp: businessContactPhone } : {}),
+        }
+      : null
 
   return NextResponse.json({
     order: {
@@ -261,13 +276,7 @@ export async function GET(
       deliveryLat: order.deliveryLat ?? null,
       deliveryLng: order.deliveryLng ?? null,
     },
-    restaurant: restaurantInfo
-      ? {
-          name_en: restaurantInfo.name_en,
-          name_ar: restaurantInfo.name_ar,
-          whatsapp: restaurantInfo.socials?.whatsapp,
-        }
-      : null,
+    restaurant: restaurantPayload,
     driver,
     country: tenant?.country ?? undefined,
     businessLocation: (tenant?.locationLat && tenant?.locationLng)

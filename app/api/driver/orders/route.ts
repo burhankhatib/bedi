@@ -188,6 +188,7 @@ export async function GET() {
             locationLat?: number
             locationLng?: number
             businessLogo?: { asset?: { _ref: string } }
+            ownerPhone?: string
             restaurantName: string
             restaurantAddress: string
             restaurantAddressAr: string | null
@@ -203,6 +204,7 @@ export async function GET() {
             locationLat,
             locationLng,
             businessLogo,
+            ownerPhone,
             "restaurantName": *[_type == "restaurantInfo" && site._ref == ^._id][0].name_en,
             "restaurantAddress": *[_type == "restaurantInfo" && site._ref == ^._id][0].address_en,
             "restaurantAddressAr": *[_type == "restaurantInfo" && site._ref == ^._id][0].address_ar,
@@ -227,7 +229,10 @@ export async function GET() {
           businessLocationLat: s.locationLat,
           businessLocationLng: s.locationLng,
           businessLogoUrl,
-          businessWhatsapp: s.restaurantWhatsapp || undefined,
+          businessWhatsapp:
+            (typeof s.restaurantWhatsapp === 'string' && s.restaurantWhatsapp.trim()) ||
+            (typeof s.ownerPhone === 'string' && s.ownerPhone.trim()) ||
+            undefined,
           city: s.city || '',
         },
       ]

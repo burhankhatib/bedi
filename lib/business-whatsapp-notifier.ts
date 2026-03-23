@@ -268,19 +268,16 @@ export async function notifyBusinessWhatsappForOrder(params: {
 
   const recipients = await getBusinessWhatsappRecipients(writeClient, tenantId, mode)
   if (!recipients.length) {
-    const nowIso = new Date().toISOString()
-    if (mode === 'unaccepted-reminder') {
-      await writeClient.patch(orderId).set({
-        businessWhatsappUnacceptedReminderAt: nowIso,
-        businessWhatsappNotifiedAt: nowIso,
-      }).commit()
-    }
     await appendOrderNotificationDiagnostic(writeClient, orderId, {
       source: 'business-whatsapp-notifier',
       level: 'warn',
-      message: 'Business WhatsApp skipped: no eligible recipient numbers found (rules/shift/phones)',
+      message: 'Business WhatsApp skipped: no eligible recipient numbers found (ownerPhone empty? receiveWhatsapp not enabled on staff? check Sanity tenant doc)',
       detail: { mode, tenantId },
     })
+    // Do NOT mark businessWhatsappUnacceptedReminderAt here — the absence of a recipient
+    // is a configuration problem (empty ownerPhone / staff phones), not a successful send.
+    // Leaving it unset lets the Vercel cron retry on the next cycle after the owner fixes
+    // their phone number in Sanity.
     return { attempted: 0, sent: 0, allFailed: false, skippedReason: 'no_recipients' }
   }
 

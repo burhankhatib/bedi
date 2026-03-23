@@ -87,18 +87,30 @@ export async function GET(
   const { driverDoc, restaurantInfo, tenant } = await client.fetch<{
     driverDoc: { _id: string; name: string; nickname?: string; phoneNumber: string } | null
     restaurantInfo: { name_en?: string; name_ar?: string; socials?: { whatsapp?: string } } | null
-    tenant: { country?: string; city?: string } | null
+    tenant: { country?: string; city?: string; name?: string; name_ar?: string; ownerPhone?: string } | null
   }>(
     `{
       "driverDoc": *[_type == "driver" && _id == $driverId][0]{ _id, name, nickname, phoneNumber },
       "restaurantInfo": *[_type == "restaurantInfo" && site._ref == $tenantId][0]{ name_en, name_ar, socials },
-      "tenant": *[_type == "tenant" && _id == $tenantId][0]{ country, city }
+      "tenant": *[_type == "tenant" && _id == $tenantId][0]{ country, city, name, name_ar, ownerPhone }
     }`,
     { tenantId, driverId: driverRef ?? 'none' }
   )
   const driver = driverDoc
     ? { _id: driverDoc._id, name: (driverDoc.nickname && driverDoc.nickname.trim()) || driverDoc.name, phoneNumber: driverDoc.phoneNumber }
     : null
+
+  const profileWhatsapp = restaurantInfo?.socials?.whatsapp?.trim()
+  const ownerPhone = tenant?.ownerPhone?.trim()
+  const businessContactPhone = profileWhatsapp || ownerPhone
+  const restaurantPayload =
+    restaurantInfo || businessContactPhone
+      ? {
+          name_en: restaurantInfo?.name_en ?? tenant?.name,
+          name_ar: restaurantInfo?.name_ar ?? tenant?.name_ar ?? tenant?.name,
+          ...(businessContactPhone ? { whatsapp: businessContactPhone } : {}),
+        }
+      : null
 
   return NextResponse.json({
     order: {
@@ -123,13 +135,7 @@ export async function GET(
       estimatedDeliveryMinutes: order.estimatedDeliveryMinutes ?? null,
       driverArrivedAt: order.driverArrivedAt ?? null,
     },
-    restaurant: restaurantInfo
-      ? {
-          name_en: restaurantInfo.name_en,
-          name_ar: restaurantInfo.name_ar,
-          whatsapp: restaurantInfo.socials?.whatsapp,
-        }
-      : null,
+    restaurant: restaurantPayload,
     driver,
     country: tenant?.country ?? undefined,
   })

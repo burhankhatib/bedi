@@ -131,8 +131,9 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Kick off the legacy fallback scan ONLY if Firestore is unavailable,
-  // or if explicitly forced via allowLegacy=1 URL param.
+  // Kick off the legacy fallback scan if Firestore is unavailable OR explicitly forced.
+  // Note: if Firebase IS configured but Firestore later times out, we run the fallback
+  // afterwards (see end of function) to ensure the 3-minute reminder still fires.
   const isFallbackNeeded = !isFirebaseAdminConfigured() || req.url.includes('allowLegacy=1')
   const fallbackPromise = isFallbackNeeded 
     ? runLegacyFallbackCrons(req) 
@@ -314,7 +315,15 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
     }
   }
 
-  const fallback = await fallbackPromise
+  // If Firestore failed but Firebase was configured (fallbackPromise was skipped above),
+  // run the legacy scan now so the 3-minute reminder can still fire via Sanity polling.
+  let fallback: unknown
+  if (firestoreFailed && !isFallbackNeeded) {
+    console.warn('[process-due] Firestore failed — running legacy fallback scan as safety net')
+    fallback = await runLegacyFallbackCrons(req)
+  } else {
+    fallback = await fallbackPromise
+  }
 
   return NextResponse.json({ 
     ok: true, 
