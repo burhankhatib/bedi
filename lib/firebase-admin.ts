@@ -34,6 +34,7 @@ type FirestoreLike = {
   ) => Promise<T>
   collection: (name: string) => {
     doc: (id?: string) => DocRef
+    add: (data: Record<string, unknown>) => Promise<DocRef>
     orderBy: (field: string, dir?: 'asc' | 'desc') => {
       limit: (n: number) => {
         get: () => Promise<QuerySnapshotLike>
