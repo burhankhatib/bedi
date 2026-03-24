@@ -38,6 +38,7 @@ type BroadcastHistory = {
   fcmFailedCount?: number
   totalFound: number
   createdAt: string
+  errors?: string
 }
 
 export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?: 'broadcast' | 'inbox' }) {
@@ -584,14 +585,6 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
               </p>
             )}
           </div>
-          <Button
-            type="submit"
-            disabled={sending || (!preview && specificUsers.length === 0)}
-            className="bg-amber-600 text-slate-950 hover:bg-amber-500 shrink-0 shadow-lg"
-          >
-            {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            <span className="ml-2 font-semibold">Send Broadcast</span>
-          </Button>
         </div>
         
         {/* 1. Channels */}
@@ -851,11 +844,11 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
               </div>
               <textarea
                 value={message}
-                onChange={e => setMessage(e.target.value)}
+                onChange={e => setMessage(e.target.value.replace(/[\n\t\r]+/g, ' ').replace(/\s{2,}/g, ' '))}
                 required
                 rows={4}
                 dir="rtl"
-                placeholder="اكتب رسالتك هنا..."
+                placeholder="اكتب رسالتك هنا... (يمنع استخدام سطر جديد)"
                 className="w-full resize-y bg-transparent px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none"
               />
               <div className="bg-slate-800/50 px-4 py-2 border-t border-slate-700/50 text-slate-400 font-mono" dir="rtl">
@@ -863,8 +856,29 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
               </div>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              {`{{1}}`} will automatically be replaced with the recipient's first name. Your input here will replace {`{{2}}`}.
+              {`{{1}}`} will automatically be replaced with the recipient's first name. Your input here will replace {`{{2}}`}.<br/>
+              <span className="text-amber-500/80 mt-1 inline-block">Note: Meta WhatsApp does not allow new lines or tabs inside template variables. They will be automatically converted to spaces.</span>
             </p>
+          </div>
+          
+          <div className="pt-6">
+            <Button
+              type="submit"
+              disabled={sending || (!preview && specificUsers.length === 0) || !message.trim()}
+              className="w-full bg-amber-600 text-slate-950 hover:bg-amber-500 shadow-lg py-6 text-base rounded-xl transition-all"
+            >
+              {sending ? (
+                <>
+                  <Loader2 className="size-5 animate-spin mr-2" />
+                  <span className="font-semibold">Sending Broadcast...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="size-5 mr-2" />
+                  <span className="font-semibold">Send Broadcast</span>
+                </>
+              )}
+            </Button>
           </div>
         </div>
 
@@ -1075,9 +1089,26 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
                       <div className="bg-slate-900/40 border border-rose-900/30 rounded-lg p-2 max-h-40 overflow-y-auto">
                         {item.failedNumbers && item.failedNumbers.length > 0 ? (
                           <ul className="space-y-1">
-                            {item.failedNumbers.map((num, i) => (
-                              <li key={i} className="text-slate-300 px-2 py-1 bg-slate-800/30 rounded">{num}</li>
-                            ))}
+                            {item.failedNumbers.map((num, i) => {
+                              let errorMsg = ''
+                              if (item.errors) {
+                                try {
+                                  const parsed = JSON.parse(item.errors)
+                                  const phoneMatch = num.match(/\(([^)]+)\)/)
+                                  const phoneStr = phoneMatch ? phoneMatch[1] : num
+                                  const errObj = parsed.find((e: any) => e.phone === phoneStr)
+                                  if (errObj) {
+                                    errorMsg = typeof errObj.error === 'string' ? errObj.error : JSON.stringify(errObj.error)
+                                  }
+                                } catch (e) {}
+                              }
+                              return (
+                                <li key={i} className="text-slate-300 px-2 py-1.5 bg-slate-800/30 rounded flex flex-col gap-1">
+                                  <span>{num}</span>
+                                  {errorMsg && <span className="text-[10px] text-rose-400/80 font-mono break-words">{errorMsg}</span>}
+                                </li>
+                              )
+                            })}
                           </ul>
                         ) : (
                           <p className="text-slate-500 italic p-2">No failed messages.</p>

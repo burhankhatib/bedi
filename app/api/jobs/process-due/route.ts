@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { getFirestoreAdmin, isFirebaseAdminConfigured } from '@/lib/firebase-admin'
 import type { ScheduledJobType } from '@/lib/delivery-job-scheduler'
-import { sendWhatsAppTemplateMessageWithLangFallback } from '@/lib/meta-whatsapp'
+import { sendWhatsAppTemplateMessageWithLangFallback, formatMetaWhatsAppApiError } from '@/lib/meta-whatsapp'
 import { WHATSAPP_TEMPLATE } from '@/lib/whatsapp-meta-templates'
 import { sendFCMByPhones } from '@/lib/broadcast-fcm-by-phones'
 
@@ -295,10 +295,13 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
           if (channels.includes('whatsapp')) {
             for (const u of chunk) {
               const firstName = u.name.split(' ')[0] || 'User'
+              // Sanitize message to avoid Meta error 132018 (no newlines/tabs in variable parameters)
+              const safeMessage = message.replace(/[\n\t\r]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
+              
               const result = await sendWhatsAppTemplateMessageWithLangFallback(
                 u.phone,
                 WHATSAPP_TEMPLATE.BROADCAST,
-                [firstName, message]
+                [firstName, safeMessage]
               )
               if (result.success) {
                 newSent++
@@ -306,7 +309,7 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
               } else {
                 newFailed++
                 newFailedList.push(`${u.name} (${u.phone})`)
-                newErrorsList.push({ phone: u.phone, error: result.error })
+                newErrorsList.push({ phone: u.phone, error: formatMetaWhatsAppApiError(result.error) })
               }
             }
           }
