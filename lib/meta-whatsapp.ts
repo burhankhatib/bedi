@@ -261,7 +261,6 @@ export async function sendWhatsAppTextMessage(phone: string, text: string) {
     return { success: false, error: 'Invalid phone number provided' }
   }
 
-  const url = `https://graph.facebook.com/${graphApiVersion()}/${phoneNumberId}/messages`
   const payload = {
     messaging_product: 'whatsapp',
     to,
@@ -270,23 +269,37 @@ export async function sendWhatsAppTextMessage(phone: string, text: string) {
   }
 
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(payload),
-    })
+    let lastError: unknown
+    const versions = graphApiVersionsToTry()
 
-    if (!res.ok) {
+    for (let i = 0; i < versions.length; i++) {
+      const version = versions[i]!
+      const url = `https://graph.facebook.com/${version}/${phoneNumberId}/messages`
+      
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (res.ok) {
+        const data = (await readJsonOrText(res)) as { messages?: Array<{ id: string }> }
+        return { success: true, messageId: data.messages?.[0]?.id }
+      }
+
       const errorData = await readJsonOrText(res)
-      console.error('[Meta WhatsApp Text] API error:', JSON.stringify(errorData, null, 2))
-      return { success: false, error: errorData }
-    }
+      console.error(`[Meta WhatsApp Text] API error (version ${version}):`, JSON.stringify(errorData, null, 2))
+      lastError = { version, error: errorData }
 
-    const data = (await readJsonOrText(res)) as { messages?: Array<{ id: string }> }
-    return { success: true, messageId: data.messages?.[0]?.id }
+      if (!isLikelyGraphVersionError(errorData) || i === versions.length - 1) {
+        return { success: false, error: lastError }
+      }
+    }
+    
+    return { success: false, error: lastError ?? 'unknown_whatsapp_failure' }
   } catch (error) {
     console.error('[Meta WhatsApp Text] Exception:', error)
     return { success: false, error }
@@ -313,8 +326,6 @@ export async function sendWhatsAppAuthOTP(phone: string, code: string) {
     console.error(`[Meta WhatsApp OTP] Invalid phone number: ${phone}`)
     return { success: false, error: 'Invalid phone number' }
   }
-
-  const url = `https://graph.facebook.com/${graphApiVersion()}/${phoneNumberId}/messages`
 
   let lastError: unknown
   for (const lang of WHATSAPP_TEMPLATE_LANGUAGE_FALLBACK) {
@@ -353,23 +364,39 @@ export async function sendWhatsAppAuthOTP(phone: string, code: string) {
     }
 
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload),
-      })
+      const versions = graphApiVersionsToTry()
+      
+      for (let i = 0; i < versions.length; i++) {
+        const version = versions[i]!
+        const url = `https://graph.facebook.com/${version}/${phoneNumberId}/messages`
+        
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(payload),
+        })
 
-      if (res.ok) {
-        const data = (await readJsonOrText(res)) as { messages?: Array<{ id: string }> }
-        return { success: true, messageId: data.messages?.[0]?.id }
+        if (res.ok) {
+          const data = (await readJsonOrText(res)) as { messages?: Array<{ id: string }> }
+          return { success: true, messageId: data.messages?.[0]?.id }
+        }
+
+        const errorData = await readJsonOrText(res)
+        lastError = { version, error: errorData }
+        console.error(`[Meta WhatsApp OTP] API error (version ${version}):`, JSON.stringify(errorData, null, 2))
+        
+        if (!isLikelyGraphVersionError(errorData) || i === versions.length - 1) {
+          break
+        }
       }
-
-      const errorData = await readJsonOrText(res)
-      lastError = errorData
-      console.error('[Meta WhatsApp OTP] API error:', JSON.stringify(errorData, null, 2))
+      
+      if (lastError && !isLikelyGraphVersionError((lastError as any).error)) {
+        // If it's a template issue (e.g. language not found), let the language loop continue
+        continue
+      }
     } catch (error) {
       lastError = error
       console.error('[Meta WhatsApp OTP] Exception sending OTP:', error)

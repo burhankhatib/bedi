@@ -137,125 +137,160 @@ type TrackData = {
   businessLocation: { lat: number; lng: number } | null
 }
 
-/** Allows customer to share GPS location so driver can navigate to their address. */
+type CustomerShareLocationOpts = { auto?: boolean }
+
+/** Customer GPS for driver navigation. Requests location automatically once after load; button retries or updates. */
 function CustomerLocationShare({ orderId, trackingToken }: { orderId: string; trackingToken: string }) {
   const { t } = useLanguage()
   const { showToast } = useToast()
   const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle')
   const [saved, setSaved] = useState<{ lat: number; lng: number } | null>(null)
 
-  const shareLocation = () => {
-    if (!navigator.geolocation) {
-      showToast('Location not supported in this browser.', 'الموقع غير مدعوم في هذا المتصفح.', 'error')
-      return
-    }
-    setState('loading')
-
-    let bestFix: GeolocationPosition | null = null
-    let watchId: number | null = null
-    let timeoutId: number | null = null
-    let fallbackTimeoutId: number | null = null
-
-    const finishAndShare = async () => {
-      if (watchId !== null) navigator.geolocation.clearWatch(watchId)
-      if (timeoutId !== null) window.clearTimeout(timeoutId)
-      if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
-
-      if (bestFix) {
-        const lat = bestFix.coords.latitude
-        const lng = bestFix.coords.longitude
-        const accuracy = bestFix.coords.accuracy
-        try {
-          const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/location`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ trackingToken, lat, lng, accuracy, source: 'gps_high' }),
-          })
-          if (!res.ok) throw new Error('Failed')
-          setSaved({ lat, lng })
-          setState('done')
-          showToast('تم مشاركة موقعك مع السائق!', undefined, 'success')
-        } catch {
-          setState('idle')
-          showToast('فشل مشاركة الموقع. حاول مرة أخرى.', undefined, 'error')
+  const shareLocation = useCallback(
+    (opts?: CustomerShareLocationOpts) => {
+      const isAuto = opts?.auto === true
+      if (!navigator.geolocation) {
+        if (!isAuto) {
+          showToast('Location not supported in this browser.', 'الموقع غير مدعوم في هذا المتصفح.', 'error')
         }
-      } else {
-        setState('idle')
-        showToast('Could not get a precise location. Try again.', 'تعذّر تحديد الموقع بدقة. حاول مرة أخرى.', 'error')
-      }
-    }
-
-    const onPosition = (pos: GeolocationPosition) => {
-      const accuracy = pos.coords.accuracy
-      if (!bestFix || accuracy < bestFix.coords.accuracy) {
-        bestFix = pos
-      }
-      if (accuracy <= 25) {
-        finishAndShare()
-      }
-    }
-
-    const onError = (err: GeolocationPositionError) => {
-      if (bestFix) {
-        finishAndShare()
         return
       }
+      setState('loading')
 
-      if (watchId !== null) navigator.geolocation.clearWatch(watchId)
-      if (timeoutId !== null) window.clearTimeout(timeoutId)
-      if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
+      let bestFix: GeolocationPosition | null = null
+      let watchId: number | null = null
+      let timeoutId: number | null = null
+      let fallbackTimeoutId: number | null = null
 
-      setState('idle')
-      if (err.code === 1) {
-        showToast(
-          'Location access denied. Enable it in device settings.',
-          'تم رفض الوصول للموقع. فعّله من إعدادات الجهاز.',
-          'error'
-        )
-      } else {
-        showToast('Could not get location. Try again.', 'تعذّر تحديد الموقع. حاول مرة أخرى.', 'error')
+      const finishAndShare = async () => {
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+        if (timeoutId !== null) window.clearTimeout(timeoutId)
+        if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
+
+        if (bestFix) {
+          const lat = bestFix.coords.latitude
+          const lng = bestFix.coords.longitude
+          const accuracy = bestFix.coords.accuracy
+          try {
+            const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/location`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ trackingToken, lat, lng, accuracy, source: 'gps_high' }),
+            })
+            if (!res.ok) throw new Error('Failed')
+            setSaved({ lat, lng })
+            setState('done')
+            if (!isAuto) {
+              showToast('تم مشاركة موقعك مع السائق!', undefined, 'success')
+            }
+          } catch {
+            setState('idle')
+            if (!isAuto) {
+              showToast('فشل مشاركة الموقع. حاول مرة أخرى.', undefined, 'error')
+            }
+          }
+        } else {
+          setState('idle')
+          if (!isAuto) {
+            showToast('Could not get a precise location. Try again.', 'تعذّر تحديد الموقع بدقة. حاول مرة أخرى.', 'error')
+          }
+        }
       }
-    }
 
-    // Give it 8 seconds to find a good fix, then just use the best we have
-    timeoutId = window.setTimeout(() => {
-      finishAndShare()
-    }, 8000)
+      const onPosition = (pos: GeolocationPosition) => {
+        const accuracy = pos.coords.accuracy
+        if (!bestFix || accuracy < bestFix.coords.accuracy) {
+          bestFix = pos
+        }
+        if (accuracy <= 25) {
+          finishAndShare()
+        }
+      }
 
-    // Ultimate fallback
-    fallbackTimeoutId = window.setTimeout(() => {
-      if (!bestFix) {
+      const onError = (err: GeolocationPositionError) => {
+        if (bestFix) {
+          finishAndShare()
+          return
+        }
+
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+        if (timeoutId !== null) window.clearTimeout(timeoutId)
+        if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
+
+        setState('idle')
+        if (isAuto) return
+        if (err.code === 1) {
+          showToast(
+            'Location access denied. Enable it in device settings.',
+            'تم رفض الوصول للموقع. فعّله من إعدادات الجهاز.',
+            'error'
+          )
+        } else {
+          showToast('Could not get location. Try again.', 'تعذّر تحديد الموقع. حاول مرة أخرى.', 'error')
+        }
+      }
+
+      // Give it 8 seconds to find a good fix, then just use the best we have
+      timeoutId = window.setTimeout(() => {
         finishAndShare()
-      }
-    }, 15000)
+      }, 8000)
 
-    watchId = navigator.geolocation.watchPosition(
-      onPosition,
-      onError,
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    )
-  }
+      // Ultimate fallback
+      fallbackTimeoutId = window.setTimeout(() => {
+        if (!bestFix) {
+          finishAndShare()
+        }
+      }, 15000)
+
+      watchId = navigator.geolocation.watchPosition(onPosition, onError, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      })
+    },
+    [orderId, trackingToken, showToast],
+  )
+
+  useEffect(() => {
+    if (!orderId || !trackingToken.trim()) return
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+
+    let cancelled = false
+    const handle = window.setTimeout(() => {
+      if (!cancelled) shareLocation({ auto: true })
+    }, 500)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(handle)
+    }
+  }, [orderId, trackingToken, shareLocation])
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
       <div className="min-w-0">
         <p className="text-sm font-medium text-blue-900 flex items-center gap-1.5">
           <LocateFixed className="h-4 w-4 shrink-0" />
-          {state === 'done'
-            ? t('Location shared with driver', 'تم مشاركة موقعك مع السائق')
-            : t('Share your location with driver', 'شارك موقعك مع السائق')}
+          {state === 'loading' && !saved
+            ? t('Getting your location…', 'جاري تحديد موقعك…')
+            : state === 'done'
+              ? t('Location shared with driver', 'تم مشاركة موقعك مع السائق')
+              : t('Share your location with driver', 'شارك موقعك مع السائق')}
         </p>
         {saved ? (
           <p className="mt-0.5 text-xs text-blue-700">{saved.lat.toFixed(5)}, {saved.lng.toFixed(5)}</p>
         ) : (
           <p className="mt-0.5 text-xs text-blue-700">
-            {t('Helps the driver navigate directly to you.', 'يساعد السائق للوصول إليك مباشرةً.')}
+            {t(
+              'We request your location automatically to help the driver. You can update it anytime.',
+              'نطلب موقعك تلقائياً لمساعدة السائق. يمكنك تحديثه في أي وقت.',
+            )}
           </p>
         )}
       </div>
       <button
         type="button"
-        onClick={shareLocation}
+        onClick={() => shareLocation()}
         disabled={state === 'loading'}
         className="shrink-0 flex items-center gap-1.5 rounded-xl border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-700 shadow-sm transition hover:bg-blue-100 disabled:opacity-50"
       >

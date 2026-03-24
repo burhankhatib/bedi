@@ -4,6 +4,7 @@ import { token } from '@/sanity/lib/token'
 import { GROQ_STATUS_AWAITING_DRIVER } from '@/lib/delivery-awaiting-driver-status'
 import { sendWhatsAppTemplateMessageWithLangFallback } from '@/lib/meta-whatsapp'
 import { WHATSAPP_TEMPLATE } from '@/lib/whatsapp-meta-templates'
+import { appendOrderNotificationDiagnostic } from '@/lib/notification-diagnostics'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,13 +12,24 @@ const writeClient = client.withConfig({ token: token || undefined, useCdn: false
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  
+  const m = authHeader?.match(/^Bearer\s+(.+)$/i)
+  const bearer = m?.[1]?.trim() || ''
+  const allowed = [process.env.CRON_SECRET, process.env.FIREBASE_JOB_SECRET].filter(
+    (s): s is string => typeof s === 'string' && s.length > 0
+  )
+
   // Try to read secret from URL parameter as a fallback (for cron-job.org testing)
   const url = new URL(req.url)
   const secretParam = url.searchParams.get('secret')
-  
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}` && secretParam !== cronSecret) {
+  const forceLegacyScan = url.searchParams.get('allowLegacy') === '1'
+
+  // isAuthenticated = caller provided a valid secret (Bearer header or ?secret=)
+  const isAuthenticated =
+    !allowed.length || // no secrets configured → open
+    allowed.includes(bearer) ||
+    (secretParam != null && allowed.includes(secretParam))
+
+  if (!isAuthenticated) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
@@ -63,8 +75,9 @@ export async function GET(req: Request) {
 
       let messagesSentForOrder = 0
       const nowIso = new Date().toISOString()
+      let drivers: { _id: string; phoneNumber: string; isOnline: boolean }[] | null = null
       if (order.city) {
-        const drivers = await writeClient.fetch<{ _id: string; phoneNumber: string; isOnline: boolean }[]>(
+        drivers = await writeClient.fetch<{ _id: string; phoneNumber: string; isOnline: boolean }[]>(
           `*[
             _type == "driver" && 
             isVerifiedByAdmin == true &&
@@ -98,11 +111,46 @@ export async function GET(req: Request) {
         }
       }
 
-      const currentCount = order.driversWhatsappNotifiedCount || 0
-      await writeClient.patch(order._id)
-        .set({ driversWhatsappNotifiedAt: nowIso })
-        .set({ driversWhatsappNotifiedCount: currentCount + 1 })
-        .commit()
+      if (messagesSentForOrder > 0) {
+        const currentCount = order.driversWhatsappNotifiedCount || 0
+        await writeClient.patch(order._id)
+          .set({ driversWhatsappNotifiedAt: nowIso })
+          .set({ driversWhatsappNotifiedCount: currentCount + 1 })
+          .commit()
+          
+        await appendOrderNotificationDiagnostic(writeClient, order._id, {
+          source: 'cron/unaccepted-delivery-whatsapp',
+          level: 'info',
+          message: `Delivery WhatsApp sent to ${messagesSentForOrder} driver(s)`,
+          detail: { singleOrderId }
+        })
+      } else if (drivers && drivers.length > 0) {
+        // We had drivers but all sends failed - don't mark as notified so we retry
+        await appendOrderNotificationDiagnostic(writeClient, order._id, {
+          source: 'cron/unaccepted-delivery-whatsapp',
+          level: 'error',
+          message: `Delivery WhatsApp failed for all ${drivers.length} available driver(s)`,
+          detail: { singleOrderId }
+        })
+        return NextResponse.json(
+          { ok: false, notifiedOrdersCount: 0, totalMessagesSent: 0, orderId: singleOrderId, retryable: true, reason: 'all_recipients_failed' },
+          { status: 502 }
+        )
+      } else {
+        // No drivers available - still mark so we don't spin indefinitely if no drivers exist
+        const currentCount = order.driversWhatsappNotifiedCount || 0
+        await writeClient.patch(order._id)
+          .set({ driversWhatsappNotifiedAt: nowIso })
+          .set({ driversWhatsappNotifiedCount: currentCount + 1 })
+          .commit()
+          
+        await appendOrderNotificationDiagnostic(writeClient, order._id, {
+          source: 'cron/unaccepted-delivery-whatsapp',
+          level: 'warn',
+          message: `Delivery WhatsApp skipped: no online drivers found in city (${order.city})`,
+          detail: { singleOrderId }
+        })
+      }
 
       return NextResponse.json({
         ok: true,
@@ -220,15 +268,43 @@ export async function GET(req: Request) {
 
           if (messagesSentForOrder > 0) {
             notifiedOrdersCount++
+            const currentCount = order.driversWhatsappNotifiedCount || 0
+            await writeClient.patch(order._id)
+              .set({ driversWhatsappNotifiedAt: nowIso })
+              .set({ driversWhatsappNotifiedCount: currentCount + 1 })
+              .commit()
+              
+            await appendOrderNotificationDiagnostic(writeClient, order._id, {
+              source: 'cron/unaccepted-delivery-whatsapp',
+              level: 'info',
+              message: `Delivery WhatsApp sent to ${messagesSentForOrder} driver(s) (batch)`,
+              detail: {}
+            })
+          } else {
+            // All sends failed, don't mark as notified so we retry
+            console.warn(`[cron/unaccepted-delivery-whatsapp] All driver WhatsApp sends failed for order ${order._id}`)
+            await appendOrderNotificationDiagnostic(writeClient, order._id, {
+              source: 'cron/unaccepted-delivery-whatsapp',
+              level: 'error',
+              message: `Delivery WhatsApp failed for all ${drivers.length} available driver(s) (batch)`,
+              detail: {}
+            })
           }
+        } else {
+          // No drivers available, mark it as notified and increment count so we don't spin indefinitely
+          const currentCount = order.driversWhatsappNotifiedCount || 0
+          await writeClient.patch(order._id)
+            .set({ driversWhatsappNotifiedAt: nowIso })
+            .set({ driversWhatsappNotifiedCount: currentCount + 1 })
+            .commit()
+            
+          await appendOrderNotificationDiagnostic(writeClient, order._id, {
+            source: 'cron/unaccepted-delivery-whatsapp',
+            level: 'warn',
+            message: `Delivery WhatsApp skipped: no online drivers found in city (${order.city}) (batch)`,
+            detail: {}
+          })
         }
-
-        // Mark it as notified and increment count
-        const currentCount = order.driversWhatsappNotifiedCount || 0
-        await writeClient.patch(order._id)
-          .set({ driversWhatsappNotifiedAt: nowIso })
-          .set({ driversWhatsappNotifiedCount: currentCount + 1 })
-          .commit()
       } catch (e) {
         console.error('[cron/unaccepted-delivery-whatsapp] Failed processing order', order._id, e)
       }

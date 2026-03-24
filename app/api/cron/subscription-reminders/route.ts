@@ -93,16 +93,27 @@ export async function GET(req: Request) {
 
           if (tenant.ownerPhone) {
             /** Meta body: `عدد الأيام … *{{1}}*` — {{1}} is the number of days only; language ar_EG. */
-            const subscriptionTemplate =
-              process.env.WHATSAPP_SUBSCRIPTION_REMINDER_TEMPLATE?.trim() ||
-              WHATSAPP_TEMPLATE.SUBSCRIPTION_REMINDER
-            const waResult = await sendSubscriptionReminderWhatsApp(
-              tenant.ownerPhone,
-              subscriptionTemplate,
-              daysLeft
-            )
-            if (!waResult.success) {
-              console.error(`Failed to send WhatsApp reminder to ${tenant.ownerPhone}:`, waResult.error)
+            const envOverride = process.env.WHATSAPP_SUBSCRIPTION_REMINDER_TEMPLATE?.trim()
+            
+            // Try templates in order: override (if any) -> v2 -> fallback v1
+            const templatesToTry = envOverride 
+              ? [envOverride] 
+              : [WHATSAPP_TEMPLATE.SUBSCRIPTION_REMINDER, 'subscription_reminder']
+              
+            let waResult
+            for (const templateName of templatesToTry) {
+              waResult = await sendSubscriptionReminderWhatsApp(
+                tenant.ownerPhone,
+                templateName,
+                daysLeft
+              )
+              if (waResult.success) {
+                break
+              }
+            }
+
+            if (!waResult?.success) {
+              console.error(`Failed to send WhatsApp reminder to ${tenant.ownerPhone}:`, waResult?.error)
             }
           }
 

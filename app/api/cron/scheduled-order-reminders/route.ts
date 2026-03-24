@@ -75,15 +75,13 @@ export async function GET(request: Request) {
           prioritizeWhatsapp: order.prioritizeWhatsapp,
         })
       } finally {
-        if (!order.prioritizeWhatsapp) {
-          const jobRes = await scheduleOrderUnacceptedWhatsapp(order._id, Date.now())
-          await recordOrderUnacceptedWhatsappJobResult(
-            writeClient,
-            order._id,
-            'cron/scheduled-order-reminders (single)',
-            jobRes
-          )
-        }
+        const jobRes = await scheduleOrderUnacceptedWhatsapp(order._id, Date.now())
+        await recordOrderUnacceptedWhatsappJobResult(
+          writeClient,
+          order._id,
+          'cron/scheduled-order-reminders (single)',
+          jobRes
+        )
       }
       return NextResponse.json({ success: true, processed: 1, orderId: singleOrderId })
     }
@@ -150,15 +148,13 @@ export async function GET(request: Request) {
             prioritizeWhatsapp: order.prioritizeWhatsapp
           })
         } finally {
-          if (!order.prioritizeWhatsapp) {
-            const jobRes = await scheduleOrderUnacceptedWhatsapp(order._id, Date.now())
-            await recordOrderUnacceptedWhatsappJobResult(
-              writeClient,
-              order._id,
-              'cron/scheduled-order-reminders (batch)',
-              jobRes
-            )
-          }
+          const jobRes = await scheduleOrderUnacceptedWhatsapp(order._id, Date.now())
+          await recordOrderUnacceptedWhatsappJobResult(
+            writeClient,
+            order._id,
+            'cron/scheduled-order-reminders (batch)',
+            jobRes
+          )
         }
 
         results.push({ orderId: order._id, success: true })
