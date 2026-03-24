@@ -61,6 +61,15 @@ export function getMorningEncouragementPushAr(nick: string | undefined | null): 
   }
 }
 
+/** Sent to OFFLINE verified drivers when new delivery orders are requested in their area. Reminder only — no order details.
+ *  Drivers must go online manually to see orders. This encourages hitting the Online button. */
+export function getOfflineOrderAvailableReminderPushAr(_nick?: string | null): { title: string; body: string } {
+  return {
+    title: 'تنبيه: طلبات توصيل متاحة',
+    body: 'يوجد طلبات توصيل متاحة في منطقتك! ادخل متصل لرؤية الطلبات.',
+  }
+}
+
 /** When business manually assigns an order to the driver (including re-assignment after driver declined). */
 export function getManualAssignmentPushAr(
   _nick: string | undefined | null,

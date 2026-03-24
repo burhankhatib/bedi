@@ -182,7 +182,30 @@ export async function GET() {
     const { title, body } = getAutoOfflinePushAr(driver.nickname)
     const payload = { title, body, url: '/driver/orders' }
     let sent = false
-    if (driver.fcmToken && isFCMConfigured()) {
+    const subs = await getActiveSubscriptionsForUser({ clerkUserId: userId, roleContext: 'driver' })
+    for (const sub of subs) {
+      for (const dev of sub?.devices ?? []) {
+        if (dev?.fcmToken && isFCMConfigured() && (await sendFCMToToken(dev.fcmToken, payload))) {
+          sent = true
+          break
+        }
+        if (
+          dev?.webPush?.endpoint &&
+          dev.webPush.p256dh &&
+          dev.webPush.auth &&
+          isPushConfigured() &&
+          (await sendPushNotification(
+            { endpoint: dev.webPush.endpoint, keys: { p256dh: dev.webPush.p256dh, auth: dev.webPush.auth } },
+            payload
+          ))
+        ) {
+          sent = true
+          break
+        }
+      }
+      if (sent) break
+    }
+    if (!sent && driver.fcmToken && isFCMConfigured()) {
       sent = await sendFCMToToken(driver.fcmToken, payload)
     }
     if (

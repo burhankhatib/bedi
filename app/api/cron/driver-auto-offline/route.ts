@@ -4,6 +4,7 @@ import { token } from '@/sanity/lib/token'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
 import { getAutoOfflinePushAr } from '@/lib/driver-push-messages'
+import { getActiveSubscriptionsForUser } from '@/lib/user-push-subscriptions'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 
@@ -11,27 +12,34 @@ const AUTO_OFFLINE_AFTER_MS = 8 * 60 * 60 * 1000 // 8 hours
 
 type DriverRow = {
   _id: string
+  clerkUserId?: string
   nickname?: string
   fcmToken?: string
   pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string }
 }
 
 /**
- * GET (invoked by Vercel Cron) — Find drivers who have been online for 8+ continuous hours,
- * set them offline in Sanity, and send each an FCM announcement so they can open the app and go back online.
- * Secured by CRON_SECRET: Vercel sends Authorization: Bearer $CRON_SECRET when CRON_SECRET is set.
+ * GET (invoked by Vercel Cron every 15 min) — Find drivers who have been online for 8+ continuous hours,
+ * set them offline in Sanity, and send each an FCM/Web Push announcement so they can open the app and go back online.
+ * Secured with CRON_SECRET / FIREBASE_JOB_SECRET (same pattern as other crons).
  */
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  const m = authHeader?.match(/^Bearer\s+(.+)$/i)
+  const bearer = m?.[1]?.trim() || ''
+  const url = new URL(req.url)
+  const secretParam = url.searchParams.get('secret')
+  const allowedSecrets = [process.env.CRON_SECRET, process.env.FIREBASE_JOB_SECRET].filter(
+    (s): s is string => typeof s === 'string' && s.length > 0
+  )
+  if (allowedSecrets.length && !allowedSecrets.includes(bearer) && !(secretParam && allowedSecrets.includes(secretParam))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   if (!token) return NextResponse.json({ error: 'Server config' }, { status: 500 })
 
   const cutoff = new Date(Date.now() - AUTO_OFFLINE_AFTER_MS).toISOString()
   const drivers = await writeClient.fetch<DriverRow[]>(
-    `*[_type == "driver" && isOnline == true && defined(onlineSince) && onlineSince <= $cutoff]{ _id, nickname, fcmToken, "pushSubscription": pushSubscription }`,
+    `*[_type == "driver" && isOnline == true && defined(onlineSince) && onlineSince <= $cutoff]{ _id, clerkUserId, nickname, fcmToken, "pushSubscription": pushSubscription }`,
     { cutoff }
   )
   if (!drivers?.length) {
@@ -51,7 +59,33 @@ export async function GET(req: Request) {
       const { title, body } = getAutoOfflinePushAr(driver.nickname)
       const payload = { title, body, url: '/driver/orders' }
       let sent = false
-      if (driver.fcmToken && isFCMConfigured()) {
+      const clerkId = (driver.clerkUserId ?? '').trim()
+      if (clerkId) {
+        const subs = await getActiveSubscriptionsForUser({ clerkUserId: clerkId, roleContext: 'driver' })
+        for (const sub of subs) {
+          for (const dev of sub?.devices ?? []) {
+            if (dev?.fcmToken && isFCMConfigured() && (await sendFCMToToken(dev.fcmToken, payload))) {
+              sent = true
+              break
+            }
+            if (
+              dev?.webPush?.endpoint &&
+              dev.webPush.p256dh &&
+              dev.webPush.auth &&
+              isPushConfigured() &&
+              (await sendPushNotification(
+                { endpoint: dev.webPush.endpoint, keys: { p256dh: dev.webPush.p256dh, auth: dev.webPush.auth } },
+                payload
+              ))
+            ) {
+              sent = true
+              break
+            }
+          }
+          if (sent) break
+        }
+      }
+      if (!sent && driver.fcmToken && isFCMConfigured()) {
         sent = await sendFCMToToken(driver.fcmToken, payload)
       }
       if (

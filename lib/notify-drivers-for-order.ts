@@ -7,6 +7,7 @@ import { triggerPusherEvent } from '@/lib/pusher'
 import { distanceKm } from '@/lib/maps-utils'
 import { getPlatformPolygons, type Polygon } from '@/lib/platform-polygons'
 import { isPointInPolygon } from '@/lib/geofencing'
+import { getOfflineOrderAvailableReminderPushAr } from '@/lib/driver-push-messages'
 
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 const OFFLINE_REMINDER_INTERVAL_MS = 2 * 60 * 60 * 1000
@@ -370,7 +371,8 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // OFFLINE REMINDERS (City-wide blast, max 1 per 2 hours)
+    // OFFLINE REMINDERS — Reminder only, NEVER order details. Offline drivers must go
+    // online manually to see orders. City-wide blast, max 1 per 2 hours.
     // ─────────────────────────────────────────────────────────────────────────
     if (ctx.siteRef) {
       const reminderCutoff = new Date(nowMs - OFFLINE_REMINDER_INTERVAL_MS).toISOString()
@@ -408,11 +410,14 @@ export async function notifyDriversOfDeliveryOrder(orderId: string): Promise<voi
           offlineMap.set(c.clerkUserId, arr)
         }
 
+        const RTL = '\u200F'
+        const { title, body } = getOfflineOrderAvailableReminderPushAr(null)
         const reminderPayload = {
-          title: '\u200Fتنبيه: طلبات توصيل متاحة',
-          body: '\u200Fيوجد طلبات توصيل متاحة في منطقتك! افتح التطبيق واتصل بالإنترنت لاستقبال الطلبات.',
+          title: RTL + title,
+          body: RTL + body,
           url: '/driver/orders',
           dir: 'rtl' as const,
+          data: { type: 'offline_reminder' },
         }
         
         const reminderNow = new Date(nowMs).toISOString()

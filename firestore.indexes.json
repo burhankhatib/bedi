@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "scheduledJobs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "runAtMs", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "ratingsActive",
       "queryScope": "COLLECTION",
       "fields": [

@@ -89,6 +89,21 @@ async function runLegacyFallbackCrons(req: Request): Promise<{
   return { unacceptedOrders, scheduledReminders, deliveryTierEscalation, retryDeliveryRequests, unacceptedDeliveryWhatsapp }
 }
 
+/** Sanity GROQ backup for 3‑min business WhatsApp (same as pre‑Firestore cron). Idempotent via order fields. */
+async function runUnacceptedOrdersWhatsappLegacy(req: Request): Promise<unknown> {
+  const baseUrl = getBaseUrl(req)
+  const secret = process.env.CRON_SECRET || process.env.FIREBASE_JOB_SECRET || ''
+  const headers: HeadersInit = secret ? { Authorization: `Bearer ${secret}` } : {}
+  const res = await fetch(`${baseUrl}/api/cron/unaccepted-orders-whatsapp?allowLegacy=1`, {
+    headers,
+    method: 'GET',
+    cache: 'no-store',
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) return { ok: false, status: res.status, body }
+  return body
+}
+
 async function executeJob(req: Request, type: ScheduledJobType, orderId: string): Promise<void> {
   const baseUrl = getBaseUrl(req)
   const secret = process.env.CRON_SECRET || process.env.FIREBASE_JOB_SECRET || ''
@@ -152,16 +167,57 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
   const nowMs = Date.now()
   let pending: ScheduledJobsSnapshot | null = null
   let firestoreFailed = false
+  let usedLegacyPendingScan = false
+
+  /**
+   * IMPORTANT: `where(status==pending).limit(200)` without orderBy returns an *arbitrary* 200 docs.
+   * With many future-dated jobs (delivery tiers, retries), due jobs like `order_unaccepted_whatsapp`
+   * may never appear — breaking the 3‑minute reminder. Query due work only: status + runAtMs <= now,
+   * ordered by runAtMs (requires composite index in firestore.indexes.json).
+   */
+  const fetchDueScheduledJobs = async (): Promise<ScheduledJobsSnapshot | null> => {
+    const col = db as unknown as {
+      collection: (name: string) => {
+        where: (f: string, o: string, v: unknown) => {
+          where: (f2: string, o2: string, v2: unknown) => {
+            orderBy: (field: string, dir?: string) => { limit: (n: number) => { get: () => Promise<ScheduledJobsSnapshot> } }
+          }
+        }
+      }
+    }
+    try {
+      return await col
+        .collection('scheduledJobs')
+        .where('status', '==', 'pending')
+        .where('runAtMs', '<=', nowMs)
+        .orderBy('runAtMs', 'asc')
+        .limit(50)
+        .get()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      const needsIndex =
+        msg.includes('FAILED_PRECONDITION') ||
+        msg.includes('index') ||
+        msg.includes('requires an index')
+      if (!needsIndex) throw e
+      console.warn(
+        '[process-due] Due-job query failed (deploy firestore.indexes.json scheduledJobs index). Falling back to unordered pending scan:',
+        msg
+      )
+      usedLegacyPendingScan = true
+      return (await db
+        .collection('scheduledJobs')
+        .where('status', '==', 'pending')
+        .limit(200)
+        .get()) as unknown as ScheduledJobsSnapshot
+    }
+  }
+
   try {
-    // 5-second timeout: Firestore PERMISSION_DENIED can hang if the project is misconfigured.
-    // Failing fast ensures the legacy fallback (already running) completes within the function budget.
-    pending = await withTimeout(
-      db.collection('scheduledJobs').where('status', '==', 'pending').limit(200).get() as Promise<ScheduledJobsSnapshot>,
-      5000
-    )
+    pending = await withTimeout(fetchDueScheduledJobs(), 8000)
     if (!pending) {
       firestoreFailed = true
-      console.warn('[process-due] Firestore query timed out (5s) — Firestore API may be disabled')
+      console.warn('[process-due] Firestore query timed out — Firestore API may be slow or disabled')
     }
   } catch (error) {
     firestoreFailed = true
@@ -172,10 +228,14 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
   let failed = 0
 
   if (!firestoreFailed && pending) {
-    const dueDocs = pending.docs.filter((d) => {
-      const runAtMs = Number((d.data() as JobDoc).runAtMs ?? 0)
-      return Number.isFinite(runAtMs) && runAtMs <= nowMs
-    }).slice(0, 50)
+    const dueDocs = usedLegacyPendingScan
+      ? pending.docs
+          .filter((d) => {
+            const runAtMs = Number((d.data() as JobDoc).runAtMs ?? 0)
+            return Number.isFinite(runAtMs) && runAtMs <= nowMs
+          })
+          .slice(0, 50)
+      : pending.docs
 
     for (const doc of dueDocs) {
       const data = doc.data() as JobDoc
@@ -325,13 +385,27 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
     fallback = await fallbackPromise
   }
 
+  // When Firestore is healthy we skip parallel `runLegacyFallbackCrons` (see isFallbackNeeded).
+  // Still run the Sanity GROQ scan for unaccepted orders here: it matches pre‑Firestore behavior and
+  // catches jobs the Firestore query missed (e.g. before composite index deploy). Deduped on the order doc.
+  let sanityUnacceptedWhatsappScan: unknown = { skipped: true }
+  if (!isFallbackNeeded && !firestoreFailed) {
+    try {
+      sanityUnacceptedWhatsappScan = await runUnacceptedOrdersWhatsappLegacy(req)
+    } catch (e) {
+      sanityUnacceptedWhatsappScan = { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+
   return NextResponse.json({ 
     ok: true, 
     processed, 
     failed, 
     broadcastProcessed,
     firestoreFailed,
-    fallback 
+    usedLegacyPendingScan,
+    fallback,
+    sanityUnacceptedWhatsappScan,
   })
 }
 
