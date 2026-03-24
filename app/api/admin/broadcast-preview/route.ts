@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { isSuperAdminEmail } from '@/lib/constants'
@@ -19,7 +18,7 @@ export async function POST(req: Request) {
   }
 
   if (!isFirebaseAdminConfigured()) {
-    return NextResponse.json({ error: 'Firebase Admin not configured. Cannot queue broadcast.' }, { status: 500 })
+    return NextResponse.json({ error: 'Firebase Admin not configured. Cannot preview broadcast.' }, { status: 500 })
   }
   const db = getFirestoreAdmin()
   if (!db) {
@@ -28,15 +27,10 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    const { targets, country, city, specificUsers, message, channels } = body
-
-    const selectedChannels = Array.isArray(channels) && channels.length > 0 ? channels : ['whatsapp']
+    const { targets, country, city, specificUsers } = body
 
     if ((!targets || !Array.isArray(targets) || targets.length === 0) && (!specificUsers || !Array.isArray(specificUsers) || specificUsers.length === 0)) {
       return NextResponse.json({ error: 'Targets array or specific users are required' }, { status: 400 })
-    }
-    if (!message || typeof message !== 'string' || message.trim() === '') {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
 
     const snapDoc = await db.collection(CACHE_COLLECTION).doc(SNAPSHOT_DOC).get()
@@ -79,44 +73,13 @@ export async function POST(req: Request) {
       city,
       specificUsers,
     })
-    const totalFound = recipients.length
-
-    if (totalFound === 0) {
-      return NextResponse.json({ error: 'No recipients found matching criteria.' }, { status: 400 })
-    }
-
-    const jobId = randomUUID()
-    const jobRef = db.collection('broadcastJobs').doc(jobId)
-    await jobRef.set({
-      type: 'broadcast',
-      status: 'pending',
-      recipients,
-      cursor: 0,
-      sentCount: 0,
-      failedCount: 0,
-      fcmSentCount: 0,
-      fcmFailedCount: 0,
-      channels: selectedChannels,
-      message,
-      targets: targets || [],
-      countries: country || '',
-      cities: city || '',
-      specificNumbers: specificUsers && Array.isArray(specificUsers) ? specificUsers.map((u: { name?: string; phone?: string }) => `${u.name} (${u.phone})`).join(', ') : '',
-      successfulNumbers: [],
-      failedNumbers: [],
-      errorsList: [],
-      createdAtMs: Date.now(),
-      updatedAtMs: Date.now(),
-    })
 
     return NextResponse.json({
-      success: true,
-      totalFound,
-      jobId,
+      totalFound: recipients.length,
+      sample: recipients.slice(0, 5),
     })
-  } catch (error: unknown) {
-    console.error('[Admin Broadcast WhatsApp]', error)
-    const msg = error instanceof Error ? error.message : 'Internal error'
-    return NextResponse.json({ error: msg }, { status: 500 })
+  } catch (error) {
+    console.error('[BroadcastPreviewError]', error)
+    return NextResponse.json({ error: 'Failed to process request' }, { status: 500 })
   }
 }

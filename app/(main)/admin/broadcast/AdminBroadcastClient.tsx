@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Megaphone, Loader2, Info, CheckCircle2, XCircle, Clock, MessageSquare, Send, RefreshCw } from 'lucide-react'
+import { Megaphone, Loader2, Info, CheckCircle2, XCircle, Clock, MessageSquare, Send, RefreshCw, Smartphone, BellRing, Search, X } from 'lucide-react'
 import { AdminWhatsAppPushBanner } from '@/components/AdminWhatsAppPushBanner'
 import { Button } from '@/components/ui/button'
 
@@ -26,27 +26,33 @@ type BroadcastHistory = {
   _id: string
   message: string
   targets: string[]
+  channels?: string[]
   countries: string
   cities: string
-    specificNumbers: string
-    successfulNumbers?: string[]
-    failedNumbers?: string[]
-    sentCount: number
+  specificNumbers: string
+  successfulNumbers?: string[]
+  failedNumbers?: string[]
+  sentCount: number
   failedCount: number
+  fcmSentCount?: number
+  fcmFailedCount?: number
   totalFound: number
   createdAt: string
 }
 
-export function AdminBroadcastClient() {
+export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?: 'broadcast' | 'inbox' }) {
   const [targets, setTargets] = useState<string[]>([])
   const [countries, setCountries] = useState('')
   const [cities, setCities] = useState('')
   const [specificUsers, setSpecificUsers] = useState<{name: string, phone: string}[]>([])
   const [message, setMessage] = useState('')
+  const [channels, setChannels] = useState<('whatsapp' | 'fcm')[]>(['whatsapp'])
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ success?: boolean, sentCount?: number, failedCount?: number, totalFound?: number, error?: string } | null>(null)
   const [jobId, setJobId] = useState<string | null>(null)
   const [jobStatus, setJobStatus] = useState<any>(null)
+  const [preview, setPreview] = useState<{ totalFound: number; sample?: any[] } | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   
   const [history, setHistory] = useState<BroadcastHistory[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
@@ -71,7 +77,7 @@ export function AdminBroadcastClient() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   // Inbox
-  const [activeTab, setActiveTab] = useState<'broadcast' | 'inbox'>('broadcast')
+  const [activeTab, setActiveTab] = useState<'broadcast' | 'inbox'>(initialTab)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [inboxLoading, setInboxLoading] = useState(false)
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null)
@@ -198,8 +204,54 @@ export function AdminBroadcastClient() {
     setTargets(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t])
   }
 
+  const toggleChannel = (c: 'whatsapp' | 'fcm') => {
+    setChannels(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
+  }
+
+  const fetchPreview = async () => {
+    const validUsers = specificUsers.filter(u => u.name.trim() && u.phone.trim())
+    if (targets.length === 0 && validUsers.length === 0) {
+      setPreview(null)
+      return
+    }
+    setPreviewLoading(true)
+    try {
+      const res = await fetch('/api/admin/broadcast-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targets,
+          country: countries,
+          city: cities,
+          specificUsers: validUsers,
+        })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setPreview(data)
+      } else {
+        setPreview(null)
+      }
+    } catch {
+      setPreview(null)
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (activeTab === 'broadcast') fetchPreview()
+    }, 500)
+    return () => clearTimeout(timeoutId)
+  }, [targets, countries, cities, specificUsers, activeTab])
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (channels.length === 0) {
+      alert('Please select at least one channel (WhatsApp or FCM).')
+      return
+    }
     const validUsers = specificUsers.filter(u => u.name.trim() && u.phone.trim())
     if (targets.length === 0 && validUsers.length === 0) {
       alert('Please select at least one target audience or enter specific users.')
@@ -210,7 +262,7 @@ export function AdminBroadcastClient() {
       return
     }
 
-    const confirmMsg = `Are you sure you want to broadcast this message?\n\nTargets: ${targets.join(', ') || 'None'}\nLocations: ${countries || 'All'} / ${cities || 'All'}\nSpecific Users: ${validUsers.length}\n\nMessage preview:\nمرحبا [Name]\n${message}\nهذه الرسالة اوتوماتيكية و لن يتم الرد عليها.`
+    const confirmMsg = `Are you sure you want to broadcast this message?\n\nChannels: ${channels.join(', ')}\nTargets: ${targets.join(', ') || 'None'}\nLocations: ${countries || 'All'} / ${cities || 'All'}\nSpecific Users: ${validUsers.length}\n\nMessage preview:\nمرحبا [Name]\n${message}\nهذه الرسالة اوتوماتيكية و لن يتم الرد عليها.`
     if (!confirm(confirmMsg)) return
 
     setSending(true)
@@ -223,6 +275,7 @@ export function AdminBroadcastClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          channels,
           targets,
           country: countries, // Send directly to API which expects comma-separated
           city: cities,
@@ -277,6 +330,9 @@ export function AdminBroadcastClient() {
     poll()
     return () => clearTimeout(timeoutId)
   }, [jobId])
+
+  const [countrySearch, setCountrySearch] = useState('')
+  const [citySearch, setCitySearch] = useState('')
 
   const toggleLocationFilter = (type: 'country' | 'city', val: string) => {
     if (type === 'country') {
@@ -507,12 +563,83 @@ export function AdminBroadcastClient() {
         </div>
       </div>
 
-      <form onSubmit={handleSend} className="space-y-6 max-w-2xl">
+      <form onSubmit={handleSend} className="space-y-8 max-w-2xl pb-32 relative">
+
+        {/* Sticky Summary Bar */}
+        <div className="sticky top-4 z-10 bg-slate-900 border border-slate-700/60 rounded-xl p-4 shadow-xl flex items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-white">Broadcast Summary</h3>
+            <p className="text-xs text-slate-400 mt-1">
+              {previewLoading ? (
+                <span className="flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> Calculating audience...</span>
+              ) : preview ? (
+                <span>Sending to <strong className="text-amber-400">{preview.totalFound}</strong> recipient(s)</span>
+              ) : (
+                'Select targets to see preview'
+              )}
+            </p>
+            {preview?.sample && preview.sample.length > 0 && (
+              <p className="text-[10px] text-slate-500 mt-1 truncate">
+                e.g., {preview.sample.map((s: any) => s.name).join(', ')}
+              </p>
+            )}
+          </div>
+          <Button
+            type="submit"
+            disabled={sending || (!preview && specificUsers.length === 0)}
+            className="bg-amber-600 text-slate-950 hover:bg-amber-500 shrink-0 shadow-lg"
+          >
+            {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+            <span className="ml-2 font-semibold">Send Broadcast</span>
+          </Button>
+        </div>
         
-        {/* Target Audience */}
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-slate-300">Target Audience (Optional if using specific users)</label>
-          <div className="flex flex-wrap gap-3">
+        {/* 1. Channels */}
+        <div className="space-y-3 pt-2">
+          <h3 className="text-base font-semibold text-white flex items-center gap-2">
+            <span className="flex items-center justify-center size-6 rounded-full bg-slate-800 text-xs text-slate-400 border border-slate-700">1</span>
+            Channels
+          </h3>
+          <div className="flex flex-wrap gap-3 pl-8">
+            <label className={`flex items-center gap-3 rounded-xl border ${channels.includes('whatsapp') ? 'border-amber-500/50 bg-amber-500/10' : 'border-slate-700 bg-slate-800/50'} px-4 py-3 cursor-pointer hover:bg-slate-800 transition-colors flex-1 min-w-[200px]`}>
+              <input
+                type="checkbox"
+                checked={channels.includes('whatsapp')}
+                onChange={() => toggleChannel('whatsapp')}
+                className="rounded border-slate-600 bg-slate-900 text-amber-500 focus:ring-amber-500/50 mt-0.5"
+              />
+              <div>
+                <span className="text-sm font-medium text-white flex items-center gap-2">
+                  <Smartphone className="size-4 text-emerald-400" /> WhatsApp
+                </span>
+                <p className="text-xs text-slate-400 mt-0.5">Template message to phone</p>
+              </div>
+            </label>
+            <label className={`flex items-center gap-3 rounded-xl border ${channels.includes('fcm') ? 'border-amber-500/50 bg-amber-500/10' : 'border-slate-700 bg-slate-800/50'} px-4 py-3 cursor-pointer hover:bg-slate-800 transition-colors flex-1 min-w-[200px]`}>
+              <input
+                type="checkbox"
+                checked={channels.includes('fcm')}
+                onChange={() => toggleChannel('fcm')}
+                className="rounded border-slate-600 bg-slate-900 text-amber-500 focus:ring-amber-500/50 mt-0.5"
+              />
+              <div>
+                <span className="text-sm font-medium text-white flex items-center gap-2">
+                  <BellRing className="size-4 text-blue-400" /> Web Push (FCM)
+                </span>
+                <p className="text-xs text-slate-400 mt-0.5">Notification to active apps</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {/* 2. Target Audience */}
+        <div className="space-y-3 pt-4 border-t border-slate-800/60">
+          <h3 className="text-base font-semibold text-white flex items-center gap-2">
+            <span className="flex items-center justify-center size-6 rounded-full bg-slate-800 text-xs text-slate-400 border border-slate-700">2</span>
+            Audiences
+          </h3>
+          <p className="text-xs text-slate-400 pl-8">Select broad groups to reach. You can skip this if only entering specific numbers below.</p>
+          <div className="flex flex-wrap gap-3 pl-8">
             {[
               { id: 'businesses', label: 'Businesses' },
               { id: 'drivers', label: 'Drivers' },
@@ -531,64 +658,127 @@ export function AdminBroadcastClient() {
           </div>
         </div>
 
-        {/* Location Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-slate-300">Country Filters (Optional)</label>
-            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 rounded-lg border border-slate-700 bg-slate-800/80 p-3">
-              {availableCountries.length === 0 ? (
-                <span className="text-xs text-slate-500">No countries found</span>
-              ) : (
-                availableCountries.map(c => {
-                  const isChecked = countries.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).includes(c.toLowerCase())
-                  return (
-                    <label key={c} className="flex items-center gap-2 rounded border border-slate-600 bg-slate-800 px-2 py-1 cursor-pointer hover:bg-slate-700 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleLocationFilter('country', c)}
-                        className="rounded border-slate-500 bg-slate-900 text-amber-500 focus:ring-amber-500/50"
-                      />
-                      <span className="text-xs font-medium text-slate-300">{c}</span>
-                    </label>
-                  )
-                })
-              )}
-            </div>
+        {/* 3. Location Filters */}
+        <div className="space-y-3 pt-4 border-t border-slate-800/60">
+          <div className="pl-8 -mt-2 mb-2">
+            <h3 className="text-base font-semibold text-white flex items-center gap-2 -ml-8">
+              <span className="flex items-center justify-center size-6 rounded-full bg-slate-800 text-xs text-slate-400 border border-slate-700">3</span>
+              Geography
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">Leave empty to target all locations. Filter narrows down the Audiences selected above.</p>
           </div>
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-slate-300">City Filters (Optional)</label>
-            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 rounded-lg border border-slate-700 bg-slate-800/80 p-3">
-              {availableCities.length === 0 ? (
-                <span className="text-xs text-slate-500">No cities found</span>
-              ) : (
-                availableCities.map(c => {
-                  const isChecked = cities.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).includes(c.toLowerCase())
-                  return (
-                    <label key={c} className="flex items-center gap-2 rounded border border-slate-600 bg-slate-800 px-2 py-1 cursor-pointer hover:bg-slate-700 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleLocationFilter('city', c)}
-                        className="rounded border-slate-500 bg-slate-900 text-amber-500 focus:ring-amber-500/50"
-                      />
-                      <span className="text-xs font-medium text-slate-300">{c}</span>
-                    </label>
-                  )
-                })
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-8">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-300">Countries</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 size-4 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search countries..."
+                  value={countrySearch}
+                  onChange={e => setCountrySearch(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800/80 pl-9 pr-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50 mb-2"
+                />
+              </div>
+              
+              {/* Selected Country Chips */}
+              {countries && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {countries.split(',').map(s => s.trim()).filter(Boolean).map(c => (
+                    <span key={c} className="inline-flex items-center gap-1 rounded bg-amber-500/10 text-amber-300 px-2 py-1 text-xs border border-amber-500/20">
+                      {c}
+                      <button type="button" onClick={() => toggleLocationFilter('country', c)} className="hover:text-amber-100 ml-1">
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
               )}
+
+              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 rounded-lg border border-slate-700 bg-slate-800/80 p-3">
+                {availableCountries.filter(c => c.toLowerCase().includes(countrySearch.toLowerCase())).length === 0 ? (
+                  <span className="text-xs text-slate-500">No matches found</span>
+                ) : (
+                  availableCountries
+                    .filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()))
+                    .map(c => {
+                      const isChecked = countries.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).includes(c.toLowerCase())
+                      return (
+                        <label key={c} className="flex items-center gap-2 rounded border border-slate-600 bg-slate-800 px-2 py-1 cursor-pointer hover:bg-slate-700 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleLocationFilter('country', c)}
+                            className="rounded border-slate-500 bg-slate-900 text-amber-500 focus:ring-amber-500/50"
+                          />
+                          <span className="text-xs font-medium text-slate-300">{c}</span>
+                        </label>
+                      )
+                    })
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-300">Cities</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 size-4 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Search cities..."
+                  value={citySearch}
+                  onChange={e => setCitySearch(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800/80 pl-9 pr-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50 mb-2"
+                />
+              </div>
+
+              {/* Selected City Chips */}
+              {cities && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {cities.split(',').map(s => s.trim()).filter(Boolean).map(c => (
+                    <span key={c} className="inline-flex items-center gap-1 rounded bg-amber-500/10 text-amber-300 px-2 py-1 text-xs border border-amber-500/20">
+                      {c}
+                      <button type="button" onClick={() => toggleLocationFilter('city', c)} className="hover:text-amber-100 ml-1">
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 rounded-lg border border-slate-700 bg-slate-800/80 p-3">
+                {availableCities.filter(c => c.toLowerCase().includes(citySearch.toLowerCase())).length === 0 ? (
+                  <span className="text-xs text-slate-500">No matches found</span>
+                ) : (
+                  availableCities
+                    .filter(c => c.toLowerCase().includes(citySearch.toLowerCase()))
+                    .map(c => {
+                      const isChecked = cities.split(',').map(s => s.trim().toLowerCase()).filter(Boolean).includes(c.toLowerCase())
+                      return (
+                        <label key={c} className="flex items-center gap-2 rounded border border-slate-600 bg-slate-800 px-2 py-1 cursor-pointer hover:bg-slate-700 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleLocationFilter('city', c)}
+                            className="rounded border-slate-500 bg-slate-900 text-amber-500 focus:ring-amber-500/50"
+                          />
+                          <span className="text-xs font-medium text-slate-300">{c}</span>
+                        </label>
+                      )
+                    })
+                )}
+              </div>
             </div>
           </div>
         </div>
-        <p className="text-xs text-slate-500 flex items-start gap-1.5">
-          <Info className="size-3.5 shrink-0 mt-0.5" />
-          Leave location filters empty to send to everyone in the selected target groups. Customers are filtered based on the cities/countries of the businesses they ordered from.
-        </p>
 
-        {/* Specific Users */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="block text-sm font-medium text-slate-300">Specific Users (Optional)</label>
+        {/* 4. Specific Users */}
+        <div className="space-y-3 pt-4 border-t border-slate-800/60">
+          <div className="flex items-center justify-between pl-8 -ml-8">
+            <h3 className="text-base font-semibold text-white flex items-center gap-2">
+              <span className="flex items-center justify-center size-6 rounded-full bg-slate-800 text-xs text-slate-400 border border-slate-700">4</span>
+              Specific Numbers
+            </h3>
             <Button
               type="button"
               variant="outline"
@@ -599,80 +789,88 @@ export function AdminBroadcastClient() {
               + Add User
             </Button>
           </div>
-          {specificUsers.length > 0 && (
-            <div className="space-y-2">
-              {specificUsers.map((u, i) => (
-                <div key={i} className="flex gap-2 items-start">
-                  <input
-                    type="text"
-                    value={u.name}
-                    onChange={e => {
-                      const newArr = [...specificUsers]
-                      newArr[i].name = e.target.value
-                      setSpecificUsers(newArr)
-                    }}
-                    placeholder="First Name"
-                    className="w-1/3 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-                  />
-                  <input
-                    type="text"
-                    value={u.phone}
-                    onChange={e => {
-                      const newArr = [...specificUsers]
-                      newArr[i].phone = e.target.value
-                      setSpecificUsers(newArr)
-                    }}
-                    placeholder="Phone (e.g. +972...)"
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-                    dir="ltr"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newArr = [...specificUsers]
-                      newArr.splice(i, 1)
-                      setSpecificUsers(newArr)
-                    }}
-                    className="p-2 text-slate-500 hover:text-rose-400 transition-colors shrink-0"
-                    title="Remove user"
-                  >
-                    <XCircle className="size-5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <p className="text-xs text-slate-500">Add individuals to receive the broadcast. Phone must include country code.</p>
+          <p className="text-xs text-slate-400 pl-8 -mt-2">Manually add individuals who will receive the message regardless of target filters. Phone must include country code.</p>
+          
+          <div className="pl-8">
+            {specificUsers.length > 0 && (
+              <div className="space-y-2">
+                {specificUsers.map((u, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <input
+                      type="text"
+                      value={u.name}
+                      onChange={e => {
+                        const newArr = [...specificUsers]
+                        newArr[i].name = e.target.value
+                        setSpecificUsers(newArr)
+                      }}
+                      placeholder="First Name"
+                      className="w-1/3 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                    />
+                    <input
+                      type="text"
+                      value={u.phone}
+                      onChange={e => {
+                        const newArr = [...specificUsers]
+                        newArr[i].phone = e.target.value
+                        setSpecificUsers(newArr)
+                      }}
+                      placeholder="Phone (e.g. +972...)"
+                      className="flex-1 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newArr = [...specificUsers]
+                        newArr.splice(i, 1)
+                        setSpecificUsers(newArr)
+                      }}
+                      className="p-2 text-slate-500 hover:text-rose-400 transition-colors shrink-0"
+                      title="Remove user"
+                    >
+                      <XCircle className="size-5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Message Content */}
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-slate-300">Message Content (Arabic)</label>
-          <div className="rounded-lg border border-slate-700 bg-slate-800/80 overflow-hidden text-sm">
-            <div className="bg-slate-800/50 px-4 py-2 border-b border-slate-700/50 text-slate-400 font-mono" dir="rtl">
-              مرحبا {'{{1}}'}
+        {/* 5. Message Content */}
+        <div className="space-y-3 pt-4 border-t border-slate-800/60">
+          <h3 className="text-base font-semibold text-white flex items-center gap-2">
+            <span className="flex items-center justify-center size-6 rounded-full bg-slate-800 text-xs text-slate-400 border border-slate-700">5</span>
+            Message Content (Arabic)
+          </h3>
+          <div className="pl-8 space-y-1.5">
+            <div className="rounded-lg border border-slate-700 bg-slate-800/80 overflow-hidden text-sm">
+              <div className="bg-slate-800/50 px-4 py-2 border-b border-slate-700/50 text-slate-400 font-mono" dir="rtl">
+                مرحبا {'{{1}}'}
+              </div>
+              <textarea
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                required
+                rows={4}
+                dir="rtl"
+                placeholder="اكتب رسالتك هنا..."
+                className="w-full resize-y bg-transparent px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none"
+              />
+              <div className="bg-slate-800/50 px-4 py-2 border-t border-slate-700/50 text-slate-400 font-mono" dir="rtl">
+                هذه الرسالة اوتوماتيكية و لن يتم الرد عليها.
+              </div>
             </div>
-            <textarea
-              value={message}
-              onChange={e => setMessage(e.target.value)}
-              required
-              rows={4}
-              dir="rtl"
-              placeholder="اكتب رسالتك هنا..."
-              className="w-full resize-y bg-transparent px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none"
-            />
-            <div className="bg-slate-800/50 px-4 py-2 border-t border-slate-700/50 text-slate-400 font-mono" dir="rtl">
-              هذه الرسالة اوتوماتيكية و لن يتم الرد عليها.
-            </div>
+            <p className="text-xs text-slate-500 mt-1">
+              {`{{1}}`} will automatically be replaced with the recipient's first name. Your input here will replace {`{{2}}`}.
+            </p>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            {`{{1}}`} will automatically be replaced with the recipient's first name. Your input here will replace {`{{2}}`}.
-          </p>
         </div>
 
         {/* Status / Result */}
         {jobStatus && jobId && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300 mt-4">
             <div className="flex items-center gap-2 mb-2">
               <Loader2 className="size-4 animate-spin" />
               <p className="font-semibold">Broadcasting in background...</p>
@@ -680,42 +878,34 @@ export function AdminBroadcastClient() {
             <div className="w-full bg-slate-800 rounded-full h-2 mb-2 overflow-hidden">
               <div className="bg-amber-500 h-2 transition-all duration-300" style={{ width: `${jobStatus.totalFound ? ((jobStatus.sentCount + jobStatus.failedCount) / jobStatus.totalFound) * 100 : 0}%` }}></div>
             </div>
-            <p>Sent: {jobStatus.sentCount} | Failed: {jobStatus.failedCount} | Remaining: {Math.max(0, jobStatus.totalFound - (jobStatus.sentCount + jobStatus.failedCount))}</p>
+            <div className="flex gap-4">
+              <p>WA Sent: {jobStatus.sentCount} | Failed: {jobStatus.failedCount}</p>
+              {channels.includes('fcm') && <p className="border-l border-amber-500/30 pl-4">FCM Sent: {jobStatus.fcmSentCount || 0} | Failed: {jobStatus.fcmFailedCount || 0}</p>}
+            </div>
+            <p className="mt-1">Remaining to process: {Math.max(0, jobStatus.totalFound - (jobStatus.sentCount + jobStatus.failedCount))}</p>
           </div>
         )}
         {result && !jobId && (
-          <div className={`rounded-lg border p-4 text-sm ${result.error ? 'border-rose-500/30 bg-rose-500/10 text-rose-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'}`}>
+          <div className={`rounded-lg border p-4 text-sm mt-4 ${result.error ? 'border-rose-500/30 bg-rose-500/10 text-rose-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'}`}>
             {result.error ? (
               <p>Error: {result.error}</p>
             ) : (
               <div className="space-y-1">
                 <p className="font-semibold text-emerald-400">Broadcast Completed!</p>
                 <p>Found recipients: {result.totalFound}</p>
-                <p>Successfully sent: {result.sentCount}</p>
-                {result.failedCount ? <p className="text-amber-400">Failed to send: {result.failedCount}</p> : null}
+                <p>WA Successfully sent: {result.sentCount}</p>
+                {result.failedCount ? <p className="text-amber-400">WA Failed to send: {result.failedCount}</p> : null}
+                {channels.includes('fcm') && (
+                  <>
+                    <p className="text-blue-300 mt-2">FCM Successfully sent: {jobStatus?.fcmSentCount || 0}</p>
+                    {jobStatus?.fcmFailedCount ? <p className="text-blue-400/80">FCM Failed: {jobStatus?.fcmFailedCount}</p> : null}
+                  </>
+                )}
               </div>
             )}
           </div>
         )}
 
-        {/* Submit */}
-        <Button 
-          type="submit" 
-          disabled={sending || (targets.length === 0 && specificUsers.filter(u => u.name.trim() && u.phone.trim()).length === 0) || !message.trim()} 
-          className="w-full sm:w-auto bg-amber-500 text-slate-950 hover:bg-amber-400 font-semibold"
-        >
-          {sending ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" />
-              Broadcasting...
-            </>
-          ) : (
-            <>
-              <Megaphone className="mr-2 size-4" />
-              Send Broadcast
-            </>
-          )}
-        </Button>
       </form>
 
       {/* Broadcast History */}
@@ -798,6 +988,11 @@ export function AdminBroadcastClient() {
                         <Clock className="size-3" />
                         {new Date(item.createdAt).toLocaleString()}
                       </span>
+                      {item.channels && item.channels.length > 0 && (
+                        <span className="bg-slate-700/50 px-2 py-0.5 rounded-full text-slate-300">
+                          Channels: <span className="font-medium text-purple-400/90">{item.channels.join(', ')}</span>
+                        </span>
+                      )}
                       {item.targets && item.targets.length > 0 && (
                         <span className="bg-slate-700/50 px-2 py-0.5 rounded-full text-slate-300">
                           Targets: <span className="font-medium text-amber-500/90">{item.targets.join(', ')}</span>
@@ -817,16 +1012,36 @@ export function AdminBroadcastClient() {
                   </div>
                   <button 
                     onClick={() => setExpandedId(expandedId === item._id ? null : item._id)}
-                    className="flex items-center gap-3 shrink-0 bg-slate-900/50 px-3 py-2 rounded-lg text-sm border border-slate-700/50 hover:bg-slate-800/80 transition-colors"
+                    className="flex flex-col items-end gap-1 shrink-0 bg-slate-900/50 px-3 py-2 rounded-lg text-sm border border-slate-700/50 hover:bg-slate-800/80 transition-colors"
                   >
-                    <div className="flex items-center gap-1.5 text-emerald-400">
-                      <CheckCircle2 className="size-4" />
-                      <span className="font-medium">{item.sentCount || 0}</span>
-                    </div>
-                    {item.failedCount > 0 && (
-                      <div className="flex items-center gap-1.5 text-rose-400 border-l border-slate-700 pl-3">
-                        <XCircle className="size-4" />
-                        <span className="font-medium">{item.failedCount}</span>
+                    {(!item.channels || item.channels.includes('whatsapp')) && (
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="text-slate-400 w-6">WA</span>
+                        <div className="flex items-center gap-1.5 text-emerald-400">
+                          <CheckCircle2 className="size-3.5" />
+                          <span className="font-medium">{item.sentCount || 0}</span>
+                        </div>
+                        {item.failedCount > 0 && (
+                          <div className="flex items-center gap-1.5 text-rose-400 border-l border-slate-700 pl-3">
+                            <XCircle className="size-3.5" />
+                            <span className="font-medium">{item.failedCount}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {(item.channels?.includes('fcm')) && (
+                      <div className="flex items-center gap-3 text-xs mt-1 border-t border-slate-700/50 pt-1 w-full justify-end">
+                        <span className="text-slate-400 w-8">FCM</span>
+                        <div className="flex items-center gap-1.5 text-emerald-400">
+                          <CheckCircle2 className="size-3.5" />
+                          <span className="font-medium">{item.fcmSentCount || 0}</span>
+                        </div>
+                        {item.fcmFailedCount !== undefined && item.fcmFailedCount > 0 && (
+                          <div className="flex items-center gap-1.5 text-rose-400 border-l border-slate-700 pl-3">
+                            <XCircle className="size-3.5" />
+                            <span className="font-medium">{item.fcmFailedCount}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </button>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendAdminNotification } from '@/lib/admin-push'
+import { canonicalWhatsAppInboxPhone } from '@/lib/whatsapp-inbox-phone'
 
 /**
  * Meta WhatsApp Cloud API Webhook
@@ -41,7 +42,15 @@ export async function POST(request: NextRequest) {
         const value = change.value ?? {}
         const phoneNumberId = value.metadata?.phone_number_id
         const phoneNumberIdEnv = process.env.WHATSAPP_PHONE_NUMBER_ID
-        if (phoneNumberIdEnv && phoneNumberId && phoneNumberId !== phoneNumberIdEnv) continue
+        const relaxFilter = process.env.WHATSAPP_WEBHOOK_RELAX_PHONE_NUMBER_ID === '1'
+        if (phoneNumberIdEnv && phoneNumberId && phoneNumberId !== phoneNumberIdEnv) {
+          console.warn('[WhatsApp Webhook] Received webhook for wrong phone_number_id', {
+            received: phoneNumberId,
+            expected: phoneNumberIdEnv,
+            action: relaxFilter ? 'processing anyway (relaxed)' : 'ignoring',
+          })
+          if (!relaxFilter) continue
+        }
 
         /** Outbound template/status updates — Meta reports delivery failures here (user "sees nothing"). */
         const statuses = (value.statuses ?? []) as Array<{
@@ -103,6 +112,8 @@ export async function POST(request: NextRequest) {
 
           if (!from || !text) continue
 
+          const canonicalFrom = canonicalWhatsAppInboxPhone(from)
+
           const writeClient = client.withConfig({ token: token ?? undefined, useCdn: false })
           const existing = await writeClient.fetch<{ _id: string } | null>(
             `*[_type == "whatsappMessage" && waMessageId == $msgId][0]{ _id }`,
@@ -112,7 +123,7 @@ export async function POST(request: NextRequest) {
 
           await writeClient.create({
             _type: 'whatsappMessage',
-            participantPhone: from,
+            participantPhone: canonicalFrom,
             direction: 'in',
             text,
             waMessageId: msgId,
@@ -122,7 +133,7 @@ export async function POST(request: NextRequest) {
 
           await sendAdminNotification(
             'New WhatsApp message',
-            `+${from}: ${text.substring(0, 80)}${text.length > 80 ? '…' : ''}`,
+            `+${canonicalFrom}: ${text.substring(0, 80)}${text.length > 80 ? '…' : ''}`,
             '/admin/broadcast?tab=inbox'
           )
         }

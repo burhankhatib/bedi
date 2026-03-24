@@ -4,6 +4,7 @@ import { getFirestoreAdmin, isFirebaseAdminConfigured } from '@/lib/firebase-adm
 import type { ScheduledJobType } from '@/lib/delivery-job-scheduler'
 import { sendWhatsAppTemplateMessageWithLangFallback } from '@/lib/meta-whatsapp'
 import { WHATSAPP_TEMPLATE } from '@/lib/whatsapp-meta-templates'
+import { sendFCMByPhones } from '@/lib/broadcast-fcm-by-phones'
 
 export const dynamic = 'force-dynamic'
 
@@ -279,6 +280,7 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
           
           await doc.ref.update({ status: 'processing', updatedAtMs: Date.now() })
           const recipients = Array.isArray(data.recipients) ? data.recipients : []
+          const channels = Array.isArray(data.channels) ? data.channels : ['whatsapp']
           const cursor = typeof data.cursor === 'number' && Number.isFinite(data.cursor) ? data.cursor : 0
           const message = typeof data.message === 'string' ? data.message : ''
           const chunk = recipients.slice(cursor, cursor + 20) as Array<{ name: string; phone: string }>
@@ -289,20 +291,39 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
           const newFailedList: string[] = []
           const newErrorsList: any[] = []
 
-          for (const u of chunk) {
-            const firstName = u.name.split(' ')[0] || 'User'
-            const result = await sendWhatsAppTemplateMessageWithLangFallback(
-              u.phone,
-              WHATSAPP_TEMPLATE.BROADCAST,
-              [firstName, message]
-            )
-            if (result.success) {
-              newSent++
-              newSuccessList.push(`${u.name} (${u.phone})`)
-            } else {
-              newFailed++
-              newFailedList.push(`${u.name} (${u.phone})`)
-              newErrorsList.push({ phone: u.phone, error: result.error })
+          // 1. WhatsApp
+          if (channels.includes('whatsapp')) {
+            for (const u of chunk) {
+              const firstName = u.name.split(' ')[0] || 'User'
+              const result = await sendWhatsAppTemplateMessageWithLangFallback(
+                u.phone,
+                WHATSAPP_TEMPLATE.BROADCAST,
+                [firstName, message]
+              )
+              if (result.success) {
+                newSent++
+                newSuccessList.push(`${u.name} (${u.phone})`)
+              } else {
+                newFailed++
+                newFailedList.push(`${u.name} (${u.phone})`)
+                newErrorsList.push({ phone: u.phone, error: result.error })
+              }
+            }
+          }
+
+          // 2. FCM
+          let newFcmSent = 0
+          let newFcmFailed = 0
+          if (channels.includes('fcm')) {
+            try {
+              const { sent, failed } = await sendFCMByPhones(chunk, {
+                title: 'إشعار من Zonify',
+                body: message,
+              })
+              newFcmSent = sent
+              newFcmFailed = failed
+            } catch (err) {
+              console.error('[process-due] FCM broadcast failed for chunk', err)
             }
           }
 
@@ -318,6 +339,9 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
             
             const updatedSent = (typeof freshData.sentCount === 'number' ? freshData.sentCount : 0) + newSent
             const updatedFailed = (typeof freshData.failedCount === 'number' ? freshData.failedCount : 0) + newFailed
+            const updatedFcmSent = (typeof freshData.fcmSentCount === 'number' ? freshData.fcmSentCount : 0) + newFcmSent
+            const updatedFcmFailed = (typeof freshData.fcmFailedCount === 'number' ? freshData.fcmFailedCount : 0) + newFcmFailed
+            
             const prevSuccess = Array.isArray(freshData.successfulNumbers) ? freshData.successfulNumbers : []
             const prevFailed = Array.isArray(freshData.failedNumbers) ? freshData.failedNumbers : []
             const prevErrors = Array.isArray(freshData.errorsList) ? freshData.errorsList : []
@@ -330,6 +354,8 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
               cursor: nextCursor,
               sentCount: updatedSent,
               failedCount: updatedFailed,
+              fcmSentCount: updatedFcmSent,
+              fcmFailedCount: updatedFcmFailed,
               successfulNumbers: updatedSuccessList,
               failedNumbers: updatedFailedList,
               errorsList: updatedErrorsList,
@@ -350,6 +376,7 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
               await db.collection('broadcastHistory').doc(historyId).set({
                 message: typeof updatedDoc.message === 'string' ? updatedDoc.message : '',
                 targets: Array.isArray(updatedDoc.targets) ? updatedDoc.targets : [],
+                channels: Array.isArray(updatedDoc.channels) ? updatedDoc.channels : ['whatsapp'],
                 countries: typeof updatedDoc.countries === 'string' ? updatedDoc.countries : '',
                 cities: typeof updatedDoc.cities === 'string' ? updatedDoc.cities : '',
                 specificNumbers: typeof updatedDoc.specificNumbers === 'string' ? updatedDoc.specificNumbers : '',
@@ -357,6 +384,8 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
                 failedNumbers: Array.isArray(updatedDoc.failedNumbers) ? updatedDoc.failedNumbers : [],
                 sentCount: typeof updatedDoc.sentCount === 'number' ? updatedDoc.sentCount : 0,
                 failedCount: typeof updatedDoc.failedCount === 'number' ? updatedDoc.failedCount : 0,
+                fcmSentCount: typeof updatedDoc.fcmSentCount === 'number' ? updatedDoc.fcmSentCount : 0,
+                fcmFailedCount: typeof updatedDoc.fcmFailedCount === 'number' ? updatedDoc.fcmFailedCount : 0,
                 totalFound: Array.isArray(recipients) ? recipients.length : 0,
                 errors:
                   Array.isArray(errorsList) && errorsList.length > 0

@@ -6,6 +6,8 @@ import { sendWhatsAppTextMessage } from '@/lib/meta-whatsapp'
 import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 
+import { canonicalWhatsAppInboxPhone } from '@/lib/whatsapp-inbox-phone'
+
 export async function POST(req: Request) {
   const { userId, sessionClaims } = await auth()
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -40,7 +42,7 @@ export async function POST(req: Request) {
   const writeClient = client.withConfig({ token: token ?? undefined, useCdn: false })
   await writeClient.create({
     _type: 'whatsappMessage',
-    participantPhone: to.trim(),
+    participantPhone: canonicalWhatsAppInboxPhone(to),
     direction: 'out',
     text: text.trim(),
     waMessageId: (result as { messageId?: string }).messageId ?? '',

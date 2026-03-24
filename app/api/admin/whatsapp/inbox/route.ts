@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { client } from '@/sanity/lib/client'
+import { canonicalWhatsAppInboxPhone } from '@/lib/whatsapp-inbox-phone'
 
 type WhatsAppMessage = {
   _id: string
@@ -22,7 +23,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const messages = await client.fetch<WhatsAppMessage[]>(
+  const messages = await client.withConfig({ useCdn: false }).fetch<WhatsAppMessage[]>(
     `*[_type == "whatsappMessage"] | order(createdAt asc) {
       _id,
       participantPhone,
@@ -35,7 +36,7 @@ export async function GET() {
 
   const byPhone = new Map<string, WhatsAppMessage[]>()
   for (const m of messages) {
-    const phone = m.participantPhone || 'unknown'
+    const phone = canonicalWhatsAppInboxPhone(m.participantPhone || 'unknown') || 'unknown'
     if (!byPhone.has(phone)) byPhone.set(phone, [])
     byPhone.get(phone)!.push(m)
   }
