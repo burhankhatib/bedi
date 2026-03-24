@@ -291,7 +291,8 @@ function DriverOrdersV2Content() {
         setDriverLng(pos.coords.longitude)
       },
       () => {},
-      { enableHighAccuracy: true, timeout, maximumAge: 30000 },
+      // maximumAge 0: avoid reusing a coarse / stale fix (can be ~1km off indoors).
+      { enableHighAccuracy: true, timeout, maximumAge: 0 },
     )
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
@@ -299,7 +300,7 @@ function DriverOrdersV2Content() {
         setDriverLng(pos.coords.longitude)
       },
       () => {},
-      { enableHighAccuracy: true, timeout, maximumAge: 5000 },
+      { enableHighAccuracy: true, timeout, maximumAge: 0 },
     )
     return () => navigator.geolocation.clearWatch(watchId)
   }, [])

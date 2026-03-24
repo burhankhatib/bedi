@@ -8,40 +8,154 @@ import { usePusherSubscription } from '@/hooks/usePusherSubscription'
 const MIN_DISTANCE_DEGREES = 0.0005
 const PERIODIC_PING_INTERVAL_MS = 90_000 // 90 seconds
 
+/** Stop early when the OS reports this accuracy (meters) or better. */
+const GOOD_ACCURACY_M = 25
+/** Let GPS refine — first callback is often Wi‑Fi/cell (hundreds of m to km off). */
+const REFINE_WINDOW_MS = /samsung|android/i.test(
+  typeof navigator !== 'undefined' ? navigator.userAgent : '',
+)
+  ? 18_000
+  : 10_000
+
+/**
+ * Sample positions for a short window and use the best reported accuracy.
+ * Matches the pattern in OrderTrackView (customer share) — single getCurrentPosition
+ * often returns a fast coarse fix before GPS converges.
+ */
+function getRefinedPosition(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      reject(new Error('Geolocation is not available'))
+      return
+    }
+
+    let best: GeolocationPosition | null = null
+    let watchId: number | null = null
+    // Browser timers are numeric handles; avoid NodeJS.Timeout from DOM/global setTimeout overloads.
+    let timeoutId: number | null = null
+    let settled = false
+
+    const cleanupWatch = () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId)
+        watchId = null
+      }
+    }
+
+    const finish = (pos: GeolocationPosition) => {
+      if (settled) return
+      settled = true
+      cleanupWatch()
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+    }
+
+    const onPosition = (pos: GeolocationPosition) => {
+      const acc = pos.coords.accuracy
+      if (!best || acc < best.coords.accuracy) best = pos
+      if (acc <= GOOD_ACCURACY_M) finish(pos)
+    }
+
+    const onError = (err: GeolocationPositionError) => {
+      if (best) {
+        finish(best)
+        return
+      }
+      if (settled) return
+      settled = true
+      cleanupWatch()
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId)
+        timeoutId = null
+      }
+      reject(err)
+    }
+
+    watchId = navigator.geolocation.watchPosition(onPosition, onError, {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+    })
+
+    timeoutId = window.setTimeout(() => {
+      if (settled) return
+      if (best) {
+        finish(best)
+        return
+      }
+      cleanupWatch()
+      const isSamsungLike = /samsung|android/i.test(navigator.userAgent)
+      navigator.geolocation.getCurrentPosition(
+        (pos) => finish(pos),
+        () => {
+          if (settled) return
+          settled = true
+          if (timeoutId !== null) {
+            window.clearTimeout(timeoutId)
+            timeoutId = null
+          }
+          reject(new Error('Geolocation timeout'))
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: isSamsungLike ? 8000 : 5000,
+          maximumAge: 0,
+        }
+      )
+    }, REFINE_WINDOW_MS)
+  })
+}
+
 export function DriverLocationTracker() {
   const { isOnline } = useDriverStatus()
   const lastLocationRef = useRef<{ lat: number; lng: number } | null>(null)
+  const inFlightRef = useRef(false)
+  const rerunAfterFlightRef = useRef(false)
 
   const sendLocation = useCallback((forced = false) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return
 
-    const timeout = /samsung|android/i.test(navigator.userAgent) ? 25000 : 10000
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude
-        const lng = position.coords.longitude
-        const last = lastLocationRef.current
+    const run = () => {
+      inFlightRef.current = true
+      getRefinedPosition()
+        .then((position) => {
+          const lat = position.lat
+          const lng = position.lng
+          const last = lastLocationRef.current
 
-        // Update if forced, OR if we don't have a last location, OR moved > ~50m
-        if (
-          forced ||
-          !last ||
-          Math.abs(last.lat - lat) > MIN_DISTANCE_DEGREES ||
-          Math.abs(last.lng - lng) > MIN_DISTANCE_DEGREES
-        ) {
-          lastLocationRef.current = { lat, lng }
-          fetch('/api/driver/location', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lat, lng }),
-          }).catch(() => {}) // Silent fail
-        }
-      },
-      () => {
-        // Silent fail on geolocation error
-      },
-      { enableHighAccuracy: true, timeout, maximumAge: 0 }
-    )
+          if (
+            forced ||
+            !last ||
+            Math.abs(last.lat - lat) > MIN_DISTANCE_DEGREES ||
+            Math.abs(last.lng - lng) > MIN_DISTANCE_DEGREES
+          ) {
+            lastLocationRef.current = { lat, lng }
+            fetch('/api/driver/location', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ lat, lng }),
+            }).catch(() => {})
+          }
+        })
+        .catch(() => {
+          // Silent fail on geolocation error
+        })
+        .finally(() => {
+          inFlightRef.current = false
+          if (rerunAfterFlightRef.current) {
+            rerunAfterFlightRef.current = false
+            run()
+          }
+        })
+    }
+
+    if (inFlightRef.current) {
+      if (forced) rerunAfterFlightRef.current = true
+      return
+    }
+    run()
   }, [])
 
   useEffect(() => {
