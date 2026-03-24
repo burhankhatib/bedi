@@ -20,6 +20,8 @@ export type BroadcastContactSnapshot = {
     city?: string
   }>
   customersDirect: Array<{ name?: string; primaryPhone?: string; clerkUserId?: string }>
+  /** Array of clerkUserIds that have active FCM tokens */
+  fcmUsers: string[]
   /** Preformatted for admin location pickers (same as former broadcast-locations API) */
   locationCountries: string[]
   locationCities: string[]
@@ -63,6 +65,11 @@ export async function fetchBroadcastContactSnapshotFromSanity(): Promise<Omit<Br
     `*[_type == "customer" && defined(primaryPhone)] { name, primaryPhone, clerkUserId }`
   )
 
+  const fcmSubscriptions = await client.fetch<Array<{ clerkUserId?: string }>>(
+    `*[_type == "userPushSubscription" && isActive != false && defined(devices[].fcmToken)] { clerkUserId }`
+  )
+  const fcmUsers = Array.from(new Set(fcmSubscriptions.map(s => s.clerkUserId).filter(Boolean) as string[]))
+
   const tenantsForLocations = await client.fetch<Array<{ country?: string; city?: string }>>(
     `*[_type == "tenant" && defined(country) && defined(city)] { country, city }`
   )
@@ -87,6 +94,7 @@ export async function fetchBroadcastContactSnapshotFromSanity(): Promise<Omit<Br
     drivers,
     customersFromOrders,
     customersDirect,
+    fcmUsers,
     locationCountries: rawCountries.map((c) => formatProper(c)),
     locationCities: rawCities.map((c) => formatProper(c)),
   }
@@ -103,7 +111,7 @@ export type ResolveRecipientsInput = {
 export function resolveRecipientsFromSnapshot(
   snap: Omit<BroadcastContactSnapshot, 'syncedAtMs'>,
   input: ResolveRecipientsInput
-): Array<{ phone: string; name: string; clerkUserId?: string }> {
+): Array<{ phone: string; name: string; clerkUserId?: string; role: 'business' | 'driver' | 'customer' | 'specific'; hasFcm: boolean }> {
   const { targets, country, city, specificUsers } = input
   const countries = country
     ? country
@@ -118,7 +126,7 @@ export function resolveRecipientsFromSnapshot(
         .filter(Boolean)
     : []
 
-  const recipientsMap = new Map<string, { name: string; clerkUserId?: string }>()
+  const recipientsMap = new Map<string, { name: string; clerkUserId?: string; role: 'business' | 'driver' | 'customer' | 'specific'; hasFcm: boolean }>()
 
   const matchLocation = (docCountry?: string, docCity?: string) => {
     const cCode = (docCountry || '').trim().toLowerCase()
@@ -128,10 +136,15 @@ export function resolveRecipientsFromSnapshot(
     return countryMatch && cityMatch
   }
 
+  const checkFcm = (clerkUserId?: string) => {
+    if (!clerkUserId) return false
+    return Array.isArray(snap.fcmUsers) && snap.fcmUsers.includes(clerkUserId)
+  }
+
   if (targets?.includes('businesses')) {
     for (const t of snap.tenants) {
       if (matchLocation(t.country, t.city) && t.ownerPhone) {
-        recipientsMap.set(t.ownerPhone, { name: t.name || 'صاحب العمل', clerkUserId: t.clerkUserId })
+        recipientsMap.set(t.ownerPhone, { name: t.name || 'صاحب العمل', clerkUserId: t.clerkUserId, role: 'business', hasFcm: checkFcm(t.clerkUserId) })
       }
     }
   }
@@ -139,7 +152,7 @@ export function resolveRecipientsFromSnapshot(
   if (targets?.includes('drivers')) {
     for (const d of snap.drivers) {
       if (matchLocation(d.country, d.city) && d.phoneNumber && d.isVerifiedByAdmin) {
-        recipientsMap.set(d.phoneNumber, { name: d.name || 'كابتن', clerkUserId: d.clerkUserId })
+        recipientsMap.set(d.phoneNumber, { name: d.name || 'كابتن', clerkUserId: d.clerkUserId, role: 'driver', hasFcm: checkFcm(d.clerkUserId) })
       }
     }
   }
@@ -149,14 +162,15 @@ export function resolveRecipientsFromSnapshot(
       for (const o of snap.customersFromOrders) {
         if (matchLocation(o.country, o.city) && o.customerPhone) {
           if (!recipientsMap.has(o.customerPhone)) {
-            recipientsMap.set(o.customerPhone, { name: o.customerName || 'عميلنا العزيز' })
+            // Customer from orders doesn't have clerkUserId directly here, so hasFcm might be false unless fetched differently
+            recipientsMap.set(o.customerPhone, { name: o.customerName || 'عميلنا العزيز', role: 'customer', hasFcm: false })
           }
         }
       }
     } else {
       for (const c of snap.customersDirect) {
         if (c.primaryPhone && !recipientsMap.has(c.primaryPhone)) {
-          recipientsMap.set(c.primaryPhone, { name: c.name || 'عميلنا العزيز', clerkUserId: c.clerkUserId })
+          recipientsMap.set(c.primaryPhone, { name: c.name || 'عميلنا العزيز', clerkUserId: c.clerkUserId, role: 'customer', hasFcm: checkFcm(c.clerkUserId) })
         }
       }
     }
@@ -165,7 +179,9 @@ export function resolveRecipientsFromSnapshot(
   if (specificUsers && Array.isArray(specificUsers)) {
     for (const u of specificUsers) {
       if (u.phone && u.name) {
-        recipientsMap.set(u.phone, { name: u.name })
+        // Find existing to preserve FCM info if any
+        const existing = recipientsMap.get(u.phone)
+        recipientsMap.set(u.phone, { name: u.name, role: 'specific', clerkUserId: existing?.clerkUserId, hasFcm: existing?.hasFcm || false })
       }
     }
   }
@@ -173,6 +189,8 @@ export function resolveRecipientsFromSnapshot(
   return Array.from(recipientsMap.entries()).map(([phone, data]) => ({ 
     phone, 
     name: data.name,
-    clerkUserId: data.clerkUserId
+    clerkUserId: data.clerkUserId,
+    role: data.role,
+    hasFcm: data.hasFcm
   }))
 }

@@ -63,6 +63,7 @@ export async function POST(req: Request) {
       customersDirect: Array.isArray(raw.customersDirect)
         ? (raw.customersDirect as BroadcastContactSnapshot['customersDirect'])
         : [],
+      fcmUsers: Array.isArray(raw.fcmUsers) ? raw.fcmUsers : [],
       locationCountries: Array.isArray(raw.locationCountries) ? raw.locationCountries : [],
       locationCities: Array.isArray(raw.locationCities) ? raw.locationCities : [],
     }
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       totalFound: recipients.length,
-      sample: recipients.slice(0, 5),
+      sample: recipients, // Changed to return all
     })
   } catch (error) {
     console.error('[BroadcastPreviewError]', error)

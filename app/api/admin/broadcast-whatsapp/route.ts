@@ -28,9 +28,10 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    const { targets, country, city, specificUsers, message, channels } = body
+    const { targets, country, city, specificUsers, message, channels, excludedPhones } = body
 
     const selectedChannels = Array.isArray(channels) && channels.length > 0 ? channels : ['whatsapp']
+    const excludedSet = new Set<string>(Array.isArray(excludedPhones) ? excludedPhones : [])
 
     if ((!targets || !Array.isArray(targets) || targets.length === 0) && (!specificUsers || !Array.isArray(specificUsers) || specificUsers.length === 0)) {
       return NextResponse.json({ error: 'Targets array or specific users are required' }, { status: 400 })
@@ -69,16 +70,29 @@ export async function POST(req: Request) {
       customersDirect: Array.isArray(raw.customersDirect)
         ? (raw.customersDirect as BroadcastContactSnapshot['customersDirect'])
         : [],
+      fcmUsers: Array.isArray(raw.fcmUsers) ? raw.fcmUsers : [],
       locationCountries: Array.isArray(raw.locationCountries) ? raw.locationCountries : [],
       locationCities: Array.isArray(raw.locationCities) ? raw.locationCities : [],
     }
 
-    const recipients = resolveRecipientsFromSnapshot(snapshot, {
+    let recipients = resolveRecipientsFromSnapshot(snapshot, {
       targets: targets || [],
       country,
       city,
       specificUsers,
     })
+
+    // Filter out excluded phones and strip undefined values for Firestore
+    recipients = recipients
+      .filter((r) => !excludedSet.has(r.phone))
+      .map((r) => {
+        const cleanRecip: any = { phone: r.phone, name: r.name, role: r.role, hasFcm: r.hasFcm }
+        if (r.clerkUserId) {
+          cleanRecip.clerkUserId = r.clerkUserId
+        }
+        return cleanRecip
+      })
+
     const totalFound = recipients.length
 
     if (totalFound === 0) {

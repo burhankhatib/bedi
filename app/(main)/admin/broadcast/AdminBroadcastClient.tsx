@@ -53,6 +53,7 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
   const [jobId, setJobId] = useState<string | null>(null)
   const [jobStatus, setJobStatus] = useState<any>(null)
   const [preview, setPreview] = useState<{ totalFound: number; sample?: any[] } | null>(null)
+  const [excludedPhones, setExcludedPhones] = useState<string[]>([])
   const [previewLoading, setPreviewLoading] = useState(false)
   
   const [history, setHistory] = useState<BroadcastHistory[]>([])
@@ -230,6 +231,11 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
       if (res.ok) {
         const data = await res.json()
         setPreview(data)
+        // Only clear excluded phones that are no longer in the preview to avoid losing selections on small filter tweaks
+        if (data.sample) {
+          const fetchedPhones = new Set(data.sample.map((r: any) => r.phone))
+          setExcludedPhones(prev => prev.filter(p => fetchedPhones.has(p)))
+        }
       } else {
         setPreview(null)
       }
@@ -281,6 +287,7 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
           country: countries, // Send directly to API which expects comma-separated
           city: cities,
           specificUsers: validUsers,
+          excludedPhones,
           message
         })
       })
@@ -567,24 +574,35 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
       <form onSubmit={handleSend} className="space-y-8 max-w-2xl pb-32 relative">
 
         {/* Sticky Summary Bar */}
-        <div className="sticky top-4 z-10 bg-slate-900 border border-slate-700/60 rounded-xl p-4 shadow-xl flex items-center justify-between gap-4">
+        <div className="sticky top-4 z-10 bg-slate-900 border border-slate-700/60 rounded-xl p-4 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-semibold text-white">Broadcast Summary</h3>
             <p className="text-xs text-slate-400 mt-1">
               {previewLoading ? (
                 <span className="flex items-center gap-1"><Loader2 className="size-3 animate-spin" /> Calculating audience...</span>
               ) : preview ? (
-                <span>Sending to <strong className="text-amber-400">{preview.totalFound}</strong> recipient(s)</span>
+                <span>
+                  Sending to <strong className="text-amber-400">{preview.sample ? preview.sample.length - excludedPhones.length : preview.totalFound}</strong> / {preview.totalFound} recipient(s)
+                </span>
               ) : (
                 'Select targets to see preview'
               )}
             </p>
-            {preview?.sample && preview.sample.length > 0 && (
-              <p className="text-[10px] text-slate-500 mt-1 truncate">
-                e.g., {preview.sample.map((s: any) => s.name).join(', ')}
-              </p>
-            )}
           </div>
+          {preview && preview.sample && preview.sample.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const el = document.getElementById('recipients-table')
+                el?.scrollIntoView({ behavior: 'smooth' })
+              }}
+              className="shrink-0 h-8 border-slate-700 bg-slate-800/50 hover:bg-slate-700 text-slate-300 text-xs"
+            >
+              Review Recipients
+            </Button>
+          )}
         </div>
         
         {/* 1. Channels */}
@@ -765,30 +783,34 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
           </div>
         </div>
 
-        {/* 4. Specific Users */}
-        <div className="space-y-3 pt-4 border-t border-slate-800/60">
+        {/* 4. Review Recipients & Add Custom Users */}
+        <div className="space-y-4 pt-4 border-t border-slate-800/60" id="recipients-table">
           <div className="flex items-center justify-between pl-8 -ml-8">
-            <h3 className="text-base font-semibold text-white flex items-center gap-2">
-              <span className="flex items-center justify-center size-6 rounded-full bg-slate-800 text-xs text-slate-400 border border-slate-700">4</span>
-              Specific Numbers
-            </h3>
+            <div>
+              <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                <span className="flex items-center justify-center size-6 rounded-full bg-slate-800 text-xs text-slate-400 border border-slate-700">4</span>
+                Review Recipients
+              </h3>
+              <p className="text-xs text-slate-400 mt-1 pl-8 -ml-8">
+                Uncheck users you do not want to receive this broadcast. Add specific numbers if needed.
+              </p>
+            </div>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setSpecificUsers([...specificUsers, { name: '', phone: '' }])}
+              onClick={() => setSpecificUsers([{ name: '', phone: '' }, ...specificUsers])}
               className="h-8 border-slate-700 bg-slate-800/50 hover:bg-slate-700 text-slate-300 text-xs"
             >
-              + Add User
+              + Add Custom
             </Button>
           </div>
-          <p className="text-xs text-slate-400 pl-8 -mt-2">Manually add individuals who will receive the message regardless of target filters. Phone must include country code.</p>
           
           <div className="pl-8">
             {specificUsers.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-2 mb-4">
                 {specificUsers.map((u, i) => (
-                  <div key={i} className="flex gap-2 items-start">
+                  <div key={i} className="flex gap-2 items-start bg-slate-800/30 p-2 rounded-lg border border-slate-700/50">
                     <input
                       type="text"
                       value={u.name}
@@ -828,6 +850,72 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
                 ))}
               </div>
             )}
+
+            {preview && preview.sample && preview.sample.length > 0 && (
+              <div className="mt-4 rounded-xl border border-slate-700/60 bg-slate-800/30 overflow-hidden">
+                <div className="max-h-80 overflow-y-auto">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-slate-800/60 text-slate-400 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-4 py-3 font-medium w-10">
+                          <input
+                            type="checkbox"
+                            checked={excludedPhones.length === 0}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setExcludedPhones([])
+                              } else {
+                                setExcludedPhones(preview.sample!.map((r: any) => r.phone))
+                              }
+                            }}
+                            className="rounded border-slate-600 bg-slate-900 text-amber-500 focus:ring-amber-500/50"
+                          />
+                        </th>
+                        <th className="px-4 py-3 font-medium">Name</th>
+                        <th className="px-4 py-3 font-medium">Phone</th>
+                        <th className="px-4 py-3 font-medium">Role</th>
+                        <th className="px-4 py-3 font-medium text-center">FCM</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700/40 text-slate-300">
+                      {preview.sample.map((r: any) => {
+                        const isChecked = !excludedPhones.includes(r.phone)
+                        return (
+                          <tr key={r.phone} className={`hover:bg-slate-800/40 transition-colors ${!isChecked ? 'opacity-50' : ''}`}>
+                            <td className="px-4 py-2.5">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setExcludedPhones(prev => prev.filter(p => p !== r.phone))
+                                  } else {
+                                    setExcludedPhones(prev => [...prev, r.phone])
+                                  }
+                                }}
+                                className="rounded border-slate-600 bg-slate-900 text-amber-500 focus:ring-amber-500/50"
+                              />
+                            </td>
+                            <td className="px-4 py-2.5 font-medium text-white">{r.name}</td>
+                            <td className="px-4 py-2.5" dir="ltr">{r.phone}</td>
+                            <td className="px-4 py-2.5 capitalize">{r.role}</td>
+                            <td className="px-4 py-2.5 text-center">
+                              {r.hasFcm ? <BellRing className="size-4 text-blue-400 mx-auto" /> : <span className="text-slate-600">-</span>}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            
+            {preview && preview.sample && preview.sample.length === 0 && specificUsers.length === 0 && (
+              <div className="p-8 text-center text-slate-500 border border-slate-700/50 border-dashed rounded-xl bg-slate-800/20">
+                No recipients found matching the criteria.
+              </div>
+            )}
           </div>
         </div>
 
@@ -864,7 +952,7 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
           <div className="pt-6">
             <Button
               type="submit"
-              disabled={sending || (!preview && specificUsers.length === 0) || !message.trim()}
+              disabled={sending || (preview && preview.sample && preview.sample.length - excludedPhones.length === 0) || (!preview && specificUsers.length === 0) || !message.trim()}
               className="w-full bg-amber-600 text-slate-950 hover:bg-amber-500 shadow-lg py-6 text-base rounded-xl transition-all"
             >
               {sending ? (
