@@ -6,6 +6,7 @@ import { canonicalWhatsAppInboxPhone } from '@/lib/whatsapp-inbox-phone'
 type Recipient = {
   name: string
   phone: string
+  clerkUserId?: string
 }
 
 type PushSubscription = {
@@ -20,37 +21,47 @@ type PushSubscription = {
 
 /**
  * Maps a chunk of recipients to their Clerk user IDs and sends them a push notification
- * via active FCM / Web Push subscriptions.
+ * via active FCM / Web Push subscriptions. Uses clerkUserId when available for exact matching.
  */
-export async function sendFCMByPhones(
+export async function sendFCMToRecipients(
   recipients: Recipient[],
   payload: { title: string; body: string; url?: string }
 ): Promise<{ sent: number; failed: number }> {
   const pushReady = isFCMConfigured() || isPushConfigured()
   if (!pushReady || recipients.length === 0) return { sent: 0, failed: 0 }
 
-  // 1. Gather all normalized phone numbers from the chunk
-  const normalizedPhones = recipients.map((r) => canonicalWhatsAppInboxPhone(r.phone)).filter(Boolean)
-  if (normalizedPhones.length === 0) return { sent: 0, failed: 0 }
+  const exactUserIds = new Set<string>()
+  const phonesToFallback = new Set<string>()
 
-  // 2. Query Sanity to find user IDs associated with these phones across tenants, drivers, and customers
-  // We check multiple phone formats just in case, but rely mostly on the canonical one or standard E.164.
-  // We can just query all matching docs where the relevant phone field matches any of our target phones.
-  // Since phones in Sanity might contain '+', we can check both raw and with '+'.
-  const plusPhones = normalizedPhones.map((p) => `+${p}`)
-  const queryPhones = [...normalizedPhones, ...plusPhones]
+  for (const r of recipients) {
+    if (r.clerkUserId) {
+      exactUserIds.add(r.clerkUserId)
+    } else {
+      const canonical = canonicalWhatsAppInboxPhone(r.phone)
+      if (canonical) phonesToFallback.add(canonical)
+    }
+  }
 
-  const userIdsResult = await client.fetch<{ clerkUserId: string }[]>(
-    `*[
-      (_type == "tenant" && ownerPhone in $phones) ||
-      (_type == "driver" && phoneNumber in $phones) ||
-      (_type == "customer" && primaryPhone in $phones)
-    ]{ clerkUserId }`,
-    { phones: queryPhones }
-  )
+  // If there are phones without clerkUserId, fallback to lookup
+  if (phonesToFallback.size > 0) {
+    const normalizedPhones = Array.from(phonesToFallback)
+    const plusPhones = normalizedPhones.map((p) => `+${p}`)
+    const queryPhones = [...normalizedPhones, ...plusPhones]
 
-  const userIds = Array.from(new Set(userIdsResult.map((doc) => doc.clerkUserId).filter(Boolean)))
+    const userIdsResult = await client.fetch<{ clerkUserId: string }[]>(
+      `*[
+        (_type == "tenant" && ownerPhone in $phones) ||
+        (_type == "driver" && phoneNumber in $phones) ||
+        (_type == "customer" && primaryPhone in $phones)
+      ]{ clerkUserId }`,
+      { phones: queryPhones }
+    )
+    for (const doc of userIdsResult) {
+      if (doc.clerkUserId) exactUserIds.add(doc.clerkUserId)
+    }
+  }
 
+  const userIds = Array.from(exactUserIds)
   if (userIds.length === 0) return { sent: 0, failed: 0 }
 
   // 3. Load active push subscriptions for these user IDs

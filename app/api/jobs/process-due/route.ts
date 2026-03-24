@@ -4,7 +4,7 @@ import { getFirestoreAdmin, isFirebaseAdminConfigured } from '@/lib/firebase-adm
 import type { ScheduledJobType } from '@/lib/delivery-job-scheduler'
 import { sendWhatsAppTemplateMessageWithLangFallback, formatMetaWhatsAppApiError } from '@/lib/meta-whatsapp'
 import { WHATSAPP_TEMPLATE } from '@/lib/whatsapp-meta-templates'
-import { sendFCMByPhones } from '@/lib/broadcast-fcm-by-phones'
+import { sendFCMToRecipients } from '@/lib/broadcast-fcm'
 
 export const dynamic = 'force-dynamic'
 
@@ -283,7 +283,7 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
           const channels = Array.isArray(data.channels) ? data.channels : ['whatsapp']
           const cursor = typeof data.cursor === 'number' && Number.isFinite(data.cursor) ? data.cursor : 0
           const message = typeof data.message === 'string' ? data.message : ''
-          const chunk = recipients.slice(cursor, cursor + 20) as Array<{ name: string; phone: string }>
+          const chunk = recipients.slice(cursor, cursor + 20) as Array<{ name: string; phone: string; clerkUserId?: string }>
           
           let newSent = 0
           let newFailed = 0
@@ -319,7 +319,7 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
           let newFcmFailed = 0
           if (channels.includes('fcm')) {
             try {
-              const { sent, failed } = await sendFCMByPhones(chunk, {
+              const { sent, failed } = await sendFCMToRecipients(chunk, {
                 title: 'إشعار من Zonify',
                 body: message,
               })

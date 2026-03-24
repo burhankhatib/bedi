@@ -9,7 +9,7 @@ import { OrderAuthGate } from '@/components/OrderAuthGate'
 import { useToast } from '@/components/ui/ToastProvider'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { X, ShoppingCart, QrCode, Edit2, RotateCcw, Send, Store, ArrowRight } from 'lucide-react'
+import { X, ShoppingCart, QrCode, Edit2, RotateCcw, Send, Store, ArrowRight, Trash2 } from 'lucide-react'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
@@ -89,11 +89,12 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     lockedTableNumber,
     deviceId,
     hostId,
+    leaveTable,
+    clearTableCart,
   } = useCart()
   const { t, lang } = useLanguage()
 
   const isSharedCart = orderType === 'dine-in' && !!tableNumber && !!cartTenant?.slug && !!deviceId
-  const isHost = isSharedCart ? hostId === deviceId : true
   // Prefill phone from Clerk verified phone when available and cart phone is empty
   useEffect(() => {
     if (orderAuth.hasVerifiedPhone && orderAuth.verifiedPhoneValue && !customerPhone) {
@@ -523,7 +524,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                     onUpdateQuantity={updateQuantity}
                     onUpdateNotes={updateNotes}
                     isSharedCart={isSharedCart}
-                    canEdit={isHost || item.ownerId === deviceId}
+                    canEdit={!isSharedCart || item.ownerId === deviceId}
                   />
                 ))}
               </div>
@@ -655,26 +656,17 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                   </div>
 
                   {/* Main SEND Button */}
-                  {isSharedCart && !isHost ? (
-                    <Button
-                      disabled={true}
-                      className="w-full h-16 rounded-2xl font-black text-lg bg-slate-200 text-slate-500 shadow-none transition-all"
-                    >
-                      {t('Waiting for Host to send...', 'في انتظار المضيف لإرسال الطلب...')}
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={isSharedCart && isHost ? () => setShowHostConfirmDialog(true) : handleSendOrder}
-                      disabled={isSendingOrder}
-                      className="w-full h-16 rounded-2xl font-black text-lg bg-green-600 hover:bg-green-700 text-white shadow-xl shadow-green-600/20 active:scale-[0.98] transition-all"
-                    >
-                      <Send className="w-5 h-5 mr-2" />
-                      {isSendingOrder
-                        ? t('Sending...', 'جارٍ الإرسال...')
-                        : isSharedCart ? t('Review & Send Order', 'مراجعة وإرسال الطلب') : t('SEND ORDER', 'إرسال الطلب')
-                      }
-                    </Button>
-                  )}
+                  <Button
+                    onClick={isSharedCart ? () => setShowHostConfirmDialog(true) : handleSendOrder}
+                    disabled={isSendingOrder}
+                    className="w-full h-16 rounded-2xl font-black text-lg bg-green-600 hover:bg-green-700 text-white shadow-xl shadow-green-600/20 active:scale-[0.98] transition-all"
+                  >
+                    <Send className="w-5 h-5 mr-2" />
+                    {isSendingOrder
+                      ? t('Sending...', 'جارٍ الإرسال...')
+                      : isSharedCart ? t('Review & Send Order', 'مراجعة وإرسال الطلب') : t('SEND ORDER', 'إرسال الطلب')
+                    }
+                  </Button>
 
                   {/* QR code temporarily disabled – only SEND ORDER sends to Order Management. To re-enable: show when orderType === 'dine-in'. */}
                   {false && orderType === 'dine-in' && (
@@ -690,14 +682,43 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                     </div>
                   )}
 
-                  <Button
-                    onClick={handleNewOrder}
-                    variant="ghost"
-                    className="w-full h-12 rounded-xl font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                  >
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    {t('New Order', 'طلب جديد')}
-                  </Button>
+                  {isSharedCart ? (
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <Button
+                        onClick={() => {
+                          if (confirm(t('Clear all items from this table?', 'مسح كل الأصناف من هذه الطاولة؟'))) {
+                            clearTableCart?.()
+                          }
+                        }}
+                        variant="outline"
+                        className="h-11 rounded-xl font-bold border-2 border-slate-300 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        {t('Clear Table', 'مسح الطاولة')}
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (confirm(t('Leave this table and remove your items?', 'مغادرة هذه الطاولة وإزالة أصنافك؟'))) {
+                            leaveTable?.()
+                          }
+                        }}
+                        variant="outline"
+                        className="h-11 rounded-xl font-bold border-2 border-slate-300 hover:bg-slate-50"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        {t('Leave Table', 'مغادرة')}
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={handleNewOrder}
+                      variant="ghost"
+                      className="w-full h-12 rounded-xl font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      {t('New Order', 'طلب جديد')}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

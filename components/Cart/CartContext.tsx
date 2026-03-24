@@ -127,6 +127,10 @@ interface CartContextType {
   /** When customer landed via table QR (?table=N), lock Dine-in and table number. */
   lockedTableNumber: string | null
   setLockedTableNumber: (table: string | null) => void
+  /** Disconnects from the current table session and removes owned items from the shared cart */
+  leaveTable: () => void
+  /** Clears all items from the shared table cart (for all users) */
+  clearTableCart: () => void
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
@@ -394,34 +398,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [orderType, tableNumber, cartTenant?.slug, deviceId, router, setIsOpen])
 
+  const dispatchAtomicAction = useCallback((payload: any) => {
+    if (orderType === 'dine-in' && tableNumber && cartTenant?.slug && deviceId) {
+      fetch(`/api/tenants/${cartTenant.slug}/table/${tableNumber}/cart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, deviceId, ownerName: customerName })
+      }).catch(console.error)
+    }
+  }, [orderType, tableNumber, cartTenant?.slug, deviceId, customerName])
+
   const updateItems = useCallback((updater: React.SetStateAction<CartItem[]>) => {
     setItems((prevItems) => {
       const newItems = typeof updater === 'function' ? updater(prevItems) : updater
-      
-      if (orderType === 'dine-in' && tableNumber && cartTenant?.slug && deviceId) {
-         const isHost = hostId === deviceId
-         if (isHost) {
-           fetch(`/api/tenants/${cartTenant.slug}/table/${tableNumber}/cart`, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ action: 'host_replace_items', deviceId, items: newItems })
-           }).catch(console.error)
-         } else {
-           const ourItems = newItems.filter(i => !i.ownerId || i.ownerId === deviceId).map(i => ({
-             ...i,
-             ownerId: deviceId,
-             ownerName: customerName || 'Guest'
-           }))
-           fetch(`/api/tenants/${cartTenant.slug}/table/${tableNumber}/cart`, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ action: 'update_items', deviceId, ownerName: customerName, items: ourItems })
-           }).catch(console.error)
-         }
-      }
       return newItems
     })
-  }, [orderType, tableNumber, cartTenant?.slug, deviceId, hostId, customerName])
+  }, [])
 
   const doAddItem = useCallback((
     product: Product,
@@ -454,6 +446,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         selectedVariants: selectedVariants ?? [],
       }]
     })
+
+    dispatchAtomicAction({
+      action: 'add_item',
+      item: {
+        ...product,
+        cartItemId,
+        quantity: quantityToAdd,
+        notes: '',
+        selectedAddOns: selectedAddOns || [],
+        selectedVariants: selectedVariants ?? [],
+      }
+    })
+
     if (tenant) setCartTenant(tenant)
     showToast(t('Item added to cart!', 'تمت إضافة الصنف للسلة'), product.title_en || product.title_ar || 'Item')
   }, [t, showToast])
@@ -518,11 +523,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const removeFromCart = useCallback((cartItemId: string) => {
     updateItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))
-  }, [])
+    dispatchAtomicAction({ action: 'remove_item_any', cartItemId })
+  }, [updateItems, dispatchAtomicAction])
 
   const updateQuantity = useCallback((cartItemId: string, quantity: number) => {
     if (quantity <= 0) {
       updateItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))
+      dispatchAtomicAction({ action: 'remove_item_any', cartItemId })
       return
     }
     updateItems((prevItems) =>
@@ -530,7 +537,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         item.cartItemId === cartItemId ? { ...item, quantity } : item
       )
     )
-  }, [])
+    dispatchAtomicAction({ action: 'update_quantity', cartItemId, quantity })
+  }, [updateItems, dispatchAtomicAction])
 
   const updateNotes = useCallback((cartItemId: string, notes: string) => {
     updateItems((prevItems) =>
@@ -538,9 +546,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         item.cartItemId === cartItemId ? { ...item, notes } : item
       )
     )
-  }, [])
+    dispatchAtomicAction({ action: 'update_item', cartItemId, item: { notes } })
+  }, [updateItems, dispatchAtomicAction])
 
-  const updateAddOns = (cartItemId: string, selectedAddOns: string[]) => {
+  const updateAddOns = useCallback((cartItemId: string, selectedAddOns: string[]) => {
     const productId = cartItemId.split('-')[0]
     const addonsKey = (selectedAddOns || []).sort().join('-')
     const newCartItemId = addonsKey ? `${productId}-${addonsKey}` : productId
@@ -550,7 +559,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         item.cartItemId === cartItemId ? { ...item, cartItemId: newCartItemId, selectedAddOns } : item
       )
     )
-  }
+    
+    // To rename the cartItemId on server, it might be tricky. The simplest way is remove and add again or just rely on Pusher sync if we don't want to overcomplicate.
+    // For now, let's just send 'update_item' with the new AddOns, but wait, the ID changes. 
+    // Let's do a remove and add atomic sequence locally by calling dispatch twice? 
+    // Actually, `updateAddOns` is rarely used if at all (usually you remove the item and add a new one with new addons).
+    // Let's send an update_item with the new cartItemId. The server will merge it into existing if it finds it by old cartItemId.
+    dispatchAtomicAction({ action: 'update_item', cartItemId, item: { cartItemId: newCartItemId, selectedAddOns } })
+  }, [updateItems, dispatchAtomicAction])
 
   const clearCart = useCallback(() => {
     updateItems([])
@@ -565,7 +581,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setDeliveryFee(0)
     setDeliveryFeePaidByBusiness(false)
     setLockedTableNumber(null)
-  }, [])
+    // When clearing cart locally (e.g. order submitted or completely reset)
+    // we also clear the table cart for everyone.
+    dispatchAtomicAction({ action: 'clear_cart' })
+  }, [updateItems, dispatchAtomicAction])
+
+  const clearTableCart = useCallback(() => {
+    dispatchAtomicAction({ action: 'clear_cart' })
+  }, [dispatchAtomicAction])
+
+  const leaveTable = useCallback(() => {
+    dispatchAtomicAction({ action: 'leave_table' })
+    updateItems([])
+    setTableNumber('')
+    setOrderType(null)
+    setLockedTableNumber(null)
+    setIsOpen(false)
+  }, [updateItems, dispatchAtomicAction, setTableNumber, setOrderType, setLockedTableNumber, setIsOpen])
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
 
@@ -652,6 +684,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         orderTypeOptions,
         lockedTableNumber,
         setLockedTableNumber,
+        leaveTable,
+        clearTableCart,
       }}
     >
       {children}

@@ -41,16 +41,7 @@ export async function POST(request: NextRequest) {
         if (change.field !== 'messages') continue
         const value = change.value ?? {}
         const phoneNumberId = value.metadata?.phone_number_id
-        const phoneNumberIdEnv = process.env.WHATSAPP_PHONE_NUMBER_ID
-        const relaxFilter = process.env.WHATSAPP_WEBHOOK_RELAX_PHONE_NUMBER_ID === '1'
-        if (phoneNumberIdEnv && phoneNumberId && phoneNumberId !== phoneNumberIdEnv) {
-          console.warn('[WhatsApp Webhook] Received webhook for wrong phone_number_id', {
-            received: phoneNumberId,
-            expected: phoneNumberIdEnv,
-            action: relaxFilter ? 'processing anyway (relaxed)' : 'ignoring',
-          })
-          if (!relaxFilter) continue
-        }
+        const displayPhoneNumber = value.metadata?.display_phone_number
 
         /** Outbound template/status updates — Meta reports delivery failures here (user "sees nothing"). */
         const statuses = (value.statuses ?? []) as Array<{
@@ -73,6 +64,25 @@ export async function POST(request: NextRequest) {
                 errors: errs,
               })
             )
+            // Log to Firestore for admin review
+            try {
+              const { getFirestoreAdmin, isFirebaseAdminConfigured } = await import('@/lib/firebase-admin')
+              if (isFirebaseAdminConfigured()) {
+                const db = getFirestoreAdmin()
+                if (db) {
+                  await db.collection('broadcastDeliveryErrors').add({
+                    wamid: id,
+                    recipientPhone: st.recipient_id,
+                    businessPhone: displayPhoneNumber,
+                    errors: errs,
+                    createdAtMs: Date.now(),
+                    createdAtIso: new Date().toISOString()
+                  })
+                }
+              }
+            } catch (e) {
+              console.error('[WhatsApp Webhook] Failed to log delivery error to Firestore', e)
+            }
           } else if (id || status) {
             console.log(
               '[WhatsApp Webhook] outbound',
@@ -124,6 +134,8 @@ export async function POST(request: NextRequest) {
           await writeClient.create({
             _type: 'whatsappMessage',
             participantPhone: canonicalFrom,
+            businessPhone: displayPhoneNumber ? canonicalWhatsAppInboxPhone(displayPhoneNumber) : undefined,
+            businessPhoneNumberId: phoneNumberId,
             direction: 'in',
             text,
             waMessageId: msgId,

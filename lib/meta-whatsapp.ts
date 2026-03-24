@@ -248,8 +248,8 @@ export async function sendSubscriptionReminderWhatsApp(
  * Only works within the 24-hour conversation window after the user's last message.
  * Outside that window, use sendWhatsAppTemplateMessage.
  */
-export async function sendWhatsAppTextMessage(phone: string, text: string) {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+export async function sendWhatsAppTextMessage(phone: string, text: string, phoneNumberIdOverride?: string) {
+  const phoneNumberId = phoneNumberIdOverride || process.env.WHATSAPP_PHONE_NUMBER_ID
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
 
   if (!phoneNumberId || !accessToken) {

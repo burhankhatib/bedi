@@ -58,6 +58,17 @@ export function OrdersPWASetup({ slug }: { slug: string }) {
 
       const scope = `/t/${slug}/orders/`
       navigator.serviceWorker.register(`/t/${slug}/orders/sw.js`, { scope }).catch(() => {})
+
+      return () => {
+        // Restore customer manifest when leaving business orders page
+        link.remove()
+        if (!document.querySelector('link[rel="manifest"]')) {
+          const defaultLink = document.createElement('link')
+          defaultLink.setAttribute('rel', 'manifest')
+          defaultLink.setAttribute('href', '/manifest.webmanifest')
+          document.head.appendChild(defaultLink)
+        }
+      }
     } catch {
       // avoid uncaught errors
     }

@@ -27,7 +27,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Missing "text" (message body)' }, { status: 400 })
   }
 
-  const result = await sendWhatsAppTextMessage(to.trim(), text.trim())
+  const writeClient = client.withConfig({ token: token ?? undefined, useCdn: false })
+  
+  // Find the most recent inbound message for this participant to get the correct business phone number ID
+  const lastInbound = await writeClient.fetch<{ businessPhoneNumberId?: string, businessPhone?: string } | null>(
+    `*[_type == "whatsappMessage" && participantPhone == $phone && direction == "in"] | order(createdAt desc)[0] {
+      businessPhoneNumberId,
+      businessPhone
+    }`,
+    { phone: canonicalWhatsAppInboxPhone(to) }
+  )
+
+  const phoneNumberIdOverride = lastInbound?.businessPhoneNumberId || undefined
+  
+  const result = await sendWhatsAppTextMessage(to.trim(), text.trim(), phoneNumberIdOverride)
 
   if (!result.success) {
     const errMsg = typeof result.error === 'object' && result.error && 'error' in result.error
@@ -39,10 +52,11 @@ export async function POST(req: Request) {
     )
   }
 
-  const writeClient = client.withConfig({ token: token ?? undefined, useCdn: false })
   await writeClient.create({
     _type: 'whatsappMessage',
     participantPhone: canonicalWhatsAppInboxPhone(to),
+    businessPhone: lastInbound?.businessPhone || undefined,
+    businessPhoneNumberId: phoneNumberIdOverride,
     direction: 'out',
     text: text.trim(),
     waMessageId: (result as { messageId?: string }).messageId ?? '',

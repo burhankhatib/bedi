@@ -3,13 +3,14 @@ import { client } from '@/sanity/lib/client'
 /** Stored in Firestore `broadcastContactCache/snapshot` — built from Sanity only during sync. */
 export type BroadcastContactSnapshot = {
   syncedAtMs: number
-  tenants: Array<{ name?: string; ownerPhone?: string; country?: string; city?: string }>
+  tenants: Array<{ name?: string; ownerPhone?: string; country?: string; city?: string; clerkUserId?: string }>
   drivers: Array<{
     name?: string
     phoneNumber?: string
     country?: string
     city?: string
     isVerifiedByAdmin?: boolean
+    clerkUserId?: string
   }>
   /** Customers inferred from orders (when geo filters apply) */
   customersFromOrders: Array<{
@@ -18,7 +19,7 @@ export type BroadcastContactSnapshot = {
     country?: string
     city?: string
   }>
-  customersDirect: Array<{ name?: string; primaryPhone?: string }>
+  customersDirect: Array<{ name?: string; primaryPhone?: string; clerkUserId?: string }>
   /** Preformatted for admin location pickers (same as former broadcast-locations API) */
   locationCountries: string[]
   locationCities: string[]
@@ -26,8 +27,8 @@ export type BroadcastContactSnapshot = {
 
 export async function fetchBroadcastContactSnapshotFromSanity(): Promise<Omit<BroadcastContactSnapshot, 'syncedAtMs'>> {
   const tenants = await client.fetch<
-    Array<{ name?: string; ownerPhone?: string; country?: string; city?: string }>
-  >(`*[_type == "tenant" && defined(ownerPhone)] { name, ownerPhone, country, city }`)
+    Array<{ name?: string; ownerPhone?: string; country?: string; city?: string; clerkUserId?: string }>
+  >(`*[_type == "tenant" && defined(ownerPhone)] { name, ownerPhone, country, city, clerkUserId }`)
 
   const drivers = await client.fetch<
     Array<{
@@ -36,9 +37,10 @@ export async function fetchBroadcastContactSnapshotFromSanity(): Promise<Omit<Br
       country?: string
       city?: string
       isVerifiedByAdmin?: boolean
+      clerkUserId?: string
     }>
   >(
-    `*[_type == "driver" && isVerifiedByAdmin == true && defined(phoneNumber)] { name, phoneNumber, country, city, isVerifiedByAdmin }`
+    `*[_type == "driver" && isVerifiedByAdmin == true && defined(phoneNumber)] { name, phoneNumber, country, city, isVerifiedByAdmin, clerkUserId }`
   )
 
   const customersFromOrders = await client.fetch<
@@ -57,8 +59,8 @@ export async function fetchBroadcastContactSnapshotFromSanity(): Promise<Omit<Br
     }`
   )
 
-  const customersDirect = await client.fetch<Array<{ name?: string; primaryPhone?: string }>>(
-    `*[_type == "customer" && defined(primaryPhone)] { name, primaryPhone }`
+  const customersDirect = await client.fetch<Array<{ name?: string; primaryPhone?: string; clerkUserId?: string }>>(
+    `*[_type == "customer" && defined(primaryPhone)] { name, primaryPhone, clerkUserId }`
   )
 
   const tenantsForLocations = await client.fetch<Array<{ country?: string; city?: string }>>(
@@ -101,7 +103,7 @@ export type ResolveRecipientsInput = {
 export function resolveRecipientsFromSnapshot(
   snap: Omit<BroadcastContactSnapshot, 'syncedAtMs'>,
   input: ResolveRecipientsInput
-): Array<{ phone: string; name: string }> {
+): Array<{ phone: string; name: string; clerkUserId?: string }> {
   const { targets, country, city, specificUsers } = input
   const countries = country
     ? country
@@ -116,7 +118,7 @@ export function resolveRecipientsFromSnapshot(
         .filter(Boolean)
     : []
 
-  const recipientsMap = new Map<string, string>()
+  const recipientsMap = new Map<string, { name: string; clerkUserId?: string }>()
 
   const matchLocation = (docCountry?: string, docCity?: string) => {
     const cCode = (docCountry || '').trim().toLowerCase()
@@ -129,7 +131,7 @@ export function resolveRecipientsFromSnapshot(
   if (targets?.includes('businesses')) {
     for (const t of snap.tenants) {
       if (matchLocation(t.country, t.city) && t.ownerPhone) {
-        recipientsMap.set(t.ownerPhone, t.name || 'صاحب العمل')
+        recipientsMap.set(t.ownerPhone, { name: t.name || 'صاحب العمل', clerkUserId: t.clerkUserId })
       }
     }
   }
@@ -137,7 +139,7 @@ export function resolveRecipientsFromSnapshot(
   if (targets?.includes('drivers')) {
     for (const d of snap.drivers) {
       if (matchLocation(d.country, d.city) && d.phoneNumber && d.isVerifiedByAdmin) {
-        recipientsMap.set(d.phoneNumber, d.name || 'كابتن')
+        recipientsMap.set(d.phoneNumber, { name: d.name || 'كابتن', clerkUserId: d.clerkUserId })
       }
     }
   }
@@ -147,14 +149,14 @@ export function resolveRecipientsFromSnapshot(
       for (const o of snap.customersFromOrders) {
         if (matchLocation(o.country, o.city) && o.customerPhone) {
           if (!recipientsMap.has(o.customerPhone)) {
-            recipientsMap.set(o.customerPhone, o.customerName || 'عميلنا العزيز')
+            recipientsMap.set(o.customerPhone, { name: o.customerName || 'عميلنا العزيز' })
           }
         }
       }
     } else {
       for (const c of snap.customersDirect) {
         if (c.primaryPhone && !recipientsMap.has(c.primaryPhone)) {
-          recipientsMap.set(c.primaryPhone, c.name || 'عميلنا العزيز')
+          recipientsMap.set(c.primaryPhone, { name: c.name || 'عميلنا العزيز', clerkUserId: c.clerkUserId })
         }
       }
     }
@@ -163,10 +165,14 @@ export function resolveRecipientsFromSnapshot(
   if (specificUsers && Array.isArray(specificUsers)) {
     for (const u of specificUsers) {
       if (u.phone && u.name) {
-        recipientsMap.set(u.phone, u.name)
+        recipientsMap.set(u.phone, { name: u.name })
       }
     }
   }
 
-  return Array.from(recipientsMap.entries()).map(([phone, name]) => ({ phone, name }))
+  return Array.from(recipientsMap.entries()).map(([phone, data]) => ({ 
+    phone, 
+    name: data.name,
+    clerkUserId: data.clerkUserId
+  }))
 }

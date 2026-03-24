@@ -6,21 +6,18 @@ export const dynamic = 'force-dynamic'
 
 export type CartItem = {
   productId: string
-  productName: string
-  title: string
-  price: number
+  cartItemId: string
   quantity: number
   notes?: string
-  addOns?: string
-  total: number
-  imageUrl?: string
-  currency: string
+  selectedAddOns?: string[]
+  selectedVariants?: (number | undefined)[]
   ownerId: string
   ownerName: string
+  [key: string]: any
 }
 
 export type SharedCartState = {
-  hostId: string
+  hostId: string | null
   items: CartItem[]
   status: 'active' | 'submitted'
 }
@@ -58,49 +55,63 @@ export async function POST(
   }
 
   const body = await req.json()
-  const { deviceId, action, items, ownerName } = body
+  const { deviceId, action, item, cartItemId, quantity, ownerName } = body
 
   if (!deviceId) {
     return NextResponse.json({ error: 'Missing deviceId' }, { status: 400 })
   }
 
   const key = getCartKey(slug, tableId)
+  
+  // Basic GET/SET for simplicity, assuming low collision probability for table carts.
   let cart: SharedCartState | null = await redis.get(key)
 
   if (!cart || cart.status === 'submitted') {
-    // If cart is empty, the first person to add something or initiate becomes host
     cart = {
-      hostId: deviceId,
+      hostId: deviceId, // Kept for legacy/informative purposes
       items: [],
       status: 'active',
     }
   }
 
-  // Update logic based on action
-  if (action === 'update_items') {
-    // Replace items owned by this deviceId, keep others
-    const otherItems = cart.items.filter((i) => i.ownerId !== deviceId)
-    const newItems = (items || []).map((i: any) => ({
-      ...i,
-      ownerId: i.ownerId || deviceId, // preserve existing ownerId if any
-      ownerName: i.ownerName || ownerName || 'Guest',
-    }))
-    cart.items = [...otherItems, ...newItems]
-  } else if (action === 'host_replace_items') {
-    // Host can replace the entire cart (e.g. to delete anyone's item)
-    if (cart.hostId === deviceId) {
-      cart.items = items
+  const nameToUse = ownerName || 'Guest'
+
+  if (action === 'add_item') {
+    const existingIndex = cart.items.findIndex(i => i.cartItemId === item.cartItemId && i.ownerId === deviceId)
+    if (existingIndex >= 0) {
+      cart.items[existingIndex].quantity += (item.quantity || 1)
+      if (item.notes !== undefined) cart.items[existingIndex].notes = item.notes
+      if (item.selectedAddOns !== undefined) cart.items[existingIndex].selectedAddOns = item.selectedAddOns
+      if (item.selectedVariants !== undefined) cart.items[existingIndex].selectedVariants = item.selectedVariants
+    } else {
+      cart.items.push({ ...item, ownerId: deviceId, ownerName: nameToUse })
     }
-  } else if (action === 'clear') {
-    if (cart.hostId === deviceId) {
-      cart.items = []
+  } else if (action === 'remove_item') {
+    cart.items = cart.items.filter(i => !(i.cartItemId === cartItemId && i.ownerId === deviceId))
+  } else if (action === 'remove_item_any') { // Allows removing other people's items
+    cart.items = cart.items.filter(i => i.cartItemId !== cartItemId)
+  } else if (action === 'update_quantity') {
+    const existing = cart.items.find(i => i.cartItemId === cartItemId && i.ownerId === deviceId)
+    if (existing) {
+      if (quantity <= 0) {
+        cart.items = cart.items.filter(i => !(i.cartItemId === cartItemId && i.ownerId === deviceId))
+      } else {
+        existing.quantity = quantity
+      }
     }
+  } else if (action === 'update_item') {
+    const existing = cart.items.find(i => i.cartItemId === cartItemId && i.ownerId === deviceId)
+    if (existing && item) {
+      Object.assign(existing, item)
+    }
+  } else if (action === 'leave_table') {
+    cart.items = cart.items.filter(i => i.ownerId !== deviceId)
+  } else if (action === 'clear_cart') {
+    cart.items = []
   }
 
-  // Save back to redis with 2 hour TTL (7200 seconds)
   await redis.setex(key, 7200, cart)
 
-  // Broadcast
   const channel = `tenant-${slug}-table-${tableId}-cart`
   await pusherServer.trigger(channel, 'cart-updated', cart)
 

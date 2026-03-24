@@ -12,6 +12,18 @@ export const whatsappMessageType = defineType({
       description: 'WhatsApp ID (phone number without +) of the sender/recipient',
     }),
     defineField({
+      name: 'businessPhone',
+      title: 'Business Phone',
+      type: 'string',
+      description: 'WhatsApp ID of the business number that received/sent the message',
+    }),
+    defineField({
+      name: 'businessPhoneNumberId',
+      title: 'Business Phone Number ID',
+      type: 'string',
+      description: 'Meta Graph API phone_number_id',
+    }),
+    defineField({
       name: 'direction',
       title: 'Direction',
       type: 'string',
@@ -47,15 +59,17 @@ export const whatsappMessageType = defineType({
   preview: {
     select: {
       participantPhone: 'participantPhone',
+      businessPhone: 'businessPhone',
       direction: 'direction',
       text: 'text',
       createdAt: 'createdAt',
     },
     prepare(selection) {
-      const { participantPhone, direction, text, createdAt } = selection
+      const { participantPhone, businessPhone, direction, text, createdAt } = selection
       const short = typeof text === 'string' ? text.substring(0, 40) + (text.length > 40 ? '...' : '') : ''
+      const via = businessPhone ? ` (via ${businessPhone})` : ''
       return {
-        title: `${direction === 'in' ? '←' : '→'} ${participantPhone}`,
+        title: `${direction === 'in' ? '←' : '→'} ${participantPhone}${via}`,
         subtitle: `${short} • ${createdAt ? new Date(createdAt).toLocaleString() : ''}`,
       }
     },

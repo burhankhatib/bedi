@@ -86,12 +86,13 @@ export function CartDrawer() {
     cartTenant,
     deviceId,
     hostId,
+    leaveTable,
+    clearTableCart,
   } = useCart()
   const orderAuth = useOrderAuth()
   const { t, lang } = useLanguage()
 
   const isSharedCart = orderType === 'dine-in' && !!tableNumber && !!cartTenant?.slug && !!deviceId
-  const isHost = isSharedCart ? hostId === deviceId : true
   // Prefill phone from Clerk verified phone when available and cart phone is empty
   useEffect(() => {
     if (orderAuth.hasVerifiedPhone && orderAuth.verifiedPhoneValue && !customerPhone) {
@@ -581,7 +582,7 @@ export function CartDrawer() {
 
                       const itemPrice = basePrice + addOnPrice
                       const itemTotal = itemPrice * item.quantity
-                      const canEdit = isHost || item.ownerId === deviceId
+                      const canEdit = !isSharedCart || item.ownerId === deviceId
 
                       return (
                         <div
@@ -838,27 +839,18 @@ export function CartDrawer() {
                       </div>
 
                       {/* Main SEND Button */}
-                      {isSharedCart && !isHost ? (
-                        <Button
-                          disabled
-                          className="w-full h-16 rounded-xl font-black text-xl bg-slate-200 text-slate-500 shadow-none"
-                        >
-                          {t('Waiting for Host to send...', 'في انتظار المضيف لإرسال الطلب...')}
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={isSharedCart && isHost ? () => setShowHostConfirmDialog(true) : () => void handleSendToKitchen()}
-                          disabled={isSendingOrder}
-                          className="w-full h-16 rounded-xl font-black text-xl bg-green-600 hover:bg-green-700 shadow-xl shadow-green-600/20"
-                        >
-                          <Send className="w-6 h-6 mr-2" />
-                          {isSendingOrder
-                            ? t('Sending...', 'جارٍ الإرسال...')
-                            : isSharedCart
-                              ? t('Review & Send Order', 'مراجعة وإرسال الطلب')
-                              : t('SEND ORDER', 'إرسال الطلب')}
-                        </Button>
-                      )}
+                      <Button
+                        onClick={isSharedCart ? () => setShowHostConfirmDialog(true) : () => void handleSendToKitchen()}
+                        disabled={isSendingOrder}
+                        className="w-full h-16 rounded-xl font-black text-xl bg-green-600 hover:bg-green-700 shadow-xl shadow-green-600/20 text-white"
+                      >
+                        <Send className="w-6 h-6 mr-2" />
+                        {isSendingOrder
+                          ? t('Sending...', 'جارٍ الإرسال...')
+                          : isSharedCart
+                            ? t('Review & Send Order', 'مراجعة وإرسال الطلب')
+                            : t('SEND ORDER', 'إرسال الطلب')}
+                      </Button>
 
                       {/* QR code temporarily disabled – only SEND ORDER sends to Order Management. To re-enable: show when orderType === 'dine-in'. */}
                       {false && orderType === 'dine-in' && (
@@ -874,14 +866,43 @@ export function CartDrawer() {
                         </div>
                       )}
 
-                      <Button
-                        onClick={handleNewOrder}
-                        variant="outline"
-                        className="w-full h-11 rounded-xl font-bold border-2 border-slate-300 hover:bg-slate-50"
-                      >
-                        <RotateCcw className="w-4 h-4 mr-2" />
-                        {t('New Order', 'طلب جديد')}
-                      </Button>
+                      {isSharedCart ? (
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <Button
+                            onClick={() => {
+                              if (confirm(t('Clear all items from this table?', 'مسح كل الأصناف من هذه الطاولة؟'))) {
+                                clearTableCart?.()
+                              }
+                            }}
+                            variant="outline"
+                            className="h-11 rounded-xl font-bold border-2 border-slate-300 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            {t('Clear Table', 'مسح الطاولة')}
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              if (confirm(t('Leave this table and remove your items?', 'مغادرة هذه الطاولة وإزالة أصنافك؟'))) {
+                                leaveTable?.()
+                              }
+                            }}
+                            variant="outline"
+                            className="h-11 rounded-xl font-bold border-2 border-slate-300 hover:bg-slate-50"
+                          >
+                            <X className="w-4 h-4 mr-2" />
+                            {t('Leave Table', 'مغادرة')}
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          onClick={handleNewOrder}
+                          variant="outline"
+                          className="w-full h-11 rounded-xl font-bold border-2 border-slate-300 hover:bg-slate-50 mt-2"
+                        >
+                          <RotateCcw className="w-4 h-4 mr-2" />
+                          {t('New Order', 'طلب جديد')}
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>
