@@ -160,7 +160,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   const orderTypeOptions = tenantSlug
     ? { supportsDineIn: supportsDineIn ?? true, supportsReceiveInPerson: supportsReceiveInPerson ?? true, hasDelivery: hasDelivery ?? false }
     : null
-  const { totalItems, isOpen: cartOpen, setIsOpen, setTenantSlug, setLockedTableNumber, cartTenant, items, setOrderType, setTableNumber } = useCart()
+  const { totalItems, isOpen: cartOpen, setIsOpen, setTenantSlug, setLockedTableNumber, cartTenant, items, setOrderType, setTableNumber, joinTableSession } = useCart()
   const { city, isChosen } = useLocation()
   const router = useRouter()
   const orderAuth = useOrderAuth()
@@ -176,24 +176,67 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
     setTenantSlug(tenantSlug ?? null)
     return () => setTenantSlug(null)
   }, [tenantSlug, setTenantSlug])
-  useEffect(() => {
-    if (tenantSlug && initialTableNumber) {
-      setLockedTableNumber(initialTableNumber)
-      setOrderType('dine-in')
-      setTableNumber(initialTableNumber)
-      if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href)
-        if (url.searchParams.has('table')) {
-          url.searchParams.delete('table')
-          window.history.replaceState({}, '', url.pathname + url.search + url.hash)
-        }
-      }
-      return () => {
-        setLockedTableNumber(null)
+  
+  const handleJoinTable = useCallback(() => {
+    if (!tenantSlug || !initialTableNumber) return
+    const tenantCtx = {
+      slug: tenantSlug,
+      name: headerTitle,
+      logoRef: restaurantInfo?.logo?.asset?._ref,
+      openingHours: restaurantInfo?.openingHours,
+      customDateHours: restaurantInfo?.customDateHours,
+      businessCountry: initialData.businessCountry ?? undefined,
+      isManuallyClosed: isManuallyClosed ?? undefined,
+      deactivateUntil: deactivateUntil ?? undefined,
+      deliveryPricingMode: initialData.deliveryPricingMode,
+      deliveryFeeMin: initialData.deliveryFeeMin,
+      deliveryFeeMax: initialData.deliveryFeeMax,
+      freeDeliveryEnabled: freeDeliveryEnabled ?? false,
+      requiresPersonalShopper: initialData.requiresPersonalShopper,
+      supportsDriverPickup: initialData.supportsDriverPickup,
+      shopperFee: initialData.shopperFee
+    }
+    const opts = {
+      supportsDineIn: supportsDineIn ?? true,
+      supportsReceiveInPerson: supportsReceiveInPerson ?? true,
+      hasDelivery: hasDelivery ?? false
+    }
+    joinTableSession(tenantCtx, initialTableNumber, opts)
+    
+    // Clean URL
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      if (url.searchParams.has('table')) {
+        url.searchParams.delete('table')
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash)
       }
     }
-    setLockedTableNumber(null)
-  }, [tenantSlug, initialTableNumber, setLockedTableNumber, setOrderType, setTableNumber])
+  }, [tenantSlug, initialTableNumber, headerTitle, restaurantInfo, initialData, isManuallyClosed, deactivateUntil, freeDeliveryEnabled, supportsDineIn, supportsReceiveInPerson, hasDelivery, joinTableSession])
+
+  // Show table choice modal when landing with ?table= (dine-in QR)
+  useEffect(() => {
+    if (tenantSlug && initialTableNumber && typeof window !== 'undefined') {
+      const key = `bedi-table-choice-seen-${tenantSlug}-${initialTableNumber}`
+      if (sessionStorage.getItem(key) !== '1') {
+        setShowTableChoiceModal(true)
+      } else {
+        handleJoinTable()
+      }
+    }
+  }, [tenantSlug, initialTableNumber, handleJoinTable])
+
+  const handleTableChoiceViewMenu = () => {
+    if (tenantSlug && initialTableNumber && typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem(`bedi-table-choice-seen-${tenantSlug}-${initialTableNumber}`, '1')
+      } catch {
+        // ignore
+      }
+    }
+    handleJoinTable()
+    setShowTableChoiceModal(false)
+  }
+
   // After sign-in/sign-up from cart, return with openCart=1 so we reopen the cart
   useEffect(() => {
     if (searchParams.get('openCart') === '1') {
@@ -217,27 +260,6 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [showTableChoiceModal, setShowTableChoiceModal] = useState(false)
   const [allowEmbeddedMap, setAllowEmbeddedMap] = useState(false)
-
-  // Show table choice modal when landing with ?table= (dine-in QR)
-  useEffect(() => {
-    if (tenantSlug && initialTableNumber && typeof window !== 'undefined') {
-      const key = `bedi-table-choice-seen-${tenantSlug}-${initialTableNumber}`
-      if (sessionStorage.getItem(key) !== '1') {
-        setShowTableChoiceModal(true)
-      }
-    }
-  }, [tenantSlug, initialTableNumber])
-
-  const handleTableChoiceViewMenu = () => {
-    if (tenantSlug && initialTableNumber && typeof window !== 'undefined') {
-      try {
-        sessionStorage.setItem(`bedi-table-choice-seen-${tenantSlug}-${initialTableNumber}`, '1')
-      } catch {
-        // ignore
-      }
-    }
-    setShowTableChoiceModal(false)
-  }
 
   useEffect(() => {
     // Defer all state updates to prevent hydration mismatch
@@ -1243,6 +1265,8 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
           tenantSlug={tenantSlug}
           tableNumber={initialTableNumber}
           onViewMenu={handleTableChoiceViewMenu}
+          wifiNetwork={restaurantInfo?.wifiNetwork}
+          wifiPassword={restaurantInfo?.wifiPassword}
         />
       )}
 

@@ -1,4 +1,5 @@
 import { client } from '@/sanity/lib/client'
+import { canonicalWhatsAppInboxPhone } from '@/lib/whatsapp-inbox-phone'
 
 /** Stored in Firestore `broadcastContactCache/snapshot` — built from Sanity only during sync. */
 export type BroadcastContactSnapshot = {
@@ -65,10 +66,46 @@ export async function fetchBroadcastContactSnapshotFromSanity(): Promise<Omit<Br
     `*[_type == "customer" && defined(primaryPhone)] { name, primaryPhone, clerkUserId }`
   )
 
-  const fcmSubscriptions = await client.fetch<Array<{ clerkUserId?: string }>>(
-    `*[_type == "userPushSubscription" && isActive != false && defined(devices[].fcmToken)] { clerkUserId }`
+  /** Central subscriptions: detect FCM in JS — GROQ `defined(devices[].fcmToken)` is unreliable on array projections. */
+  const pushSubs = await client.fetch<
+    Array<{ clerkUserId?: string; fcmToken?: string; devices?: Array<{ fcmToken?: string | null }> }>
+  >(`*[_type == "userPushSubscription" && isActive != false]{ clerkUserId, fcmToken, devices }`)
+
+  const docHasFcm = (s: (typeof pushSubs)[0]): boolean => {
+    if ((s.fcmToken ?? '').trim().length > 0) return true
+    if (!Array.isArray(s.devices)) return false
+    return s.devices.some((d) => (d?.fcmToken ?? '').trim().length > 0)
+  }
+
+  const fcmUserSet = new Set<string>()
+  for (const s of pushSubs) {
+    const id = (s.clerkUserId ?? '').trim()
+    if (id && docHasFcm(s)) fcmUserSet.add(id)
+  }
+
+  /** Legacy FCM on tenant documents (tenant-and-staff-push still sends here before central subs). */
+  const tenantsLegacyFcm = await client.fetch<Array<{ clerkUserId?: string; fcmToken?: string; fcmTokens?: string[] }>>(
+    `*[_type == "tenant" && defined(clerkUserId)]{ clerkUserId, fcmToken, fcmTokens }`
   )
-  const fcmUsers = Array.from(new Set(fcmSubscriptions.map(s => s.clerkUserId).filter(Boolean) as string[]))
+  for (const t of tenantsLegacyFcm) {
+    const id = (t.clerkUserId ?? '').trim()
+    if (!id) continue
+    const single = (t.fcmToken ?? '').trim().length > 0
+    const multi =
+      Array.isArray(t.fcmTokens) && t.fcmTokens.some((tok) => (tok ?? '').trim().length > 0)
+    if (single || multi) fcmUserSet.add(id)
+  }
+
+  /** Legacy driver FCM on driver document (used when central sub missing). */
+  const driversLegacyFcm = await client.fetch<Array<{ clerkUserId?: string; fcmToken?: string }>>(
+    `*[_type == "driver" && isVerifiedByAdmin == true && defined(clerkUserId)]{ clerkUserId, fcmToken }`
+  )
+  for (const d of driversLegacyFcm) {
+    const id = (d.clerkUserId ?? '').trim()
+    if (id && (d.fcmToken ?? '').trim().length > 0) fcmUserSet.add(id)
+  }
+
+  const fcmUsers = Array.from(fcmUserSet)
 
   const tenantsForLocations = await client.fetch<Array<{ country?: string; city?: string }>>(
     `*[_type == "tenant" && defined(country) && defined(city)] { country, city }`
@@ -141,6 +178,26 @@ export function resolveRecipientsFromSnapshot(
     return Array.isArray(snap.fcmUsers) && snap.fcmUsers.includes(clerkUserId)
   }
 
+  /** Canonical phone digits -> best-known clerkUserId + FCM flag (for manual specific numbers). */
+  const phoneKey = (p: string) => canonicalWhatsAppInboxPhone(p)
+  const phoneToIdentity = new Map<string, { clerkUserId?: string; hasFcm: boolean }>()
+  const mergePhone = (phone: string | undefined, clerkUserId?: string) => {
+    const k = phoneKey(phone ?? '')
+    if (!k) return
+    const hasFcm = checkFcm(clerkUserId)
+    const prev = phoneToIdentity.get(k)
+    if (!prev) {
+      phoneToIdentity.set(k, { clerkUserId, hasFcm })
+      return
+    }
+    const nextHasFcm = prev.hasFcm || hasFcm
+    const nextId = prev.clerkUserId || clerkUserId
+    phoneToIdentity.set(k, { clerkUserId: nextId, hasFcm: nextHasFcm })
+  }
+  for (const t of snap.tenants) mergePhone(t.ownerPhone, t.clerkUserId)
+  for (const d of snap.drivers) mergePhone(d.phoneNumber, d.clerkUserId)
+  for (const c of snap.customersDirect) mergePhone(c.primaryPhone, c.clerkUserId)
+
   if (targets?.includes('businesses')) {
     for (const t of snap.tenants) {
       if (matchLocation(t.country, t.city) && t.ownerPhone) {
@@ -179,9 +236,11 @@ export function resolveRecipientsFromSnapshot(
   if (specificUsers && Array.isArray(specificUsers)) {
     for (const u of specificUsers) {
       if (u.phone && u.name) {
-        // Find existing to preserve FCM info if any
         const existing = recipientsMap.get(u.phone)
-        recipientsMap.set(u.phone, { name: u.name, role: 'specific', clerkUserId: existing?.clerkUserId, hasFcm: existing?.hasFcm || false })
+        const fromDigits = phoneToIdentity.get(phoneKey(u.phone))
+        const clerkUserId = existing?.clerkUserId ?? fromDigits?.clerkUserId
+        const hasFcm = existing?.hasFcm || fromDigits?.hasFcm || checkFcm(clerkUserId)
+        recipientsMap.set(u.phone, { name: u.name, role: 'specific', clerkUserId, hasFcm })
       }
     }
   }

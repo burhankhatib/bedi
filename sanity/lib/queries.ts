@@ -65,7 +65,9 @@ export const MENU_QUERY = defineQuery(`{
     logo,
     address_en,
     address_ar,
-    socials
+    socials,
+    wifiNetwork,
+    wifiPassword
   },
   "aboutUs": *[_type == "aboutUs"][0] {
     title_en,
@@ -209,6 +211,8 @@ export const MENU_QUERY_TENANT = defineQuery(`{
     mapsLink,
     mapEmbedUrl,
     socials,
+    wifiNetwork,
+    wifiPassword,
     openingHours,
     customDateHours
   },

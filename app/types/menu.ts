@@ -119,6 +119,8 @@ export interface RestaurantInfo {
     whatsapp?: string
     website?: string
   }
+  wifiNetwork?: string
+  wifiPassword?: string
   /** Length 7: [Sun, Mon, Tue, Wed, Thu, Fri, Sat]. Empty open/close = closed. */
   openingHours?: DayHours[] | null
   customDateHours?: CustomDateHours[] | null

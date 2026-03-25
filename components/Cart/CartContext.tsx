@@ -127,6 +127,8 @@ interface CartContextType {
   /** When customer landed via table QR (?table=N), lock Dine-in and table number. */
   lockedTableNumber: string | null
   setLockedTableNumber: (table: string | null) => void
+  /** Joins a table session explicitly, establishing cartTenant and table session states */
+  joinTableSession: (tenant: CartTenant, tableId: string, options?: OrderTypeOptions) => void
   /** Disconnects from the current table session and removes owned items from the shared cart */
   leaveTable: () => void
   /** Clears all items from the shared table cart (for all users) */
@@ -590,6 +592,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     dispatchAtomicAction({ action: 'clear_cart' })
   }, [dispatchAtomicAction])
 
+  const joinTableSession = useCallback((tenant: CartTenant, tableId: string, options?: OrderTypeOptions) => {
+    setCartTenant(tenant)
+    setLockedTableNumber(tableId)
+    setOrderType('dine-in')
+    setTableNumber(tableId)
+    if (options) {
+      setOrderTypeOptions(options)
+    }
+  }, [setCartTenant, setLockedTableNumber, setOrderType, setTableNumber, setOrderTypeOptions])
+
   const leaveTable = useCallback(() => {
     dispatchAtomicAction({ action: 'leave_table' })
     updateItems([])
@@ -597,7 +609,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setOrderType(null)
     setLockedTableNumber(null)
     setIsOpen(false)
-  }, [updateItems, dispatchAtomicAction, setTableNumber, setOrderType, setLockedTableNumber, setIsOpen])
+    if (typeof window !== 'undefined' && cartTenant?.slug && lockedTableNumber) {
+      try {
+        sessionStorage.removeItem(`bedi-table-choice-seen-${cartTenant.slug}-${lockedTableNumber}`)
+      } catch {
+        // ignore
+      }
+    }
+  }, [updateItems, dispatchAtomicAction, setTableNumber, setOrderType, setLockedTableNumber, setIsOpen, cartTenant?.slug, lockedTableNumber])
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
 
@@ -684,6 +703,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         orderTypeOptions,
         lockedTableNumber,
         setLockedTableNumber,
+        joinTableSession,
         leaveTable,
         clearTableCart,
       }}

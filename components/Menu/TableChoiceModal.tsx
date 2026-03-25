@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { UtensilsCrossed, UserRoundPlus, CreditCard, Banknote, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { UtensilsCrossed, UserRoundPlus, CreditCard, Banknote, Loader2, Wifi } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
 import {
@@ -20,6 +20,8 @@ interface TableChoiceModalProps {
   tableNumber: string
   /** Called when user chooses "View online menu" — close modal and show menu */
   onViewMenu: () => void
+  wifiNetwork?: string
+  wifiPassword?: string
 }
 
 export function TableChoiceModal({
@@ -28,13 +30,32 @@ export function TableChoiceModal({
   tenantSlug,
   tableNumber,
   onViewMenu,
+  wifiNetwork,
+  wifiPassword,
 }: TableChoiceModalProps) {
   const { t, lang } = useLanguage()
   const { showToast } = useToast()
   const [payMode, setPayMode] = useState<'idle' | 'choosing' | 'sending'>('idle')
   const [sendingPayment, setSendingPayment] = useState(false)
   const [requestingWaiter, setRequestingWaiter] = useState(false)
+  const [hasActiveCart, setHasActiveCart] = useState<boolean | null>(null)
   const isRtl = lang === 'ar'
+
+  useEffect(() => {
+    if (open && tenantSlug && tableNumber) {
+      setHasActiveCart(null)
+      fetch(`/api/tenants/${encodeURIComponent(tenantSlug)}/table/${encodeURIComponent(tableNumber)}/cart`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.items && data.items.length > 0) {
+            setHasActiveCart(true)
+          } else {
+            setHasActiveCart(false)
+          }
+        })
+        .catch(() => setHasActiveCart(false))
+    }
+  }, [open, tenantSlug, tableNumber])
 
   const handleCallWaiter = async () => {
     setRequestingWaiter(true)
@@ -161,7 +182,9 @@ export function TableChoiceModal({
             {t('Table', 'طاولة')} {tableNumber}
           </DialogTitle>
           <DialogDescription className="text-slate-600 dark:text-slate-400">
-            {t('What would you like to do?', 'ماذا تريد أن تفعل؟')}
+            {hasActiveCart
+              ? t('There is an active collaborative order at this table.', 'يوجد طلب مشترك نشط في هذه الطاولة.')
+              : t('What would you like to do?', 'ماذا تريد أن تفعل؟')}
           </DialogDescription>
         </DialogHeader>
 
@@ -169,11 +192,22 @@ export function TableChoiceModal({
           <Button
             size="lg"
             onClick={handleViewMenu}
+            disabled={hasActiveCart === null}
             className="h-14 w-full rounded-2xl bg-emerald-600 text-base font-bold text-white shadow-lg shadow-emerald-500/30 hover:bg-emerald-700 hover:text-white"
             style={{ touchAction: 'manipulation' }}
           >
-            <UtensilsCrossed className="mr-3 size-6 shrink-0" aria-hidden />
-            {t('View online menu', 'عرض القائمة الإلكترونية')}
+            {hasActiveCart === null ? (
+              <Loader2 className="mr-3 size-6 shrink-0 animate-spin" aria-hidden />
+            ) : hasActiveCart ? (
+              <UserRoundPlus className="mr-3 size-6 shrink-0" aria-hidden />
+            ) : (
+              <UtensilsCrossed className="mr-3 size-6 shrink-0" aria-hidden />
+            )}
+            {hasActiveCart === null
+              ? t('Checking...', 'جاري التحقق...')
+              : hasActiveCart
+                ? t('Join Collaborative Order', 'الانضمام للطلب المشترك')
+                : t('View online menu', 'عرض القائمة الإلكترونية')}
           </Button>
 
           <Button
@@ -246,6 +280,44 @@ export function TableChoiceModal({
           ) : (
             <div className="flex h-14 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
               <Loader2 className="size-6 animate-spin text-slate-600 dark:text-slate-400" />
+            </div>
+          )}
+
+          {wifiNetwork && (
+            <div className="mt-2 rounded-2xl border-2 border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                  <Wifi className="h-6 w-6" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white">
+                    {t('Free WiFi', 'واي فاي مجاني')}
+                  </p>
+                  <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
+                    <span className="font-medium">{t('Network:', 'الشبكة:')}</span> <span dir="ltr" className="inline-block text-slate-900 dark:text-white">{wifiNetwork}</span>
+                  </p>
+                  {wifiPassword && (
+                    <div className="mt-1 flex items-center gap-2">
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        <span className="font-medium">{t('Password:', 'كلمة المرور:')}</span> <span dir="ltr" className="inline-block font-mono text-slate-900 dark:text-white">{wifiPassword}</span>
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-slate-400 hover:text-slate-700"
+                        onClick={() => {
+                          navigator.clipboard.writeText(wifiPassword)
+                          showToast(t('Password copied!', 'تم نسخ كلمة المرور!'), undefined, 'success')
+                        }}
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinelinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -65,6 +65,18 @@ export const restaurantInfoType = defineType({
       description: 'How to get it: 1) Open Google Maps and find your location. 2) Click Share → Embed a map. 3) Copy the iframe code, then paste either the full iframe HTML or just the src URL (the part inside src="..."). When set, an embedded map is shown on your menu page.',
     }),
     defineField({
+      name: 'wifiNetwork',
+      title: 'WiFi Network Name (SSID)',
+      type: 'string',
+      description: 'The name of your business WiFi network. If provided, users can view or connect to it via the Table QR page.',
+    }),
+    defineField({
+      name: 'wifiPassword',
+      title: 'WiFi Password',
+      type: 'string',
+      description: 'The password for your business WiFi network.',
+    }),
+    defineField({
       name: 'socials',
       title: 'Social Media',
       type: 'object',
