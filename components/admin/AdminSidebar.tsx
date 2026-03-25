@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, Shield, FileWarning, Building2, Users, Truck, BarChart3, Layout, ArrowRightLeft, MapPin, Megaphone, Package, Upload, Layers } from 'lucide-react'
+import { Menu, Shield, FileWarning, Building2, Users, Truck, BarChart3, Layout, ArrowRightLeft, MapPin, Megaphone, Package, Upload, Layers, Activity } from 'lucide-react'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { FullPageLink } from '@/components/ui/FullPageLink'
@@ -20,6 +20,7 @@ const nav = [
   { href: '/admin/customers', label: 'Customers', icon: Users },
   { href: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/admin/broadcast', label: 'Broadcast', icon: Megaphone },
+  { href: '/admin/whatsapp-pipeline', label: 'WA pipeline debug', icon: Activity },
 ] as const
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {

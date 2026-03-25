@@ -4,6 +4,10 @@ import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { getFirestoreAdmin, isFirebaseAdminConfigured } from '@/lib/firebase-admin'
 import { BROADCAST_DELIVERY_LOGS_COLLECTION } from '@/lib/broadcast-delivery-log'
+import {
+  WHATSAPP_OUTBOUND_STATUS_COLLECTION,
+  wamidToFirestoreDocId,
+} from '@/lib/whatsapp-outbound-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +34,11 @@ type LogRow = {
   broadcastCountries?: string
   broadcastCities?: string
   pushRoleContext?: string
+  /** From Meta webhooks `statuses`: sent | delivered | read | failed — absent until webhook fires. */
+  metaDeliveryStatus?: string
+  metaDeliveryRecipientId?: string
+  metaDeliveryErrors?: string
+  metaDeliveryUpdatedAtMs?: number
 }
 
 function asStr(v: unknown): string | undefined {
@@ -123,6 +132,34 @@ export async function GET(req: NextRequest) {
 
     const filtered = mapped.filter((row) => matches(row, searchParams)).slice(0, limit)
     const scannedCount = snap.docs.length
+
+    const enrichWhatsappMeta = async () => {
+      const waRows = filtered.filter((r) => r.channel === 'whatsapp' && r.providerMessageId)
+      const chunk = 40
+      for (let i = 0; i < waRows.length; i += chunk) {
+        const slice = waRows.slice(i, i + chunk)
+        await Promise.all(
+          slice.map(async (row) => {
+            const docId = wamidToFirestoreDocId(row.providerMessageId!)
+            const st = await db.collection(WHATSAPP_OUTBOUND_STATUS_COLLECTION).doc(docId).get()
+            const d = st.data()
+            if (!d) return
+            row.metaDeliveryStatus = typeof d.status === 'string' ? d.status : undefined
+            row.metaDeliveryRecipientId = typeof d.recipientId === 'string' ? d.recipientId : undefined
+            row.metaDeliveryUpdatedAtMs = typeof d.updatedAtMs === 'number' ? d.updatedAtMs : undefined
+            const errs = d.errors
+            if (Array.isArray(errs) && errs.length > 0) {
+              try {
+                row.metaDeliveryErrors = JSON.stringify(errs)
+              } catch {
+                row.metaDeliveryErrors = String(errs)
+              }
+            }
+          })
+        )
+      }
+    }
+    await enrichWhatsappMeta()
 
     return NextResponse.json({
       rows: filtered,

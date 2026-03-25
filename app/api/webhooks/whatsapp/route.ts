@@ -3,6 +3,10 @@ import { client } from '@/sanity/lib/client'
 import { token } from '@/sanity/lib/token'
 import { sendAdminNotification } from '@/lib/admin-push'
 import { canonicalWhatsAppInboxPhone } from '@/lib/whatsapp-inbox-phone'
+import {
+  WHATSAPP_OUTBOUND_STATUS_COLLECTION,
+  wamidToFirestoreDocId,
+} from '@/lib/whatsapp-outbound-status'
 
 /**
  * Meta WhatsApp Cloud API Webhook
@@ -54,6 +58,34 @@ export async function POST(request: NextRequest) {
           const id = st.id ?? ''
           const status = st.status ?? ''
           const errs = st.errors ?? []
+
+          // Persist every pipeline status (sent / delivered / read / failed) for admin Delivery log.
+          if (id) {
+            try {
+              const { getFirestoreAdmin, isFirebaseAdminConfigured } = await import('@/lib/firebase-admin')
+              if (isFirebaseAdminConfigured()) {
+                const db = getFirestoreAdmin()
+                if (db) {
+                  const docId = wamidToFirestoreDocId(id)
+                  await db.collection(WHATSAPP_OUTBOUND_STATUS_COLLECTION).doc(docId).set(
+                    {
+                      wamid: id,
+                      status,
+                      recipientId: st.recipient_id ?? '',
+                      errors: errs,
+                      businessDisplayPhone: displayPhoneNumber ?? '',
+                      phoneNumberId: phoneNumberId ?? '',
+                      updatedAtMs: Date.now(),
+                    },
+                    { merge: true }
+                  )
+                }
+              }
+            } catch (e) {
+              console.error('[WhatsApp Webhook] Failed to persist outbound status', e)
+            }
+          }
+
           if (status === 'failed' || errs.length > 0) {
             console.error(
               '[WhatsApp Webhook] OUTBOUND FAILED',
@@ -64,7 +96,6 @@ export async function POST(request: NextRequest) {
                 errors: errs,
               })
             )
-            // Log to Firestore for admin review
             try {
               const { getFirestoreAdmin, isFirebaseAdminConfigured } = await import('@/lib/firebase-admin')
               if (isFirebaseAdminConfigured()) {
@@ -76,7 +107,7 @@ export async function POST(request: NextRequest) {
                     businessPhone: displayPhoneNumber,
                     errors: errs,
                     createdAtMs: Date.now(),
-                    createdAtIso: new Date().toISOString()
+                    createdAtIso: new Date().toISOString(),
                   })
                 }
               }

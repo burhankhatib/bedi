@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { ClipboardList, Loader2, RefreshCw } from 'lucide-react'
 
 type DeliveryLogRow = {
@@ -22,6 +23,29 @@ type DeliveryLogRow = {
   broadcastCountries?: string
   broadcastCities?: string
   pushRoleContext?: string
+  metaDeliveryStatus?: string
+  metaDeliveryRecipientId?: string
+  metaDeliveryErrors?: string
+  metaDeliveryUpdatedAtMs?: number
+}
+
+function digitsOnly(phone: string): string {
+  return (phone || '').replace(/\D/g, '')
+}
+
+/** CMS may store with or without +; display E.164-style consistently. */
+function formatPhoneDisplay(phone: string): string {
+  const d = digitsOnly(phone)
+  if (!d) return phone.trim() || '—'
+  return `+${d}`
+}
+
+function metaDeliveryBadgeClass(status: string): string {
+  const s = status.toLowerCase()
+  if (s === 'delivered' || s === 'read') return 'bg-emerald-600/25 text-emerald-200 border-emerald-500/40'
+  if (s === 'failed') return 'bg-red-600/25 text-red-200 border-red-500/40'
+  if (s === 'sent') return 'bg-sky-600/20 text-sky-200 border-sky-500/35'
+  return 'bg-slate-700 text-slate-300 border-slate-600'
 }
 
 const CHANNEL_OPTIONS = [
@@ -33,9 +57,9 @@ const CHANNEL_OPTIONS = [
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
-  { value: 'success', label: 'Success' },
-  { value: 'failed', label: 'Failed' },
-  { value: 'skipped', label: 'Skipped' },
+  { value: 'success', label: 'Cloud API accepted' },
+  { value: 'failed', label: 'Cloud API rejected' },
+  { value: 'skipped', label: 'Skipped (FCM)' },
 ]
 
 const ROLE_OPTIONS = [
@@ -129,10 +153,18 @@ export function BroadcastDeliveryLogPanel() {
             <h2 className="text-lg font-semibold text-white">Broadcast delivery log</h2>
             <p className="mt-1 text-sm text-slate-400 max-w-2xl">
               Each row is one send attempt from an admin mass broadcast: WhatsApp template, FCM, or Web Push.
-              Filters apply to the most recent events loaded from the server (scan cap applies).
+              For WhatsApp, <strong className="text-slate-200 font-medium">Cloud API accepted</strong> only means Meta returned a message id (wamid) — not that the phone received it. Final delivery is shown under{' '}
+              <strong className="text-slate-200 font-medium">Meta (handset)</strong> when your webhook reports{' '}
+              <code className="text-slate-300">sent</code> / <code className="text-slate-300">delivered</code> /{' '}
+              <code className="text-slate-300">failed</code>. The <code className="text-slate-300">+</code> in the table is display-only; both CMS formats map to the same WhatsApp destination.
             </p>
             {hint ? <p className="mt-2 text-xs text-amber-200/80">{hint}</p> : null}
             <p className="mt-1 text-xs text-slate-500">Last scan: {scanned} raw rows · showing {rows.length} after filters</p>
+            <p className="mt-2 text-xs">
+              <Link href="/admin/whatsapp-pipeline" className="text-amber-400/90 hover:text-amber-300">
+                Open raw webhook collections (errors + status) →
+              </Link>
+            </p>
           </div>
         </div>
         <button
@@ -247,12 +279,13 @@ export function BroadcastDeliveryLogPanel() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-800/80">
-        <table className="min-w-[960px] w-full text-left text-sm">
+        <table className="min-w-[1080px] w-full text-left text-sm">
           <thead className="bg-slate-800/50 text-xs uppercase tracking-wide text-slate-400">
             <tr>
               <th className="px-3 py-3 font-medium">Time (UTC)</th>
               <th className="px-3 py-3 font-medium">Channel</th>
-              <th className="px-3 py-3 font-medium">Status</th>
+              <th className="px-3 py-3 font-medium">Cloud API</th>
+              <th className="px-3 py-3 font-medium">Meta (handset)</th>
               <th className="px-3 py-3 font-medium">Recipient</th>
               <th className="px-3 py-3 font-medium">Role</th>
               <th className="px-3 py-3 font-medium">Location</th>
@@ -263,14 +296,14 @@ export function BroadcastDeliveryLogPanel() {
           <tbody className="divide-y divide-slate-800/80">
             {loading && rows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-12 text-center text-slate-400">
+                <td colSpan={9} className="px-3 py-12 text-center text-slate-400">
                   <Loader2 className="size-6 animate-spin inline-block mr-2 align-middle" />
                   Loading…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-10 text-center text-slate-500">
+                <td colSpan={9} className="px-3 py-10 text-center text-slate-500">
                   No rows match your filters (or no broadcasts have been processed since logging was enabled).
                 </td>
               </tr>
@@ -287,14 +320,53 @@ export function BroadcastDeliveryLogPanel() {
                   </td>
                   <td className="px-3 py-2.5 align-top">
                     <span className={`inline-block rounded-md border px-2 py-0.5 text-xs ${statusBadge(r.status)}`}>
-                      {r.status || '—'}
+                      {r.channel === 'whatsapp' && r.status === 'success'
+                        ? 'accepted'
+                        : r.channel === 'whatsapp' && r.status === 'failed'
+                          ? 'rejected'
+                          : r.status || '—'}
                     </span>
+                  </td>
+                  <td className="px-3 py-2.5 align-top text-xs text-slate-300">
+                    {r.channel === 'whatsapp' ? (
+                      r.metaDeliveryStatus ? (
+                        <div className="space-y-1">
+                          <span
+                            className={`inline-block rounded-md border px-2 py-0.5 font-medium ${metaDeliveryBadgeClass(r.metaDeliveryStatus)}`}
+                          >
+                            {r.metaDeliveryStatus}
+                          </span>
+                          {r.metaDeliveryRecipientId ? (
+                            <div className="text-slate-500 font-mono text-[10px]" dir="ltr" title="recipient_id from Meta">
+                              to {r.metaDeliveryRecipientId}
+                            </div>
+                          ) : null}
+                          {r.metaDeliveryErrors ? (
+                            <div className="text-red-300/90 break-words">{r.metaDeliveryErrors}</div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-amber-200/80" title="Subscribe webhooks to field messages; statuses arrive asynchronously">
+                          no webhook data yet
+                        </span>
+                      )
+                    ) : (
+                      <span className="text-slate-600">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 align-top text-slate-200">
                     <div className="font-medium">{r.recipientName || '—'}</div>
                     <div className="text-xs text-slate-400 font-mono mt-0.5" dir="ltr">
-                      {r.recipientPhone || '—'}
+                      {formatPhoneDisplay(r.recipientPhone)}
                     </div>
+                    {r.channel === 'whatsapp' &&
+                    r.metaDeliveryRecipientId &&
+                    digitsOnly(r.recipientPhone) &&
+                    digitsOnly(r.metaDeliveryRecipientId) !== digitsOnly(r.recipientPhone) ? (
+                      <div className="text-[10px] text-amber-300/90 mt-1 max-w-[200px]">
+                        Meta recipient_id differs from CMS phone — message may have gone to another WhatsApp account.
+                      </div>
+                    ) : null}
                     {r.clerkUserId ? (
                       <div className="text-[10px] text-slate-500 font-mono mt-1 truncate max-w-[200px]" title={r.clerkUserId}>
                         {r.clerkUserId}
