@@ -9,12 +9,12 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
   try {
-    // Validate cron secret if provided in environment
     const authHeader = request.headers.get('authorization')
-    if (process.env.CRON_SECRET) {
-      if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-        return new NextResponse('Unauthorized', { status: 401 })
-      }
+    const allowed = [process.env.CRON_SECRET, process.env.FIREBASE_JOB_SECRET].filter(
+      (s): s is string => typeof s === 'string' && s.length > 0
+    )
+    if (allowed.length && !allowed.some((s) => authHeader === `Bearer ${s}`)) {
+      return new NextResponse('Unauthorized', { status: 401 })
     }
 
     if (!token) {

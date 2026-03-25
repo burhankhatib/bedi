@@ -10,12 +10,11 @@ export const dynamic = 'force-dynamic'
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 export async function GET(req: Request) {
-  // Optional: check cron secret to prevent unauthorized execution
   const authHeader = req.headers.get('authorization')
-  if (
-    process.env.CRON_SECRET &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  const allowed = [process.env.CRON_SECRET, process.env.FIREBASE_JOB_SECRET].filter(
+    (s): s is string => typeof s === 'string' && s.length > 0
+  )
+  if (allowed.length && !allowed.some((s) => authHeader === `Bearer ${s}`)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

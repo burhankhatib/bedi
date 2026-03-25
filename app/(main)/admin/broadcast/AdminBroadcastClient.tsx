@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Megaphone, Loader2, Info, CheckCircle2, XCircle, Clock, MessageSquare, Send, RefreshCw, Smartphone, BellRing, Search, X } from 'lucide-react'
+import { Megaphone, Loader2, Info, CheckCircle2, XCircle, Clock, MessageSquare, Send, RefreshCw, Smartphone, BellRing, Search, X, ClipboardList } from 'lucide-react'
+import { BroadcastDeliveryLogPanel } from '@/components/admin/BroadcastDeliveryLogPanel'
 import { AdminWhatsAppPushBanner } from '@/components/AdminWhatsAppPushBanner'
 import { Button } from '@/components/ui/button'
 
@@ -41,7 +42,7 @@ type BroadcastHistory = {
   errors?: string
 }
 
-export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?: 'broadcast' | 'inbox' }) {
+export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?: 'broadcast' | 'inbox' | 'delivery-log' }) {
   const [targets, setTargets] = useState<string[]>([])
   const [countries, setCountries] = useState('')
   const [cities, setCities] = useState('')
@@ -79,7 +80,7 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   // Inbox
-  const [activeTab, setActiveTab] = useState<'broadcast' | 'inbox'>(initialTab)
+  const [activeTab, setActiveTab] = useState<'broadcast' | 'inbox' | 'delivery-log'>(initialTab)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [inboxLoading, setInboxLoading] = useState(false)
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null)
@@ -195,6 +196,10 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
       setSyncingContacts(false)
     }
   }
+
+  useEffect(() => {
+    setActiveTab(initialTab)
+  }, [initialTab])
 
   useEffect(() => {
     fetchHistory()
@@ -409,9 +414,23 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
           <MessageSquare className="size-4" />
           Inbox
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('delivery-log')}
+          className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === 'delivery-log'
+              ? 'border-amber-500/60 bg-amber-500/20 text-amber-300'
+              : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
+          }`}
+        >
+          <ClipboardList className="size-4" />
+          Delivery log
+        </button>
       </div>
 
-      {activeTab === 'inbox' ? (
+      {activeTab === 'delivery-log' ? (
+        <BroadcastDeliveryLogPanel />
+      ) : activeTab === 'inbox' ? (
         /* Inbox chat layout */
         <div className="space-y-4">
           <AdminWhatsAppPushBanner />

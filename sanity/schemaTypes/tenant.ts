@@ -80,11 +80,11 @@ export const tenantType = defineType({
     }),
     defineField({
       name: 'prioritizeWhatsapp',
-      title: 'Instant WhatsApp (new orders)',
+      title: 'Instant WhatsApp (legacy toggle)',
       type: 'boolean',
       initialValue: false,
       description:
-        'When enabled, sends the new_order WhatsApp template immediately when an order is placed (alongside FCM). If the order is still not accepted after ~3 minutes, a reminder WhatsApp is sent automatically using the same template.',
+        'Deprecated: new orders now always trigger the business new_order WhatsApp template when recipients exist. The ~3 minute unaccepted reminder still runs automatically. This field is kept for backward compatibility only.',
     }),
     defineField({
       name: 'deliveryPricingMode',

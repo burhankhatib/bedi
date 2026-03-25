@@ -18,8 +18,8 @@ export const NotificationService = {
   /**
    * Fires immediate notifications when a new order is placed.
    * 1) Pusher + FCM/Web Push to tenant staff (always when configured).
-   * 2) Instant WhatsApp (new_order_v2 + full order summary) when tenant.prioritizeWhatsapp is true.
-   *    Does not set the 3-minute-unaccepted gate — that uses businessWhatsappUnacceptedReminderAt.
+   * 2) Instant WhatsApp (new_order_v2 + full order summary) when recipients exist — same path as OTP reliability.
+   *    The 3-minute-unaccepted reminder is scheduled separately (businessWhatsappUnacceptedReminderAt).
    */
   async onNewOrder(params: {
     orderId: string
@@ -29,9 +29,10 @@ export const NotificationService = {
     tenantName?: string
     tenantNameAr?: string
     tenantPhone?: string
+    /** @deprecated No longer gates WhatsApp; kept for API compatibility with callers. */
     prioritizeWhatsapp?: boolean
   }) {
-    const { orderId, orderNumber, tenantId, tenantSlug, tenantName, tenantNameAr, tenantPhone, prioritizeWhatsapp } = params
+    const { orderId, orderNumber, tenantId, tenantSlug, tenantName, tenantNameAr, tenantPhone } = params
     let slug = (tenantSlug || '').trim()
     if (!slug && tenantId) {
       const t = await writeClient.fetch<{ slug?: string } | null>(
@@ -117,8 +118,8 @@ export const NotificationService = {
       }
     }
 
-    // 3. Instant WhatsApp (tenant “Instant WhatsApp enabled” = prioritizeWhatsapp)
-    if (prioritizeWhatsapp && !tenantPhone?.trim()) {
+    // 3. Instant WhatsApp — always attempted (recipients resolved in notifyBusinessWhatsappForOrder)
+    if (!tenantPhone?.trim()) {
       await appendOrderNotificationDiagnostic(writeClient, orderId, {
         source: 'NotificationService.onNewOrder.whatsapp',
         level: 'warn',
@@ -126,26 +127,24 @@ export const NotificationService = {
         detail: { tenantId },
       })
     }
-    if (prioritizeWhatsapp) {
-      try {
-        await notifyBusinessWhatsappForOrder({
-          writeClient,
-          orderId,
-          tenantId,
-          tenantSlug: slug,
-          tenantName,
-          tenantNameAr,
-          mode: 'instant',
-        })
-      } catch (e) {
-        console.error('[NotificationService] WhatsApp notification failed:', e)
-        await appendOrderNotificationDiagnostic(writeClient, orderId, {
-          source: 'NotificationService.onNewOrder.whatsapp',
-          level: 'error',
-          message: 'Instant WhatsApp dispatch threw',
-          detail: { error: e instanceof Error ? e.message : String(e) },
-        })
-      }
+    try {
+      await notifyBusinessWhatsappForOrder({
+        writeClient,
+        orderId,
+        tenantId,
+        tenantSlug: slug,
+        tenantName,
+        tenantNameAr,
+        mode: 'instant',
+      })
+    } catch (e) {
+      console.error('[NotificationService] WhatsApp notification failed:', e)
+      await appendOrderNotificationDiagnostic(writeClient, orderId, {
+        source: 'NotificationService.onNewOrder.whatsapp',
+        level: 'error',
+        message: 'Instant WhatsApp dispatch threw',
+        detail: { error: e instanceof Error ? e.message : String(e) },
+      })
     }
   },
 

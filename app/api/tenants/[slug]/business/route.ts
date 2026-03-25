@@ -28,6 +28,8 @@ type RestaurantInfoDoc = {
   notificationSound?: string
   openingHours?: DayHours[] | null
   customDateHours?: CustomDateHours[] | null
+  wifiNetwork?: string | null
+  wifiPassword?: string | null
 }
 
 /** GET tenant + restaurantInfo for this site. ?refresh=1 forces fresh data (bypasses CDN). */
@@ -94,7 +96,9 @@ export async function GET(
         logo,
         notificationSound,
         openingHours,
-        customDateHours
+        customDateHours,
+        wifiNetwork,
+        wifiPassword
       }`,
       { siteId: auth.tenantId }
     ),
@@ -366,6 +370,8 @@ export async function PATCH(
     notificationSound: body.notificationSound,
     openingHours: body.openingHours,
     customDateHours: body.customDateHours,
+    wifiNetwork: body.wifiNetwork,
+    wifiPassword: body.wifiPassword,
   }
 
   const restPatch: Record<string, unknown> = {}
@@ -404,6 +410,14 @@ export async function PATCH(
           shifts: Array.isArray(d?.shifts) ? d.shifts.map((s, j) => ({ _key: `shift-${j}`, _type: 'object', open: s.open ?? '', close: s.close ?? '' })) : []
         }))
       : []
+  }
+  if (restFields.wifiNetwork !== undefined) {
+    const v = typeof restFields.wifiNetwork === 'string' ? restFields.wifiNetwork.trim() : ''
+    restPatch.wifiNetwork = v || null
+  }
+  if (restFields.wifiPassword !== undefined) {
+    const v = typeof restFields.wifiPassword === 'string' ? restFields.wifiPassword.trim() : ''
+    restPatch.wifiPassword = v || null
   }
 
   const hasRestFields = Object.keys(restPatch).length > 0

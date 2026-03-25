@@ -164,7 +164,11 @@ export async function GET(req: Request) {
     }
   }
 
-  const allowLegacyScan = process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true'
+  // Batch scan when: env flag, ?allowLegacy=1 (process-due fallback / external cron), or authenticated caller (same as unaccepted-orders-whatsapp).
+  const allowLegacyScan =
+    process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true' ||
+    forceLegacyScan ||
+    isAuthenticated
   if (!allowLegacyScan) {
     return NextResponse.json({ ok: true, notifiedOrdersCount: 0, totalMessagesSent: 0, skipped: true, reason: 'legacy-scan-disabled' })
   }

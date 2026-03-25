@@ -144,11 +144,22 @@ export type ResolveRecipientsInput = {
   specificUsers?: Array<{ phone?: string; name?: string }>
 }
 
+/** Resolved row for broadcast jobs, preview, and delivery logging (country/city from CMS when available). */
+export type BroadcastResolvedRecipient = {
+  phone: string
+  name: string
+  clerkUserId?: string
+  role: 'business' | 'driver' | 'customer' | 'specific'
+  hasFcm: boolean
+  country?: string
+  city?: string
+}
+
 /** Same matching rules as the original broadcast-whatsapp route, using cached snapshot rows. */
 export function resolveRecipientsFromSnapshot(
   snap: Omit<BroadcastContactSnapshot, 'syncedAtMs'>,
   input: ResolveRecipientsInput
-): Array<{ phone: string; name: string; clerkUserId?: string; role: 'business' | 'driver' | 'customer' | 'specific'; hasFcm: boolean }> {
+): BroadcastResolvedRecipient[] {
   const { targets, country, city, specificUsers } = input
   const countries = country
     ? country
@@ -163,7 +174,17 @@ export function resolveRecipientsFromSnapshot(
         .filter(Boolean)
     : []
 
-  const recipientsMap = new Map<string, { name: string; clerkUserId?: string; role: 'business' | 'driver' | 'customer' | 'specific'; hasFcm: boolean }>()
+  const recipientsMap = new Map<
+    string,
+    {
+      name: string
+      clerkUserId?: string
+      role: 'business' | 'driver' | 'customer' | 'specific'
+      hasFcm: boolean
+      country?: string
+      city?: string
+    }
+  >()
 
   const matchLocation = (docCountry?: string, docCity?: string) => {
     const cCode = (docCountry || '').trim().toLowerCase()
@@ -201,7 +222,14 @@ export function resolveRecipientsFromSnapshot(
   if (targets?.includes('businesses')) {
     for (const t of snap.tenants) {
       if (matchLocation(t.country, t.city) && t.ownerPhone) {
-        recipientsMap.set(t.ownerPhone, { name: t.name || 'صاحب العمل', clerkUserId: t.clerkUserId, role: 'business', hasFcm: checkFcm(t.clerkUserId) })
+        recipientsMap.set(t.ownerPhone, {
+          name: t.name || 'صاحب العمل',
+          clerkUserId: t.clerkUserId,
+          role: 'business',
+          hasFcm: checkFcm(t.clerkUserId),
+          country: t.country?.trim() || undefined,
+          city: t.city?.trim() || undefined,
+        })
       }
     }
   }
@@ -209,7 +237,14 @@ export function resolveRecipientsFromSnapshot(
   if (targets?.includes('drivers')) {
     for (const d of snap.drivers) {
       if (matchLocation(d.country, d.city) && d.phoneNumber && d.isVerifiedByAdmin) {
-        recipientsMap.set(d.phoneNumber, { name: d.name || 'كابتن', clerkUserId: d.clerkUserId, role: 'driver', hasFcm: checkFcm(d.clerkUserId) })
+        recipientsMap.set(d.phoneNumber, {
+          name: d.name || 'كابتن',
+          clerkUserId: d.clerkUserId,
+          role: 'driver',
+          hasFcm: checkFcm(d.clerkUserId),
+          country: d.country?.trim() || undefined,
+          city: d.city?.trim() || undefined,
+        })
       }
     }
   }
@@ -219,15 +254,25 @@ export function resolveRecipientsFromSnapshot(
       for (const o of snap.customersFromOrders) {
         if (matchLocation(o.country, o.city) && o.customerPhone) {
           if (!recipientsMap.has(o.customerPhone)) {
-            // Customer from orders doesn't have clerkUserId directly here, so hasFcm might be false unless fetched differently
-            recipientsMap.set(o.customerPhone, { name: o.customerName || 'عميلنا العزيز', role: 'customer', hasFcm: false })
+            recipientsMap.set(o.customerPhone, {
+              name: o.customerName || 'عميلنا العزيز',
+              role: 'customer',
+              hasFcm: false,
+              country: o.country?.trim() || undefined,
+              city: o.city?.trim() || undefined,
+            })
           }
         }
       }
     } else {
       for (const c of snap.customersDirect) {
         if (c.primaryPhone && !recipientsMap.has(c.primaryPhone)) {
-          recipientsMap.set(c.primaryPhone, { name: c.name || 'عميلنا العزيز', clerkUserId: c.clerkUserId, role: 'customer', hasFcm: checkFcm(c.clerkUserId) })
+          recipientsMap.set(c.primaryPhone, {
+            name: c.name || 'عميلنا العزيز',
+            clerkUserId: c.clerkUserId,
+            role: 'customer',
+            hasFcm: checkFcm(c.clerkUserId),
+          })
         }
       }
     }
@@ -240,16 +285,25 @@ export function resolveRecipientsFromSnapshot(
         const fromDigits = phoneToIdentity.get(phoneKey(u.phone))
         const clerkUserId = existing?.clerkUserId ?? fromDigits?.clerkUserId
         const hasFcm = existing?.hasFcm || fromDigits?.hasFcm || checkFcm(clerkUserId)
-        recipientsMap.set(u.phone, { name: u.name, role: 'specific', clerkUserId, hasFcm })
+        recipientsMap.set(u.phone, {
+          name: u.name,
+          role: 'specific',
+          clerkUserId,
+          hasFcm,
+          country: existing?.country,
+          city: existing?.city,
+        })
       }
     }
   }
 
-  return Array.from(recipientsMap.entries()).map(([phone, data]) => ({ 
-    phone, 
+  return Array.from(recipientsMap.entries()).map(([phone, data]) => ({
+    phone,
     name: data.name,
     clerkUserId: data.clerkUserId,
     role: data.role,
-    hasFcm: data.hasFcm
+    hasFcm: data.hasFcm,
+    country: data.country,
+    city: data.city,
   }))
 }

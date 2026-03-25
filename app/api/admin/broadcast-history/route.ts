@@ -33,6 +33,7 @@ export async function GET() {
         _id: d.id,
         message: typeof x.message === 'string' ? x.message : '',
         targets: Array.isArray(x.targets) ? x.targets : [],
+        channels: Array.isArray(x.channels) ? x.channels : [],
         countries: typeof x.countries === 'string' ? x.countries : '',
         cities: typeof x.cities === 'string' ? x.cities : '',
         specificNumbers: typeof x.specificNumbers === 'string' ? x.specificNumbers : '',

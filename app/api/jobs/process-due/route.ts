@@ -5,6 +5,7 @@ import type { ScheduledJobType } from '@/lib/delivery-job-scheduler'
 import { sendWhatsAppTemplateMessageWithLangFallback, formatMetaWhatsAppApiError } from '@/lib/meta-whatsapp'
 import { WHATSAPP_TEMPLATE } from '@/lib/whatsapp-meta-templates'
 import { sendFCMToRecipients } from '@/lib/broadcast-fcm'
+import { flushBroadcastDeliveryLogs, type BroadcastDeliveryLogInput } from '@/lib/broadcast-delivery-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -283,8 +284,23 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
           const channels = Array.isArray(data.channels) ? data.channels : ['whatsapp']
           const cursor = typeof data.cursor === 'number' && Number.isFinite(data.cursor) ? data.cursor : 0
           const message = typeof data.message === 'string' ? data.message : ''
-          const chunk = recipients.slice(cursor, cursor + 20) as Array<{ name: string; phone: string; clerkUserId?: string }>
-          
+          type ChunkRecipient = {
+            name: string
+            phone: string
+            clerkUserId?: string
+            role?: string
+            country?: string
+            city?: string
+          }
+          const chunk = recipients.slice(cursor, cursor + 20) as ChunkRecipient[]
+
+          const jobIdForLog = doc.id
+          const broadcastCountries = typeof data.countries === 'string' ? data.countries : ''
+          const broadcastCities = typeof data.cities === 'string' ? data.cities : ''
+          const messagePreview = message.slice(0, 280)
+
+          const deliveryLogs: BroadcastDeliveryLogInput[] = []
+
           let newSent = 0
           let newFailed = 0
           const newSuccessList: string[] = []
@@ -297,7 +313,7 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
               const firstName = u.name.split(' ')[0] || 'User'
               // Sanitize message to avoid Meta error 132018 (no newlines/tabs in variable parameters)
               const safeMessage = message.replace(/[\n\t\r]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
-              
+
               const result = await sendWhatsAppTemplateMessageWithLangFallback(
                 u.phone,
                 WHATSAPP_TEMPLATE.BROADCAST,
@@ -311,23 +327,96 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
                 newFailedList.push(`${u.name} (${u.phone})`)
                 newErrorsList.push({ phone: u.phone, error: formatMetaWhatsAppApiError(result.error) })
               }
+              deliveryLogs.push({
+                jobId: jobIdForLog,
+                channel: 'whatsapp',
+                status: result.success ? 'success' : 'failed',
+                recipientName: u.name,
+                recipientPhone: u.phone,
+                clerkUserId: u.clerkUserId,
+                role: u.role,
+                country: u.country,
+                city: u.city,
+                messagePreview,
+                error: result.success ? undefined : formatMetaWhatsAppApiError(result.error),
+                providerMessageId: result.messageId,
+                broadcastCountries,
+                broadcastCities,
+              })
             }
           }
 
-          // 2. FCM
+          // 2. FCM / Web Push
           let newFcmSent = 0
           let newFcmFailed = 0
           if (channels.includes('fcm')) {
             try {
-              const { sent, failed } = await sendFCMToRecipients(chunk, {
-                title: 'إشعار من Zonify',
+              const { sent, failed, attempts, skipped } = await sendFCMToRecipients(chunk, {
+                title: 'إشعار من Bedi Delivery',
                 body: message,
               })
               newFcmSent = sent
               newFcmFailed = failed
+              for (const a of attempts) {
+                deliveryLogs.push({
+                  jobId: jobIdForLog,
+                  channel: a.transport === 'fcm' ? 'fcm' : 'web_push',
+                  status: a.success ? 'success' : 'failed',
+                  recipientName: a.recipientName,
+                  recipientPhone: a.recipientPhone,
+                  clerkUserId: a.clerkUserId,
+                  role: a.role,
+                  country: a.country,
+                  city: a.city,
+                  messagePreview,
+                  broadcastCountries,
+                  broadcastCities,
+                  pushRoleContext: a.roleContext,
+                })
+              }
+              for (const s of skipped) {
+                deliveryLogs.push({
+                  jobId: jobIdForLog,
+                  channel: 'fcm',
+                  status: 'skipped',
+                  recipientName: s.recipient.name,
+                  recipientPhone: s.recipient.phone,
+                  clerkUserId: s.recipient.clerkUserId,
+                  role: s.recipient.role,
+                  country: s.recipient.country,
+                  city: s.recipient.city,
+                  messagePreview,
+                  error: s.reason,
+                  broadcastCountries,
+                  broadcastCities,
+                })
+              }
             } catch (err) {
               console.error('[process-due] FCM broadcast failed for chunk', err)
+              for (const u of chunk) {
+                deliveryLogs.push({
+                  jobId: jobIdForLog,
+                  channel: 'fcm',
+                  status: 'failed',
+                  recipientName: u.name,
+                  recipientPhone: u.phone,
+                  clerkUserId: u.clerkUserId,
+                  role: u.role,
+                  country: u.country,
+                  city: u.city,
+                  messagePreview,
+                  error: err instanceof Error ? err.message : String(err),
+                  broadcastCountries,
+                  broadcastCities,
+                })
+              }
             }
+          }
+
+          try {
+            await flushBroadcastDeliveryLogs(db, deliveryLogs)
+          } catch (logErr) {
+            console.error('[process-due] broadcast delivery log write failed', logErr)
           }
 
           const nextCursor = cursor + chunk.length

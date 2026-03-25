@@ -16,7 +16,9 @@ export default async function AdminBroadcastPage({
   if (!isSuperAdminEmail(email)) redirect('/dashboard?error=admin_only')
 
   const sp = await searchParams
-  const initialTab = sp.tab === 'inbox' ? 'inbox' : 'broadcast'
+  const tab = sp.tab
+  const initialTab =
+    tab === 'inbox' ? 'inbox' : tab === 'delivery-log' || tab === 'logs' ? 'delivery-log' : 'broadcast'
 
   return (
     <div>

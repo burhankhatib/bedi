@@ -3,7 +3,11 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
-import { resolveRecipientsFromSnapshot, type BroadcastContactSnapshot } from '@/lib/broadcast-contact-snapshot'
+import {
+  resolveRecipientsFromSnapshot,
+  type BroadcastContactSnapshot,
+  type BroadcastResolvedRecipient,
+} from '@/lib/broadcast-contact-snapshot'
 import { getFirestoreAdmin, isFirebaseAdminConfigured } from '@/lib/firebase-admin'
 
 const SNAPSHOT_DOC = 'snapshot'
@@ -75,7 +79,7 @@ export async function POST(req: Request) {
       locationCities: Array.isArray(raw.locationCities) ? raw.locationCities : [],
     }
 
-    let recipients = resolveRecipientsFromSnapshot(snapshot, {
+    let recipients: BroadcastResolvedRecipient[] = resolveRecipientsFromSnapshot(snapshot, {
       targets: targets || [],
       country,
       city,
@@ -85,13 +89,17 @@ export async function POST(req: Request) {
     // Filter out excluded phones and strip undefined values for Firestore
     recipients = recipients
       .filter((r) => !excludedSet.has(r.phone))
-      .map((r) => {
-        const cleanRecip: any = { phone: r.phone, name: r.name, role: r.role, hasFcm: r.hasFcm }
-        if (r.clerkUserId) {
-          cleanRecip.clerkUserId = r.clerkUserId
-        }
-        return cleanRecip
-      })
+      .map(
+        (r): BroadcastResolvedRecipient => ({
+          phone: r.phone,
+          name: r.name,
+          role: r.role,
+          hasFcm: r.hasFcm,
+          ...(r.clerkUserId ? { clerkUserId: r.clerkUserId } : {}),
+          ...(r.country ? { country: r.country } : {}),
+          ...(r.city ? { city: r.city } : {}),
+        })
+      )
 
     const totalFound = recipients.length
 

@@ -6,7 +6,10 @@ export const dynamic = 'force-dynamic'
 /** Daily morning message to all subscribed users (customer, driver, tenant). Runs at 7am UTC. */
 export async function GET(req: Request) {
   const authHeader = req.headers.get('authorization')
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const allowed = [process.env.CRON_SECRET, process.env.FIREBASE_JOB_SECRET].filter(
+    (s): s is string => typeof s === 'string' && s.length > 0
+  )
+  if (allowed.length && !allowed.some((s) => authHeader === `Bearer ${s}`)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

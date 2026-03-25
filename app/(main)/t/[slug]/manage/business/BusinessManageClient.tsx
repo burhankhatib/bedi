@@ -11,7 +11,7 @@ import { compressImageForUpload } from '@/lib/compress-image'
 import { getCountryNameAr, getCityNameAr } from '@/lib/registration-translations'
 import { toEnglishDigits } from '@/lib/phone'
 import { detectCityAndCountry } from '@/lib/geofencing-utils'
-import { Upload, ImageIcon, Volume2, Play, AlertTriangle, Trash2, Store, UtensilsCrossed, Clock, MapPin, Save, LocateFixed, RefreshCw, Activity, CheckCircle2, XCircle, Timer } from 'lucide-react'
+import { Upload, ImageIcon, Volume2, Play, AlertTriangle, Trash2, Store, UtensilsCrossed, Clock, MapPin, Save, LocateFixed, RefreshCw, Activity, CheckCircle2, XCircle, Timer, Wifi, Eye, EyeOff } from 'lucide-react'
 import { TenantQRCode } from '@/components/TenantQRCode'
 import { useTenantBusiness } from '../TenantBusinessContext'
 import { isAbortError } from '@/lib/abort-utils'
@@ -68,6 +68,8 @@ type BusinessData = {
       whatsapp?: string
       website?: string
     }
+    wifiNetwork?: string | null
+    wifiPassword?: string | null
   } | null
 }
 
@@ -171,6 +173,8 @@ type FormState = {
   tagline_ar: string
   address_en: string
   address_ar: string
+  wifiNetwork: string
+  wifiPassword: string
   locationLat: number | null
   locationLng: number | null
   facebook: string
@@ -216,6 +220,8 @@ function formSnapshotFromData(d: BusinessData, currentSlug: string): FormState {
     tagline_ar: r?.tagline_ar ?? '',
     address_en: r?.address_en ?? '',
     address_ar: r?.address_ar ?? '',
+    wifiNetwork: r?.wifiNetwork ?? '',
+    wifiPassword: r?.wifiPassword ?? '',
     locationLat: tenant?.locationLat ?? null,
     locationLng: tenant?.locationLng ?? null,
     facebook: r?.socials?.facebook ?? '',
@@ -286,6 +292,8 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     tagline_ar: '',
     address_en: '',
     address_ar: '',
+    wifiNetwork: '',
+    wifiPassword: '',
     locationLat: null as number | null,
     locationLng: null as number | null,
     facebook: '',
@@ -314,6 +322,7 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
     customDateHours: [] as Array<{ date: string; open: string; close: string; shifts?: { open: string; close: string }[] }>,
   })
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
+  const [wifiPasswordVisible, setWifiPasswordVisible] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
@@ -439,6 +448,8 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           tagline_ar: r.tagline_ar || '',
           address_en: r.address_en || '',
           address_ar: r.address_ar || '',
+          wifiNetwork: r.wifiNetwork || '',
+          wifiPassword: r.wifiPassword || '',
           facebook: r.socials?.facebook || '',
           instagram: r.socials?.instagram || '',
           tiktok: r.socials?.tiktok || '',
@@ -725,6 +736,8 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
           tagline_ar: form.tagline_ar || undefined,
           address_en: form.address_en || undefined,
           address_ar: form.address_ar || undefined,
+          wifiNetwork: form.wifiNetwork.trim() || null,
+          wifiPassword: form.wifiPassword.trim() || null,
           locationLat: form.locationLat,
           locationLng: form.locationLng,
           logoAssetId: form.logoAssetId || undefined,
@@ -1667,6 +1680,65 @@ export function BusinessManageClient({ slug, menuUrl }: { slug: string; menuUrl?
                   onChange={(e) => setForm((f) => ({ ...f, address_ar: e.target.value }))}
                   className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
                 />
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-slate-800/40 border border-slate-700/50 p-4 sm:p-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
+                  <Wifi className="h-5 w-5" aria-hidden />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-bold text-white text-base">
+                    {t('Guest Wi-Fi (table QR)', 'واي فاي الضيوف (رمز الطاولة)')}
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-400 leading-relaxed">
+                    {t(
+                      'Optional. Network name and password appear when guests scan a table QR so they can connect on site.',
+                      'اختياري. يظهر اسم الشبكة وكلمة المرور عند مسح رمز الطاولة ليتصل الضيوف بالإنترنت في المكان.'
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">
+                    {t('Network name (SSID)', 'اسم الشبكة (SSID)')}
+                  </label>
+                  <Input
+                    value={form.wifiNetwork}
+                    onChange={(e) => setForm((f) => ({ ...f, wifiNetwork: e.target.value }))}
+                    placeholder={t('e.g. CafeGuest', 'مثال: CafeGuest')}
+                    autoComplete="off"
+                    className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 text-base"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-300 mb-2">
+                    {t('Wi-Fi password', 'كلمة مرور الواي فاي')}
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type={wifiPasswordVisible ? 'text' : 'password'}
+                      value={form.wifiPassword}
+                      onChange={(e) => setForm((f) => ({ ...f, wifiPassword: e.target.value }))}
+                      autoComplete="new-password"
+                      className="w-full h-14 rounded-xl bg-slate-900 border-slate-600 text-white px-4 pe-12 text-base"
+                    />
+                    <button
+                      type="button"
+                      className="absolute end-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white"
+                      aria-label={
+                        wifiPasswordVisible
+                          ? t('Hide Wi-Fi password', 'إخفاء كلمة مرور الواي فاي')
+                          : t('Show Wi-Fi password', 'إظهار كلمة مرور الواي فاي')
+                      }
+                      onClick={() => setWifiPasswordVisible((v) => !v)}
+                    >
+                      {wifiPasswordVisible ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
             
