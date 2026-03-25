@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import { InitialData, Product } from '@/app/types/menu'
 import { CategoryNav } from '@/components/Menu/CategoryNav'
@@ -176,66 +176,6 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
     setTenantSlug(tenantSlug ?? null)
     return () => setTenantSlug(null)
   }, [tenantSlug, setTenantSlug])
-  
-  const handleJoinTable = useCallback(() => {
-    if (!tenantSlug || !initialTableNumber) return
-    const tenantCtx = {
-      slug: tenantSlug,
-      name: headerTitle,
-      logoRef: restaurantInfo?.logo?.asset?._ref,
-      openingHours: restaurantInfo?.openingHours,
-      customDateHours: restaurantInfo?.customDateHours,
-      businessCountry: initialData.businessCountry ?? undefined,
-      isManuallyClosed: isManuallyClosed ?? undefined,
-      deactivateUntil: deactivateUntil ?? undefined,
-      deliveryPricingMode: initialData.deliveryPricingMode,
-      deliveryFeeMin: initialData.deliveryFeeMin,
-      deliveryFeeMax: initialData.deliveryFeeMax,
-      freeDeliveryEnabled: freeDeliveryEnabled ?? false,
-      requiresPersonalShopper: initialData.requiresPersonalShopper,
-      supportsDriverPickup: initialData.supportsDriverPickup,
-      shopperFee: initialData.shopperFee
-    }
-    const opts = {
-      supportsDineIn: supportsDineIn ?? true,
-      supportsReceiveInPerson: supportsReceiveInPerson ?? true,
-      hasDelivery: hasDelivery ?? false
-    }
-    joinTableSession(tenantCtx, initialTableNumber, opts)
-    
-    // Clean URL
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href)
-      if (url.searchParams.has('table')) {
-        url.searchParams.delete('table')
-        window.history.replaceState({}, '', url.pathname + url.search + url.hash)
-      }
-    }
-  }, [tenantSlug, initialTableNumber, headerTitle, restaurantInfo, initialData, isManuallyClosed, deactivateUntil, freeDeliveryEnabled, supportsDineIn, supportsReceiveInPerson, hasDelivery, joinTableSession])
-
-  // Show table choice modal when landing with ?table= (dine-in QR)
-  useEffect(() => {
-    if (tenantSlug && initialTableNumber && typeof window !== 'undefined') {
-      const key = `bedi-table-choice-seen-${tenantSlug}-${initialTableNumber}`
-      if (sessionStorage.getItem(key) !== '1') {
-        setShowTableChoiceModal(true)
-      } else {
-        handleJoinTable()
-      }
-    }
-  }, [tenantSlug, initialTableNumber, handleJoinTable])
-
-  const handleTableChoiceViewMenu = () => {
-    if (tenantSlug && initialTableNumber && typeof window !== 'undefined') {
-      try {
-        sessionStorage.setItem(`bedi-table-choice-seen-${tenantSlug}-${initialTableNumber}`, '1')
-      } catch {
-        // ignore
-      }
-    }
-    handleJoinTable()
-    setShowTableChoiceModal(false)
-  }
 
   // After sign-in/sign-up from cart, return with openCart=1 so we reopen the cart
   useEffect(() => {
@@ -293,6 +233,65 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
     ? t(restaurantInfo.name_en ?? '', restaurantInfo.name_ar ?? '')
     : null
   const headerTitle = storeName || localizedName || t('Restaurant', 'المطعم')
+
+  const handleJoinTable = useCallback(() => {
+    if (!tenantSlug || !initialTableNumber) return
+    const tenantCtx = {
+      slug: tenantSlug,
+      name: headerTitle,
+      logoRef: restaurantInfo?.logo?.asset?._ref,
+      openingHours: restaurantInfo?.openingHours,
+      customDateHours: restaurantInfo?.customDateHours,
+      businessCountry: initialData.businessCountry ?? undefined,
+      isManuallyClosed: isManuallyClosed ?? undefined,
+      deactivateUntil: deactivateUntil ?? undefined,
+      deliveryPricingMode: initialData.deliveryPricingMode,
+      deliveryFeeMin: initialData.deliveryFeeMin,
+      deliveryFeeMax: initialData.deliveryFeeMax,
+      freeDeliveryEnabled: freeDeliveryEnabled ?? false,
+      requiresPersonalShopper: initialData.requiresPersonalShopper,
+      supportsDriverPickup: initialData.supportsDriverPickup,
+      shopperFee: initialData.shopperFee
+    }
+    const opts = {
+      supportsDineIn: supportsDineIn ?? true,
+      supportsReceiveInPerson: supportsReceiveInPerson ?? true,
+      hasDelivery: hasDelivery ?? false
+    }
+    joinTableSession(tenantCtx, initialTableNumber, opts)
+
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      if (url.searchParams.has('table')) {
+        url.searchParams.delete('table')
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+      }
+    }
+  }, [tenantSlug, initialTableNumber, headerTitle, restaurantInfo, initialData, isManuallyClosed, deactivateUntil, freeDeliveryEnabled, supportsDineIn, supportsReceiveInPerson, hasDelivery, joinTableSession])
+
+  // Show table choice modal when landing with ?table= (dine-in QR)
+  useEffect(() => {
+    if (tenantSlug && initialTableNumber && typeof window !== 'undefined') {
+      const key = `bedi-table-choice-seen-${tenantSlug}-${initialTableNumber}`
+      if (sessionStorage.getItem(key) !== '1') {
+        setShowTableChoiceModal(true)
+      } else {
+        handleJoinTable()
+      }
+    }
+  }, [tenantSlug, initialTableNumber, handleJoinTable])
+
+  const handleTableChoiceViewMenu = () => {
+    if (tenantSlug && initialTableNumber && typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem(`bedi-table-choice-seen-${tenantSlug}-${initialTableNumber}`, '1')
+      } catch {
+        // ignore
+      }
+    }
+    handleJoinTable()
+    setShowTableChoiceModal(false)
+  }
 
   const businessTimeZone = getTimeZoneForCountry(initialData.businessCountry)
   const todaysHours = getTodaysHours(restaurantInfo?.openingHours, restaurantInfo?.customDateHours, businessTimeZone)
