@@ -28,11 +28,20 @@ export type BroadcastDeliveryLogInput = {
 }
 
 type FirestoreBatchDb = {
-  collection: (path: string) => { doc: (id?: string) => { id: string } }
+  collection: (path: string) => { doc: (id?: string) => unknown }
   batch: () => {
-    set: (ref: { id: string }, data: Record<string, unknown>) => void
+    set: (ref: unknown, data: Record<string, unknown>) => void
     commit: () => Promise<unknown>
   }
+}
+
+/** Firestore rejects `undefined` field values — strips them so batch commits succeed. */
+function omitUndefinedFields(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v
+  }
+  return out
 }
 
 export async function flushBroadcastDeliveryLogs(db: unknown, entries: BroadcastDeliveryLogInput[]): Promise<void> {
@@ -48,10 +57,11 @@ export async function flushBroadcastDeliveryLogs(db: unknown, entries: Broadcast
   for (const e of entries) {
     const ref = fs.collection(BROADCAST_DELIVERY_LOGS_COLLECTION).doc()
     const { createdAtMs: _c, ...rest } = e
-    batch.set(ref, {
+    const payload = omitUndefinedFields({
       ...rest,
       createdAtMs: e.createdAtMs ?? now,
     })
+    batch.set(ref, payload)
     n++
     if (n >= 400) {
       await batch.commit()

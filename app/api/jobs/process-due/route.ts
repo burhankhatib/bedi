@@ -9,6 +9,22 @@ import { flushBroadcastDeliveryLogs, type BroadcastDeliveryLogInput } from '@/li
 
 export const dynamic = 'force-dynamic'
 
+/** Meta body variables: avoid 132018 / length limits; strip invisible Unicode. */
+const BROADCAST_WA_NAME_MAX = 80
+const BROADCAST_WA_BODY_MAX = 1024
+
+function sanitizeBroadcastWhatsAppVars(displayName: string, rawMessage: string): { firstName: string; body: string } {
+  const strip = (s: string) =>
+    s
+      .replace(/[\u200B-\u200D\uFEFF\u2028\u2029]+/g, ' ')
+      .replace(/[\n\t\r]+/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+  const firstName = strip((displayName.split(/\s+/)[0] || 'User').trim()).slice(0, BROADCAST_WA_NAME_MAX) || 'User'
+  const body = strip(rawMessage).slice(0, BROADCAST_WA_BODY_MAX)
+  return { firstName, body }
+}
+
 /** Vercel Cron sends Authorization: Bearer $CRON_SECRET; Firebase Functions may use FIREBASE_JOB_SECRET only. Accept either. */
 function isAuthorizedJobProcessor(req: Request): boolean {
   const header = req.headers.get('authorization')
@@ -269,17 +285,26 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
     }
   }
 
-  // Handle broadcast jobs in a small chunk
+  // Handle broadcast jobs in a small chunk (never gated on scheduledJobs query — timeouts there must not block admin broadcasts).
   let broadcastProcessed = 0
-  if (!firestoreFailed) {
-    try {
-      const broadcastSnap = await db.collection('broadcastJobs').where('status', '==', 'pending').limit(2).get()
-      if (!broadcastSnap.empty) {
-        for (const doc of broadcastSnap.docs) {
+  try {
+    // Re-queue stale "processing" jobs (crash / timeout after status update) without needing a composite index.
+    const STUCK_MS = 12 * 60 * 1000
+    const processingSnap = await db.collection('broadcastJobs').where('status', '==', 'processing').limit(15).get()
+    for (const d of processingSnap.docs) {
+      const u = d.data()?.updatedAtMs
+      if (typeof u === 'number' && Date.now() - u > STUCK_MS) {
+        await d.ref.update({ status: 'pending', updatedAtMs: Date.now() }).catch(() => {})
+      }
+    }
+
+    const broadcastSnap = await db.collection('broadcastJobs').where('status', '==', 'pending').limit(2).get()
+    if (!broadcastSnap.empty) {
+      for (const doc of broadcastSnap.docs) {
           const data = doc.data()
-          if (!data || data.status !== 'pending') continue
-          
-          await doc.ref.update({ status: 'processing', updatedAtMs: Date.now() })
+        if (!data || data.status !== 'pending') continue
+
+        await doc.ref.update({ status: 'processing', updatedAtMs: Date.now() })
           const recipients = Array.isArray(data.recipients) ? data.recipients : []
           const channels = Array.isArray(data.channels) ? data.channels : ['whatsapp']
           const cursor = typeof data.cursor === 'number' && Number.isFinite(data.cursor) ? data.cursor : 0
@@ -310,14 +335,12 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
           // 1. WhatsApp
           if (channels.includes('whatsapp')) {
             for (const u of chunk) {
-              const firstName = u.name.split(' ')[0] || 'User'
-              // Sanitize message to avoid Meta error 132018 (no newlines/tabs in variable parameters)
-              const safeMessage = message.replace(/[\n\t\r]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
+              const { firstName, body } = sanitizeBroadcastWhatsAppVars(u.name, message)
 
               const result = await sendWhatsAppTemplateMessageWithLangFallback(
                 u.phone,
                 WHATSAPP_TEMPLATE.BROADCAST,
-                [firstName, safeMessage]
+                [firstName, body]
               )
               if (result.success) {
                 newSent++
@@ -491,9 +514,8 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
           }
         }
       }
-    } catch (err) {
-      console.error('[process-due] Broadcast job scan failed:', err)
-    }
+  } catch (err) {
+    console.error('[process-due] Broadcast job scan failed:', err)
   }
 
   // If Firestore failed but Firebase was configured (fallbackPromise was skipped above),

@@ -9,7 +9,7 @@ import { OrderAuthGate } from '@/components/OrderAuthGate'
 import { useToast } from '@/components/ui/ToastProvider'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { X, ShoppingCart, QrCode, Edit2, RotateCcw, Send, Store, ArrowRight, Trash2 } from 'lucide-react'
+import { X, ShoppingCart, QrCode, Edit2, RotateCcw, Send, Store, ArrowRight, Trash2, LogOut } from 'lucide-react'
 import Image from 'next/image'
 import { urlFor } from '@/sanity/lib/image'
 import { SHIMMER_PLACEHOLDER } from '@/lib/image-placeholder'
@@ -91,6 +91,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     hostId,
     leaveTable,
     clearTableCart,
+    resetCartAndDisconnectCollaboration,
   } = useCart()
   const { t, lang } = useLanguage()
 
@@ -683,41 +684,85 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                   )}
 
                   {isSharedCart ? (
-                    <div className="grid grid-cols-2 gap-2 mt-2">
+                    <div className="space-y-2 mt-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          onClick={() => {
+                            if (confirm(t('Clear all items from this table?', 'مسح كل الأصناف من هذه الطاولة؟'))) {
+                              clearTableCart?.()
+                            }
+                          }}
+                          variant="outline"
+                          className="h-11 rounded-xl font-bold border-2 border-slate-300 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          {t('Clear Table', 'مسح الطاولة')}
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            if (confirm(t('Leave this table and remove your items?', 'مغادرة هذه الطاولة وإزالة أصنافك؟'))) {
+                              leaveTable?.()
+                            }
+                          }}
+                          variant="outline"
+                          className="h-11 rounded-xl font-bold border-2 border-slate-300 hover:bg-slate-50"
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          {t('Leave Table', 'مغادرة')}
+                        </Button>
+                      </div>
                       <Button
                         onClick={() => {
-                          if (confirm(t('Clear all items from this table?', 'مسح كل الأصناف من هذه الطاولة؟'))) {
-                            clearTableCart?.()
+                          if (
+                            confirm(
+                              t(
+                                'Clear your cart, remove your items from this table, and disconnect from shared ordering. Other guests keep their items.',
+                                'سيتم مسح سلتك وإزالة أصنافك من الطاولة ومغادرة الطلب المشترك. باقي الضيوف يبقون كما هم.'
+                              )
+                            )
+                          ) {
+                            resetCartAndDisconnectCollaboration()
                           }
                         }}
                         variant="outline"
-                        className="h-11 rounded-xl font-bold border-2 border-slate-300 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                        className="w-full h-11 rounded-xl font-bold border-2 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
                       >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        {t('Clear Table', 'مسح الطاولة')}
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          if (confirm(t('Leave this table and remove your items?', 'مغادرة هذه الطاولة وإزالة أصنافك؟'))) {
-                            leaveTable?.()
-                          }
-                        }}
-                        variant="outline"
-                        className="h-11 rounded-xl font-bold border-2 border-slate-300 hover:bg-slate-50"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        {t('Leave Table', 'مغادرة')}
+                        <LogOut className="w-4 h-4 mr-2" />
+                        {t('Reset cart & disconnect', 'إعادة ضبط السلة ومغادرة الطلب المشترك')}
                       </Button>
                     </div>
                   ) : (
-                    <Button
-                      onClick={handleNewOrder}
-                      variant="ghost"
-                      className="w-full h-12 rounded-xl font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <RotateCcw className="w-4 h-4 mr-2" />
-                      {t('New Order', 'طلب جديد')}
-                    </Button>
+                    <div className="space-y-2 mt-2">
+                      <Button
+                        onClick={handleNewOrder}
+                        variant="ghost"
+                        className="w-full h-12 rounded-xl font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        {t('New Order', 'طلب جديد')}
+                      </Button>
+                      {totalItems > 0 && (
+                        <Button
+                          onClick={() => {
+                            if (
+                              confirm(
+                                t(
+                                  'Clear your cart and all checkout details (delivery address, schedule, etc.)?',
+                                  'مسح السلة وجميع بيانات الدفع (العنوان، الموعد، وغيرها)؟'
+                                )
+                              )
+                            ) {
+                              resetCartAndDisconnectCollaboration()
+                            }
+                          }}
+                          variant="outline"
+                          className="w-full h-11 rounded-xl font-bold border-2 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
+                        >
+                          <LogOut className="w-4 h-4 mr-2" />
+                          {t('Clear cart & checkout details', 'مسح السلة وتفاصيل الطلب')}
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

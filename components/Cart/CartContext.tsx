@@ -133,6 +133,11 @@ interface CartContextType {
   leaveTable: () => void
   /** Clears all items from the shared table cart (for all users) */
   clearTableCart: () => void
+  /**
+   * Removes this device from the shared table cart (`leave_table`), clears all local cart/checkout state,
+   * and drops table locks — without broadcasting `clear_cart` (other guests keep their items).
+   */
+  resetCartAndDisconnectCollaboration: () => void
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined)
@@ -618,6 +623,42 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [updateItems, dispatchAtomicAction, setTableNumber, setOrderType, setLockedTableNumber, setIsOpen, cartTenant?.slug, lockedTableNumber])
 
+  const resetCartAndDisconnectCollaboration = useCallback(() => {
+    const slugForStorage = cartTenant?.slug
+    const tableKey = lockedTableNumber || tableNumber
+    dispatchAtomicAction({ action: 'leave_table' })
+    updateItems([])
+    setCartTenant(null)
+    setOrderTypeOptions(null)
+    setIsReady(false)
+    setCustomerName('')
+    setTableNumber('')
+    setOrderType(null)
+    setCustomerPhone('')
+    setDeliveryAreaId('')
+    setDeliveryAddress('')
+    setDeliveryFee(0)
+    setDeliveryFeePaidByBusiness(false)
+    setLockedTableNumber(null)
+    clearDeliveryLocation()
+    setScheduledFor(undefined)
+    setIsOpen(false)
+    if (typeof window !== 'undefined' && slugForStorage && tableKey) {
+      try {
+        sessionStorage.removeItem(`bedi-table-choice-seen-${slugForStorage}-${tableKey}`)
+      } catch {
+        // ignore
+      }
+    }
+  }, [
+    dispatchAtomicAction,
+    updateItems,
+    cartTenant?.slug,
+    lockedTableNumber,
+    tableNumber,
+    clearDeliveryLocation,
+  ])
+
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
 
   const totalPrice = items.reduce((sum, item) => {
@@ -706,6 +747,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         joinTableSession,
         leaveTable,
         clearTableCart,
+        resetCartAndDisconnectCollaboration,
       }}
     >
       {children}
