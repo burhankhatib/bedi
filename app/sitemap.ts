@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import { getSitemapEntries, toMetadataRouteSitemap } from "@/lib/sitemap";
 
+export const revalidate = 3600;
+
 /**
  * Next.js native sitemap — served at /sitemap.xml.
  * Uses the built-in MetadataRoute.Sitemap so Google Search Console reliably

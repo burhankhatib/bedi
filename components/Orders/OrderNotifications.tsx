@@ -495,12 +495,15 @@ export function OrderNotifications({
     }
     const fetchNotificationSound = async () => {
       try {
-        const { client } = await import('@/sanity/lib/client')
-        const query = `*[_type == "restaurantInfo"][0].notificationSound`
-        const sound = await client.fetch(query)
-        const value = sound || '1.wav'
-        ;(globalThis as unknown as { __orderNotificationSound?: string | null }).__orderNotificationSound = sound || null
-        setNotificationSound(value)
+        const res = await fetch('/api/notification-sound')
+        if (res.ok) {
+          const data = await res.json()
+          const value = data.sound || '1.wav'
+          ;(globalThis as unknown as { __orderNotificationSound?: string | null }).__orderNotificationSound = value
+          setNotificationSound(value)
+        } else {
+          throw new Error('Failed to fetch')
+        }
       } catch {
         ;(globalThis as unknown as { __orderNotificationSound?: string | null }).__orderNotificationSound = null
         setNotificationSound('1.wav')

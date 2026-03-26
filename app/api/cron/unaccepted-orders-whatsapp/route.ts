@@ -107,12 +107,10 @@ export async function GET(req: Request) {
 
   // Run the batch scan when:
   //  a) explicitly requested via ?allowLegacy=1 (called from process-due or cron-job.org), OR
-  //  b) ENABLE_LEGACY_SANITY_SCAN_CRONS=true env flag is set, OR
-  //  c) any authenticated direct call (e.g. a standalone Vercel cron on this path)
+  //  b) ENABLE_LEGACY_SANITY_SCAN_CRONS=true env flag is set
   const allowLegacyScan =
     process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true' ||
-    forceLegacyScan ||
-    isAuthenticated
+    forceLegacyScan
   if (!allowLegacyScan) {
     return NextResponse.json({ ok: true, notifiedCount: 0, skipped: true, reason: 'legacy-scan-disabled' })
   }

@@ -8,7 +8,6 @@ import { X, Package, Truck, UtensilsCrossed, Clock, User, Phone, MapPin, ChefHat
 import { formatCurrency } from '@/lib/currency'
 import { getWhatsAppUrl } from '@/lib/whatsapp'
 import { googleMapsNavigationUrl, wazeNavigationUrl, appleMapsNavigationUrl, distanceKm } from '@/lib/maps-utils'
-import { client } from '@/sanity/lib/client'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
 import { getDriverDisplayNameForBusiness } from '@/lib/driver-display'
@@ -312,16 +311,13 @@ export function OrderDetailsModal({
         )
         setDrivers(list)
       } else {
-        const query = `*[_type == "driver" && isActive == true] | order(name asc) {
-          _id,
-          name,
-          phoneNumber,
-          vehicleType,
-          isActive,
-          deliveryAreas[]->{_id, name_en, name_ar}
-        }`
-        const result = await client.fetch(query)
-        setDrivers(result ?? [])
+        const res = await fetch('/api/admin/drivers/active')
+        if (res.ok) {
+          const result = await res.json()
+          setDrivers(result ?? [])
+        } else {
+          setDrivers([])
+        }
       }
     } catch (error) {
       console.error('Failed to fetch drivers:', error)

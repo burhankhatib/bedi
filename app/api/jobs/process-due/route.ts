@@ -529,10 +529,10 @@ async function runProcessDue(req: Request): Promise<NextResponse> {
   }
 
   // When Firestore is healthy we skip parallel `runLegacyFallbackCrons` (see isFallbackNeeded).
-  // Still run the Sanity GROQ scan for unaccepted orders here: it matches pre‑Firestore behavior and
-  // catches jobs the Firestore query missed (e.g. before composite index deploy). Deduped on the order doc.
+  // Still run the Sanity GROQ scan for unaccepted orders here only if explicitly enabled via ENABLE_LEGACY_SANITY_SCAN_CRONS,
+  // to avoid redundant minute-level Sanity API requests.
   let sanityUnacceptedWhatsappScan: unknown = { skipped: true }
-  if (!isFallbackNeeded && !firestoreFailed) {
+  if (!isFallbackNeeded && !firestoreFailed && process.env.ENABLE_LEGACY_SANITY_SCAN_CRONS === 'true') {
     try {
       sanityUnacceptedWhatsappScan = await runUnacceptedOrdersWhatsappLegacy(req)
     } catch (e) {

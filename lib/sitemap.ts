@@ -1,4 +1,4 @@
-import { client } from "@/sanity/lib/client";
+import { sanityFetch } from "@/sanity/lib/fetch";
 import { SITEMAP_TENANTS_QUERY } from "@/sanity/lib/queries";
 
 export const BASE_SITEMAP_URL =
@@ -54,8 +54,10 @@ export async function getSitemapEntries(): Promise<SitemapEntry[]> {
   const entries: SitemapEntry[] = [...STATIC_PAGES.map((p) => ({ ...p, lastModified: null }))];
 
   try {
-    const tenants = await client.fetch<Array<{ slug: string; _updatedAt?: string }>>(
-      SITEMAP_TENANTS_QUERY
+    const tenants = await sanityFetch<Array<{ slug: string; _updatedAt?: string }>>(
+      SITEMAP_TENANTS_QUERY,
+      {},
+      { revalidate: 3600, tags: ['sitemap'] }
     );
     if (Array.isArray(tenants)) {
       for (const t of tenants) {
