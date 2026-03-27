@@ -2,18 +2,19 @@
 
 import { useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
-import { getDevicePushToken } from '@/lib/push-token'
+import { getCustomerPushSubscriptionToken, syncCustomerTokenToServer } from '@/lib/customer-push-subscribe'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 
 async function getCurrentCustomerToken(): Promise<string> {
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return ''
+  if (typeof window === 'undefined') return ''
   if (typeof isFirebaseConfigured !== 'function' || !isFirebaseConfigured()) return ''
+  
+  // Quick check so we don't prompt in the background if they haven't granted
+  const isNative = (window as any).Capacitor?.isNativePlatform()
+  if (!isNative && typeof Notification !== 'undefined' && Notification.permission !== 'granted') return ''
+
   try {
-    const reg =
-      (await navigator.serviceWorker.getRegistration('/')) ??
-      (await navigator.serviceWorker.getRegistration())
-    if (!reg) return ''
-    const { token } = await getDevicePushToken(reg)
+    const { token } = await getCustomerPushSubscriptionToken(false)
     return token ?? ''
   } catch {
     return ''
@@ -30,8 +31,9 @@ export function CustomerPushHealthCheck() {
 
   useEffect(() => {
     if (!isSignedIn) return
-    if (typeof window === 'undefined' || typeof Notification === 'undefined') return
-    if (Notification.permission !== 'granted') return
+    if (typeof window === 'undefined') return
+    const isNative = (window as any).Capacitor?.isNativePlatform()
+    if (!isNative && typeof Notification !== 'undefined' && Notification.permission !== 'granted') return
 
     let cancelled = false
     const HEALTH_CHECK_POST_THROTTLE_MS = 60 * 60 * 1000 // 1h between re-register attempts
@@ -53,13 +55,8 @@ export function CustomerPushHealthCheck() {
           } catch {
             /* ignore */
           }
-          const res = await fetch('/api/customer/push-subscription', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ fcmToken: token, source: 'customer-health-check' }),
-          })
-          if (res.ok) try { localStorage.setItem(HEALTH_CHECK_POST_KEY, String(Date.now())) } catch { /* ignore */ }
+          const res = await syncCustomerTokenToServer(token, { source: 'customer-health-check' })
+          if (res) try { localStorage.setItem(HEALTH_CHECK_POST_KEY, String(Date.now())) } catch { /* ignore */ }
         }
       } catch {
         // ignore transient failures

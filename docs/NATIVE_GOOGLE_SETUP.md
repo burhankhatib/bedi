@@ -68,6 +68,27 @@ keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -sto
 
 If Native API is off or the package/SHA-256 pair does not match the installed APK, you often see **“You are not authorized to perform this request”** after choosing a Google account.
 
+### Digital Asset Links (`assetlinks.json`)
+
+For Clerk to fully trust the native Android app (especially for features like Passkeys or advanced credential flows), your frontend API domain must host a valid `assetlinks.json` file at `/.well-known/assetlinks.json`.
+
+**Important:** The `namespace` must be exactly `"android_app"`, not your app's display name.
+
+Correct example for your `assetlinks.json`:
+```json
+[{
+  "relation": ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.burhankhatib.bedi",
+    "sha256_cert_fingerprints": ["C1:97:8F:97:A5:89:BE:EB:2F:4A:2C:74:EA:44:1F:E9:48:06:8A:7D:1A:33:C3:AF:89:9F:EC:38:8F:17:F8:A7"]
+  }
+}]
+```
+*Note: Make sure to include the `package_name` and `sha256_cert_fingerprints` for the driver and tenant apps here as well if they also use native auth.*
+
+You can test if your file is valid by running Google's [Statement List Generator and Tester](https://developers.google.com/digital-asset-links/tools/generator).
+
 ### Legal acceptance (`legalAccepted`)
 
 The native Google button **sends `legalAccepted: true` on the first request by default** (many Clerk instances require it for this strategy).

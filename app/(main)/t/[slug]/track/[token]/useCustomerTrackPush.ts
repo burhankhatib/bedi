@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { getDevicePushToken } from '@/lib/push-token'
+import { getCustomerPushSubscriptionToken, syncCustomerTokenToServer } from '@/lib/customer-push-subscribe'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
 
@@ -31,18 +31,17 @@ export function useCustomerTrackPush(slug: string, token: string) {
   const [permission, setPermission] = useState<NotificationPermission | null>(null)
   const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent)
   const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent)
-  const needsIOSHomeScreen = isIOS && !isStandalone()
+  const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform()
+  const needsIOSHomeScreen = isIOS && !isStandalone() && !isNative
   const [lastServerStatus, setLastServerStatus] = useState<'ok' | 'refreshed' | 'not_found' | null>(null)
   const [needsRefresh, setNeedsRefresh] = useState(false)
 
   const getCurrentFcmToken = useCallback(async (): Promise<string> => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return ''
+    if (typeof window === 'undefined') return ''
     const useFCM = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
     if (!useFCM) return ''
     try {
-      const reg = await navigator.serviceWorker.getRegistration('/') ?? await navigator.serviceWorker.getRegistration()
-      if (!reg) return ''
-      const { token } = await getDevicePushToken(reg)
+      const { token } = await getCustomerPushSubscriptionToken(false)
       return token ?? ''
     } catch {
       return ''
@@ -105,40 +104,36 @@ export function useCustomerTrackPush(slug: string, token: string) {
 
   const doSubscribe = useCallback(async (): Promise<boolean> => {
     if (typeof window === 'undefined' || !slug || !token) return false
-    if (!('Notification' in window)) return false
-    if (isIOS && !isStandalone()) return false
-    const permNow = Notification.permission
-    if (permNow === 'denied') {
+    
+    if (needsIOSHomeScreen) return false
+    
+    // Check permission early unless it's native (Capacitor doesn't use Notification API)
+    if (!isNative && typeof Notification !== 'undefined' && Notification.permission === 'denied') {
       setPermission('denied')
       return false
     }
-    if (!('serviceWorker' in navigator)) return false
+    
     const useFCM = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
     if (!useFCM && !VAPID_PUBLIC) return false
     setLoading(true)
     try {
-      const reg = await navigator.serviceWorker.register('/customer-sw.js', { scope: '/' })
-      await navigator.serviceWorker.ready
-      const perm = await Notification.requestPermission()
-      setPermission(perm)
-      if (perm !== 'granted') return false
-
-      const apiUrl = `/api/tenants/${encodeURIComponent(slug)}/track/${encodeURIComponent(token)}/push-subscription`
-
       if (useFCM) {
-        const { token: fcmToken } = await getDevicePushToken(reg)
+        const { token: fcmToken, permissionState } = await getCustomerPushSubscriptionToken(true)
+        if (permissionState === 'denied' && !isNative) {
+           setPermission('denied')
+           return false
+        } else if (permissionState === 'granted') {
+           setPermission('granted')
+        }
+        
         if (fcmToken) {
-          const res = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fcmToken,
-              source: 'customer-track',
-              isIOS,
-              standalone: isStandalone(),
-            }),
+          const ok = await syncCustomerTokenToServer(fcmToken, {
+            source: 'customer-track',
+            tenantSlug: slug,
+            isIOS,
+            standalone: isStandalone() || isNative
           })
-          if (res.ok) {
+          if (ok) {
             setStoredPushOk(PUSH_CONTEXT_KEYS.customer(slug, token))
             setHasPush(true)
             return true
@@ -146,13 +141,29 @@ export function useCustomerTrackPush(slug: string, token: string) {
         }
       }
 
-      if (VAPID_PUBLIC) {
+      // VAPID fallback path (only applies if web without FCM, and requires SW)
+      if (VAPID_PUBLIC && !isNative && 'serviceWorker' in navigator) {
+        let reg = await navigator.serviceWorker.getRegistration('/')
+        if (!reg) {
+          await navigator.serviceWorker.register('/customer-sw.js', { scope: '/' })
+          reg = await navigator.serviceWorker.ready
+        }
+        if (!reg) return false
+        
+        let perm = Notification.permission
+        if (perm !== 'granted') {
+          perm = await Notification.requestPermission()
+          setPermission(perm)
+        }
+        if (perm !== 'granted') return false
+        
         const subscription = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC) as BufferSource,
         })
         const p256 = new Uint8Array(subscription.getKey('p256dh')!)
         const auth = new Uint8Array(subscription.getKey('auth')!)
+        const apiUrl = `/api/tenants/${encodeURIComponent(slug)}/track/${encodeURIComponent(token)}/push-subscription`
         const res = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -179,7 +190,7 @@ export function useCustomerTrackPush(slug: string, token: string) {
     } finally {
       setLoading(false)
     }
-  }, [slug, token, isIOS])
+  }, [slug, token, isIOS, needsIOSHomeScreen, isNative])
 
   const subscribe = useCallback(async () => {
     await doSubscribe()

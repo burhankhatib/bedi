@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { MapPin, RefreshCw } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
-import { getDevicePushToken } from '@/lib/push-token'
+import { getCustomerPushSubscriptionToken, syncCustomerTokenToServer } from '@/lib/customer-push-subscribe'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, isGeolocationUserDenied } from '@/lib/device-geolocation'
 
@@ -15,15 +15,15 @@ export function CustomerSidebarActions() {
   const [locationLoading, setLocationLoading] = useState(false)
 
   const requestPush = useCallback(async () => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('Notification' in window)) {
-      showToast('Notifications not supported in this browser.', 'الإشعارات غير مدعومة في هذا المتصفح.', 'error')
-      return false
-    }
+    if (typeof window === 'undefined') return false
+    
     if (typeof isFirebaseConfigured !== 'function' || !isFirebaseConfigured()) {
       showToast('Push not configured.', 'الإشعارات غير مهيأة.', 'error')
       return false
     }
-    if (Notification.permission === 'denied') {
+
+    const isNative = (window as any).Capacitor?.isNativePlatform()
+    if (!isNative && typeof Notification !== 'undefined' && Notification.permission === 'denied') {
       showToast(
         'Notifications are blocked. Please enable them in your browser settings.',
         'الإشعارات محجوبة. يرجى تفعيلها من إعدادات المتصفح.',
@@ -34,26 +34,15 @@ export function CustomerSidebarActions() {
     
     setPushLoading(true)
     try {
-      let registration = await navigator.serviceWorker.getRegistration('/')
-      if (!registration) {
-        await navigator.serviceWorker.register('/customer-sw.js', { scope: '/' })
-        registration = await navigator.serviceWorker.ready
-      }
-      if (!registration) throw new Error('No service worker')
+      const { token, permissionState } = await getCustomerPushSubscriptionToken(true)
       
-      const perm = await Notification.requestPermission()
-      if (perm !== 'granted') {
+      if (permissionState === 'denied') {
         showToast('Notification permission denied.', 'تم رفض صلاحية الإشعارات.', 'error')
         return false
       }
       
-      const { token } = await getDevicePushToken(registration)
       if (token) {
-        await fetch('/api/customer/push-subscription', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fcmToken: token }),
-        })
+        await syncCustomerTokenToServer(token, { source: 'customer-sidebar' })
         showToast(
           'تم تحديث الإشعارات بنجاح.',
           'Notifications refreshed successfully.',
@@ -61,7 +50,7 @@ export function CustomerSidebarActions() {
         )
         return true
       }
-      throw new Error('No token')
+      throw new Error('No token returned')
     } catch {
       showToast(
         'تعذّر تحديث الإشعارات. تأكد من السماح بالإشعارات.',

@@ -34,11 +34,19 @@ export async function getDevicePushToken(
       // We'll wrap the listener in a Promise that resolves on success or timeout/error.
       return await new Promise((resolve) => {
         let isResolved = false
+        let regListener: any = null
+        let errListener: any = null
+        
+        const cleanup = () => {
+          if (regListener) regListener.remove()
+          if (errListener) errListener.remove()
+        }
         
         // Timeout in case the token never arrives (e.g., bad config or emulator issues)
         const timeout = setTimeout(() => {
           if (!isResolved) {
             isResolved = true
+            cleanup()
             resolve({ token: null, error: 'Native push token request timed out (is google-services.json correct?)' })
           }
         }, 10000)
@@ -48,19 +56,21 @@ export async function getDevicePushToken(
           if (!isResolved) {
             isResolved = true
             clearTimeout(timeout)
+            cleanup()
             // token.value is the APNs token on iOS or FCM token on Android.
             resolve({ token: token.value })
           }
-        })
+        }).then(l => regListener = l)
         
         // Error listener
         PushNotifications.addListener('registrationError', (error) => {
           if (!isResolved) {
             isResolved = true
             clearTimeout(timeout)
+            cleanup()
             resolve({ token: null, error: error.error || 'Failed to register for native push' })
           }
-        })
+        }).then(l => errListener = l)
       })
 
     } catch (e) {

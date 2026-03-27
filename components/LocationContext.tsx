@@ -343,26 +343,48 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     }, 18_000)
 
     void (async () => {
-      try {
-        const coords = await getDeviceGeolocationPosition({
-          enableHighAccuracy: false,
-          timeout: 15_000,
-          maximumAge: 0,
-        })
-        if (settled) return
-        settled = true
-        clearTimeout(forceTimeout)
+      let attempts = 0
+      const maxAttempts = Capacitor.isNativePlatform() ? 3 : 1
+      
+      while (attempts < maxAttempts) {
+        attempts++
         try {
-          await resolveCoordinates(coords.latitude, coords.longitude)
-        } catch {
-          setLocationStatus('error')
+          const coords = await getDeviceGeolocationPosition({
+            enableHighAccuracy: attempts > 1, // Use high accuracy on retries
+            timeout: 15_000,
+            maximumAge: attempts === 1 ? 60_000 : 0, // Allow 1 minute cache on first try
+          })
+          if (settled) return
+          
+          try {
+            await resolveCoordinates(coords.latitude, coords.longitude)
+            settled = true
+            clearTimeout(forceTimeout)
+            return // Success
+          } catch {
+            if (attempts === maxAttempts) {
+              settled = true
+              clearTimeout(forceTimeout)
+              setLocationStatus('error')
+            }
+          }
+        } catch (err) {
+          if (settled) return
+          if (isGeolocationUserDenied(err)) {
+            settled = true
+            clearTimeout(forceTimeout)
+            setLocationStatus('denied')
+            return
+          }
+          if (attempts === maxAttempts) {
+            settled = true
+            clearTimeout(forceTimeout)
+            setLocationStatus('error')
+          } else {
+            // Wait briefly before retry
+            await new Promise((r) => setTimeout(r, 1000))
+          }
         }
-      } catch (err) {
-        if (settled) return
-        settled = true
-        clearTimeout(forceTimeout)
-        if (isGeolocationUserDenied(err)) setLocationStatus('denied')
-        else setLocationStatus('error')
       }
     })()
 

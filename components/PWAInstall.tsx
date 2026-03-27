@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
-import { getDevicePushToken } from '@/lib/push-token'
+import { getCustomerPushSubscriptionToken, syncCustomerTokenToServer } from '@/lib/customer-push-subscribe'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, checkDeviceGeolocationPermission } from '@/lib/device-geolocation'
 
@@ -89,10 +89,15 @@ export function PWAInstall() {
   const syncCustomerPushSubscription = useCallback(async (opts?: { allowPrompt?: boolean; source?: string }) => {
     const allowPrompt = opts?.allowPrompt === true
     const source = opts?.source ?? 'unknown'
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('Notification' in window)) return false
+    if (typeof window === 'undefined') return false
     if (typeof isFirebaseConfigured !== 'function' || !isFirebaseConfigured()) return false
-    if (Notification.permission === 'denied') return false
-    if (isIOS && !isStandalone) {
+    
+    // Check permission state early for web (Notification might be undefined on some platforms, handled gracefully by helper)
+    if (typeof Notification !== 'undefined' && Notification.permission === 'denied') return false
+    
+    // Capacitor native is treated as a standalone app, so it skips the iOS Home Screen check
+    const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform()
+    if (isIOS && !isStandalone && !isNative) {
       if (allowPrompt) {
         showToast(
           t(
@@ -108,20 +113,12 @@ export function PWAInstall() {
 
     setPushLoading(true)
     try {
-      let registration = await navigator.serviceWorker.getRegistration('/')
-      if (!registration) {
-        await navigator.serviceWorker.register('/customer-sw.js', { scope: '/' })
-        registration = await navigator.serviceWorker.ready
+      const { token, permissionState } = await getCustomerPushSubscriptionToken(allowPrompt)
+      if (permissionState === 'granted' && typeof Notification !== 'undefined') {
+        setPushPermission('granted')
       }
-      if (!registration) return false
-
-      let perm: NotificationPermission = Notification.permission
-      if (allowPrompt && perm !== 'granted') {
-        perm = await Notification.requestPermission()
-      }
-      setPushPermission(perm)
-      if (perm !== 'granted') {
-        if (allowPrompt && perm === 'denied') {
+      if (!token) {
+        if (allowPrompt && permissionState === 'denied') {
           showToast(
             t('Enable notifications in Settings to get order updates and delivery alerts.', 'فعّل الإشعارات من الإعدادات لاستقبال تحديثات الطلبات وتنبيهات التوصيل.'),
             undefined,
@@ -131,13 +128,7 @@ export function PWAInstall() {
         return false
       }
 
-      const { token } = await getDevicePushToken(registration)
-      if (!token) return false
-      await fetch('/api/customer/push-subscription', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fcmToken: token, source, isIOS, standalone: isStandalone }),
-      })
+      await syncCustomerTokenToServer(token, { source, isIOS, standalone: isStandalone || isNative })
       return true
     } catch {
       return false

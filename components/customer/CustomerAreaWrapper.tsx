@@ -11,6 +11,7 @@ import { useCart } from '@/components/Cart/CartContext'
 import { cn } from '@/lib/utils'
 import { CustomerWelcomePushBoot } from '@/components/customer/CustomerWelcomePushBoot'
 import { CustomerPushHealthCheck } from '@/components/customer/CustomerPushHealthCheck'
+import { CustomerPushAndLocation } from '@/components/customer/CustomerPushAndLocation'
 import { AiQuestionSyncOnLogin } from '@/components/customer/AiQuestionSyncOnLogin'
 import { ChatFab } from '@/components/search/ChatFab'
 import { CustomerPullToRefresh } from './CustomerPullToRefresh'
@@ -165,6 +166,7 @@ export function CustomerAreaWrapper({ children }: { children: React.ReactNode })
         <>
           <AiQuestionSyncOnLogin />
           <CustomerPushHealthCheck />
+          <CustomerPushAndLocation />
           <CustomerWelcomePushBoot />
           <CartSlider supportsDineIn supportsReceiveInPerson />
           <CartToast />

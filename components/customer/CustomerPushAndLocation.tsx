@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Bell, MapPin, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/components/LanguageContext'
-import { getDevicePushToken } from '@/lib/push-token'
+import { getCustomerPushSubscriptionToken, syncCustomerTokenToServer } from '@/lib/customer-push-subscribe'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, checkDeviceGeolocationPermission } from '@/lib/device-geolocation'
 
@@ -47,30 +47,28 @@ export function CustomerPushAndLocation() {
   }, [mounted, syncPermissions])
 
   const requestPush = useCallback(async () => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('Notification' in window)) return false
+    if (typeof window === 'undefined') return false
     if (typeof isFirebaseConfigured !== 'function' || !isFirebaseConfigured()) return false
-    if (Notification.permission === 'denied') {
+    
+    const isNative = (window as any).Capacitor?.isNativePlatform()
+    if (!isNative && typeof Notification !== 'undefined' && Notification.permission === 'denied') {
       setShowManualInstructions(true)
       return false
     }
+    
     setPushLoading(true)
     try {
-      let registration = await navigator.serviceWorker.getRegistration('/')
-      if (!registration) {
-        await navigator.serviceWorker.register('/customer-sw.js', { scope: '/' })
-        registration = await navigator.serviceWorker.ready
+      const { token, permissionState } = await getCustomerPushSubscriptionToken(true)
+      
+      if (permissionState === 'granted' && typeof Notification !== 'undefined') {
+        setPushPermission('granted')
+      } else if (permissionState === 'denied') {
+        setShowManualInstructions(true)
+        return false
       }
-      if (!registration) return false
-      const perm = await Notification.requestPermission()
-      setPushPermission(perm)
-      if (perm !== 'granted') return false
-      const { token } = await getDevicePushToken(registration)
+      
       if (token) {
-        await fetch('/api/customer/push-subscription', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fcmToken: token }),
-        })
+        await syncCustomerTokenToServer(token, { source: 'customer-push-and-location' })
       }
       return true
     } catch {
