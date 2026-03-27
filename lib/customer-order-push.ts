@@ -181,7 +181,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
     ...(baseData && { data: baseData }),
     ...(isDriverArrived && { driverArrived: '1' as const }),
     ...(isDriverArrived && { critical: true }),
-    dataOnly: true, // Ensures SW handles display+click; fixes Android tap-to-open track page
+    dataOnly: false, // Set to false so native Capacitor Android shows system tray notification
   }
   const payloadAr = {
     title: finalTitleAr,
@@ -190,7 +190,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
     ...(baseData && { data: baseData }),
     ...(isDriverArrived && { driverArrived: '1' as const }),
     ...(isDriverArrived && { critical: true }),
-    dataOnly: true,
+    dataOnly: false,
   }
   const useAr = true
   const finalPayload = useAr ? payloadAr : payload

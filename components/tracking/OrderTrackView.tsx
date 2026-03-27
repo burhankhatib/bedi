@@ -2033,14 +2033,14 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
     <div className="relative mx-auto max-w-lg pb-32">
       <Link
         href={`/t/${slug}`}
-        className="fixed z-[60] inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-700 shadow-lg ring-1 ring-black/5 hover:bg-slate-50 transition-colors left-4 top-[max(1rem,env(safe-area-inset-top,0px))] rtl:left-auto rtl:right-4"
+        className="fixed z-[60] inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-700 shadow-lg ring-1 ring-black/5 hover:bg-slate-50 transition-colors left-4 top-[max(1rem,calc(env(safe-area-inset-top,0px)+0.5rem))] rtl:left-auto rtl:right-4"
         aria-label={t('Back to menu', 'العودة إلى القائمة')}
       >
         <ArrowLeft className="h-5 w-5 rtl:rotate-180" />
       </Link>
 
       {/* Status as main headline + dynamic header */}
-      <div className={`rounded-b-[2.5rem] bg-gradient-to-b ${statusCfg.headerBg} px-6 pt-6 pb-14 text-white shadow-sm`}>
+      <div className={`rounded-b-[2.5rem] bg-gradient-to-b ${statusCfg.headerBg} px-6 pt-[max(1.5rem,env(safe-area-inset-top,0px))] pb-14 text-white shadow-sm`}>
         <div className="flex items-center justify-center gap-3">
           <StatusIcon className="h-9 w-9 shrink-0 opacity-95" />
           <h1 className="text-2xl font-black text-center">

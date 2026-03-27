@@ -271,14 +271,13 @@ function ScrollAnimationSection({ data }: { data: ScrollAnimationData }) {
       <div className="relative sticky top-0 h-screen w-full max-w-full overflow-visible bg-black">
         <div
           className="absolute inset-x-0 bottom-0 flex w-full max-w-full items-center justify-center overflow-hidden"
-          style={{ top: 'calc(72px + env(safe-area-inset-top, 0px))' }}
+          style={{ top: '72px' }}
         >
           <motion.div
             className="relative w-full shrink-0 bg-black"
             style={{
               width: '100%',
-              height:
-                'calc(100vh - 72px - env(safe-area-inset-top, 0px))',
+              height: 'calc(100vh - 72px)',
               opacity,
               filter,
             }}

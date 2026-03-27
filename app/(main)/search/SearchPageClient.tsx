@@ -421,7 +421,7 @@ export function SearchPageClient() {
 
       {/* Desktop: category strip. Mobile: search/AI usage instructions */}
       {isChosen && (
-        <div className="bg-white border-b border-slate-100 shadow-sm sticky z-20" style={{ top: 'calc(72px + env(safe-area-inset-top))' }}>
+        <div className="bg-white border-b border-slate-100 shadow-sm sticky z-20" style={{ top: '72px' }}>
           <div className="container mx-auto px-4">
             {(category === 'restaurant' || category === 'cafe' || !category) && (
               <div className="hidden md:block">

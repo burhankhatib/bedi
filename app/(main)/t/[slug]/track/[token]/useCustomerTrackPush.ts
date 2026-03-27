@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { getCustomerPushSubscriptionToken, syncCustomerTokenToServer } from '@/lib/customer-push-subscribe'
+import { getCustomerPushSubscriptionToken } from '@/lib/customer-push-subscribe'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
 
@@ -51,14 +51,15 @@ export function useCustomerTrackPush(slug: string, token: string) {
   const checkHasPush = useCallback(async () => {
     if (!slug || !token) return
     const contextKey = PUSH_CONTEXT_KEYS.customer(slug, token)
+    const isNativeCheck = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform()
     const perm = typeof Notification !== 'undefined' ? Notification.permission : null
-    if (perm === 'denied') {
+    if (!isNativeCheck && perm === 'denied') {
       clearStoredPushOk(contextKey)
       setHasPush(false)
       setChecked(true)
       return
     }
-    if (perm === 'granted' && getStoredPushOk(contextKey)) {
+    if ((isNativeCheck || perm === 'granted') && getStoredPushOk(contextKey)) {
       setHasPush(true)
       setChecked(true)
       return
@@ -73,7 +74,7 @@ export function useCustomerTrackPush(slug: string, token: string) {
       if (ok) setStoredPushOk(contextKey)
       else clearStoredPushOk(contextKey)
       setHasPush(ok)
-      if (data?.needsRefresh && perm === 'granted') {
+      if (data?.needsRefresh && (isNativeCheck || perm === 'granted')) {
         setNeedsRefresh(true)
       }
     } catch {
@@ -127,13 +128,18 @@ export function useCustomerTrackPush(slug: string, token: string) {
         }
         
         if (fcmToken) {
-          const ok = await syncCustomerTokenToServer(fcmToken, {
-            source: 'customer-track',
-            tenantSlug: slug,
-            isIOS,
-            standalone: isStandalone() || isNative
+          const apiUrl = `/api/tenants/${encodeURIComponent(slug)}/track/${encodeURIComponent(token)}/push-subscription`
+          const res = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fcmToken,
+              source: 'customer-track',
+              isIOS,
+              standalone: isStandalone() || isNative
+            }),
           })
-          if (ok) {
+          if (res.ok) {
             setStoredPushOk(PUSH_CONTEXT_KEYS.customer(slug, token))
             setHasPush(true)
             return true
@@ -237,7 +243,7 @@ export function useCustomerTrackPush(slug: string, token: string) {
     }
   }, [checked, permission, checkHasPush])
 
-  const trulyEnabled = hasPush && permission === 'granted'
+  const trulyEnabled = hasPush && (isNative || permission === 'granted')
 
   return {
     hasPush: trulyEnabled,
