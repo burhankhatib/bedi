@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { getPusherClient, setPusherAuthParams } from '@/lib/pusher-client'
+import { Capacitor } from '@capacitor/core'
+import { App } from '@capacitor/app'
 
 /**
  * Connection state mirroring Pusher's internal states.
@@ -88,12 +90,25 @@ export function usePusherSubscription<TData = unknown>(
     }
     channel.bind(eventName, handler)
 
+    // Ensure connection is active when returning to foreground
+    let resumeListener: any = null
+    if (Capacitor.isNativePlatform()) {
+      resumeListener = App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive && pusher.connection.state !== 'connected') {
+          pusher.connect()
+        }
+      })
+    }
+
     return () => {
       channel.unbind(eventName, handler)
       channel.unbind('pusher:subscription_succeeded')
       channel.unbind('pusher:subscription_error')
       pusher.unsubscribe(channelName)
       setIsLive(false)
+      if (resumeListener) {
+        resumeListener.then((sub: any) => sub.remove()).catch(() => {})
+      }
     }
     // authParamsKey is a stable string derived from authParams
     // eslint-disable-next-line react-hooks/exhaustive-deps

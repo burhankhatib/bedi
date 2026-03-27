@@ -305,7 +305,7 @@ export function PWAInstall() {
   const dismissExpired = dismissedUntilMs === null || now >= dismissedUntilMs
   const showInstallCard = !isStandalone && !inOrderFlow && showInstallPrompt && dismissExpired
   const canPush = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
-  const canLocation = typeof navigator !== 'undefined' && !!navigator.geolocation && locationState !== 'unsupported'
+  const canLocation = isDeviceGeolocationSupported() && locationState !== 'unsupported'
   const pushGranted = pushPermission === 'granted'
   const locationGranted = locationState === 'granted'
   // Show close (X) only when both supported permissions are granted (or only one is supported and that one is granted)

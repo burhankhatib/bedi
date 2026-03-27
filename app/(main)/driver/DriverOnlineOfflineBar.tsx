@@ -73,7 +73,6 @@ export function DriverOnlineOfflineBar() {
     return (
       <div
         className="w-full border-b border-slate-800 bg-slate-900/80 px-4 py-3 text-center text-sm text-slate-500"
-        style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}
       >
         {loadingText}
       </div>
@@ -83,7 +82,6 @@ export function DriverOnlineOfflineBar() {
   return (
     <div
       className="w-full border-b border-slate-800 bg-slate-950/98 backdrop-blur-sm px-4 pb-3 pt-2"
-      style={{ paddingTop: 'max(12px, env(safe-area-inset-top))' }}
     >
       <div className="flex w-full justify-center">
         <motion.button

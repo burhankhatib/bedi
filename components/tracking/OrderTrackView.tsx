@@ -150,7 +150,7 @@ function CustomerLocationShare({ orderId, trackingToken }: { orderId: string; tr
   const shareLocation = useCallback(
     (opts?: CustomerShareLocationOpts) => {
       const isAuto = opts?.auto === true
-      if (!navigator.geolocation) {
+      if (!isDeviceGeolocationSupported()) {
         if (!isAuto) {
           showToast('Location not supported in this browser.', 'الموقع غير مدعوم في هذا المتصفح.', 'error')
         }

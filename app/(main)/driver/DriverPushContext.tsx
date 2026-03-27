@@ -12,10 +12,11 @@ import {
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
-import { getDevicePushToken } from '@/lib/push-token'
+import { getDriverPushSubscriptionToken } from '@/lib/driver-push-subscribe'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
 import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, checkDeviceGeolocationPermission } from '@/lib/device-geolocation'
+import { Capacitor } from '@capacitor/core'
 
 const VAPID_PUBLIC = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY : undefined
 
@@ -103,15 +104,11 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const getCurrentDriverToken = useCallback(async (): Promise<string> => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return ''
+    if (typeof window === 'undefined') return ''
     const useFCM = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
     if (!useFCM) return ''
     try {
-      const reg =
-        (await navigator.serviceWorker.getRegistration('/driver/')) ??
-        (await navigator.serviceWorker.getRegistration())
-      if (!reg) return ''
-      const { token } = await getDevicePushToken(reg)
+      const { token } = await getDriverPushSubscriptionToken(false)
       return token ?? ''
     } catch {
       return ''
@@ -149,14 +146,15 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
   const checkPushHealth = useCallback(async () => {
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
     if (typeof navigator !== 'undefined' && 'onLine' in navigator && !navigator.onLine) return
+    const isNativeCheck = typeof window !== 'undefined' && Capacitor.isNativePlatform()
     const perm = typeof Notification !== 'undefined' ? Notification.permission : null
-    if (perm === 'denied') {
+    if (!isNativeCheck && perm === 'denied') {
       clearStoredPushOk(PUSH_CONTEXT_KEYS.driver())
       setHasPush(false)
       setChecked(true)
       return
     }
-    if (perm === 'granted' && getStoredPushOk(PUSH_CONTEXT_KEYS.driver())) {
+    if ((isNativeCheck || perm === 'granted') && getStoredPushOk(PUSH_CONTEXT_KEYS.driver())) {
       setHasPush(true)
       // still continue health check in background
     }
@@ -179,7 +177,7 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
         clearStoredPushOk(PUSH_CONTEXT_KEYS.driver())
         setHasPush(false)
       }
-      if (data?.needsRefresh && perm === 'granted') setNeedsPushRefresh(true)
+      if (data?.needsRefresh && (isNativeCheck || perm === 'granted')) setNeedsPushRefresh(true)
     } catch {
       // ignore temporary failures
     } finally {
@@ -192,7 +190,8 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
   }, [checkPushHealth])
 
   useEffect(() => {
-    if (!checked || permission !== 'granted') return
+    const isNativeCheck = typeof window !== 'undefined' && Capacitor.isNativePlatform()
+    if (!checked || (!isNativeCheck && permission !== 'granted')) return
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
         checkPushHealth().catch(() => {})
@@ -230,7 +229,7 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     const isRefresh = opts?.isRefresh === true
     if (typeof window === 'undefined') return false
     // On iOS, Web Push only works when the app is opened from Home Screen (PWA), not in Safari tab.
-    if (isIOS() && !isStandalone()) {
+    if (isIOS() && !isStandalone() && !Capacitor.isNativePlatform()) {
       showToast(
         'On iPhone: add this app to Home Screen first, then open it and tap Enable.',
         'على iPhone: أضف التطبيق إلى الشاشة الرئيسية ثم افتحه واضغط تفعيل.',
@@ -238,7 +237,8 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
       )
       return false
     }
-    if (!('serviceWorker' in navigator) || !('Notification' in window)) {
+    const isNativeCheck = typeof window !== 'undefined' && Capacitor.isNativePlatform()
+    if (!isNativeCheck && (!('serviceWorker' in navigator) || !('Notification' in window))) {
       showToast('Push notifications are not supported in this browser.', 'الإشعارات غير مدعومة في هذا المتصفح.', 'error')
       return false
     }
@@ -249,25 +249,27 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     }
     setLoading(true)
     try {
-      // Register driver SW directly; Chrome rejects redirected SW script URLs.
-      const registration = await navigator.serviceWorker.register('/driver-sw.js', { scope: '/driver/' })
-      await (registration as unknown as { ready: Promise<ServiceWorkerRegistration> }).ready
-      const perm = await Notification.requestPermission()
-      setPermission(perm)
-      if (perm !== 'granted') {
-        showToast(
-          'Notifications blocked. Enable them in your device settings to get new order alerts.',
-          'تم رفض الإشعارات. فعّلها من إعدادات الجهاز لاستقبال الطلبات.',
-          'info'
-        )
-        return false
-      }
-      if (useFCM) {
-        const { token, error: fcmError } = await getDevicePushToken(registration)
+      if (useFCM || isNativeCheck) {
+        const { token, permissionState, registration, error: fcmError } = await getDriverPushSubscriptionToken(true)
+        if (permissionState === 'denied' && !isNativeCheck) {
+           setPermission('denied')
+        } else if (permissionState === 'granted') {
+           setPermission('granted')
+        }
+
+        if (permissionState !== 'granted') {
+          showToast(
+            'Notifications blocked. Enable them in your device settings to get new order alerts.',
+            'تم رفض الإشعارات. فعّلها من إعدادات الجهاز لاستقبال الطلبات.',
+            'info'
+          )
+          return false
+        }
+
         if (token) {
           const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string }; forceConfirmation?: boolean } = { fcmToken: token }
           if (isRefresh) payload.forceConfirmation = true
-          if (VAPID_PUBLIC) {
+          if (VAPID_PUBLIC && registration) {
             try {
               const sub = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
@@ -306,7 +308,8 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
           }
           return true
         }
-        if (VAPID_PUBLIC) {
+
+        if (VAPID_PUBLIC && registration) {
           try {
             const sub = await registration.pushManager.subscribe({
               userVisibleOnly: true,
@@ -346,6 +349,20 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
           }
         }
         throw new Error(fcmError ?? 'Could not get FCM token')
+      }
+
+      // VAPID fallback path (only applies if web without FCM, and requires SW)
+      const registration = await navigator.serviceWorker.register('/driver-sw.js', { scope: '/driver/' })
+      await (registration as unknown as { ready: Promise<ServiceWorkerRegistration> }).ready
+      const perm = await Notification.requestPermission()
+      setPermission(perm)
+      if (perm !== 'granted') {
+        showToast(
+          'Notifications blocked. Enable them in your device settings to get new order alerts.',
+          'تم رفض الإشعارات. فعّلها من إعدادات الجهاز لاستقبال الطلبات.',
+          'info'
+        )
+        return false
       }
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,

@@ -9,8 +9,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { useToast } from '@/components/ui/ToastProvider'
-import { getDevicePushToken } from '@/lib/push-token'
+import { getTenantPushSubscriptionToken } from '@/lib/tenant-push-subscribe'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, getLastCheck, setLastCheck, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
 
@@ -152,14 +153,10 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
       
       // Try to get FCM token to pass to the health check API
       const useFCM = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
-      if (useFCM && typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      if (useFCM || (typeof window !== 'undefined' && Capacitor.isNativePlatform())) {
          try {
-            const scriptPath = swScope.endsWith('/') ? `${swScope.replace(/\/$/, '')}/sw.js` : `${swScope}/sw.js`
-            const reg = await navigator.serviceWorker.getRegistration(swScope)
-            if (reg) {
-               const { token } = await getDevicePushToken(reg)
-               if (token) currentToken = token
-            }
+            const { token } = await getTenantPushSubscriptionToken(false, swScope)
+            if (token) currentToken = token
          } catch (e) {
             console.warn('[Tenant Push] Could not get FCM token for health check', e)
          }
@@ -215,7 +212,8 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
 
   const subscribe = useCallback(async (silent = false): Promise<boolean> => {
     if (typeof window === 'undefined' || !slug) return false
-    if (isIOS() && !isStandalone()) {
+    const isNativeCheck = typeof window !== 'undefined' && Capacitor.isNativePlatform()
+    if (isIOS() && !isStandalone() && !isNativeCheck) {
       if (!silent) showToast(
         'On iPhone: add this app to Home Screen first, then open it and tap Enable.',
         'على iPhone: أضف التطبيق إلى الشاشة الرئيسية ثم افتحه واضغط تفعيل.',
@@ -223,7 +221,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
       )
       return false
     }
-    if (!('serviceWorker' in navigator) || !('Notification' in window)) {
+    if (!isNativeCheck && (!('serviceWorker' in navigator) || !('Notification' in window))) {
       if (!silent) showToast('Push notifications are not supported in this browser.', 'الإشعارات غير مدعومة في هذا المتصفح.', 'error')
       return false
     }
@@ -235,35 +233,32 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
     setLoading(true)
     setTokenStatus('checking')
     try {
-      // scriptPath: /t/slug/orders/sw.js  scope: /t/slug/orders
-      const scriptPath = swScope.endsWith('/')
-        ? `${swScope.replace(/\/$/, '')}/sw.js`
-        : `${swScope}/sw.js`
-      const scope = swScope
-      await navigator.serviceWorker.register(scriptPath, { scope })
-      await navigator.serviceWorker.ready
-      const reg = await navigator.serviceWorker.getRegistration(scope)
-      if (!reg) throw new Error('Service worker not active')
-      const perm = await Notification.requestPermission()
-      setPermission(perm)
-      if (perm !== 'granted') {
-        setTokenStatus('denied')
-        if (!silent) showToast(
-          'Notifications blocked. Enable them in your device settings to get new order alerts.',
-          'تم رفض الإشعارات. فعّلها من إعدادات الجهاز لاستقبال الطلبات.',
-          'info'
-        )
-        return false
-      }
-      if (useFCM) {
-        const { token, error: fcmError } = await getDevicePushToken(reg)
+      if (useFCM || isNativeCheck) {
+        const { token, permissionState, registration, error: fcmError } = await getTenantPushSubscriptionToken(true, swScope)
+        
+        if (permissionState === 'denied' && !isNativeCheck) {
+           setPermission('denied')
+        } else if (permissionState === 'granted') {
+           setPermission('granted')
+        }
+
+        if (permissionState !== 'granted') {
+          setTokenStatus('denied')
+          if (!silent) showToast(
+            'Notifications blocked. Enable them in your device settings to get new order alerts.',
+            'تم رفض الإشعارات. فعّلها من إعدادات الجهاز لاستقبال الطلبات.',
+            'info'
+          )
+          return false
+        }
+
         if (token) {
           const apiUrl = `/api/tenants/${slug}/push-subscription`
           const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string }; forceConfirmation?: boolean } = { fcmToken: token }
           if (!silent) payload.forceConfirmation = true
-          if (VAPID_PUBLIC) {
+          if (VAPID_PUBLIC && registration) {
             try {
-              const sub = await reg.pushManager.subscribe({
+              const sub = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC) as BufferSource,
               })
@@ -297,9 +292,10 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
           )
           return true
         }
-        if (VAPID_PUBLIC) {
+
+        if (VAPID_PUBLIC && registration) {
           try {
-            const sub = await reg.pushManager.subscribe({
+            const sub = await registration.pushManager.subscribe({
               userVisibleOnly: true,
               applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC) as BufferSource,
             })
@@ -336,6 +332,27 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
         throw new Error(fcmError ?? 'Could not get FCM token')
       }
       if (!VAPID_PUBLIC) throw new Error('Push not configured')
+      
+      const scriptPath = swScope.endsWith('/')
+        ? `${swScope.replace(/\/$/, '')}/sw.js`
+        : `${swScope}/sw.js`
+      const scope = swScope
+      await navigator.serviceWorker.register(scriptPath, { scope })
+      await navigator.serviceWorker.ready
+      const reg = await navigator.serviceWorker.getRegistration(scope)
+      if (!reg) throw new Error('Service worker not active')
+      const perm = await Notification.requestPermission()
+      setPermission(perm)
+      if (perm !== 'granted') {
+        setTokenStatus('denied')
+        if (!silent) showToast(
+          'Notifications blocked. Enable them in your device settings to get new order alerts.',
+          'تم رفض الإشعارات. فعّلها من إعدادات الجهاز لاستقبال الطلبات.',
+          'info'
+        )
+        return false
+      }
+
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC) as BufferSource,

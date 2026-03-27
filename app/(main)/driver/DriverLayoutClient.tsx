@@ -140,7 +140,7 @@ export function DriverLayoutClient({
     <DriverLocationTracker />
     <div className="dark min-h-screen min-h-[100dvh] bg-slate-950 text-white" dir={isRtl ? 'rtl' : 'ltr'} lang={lang}>
       <DriverStatusPushReminder />
-      <header className="sticky top-0 z-10 border-b border-slate-800/60 bg-slate-950/95 backdrop-blur shadow-sm" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <header className="sticky top-0 z-10 border-b border-slate-800/60 bg-slate-950/95 backdrop-blur shadow-sm">
         <div className="mx-auto w-full max-w-[100vw] sm:max-w-lg px-3 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-3">
             <Button

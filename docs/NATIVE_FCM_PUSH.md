@@ -39,3 +39,17 @@ You **MUST rebuild and reinstall the APK/AAB** (or iOS app) whenever you:
 - Change Android permissions or manifest configurations related to notifications.
 
 If you only deploy to Vercel, the web code will try to call the native Push plugin, but the native OS will reject it if the `google-services.json` wasn't bundled into the APK at build time.
+
+## Push Registration Role Matrix
+
+Different user roles hit different push subscription API endpoints. The frontend uses role-specific helpers to abstract away native vs web differences.
+
+| Role | Frontend Helper | API Endpoint | Behavior on Native Capacitor | Behavior on Web / PWA |
+|------|-----------------|--------------|----------------------------|-----------------------|
+| **Customer** | `getCustomerPushSubscriptionToken` | `/api/customer/push-subscription` | Uses Capacitor plugin, no SW needed. | Registers `customer-sw.js`, gets token via SW. |
+| **Guest (Track)**| `getCustomerPushSubscriptionToken` | `/api/tenants/[slug]/track/[token]/push-subscription` | Uses Capacitor plugin, no SW needed. | Registers `customer-sw.js`, gets token via SW. |
+| **Driver** | `getDriverPushSubscriptionToken` | `/api/driver/push-subscription` | Uses Capacitor plugin, no SW needed. | Registers `driver-sw.js`, gets token via SW. |
+| **Tenant** | `getTenantPushSubscriptionToken` | `/api/tenants/[slug]/push-subscription` (or `/api/me/business-push-subscription`) | Uses Capacitor plugin, no SW needed. | Registers `dashboard-sw.js` or tenant-scoped SW. |
+
+## Android Channels & System Notifications
+Server-side (`lib/fcm.ts`), we send `dataOnly: false` by default for driver, tenant, and customer updates. This ensures the native Capacitor Android app automatically displays a system tray notification without requiring custom native background service implementations. We specify `channelId`s like `high_importance_channel` and `driver_arrived_channel` in the payload. Ensure your native app creates these channels if needed, although Capacitor's default channel often catches them gracefully.

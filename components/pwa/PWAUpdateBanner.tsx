@@ -178,7 +178,7 @@ export function PWAUpdateBanner({ config, registration: externalReg }: PWAUpdate
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.25 }}
-        className="fixed left-0 right-0 top-[4.5rem] z-[50] safe-area-inset-top"
+        className="fixed left-0 right-0 top-[calc(env(safe-area-inset-top,0px)+4.5rem)] z-[50]"
         dir={isAr ? 'rtl' : 'ltr'}
       >
         <div className="mx-auto max-w-[100vw] px-3 pt-[max(0.5rem,env(safe-area-inset-top))] sm:max-w-lg sm:px-4">

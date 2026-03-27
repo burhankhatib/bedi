@@ -5,10 +5,11 @@
  * Registers dashboard-scoped SW and saves FCM token via /api/me/business-push-subscription (saved to every tenant).
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { Button } from '@/components/ui/button'
 import { Bell } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
-import { getDevicePushToken } from '@/lib/push-token'
+import { getTenantPushSubscriptionToken } from '@/lib/tenant-push-subscribe'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { useLanguage } from '@/components/LanguageContext'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
@@ -32,19 +33,17 @@ export function BusinessPushSetup() {
   }, [])
 
   const subscribe = useCallback(async () => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('Notification' in window)) return false
+    if (typeof window === 'undefined') return false
+    const isNativeCheck = typeof window !== 'undefined' && Capacitor.isNativePlatform()
+    if (!isNativeCheck && (!('serviceWorker' in navigator) || !('Notification' in window))) return false
     if (!isFirebaseConfigured?.()) {
       showToast('Push is not configured.', 'الإشعارات غير مُعدّة.', 'error')
       return false
     }
     setLoading(true)
     try {
-      await navigator.serviceWorker.register('/dashboard-sw.js', { scope: '/dashboard/' })
-      await navigator.serviceWorker.ready
-      const reg = await navigator.serviceWorker.getRegistration('/dashboard/')
-      if (!reg) throw new Error('Service worker not active')
-      const perm = await Notification.requestPermission()
-      if (perm !== 'granted') {
+      const { token: fcmToken, permissionState } = await getTenantPushSubscriptionToken(true, '/dashboard/')
+      if (permissionState !== 'granted') {
         showToast(
           t('Enable notifications in device settings to get new order alerts.', 'فعّل الإشعارات من إعدادات الجهاز لاستقبال تنبيهات الطلبات.'),
           undefined,
@@ -52,7 +51,6 @@ export function BusinessPushSetup() {
         )
         return false
       }
-      const { token: fcmToken } = await getDevicePushToken(reg)
       if (!fcmToken) throw new Error('Could not get token')
       const res = await fetch('/api/me/business-push-subscription', {
         method: 'POST',
@@ -83,19 +81,14 @@ export function BusinessPushSetup() {
 
   useEffect(() => {
     if (autoRef.current || !checked) return
-    if (Notification.permission !== 'granted' || done) return
+    const isNativeCheck = typeof window !== 'undefined' && Capacitor.isNativePlatform()
+    if (!isNativeCheck && Notification.permission !== 'granted') return
+    if (done) return
     if (!isFirebaseConfigured?.()) return
     let cancelled = false
     ;(async () => {
       try {
-        let reg = await navigator.serviceWorker.getRegistration('/dashboard/')
-        if (!reg) {
-          await navigator.serviceWorker.register('/dashboard-sw.js', { scope: '/dashboard/' })
-          await navigator.serviceWorker.ready
-          reg = await navigator.serviceWorker.getRegistration('/dashboard/')
-        }
-        if (cancelled || !reg) return
-        const { token } = await getDevicePushToken(reg)
+        const { token } = await getTenantPushSubscriptionToken(false, '/dashboard/')
         if (cancelled || !token) return
         const res = await fetch('/api/me/business-push-subscription', {
           method: 'POST',

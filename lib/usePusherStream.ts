@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from 'react'
 import { getPusherClient } from './pusher-client'
+import { Capacitor } from '@capacitor/core'
+import { App } from '@capacitor/app'
 
 export type UsePusherStreamOptions = {
   /** When set, multiple events in quick succession trigger at most one onUpdate (last one) after the delay. */
@@ -47,10 +49,22 @@ export function usePusherStream(
     const channel = pusher.subscribe(channelName)
     channel.bind(eventName, trigger)
 
+    // In Capacitor, if the app was suspended, we might miss real-time events.
+    // Trigger a refetch when returning to the foreground just in case.
+    let resumeListener: any = null
+    if (Capacitor.isNativePlatform()) {
+      resumeListener = App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) trigger()
+      })
+    }
+
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
       channel.unbind(eventName, trigger)
       pusher.unsubscribe(channelName)
+      if (resumeListener) {
+        resumeListener.then((sub: any) => sub.remove()).catch(() => {})
+      }
     }
   }, [channelName, eventName, debounceMs])
 }

@@ -7,10 +7,11 @@
  * When inside TenantPushProvider (manage layout), reuses its single GET to avoid duplicate push-subscription requests.
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { Button } from '@/components/ui/button'
 import { Bell, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
-import { getDevicePushToken } from '@/lib/push-token'
+import { getTenantPushSubscriptionToken } from '@/lib/tenant-push-subscribe'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { useTenantPush } from '@/app/(main)/t/[slug]/manage/TenantPushContext'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
@@ -111,22 +112,15 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
     if (!slug || !scope || autoRegisteredRef.current || typeof window === 'undefined') return
     if (!checked || done) return
     const useFCM = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
-    if (!useFCM || Notification.permission !== 'granted') return
-    if (!('serviceWorker' in navigator)) return
+    const isNativeCheck = typeof window !== 'undefined' && Capacitor.isNativePlatform()
+    if (!useFCM || (!isNativeCheck && Notification.permission !== 'granted')) return
+    if (!isNativeCheck && !('serviceWorker' in navigator)) return
 
     let cancelled = false
-    // Use the scope as-is — no forced trailing slash (same reason as subscribe()).
-    const scopeForReg = scope
-      const swScript = scope.startsWith('/t/')
-      ? `${scope.replace(/\/$/, '')}/sw.js`
-      : '/dashboard-sw.js'
+    const scopeForReg = scope || '/dashboard/'
     ;(async () => {
       try {
-        await navigator.serviceWorker.register(swScript, { scope: scopeForReg })
-        await navigator.serviceWorker.ready
-        const reg = await navigator.serviceWorker.getRegistration(scopeForReg)
-        if (cancelled || !reg) return
-        const { token } = await getDevicePushToken(reg)
+        const { token } = await getTenantPushSubscriptionToken(false, scopeForReg)
         if (cancelled || !token) return
         const res = await fetch(`/api/tenants/${slug}/push-subscription`, {
           method: 'POST',
@@ -148,7 +142,8 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
 
   const subscribe = useCallback(async () => {
     if (typeof window === 'undefined' || !slug) return false
-    if (isIOS() && !isStandalone()) {
+    const isNativeCheck = typeof window !== 'undefined' && Capacitor.isNativePlatform()
+    if (isIOS() && !isStandalone() && !isNativeCheck) {
       showToast(
         'On iPhone: add this app to Home Screen first, then open it and tap Enable.',
         'على iPhone: أضف التطبيق إلى الشاشة الرئيسية ثم افتحه واضغط تفعيل.',
@@ -156,7 +151,7 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
       )
       return false
     }
-    if (!('serviceWorker' in navigator) || !('Notification' in window)) {
+    if (!isNativeCheck && (!('serviceWorker' in navigator) || !('Notification' in window))) {
       showToast('Push notifications are not supported in this browser.', 'الإشعارات غير مدعومة في هذا المتصفح.', 'error')
       return false
     }
@@ -170,36 +165,30 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
       // Per-business PWA: when scope is provided (e.g. /t/xxx/manage), use that scope's SW and per-tenant API. Unified (app-sw + business-push-subscription) is only for dashboard via BusinessPushSetup.
       const useUnified = useFCM && !scope
       const swScope = useUnified ? '/' : (scope ?? '/t')
-      // Do NOT force a trailing slash — the manage scope is "/t/slug/manage" (no slash) so the SW
-      // controls the layout index page. Adding "/" makes scope "/t/slug/manage/" which misses the
-      // index page and causes getDevicePushToken to fail on iOS/Android PWA.
       const scopeForReg = swScope
-      const swScript = useUnified
-        ? '/dashboard-sw.js'
-        : scope ? `${scope.replace(/\/$/, '')}/sw.js` : `/t/${slug}/orders/sw.js`
-      await navigator.serviceWorker.register(swScript, useUnified ? { scope: '/' } : scope ? { scope: scopeForReg } : undefined)
-      await navigator.serviceWorker.ready
-      const reg = await navigator.serviceWorker.getRegistration(scopeForReg) ?? undefined
-      const perm = await Notification.requestPermission()
-      setPermission(perm)
-      if (perm !== 'granted') {
-        showToast(
-          'Notifications blocked. Enable them in your device settings to get new order alerts.',
-          'تم رفض الإشعارات. فعّلها من إعدادات الجهاز لاستقبال تنبيهات الطلبات.',
-          'info'
-        )
-        return false
-      }
-      const registration = reg ?? (await navigator.serviceWorker.getRegistration(scopeForReg))
-      if (!registration) {
-        throw new Error('Service worker not active')
-      }
-      if (useFCM) {
-        const { token: fcmToken, error: fcmError } = await getDevicePushToken(registration)
+      
+      if (useFCM || isNativeCheck) {
+        const { token: fcmToken, permissionState, registration, error: fcmError } = await getTenantPushSubscriptionToken(true, scopeForReg)
+        
+        if (permissionState === 'denied' && !isNativeCheck) {
+           setPermission('denied')
+        } else if (permissionState === 'granted') {
+           setPermission('granted')
+        }
+
+        if (permissionState !== 'granted') {
+          showToast(
+            'Notifications blocked. Enable them in your device settings to get new order alerts.',
+            'تم رفض الإشعارات. فعّلها من إعدادات الجهاز لاستقبال تنبيهات الطلبات.',
+            'info'
+          )
+          return false
+        }
+
         if (fcmToken) {
           const apiUrl = useUnified ? '/api/me/business-push-subscription' : `/api/tenants/${slug}/push-subscription`
           const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string } } = { fcmToken }
-          if (!useUnified && VAPID_PUBLIC) {
+          if (!useUnified && VAPID_PUBLIC && registration) {
             try {
               const sub = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
@@ -244,15 +233,67 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
           )
           return true
         }
-        if (VAPID_PUBLIC) {
-          // Fall back to Web Push
-        } else {
-          throw new Error(fcmError ?? 'Could not get FCM token')
+        
+        if (VAPID_PUBLIC && registration) {
+          try {
+            const sub = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC) as BufferSource,
+            })
+            const p256 = new Uint8Array(sub.getKey('p256dh')!)
+            const auth = new Uint8Array(sub.getKey('auth')!)
+            const res = await fetch(`/api/tenants/${slug}/push-subscription`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                endpoint: sub.endpoint,
+                keys: {
+                  p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
+                  auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
+                },
+              }),
+            })
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}))
+              throw new Error(err?.error || 'Failed to save subscription')
+            }
+            setStoredPushOk(PUSH_CONTEXT_KEYS.tenant(slug))
+            setDone(true)
+            setRemindLaterAt(null)
+            try {
+              localStorage.removeItem(REMIND_LATER_KEY_PREFIX + slug)
+            } catch (_) {}
+            showToast(
+              'Push notifications enabled. You’ll get an alert when you receive a new order.',
+              'تم تفعيل الإشعارات. ستستقبل تنبيهاً عند وصول طلب جديد.',
+              'success'
+            )
+            return true
+          } catch (_) {}
         }
+        
+        throw new Error(fcmError ?? 'Could not get FCM token')
       }
+
       if (!VAPID_PUBLIC) {
         throw new Error('Push not configured')
       }
+      
+      const swScript = scope ? `${scope.replace(/\/$/, '')}/sw.js` : `/t/${slug}/orders/sw.js`
+      const registration = await navigator.serviceWorker.register(swScript, { scope: scopeForReg })
+      await (registration as unknown as { ready: Promise<ServiceWorkerRegistration> }).ready
+      const perm = await Notification.requestPermission()
+      setPermission(perm)
+      if (perm !== 'granted') {
+        showToast(
+          'Notifications blocked. Enable them in your device settings to get new order alerts.',
+          'تم رفض الإشعارات. فعّلها من إعدادات الجهاز لاستقبال تنبيهات الطلبات.',
+          'info'
+        )
+        return false
+      }
+      
       const sub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC) as BufferSource,

@@ -64,7 +64,7 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-slate-800/60 bg-slate-950/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+      <header className="sticky top-0 z-50 w-full border-b border-slate-800/60 bg-slate-950/95 backdrop-blur-md">
         <div className="mx-auto flex h-14 min-h-[56px] max-w-[100vw] items-center justify-between gap-2 px-4 sm:container sm:px-6">
           <Link
             href="/"

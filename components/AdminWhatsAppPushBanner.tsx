@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Bell, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getDevicePushToken } from '@/lib/push-token'
+import { getTenantPushSubscriptionToken } from '@/lib/tenant-push-subscribe'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 
 export function AdminWhatsAppPushBanner() {
@@ -19,23 +19,20 @@ export function AdminWhatsAppPushBanner() {
   }, [])
 
   const handleEnable = async () => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('Notification' in window)) return
+    if (typeof window === 'undefined') return
+    const isNativeCheck = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform()
+    if (!isNativeCheck && (!('serviceWorker' in navigator) || !('Notification' in window))) return
     if (!isFirebaseConfigured?.()) {
       alert('Push notifications are not configured for this app.')
       return
     }
     setLoading(true)
     try {
-      await navigator.serviceWorker.register('/dashboard-sw.js', { scope: '/dashboard/' })
-      await navigator.serviceWorker.ready
-      const reg = await navigator.serviceWorker.getRegistration('/dashboard/')
-      if (!reg) throw new Error('Service worker not active')
-      const perm = await Notification.requestPermission()
-      if (perm !== 'granted') {
+      const { token: fcmToken, permissionState } = await getTenantPushSubscriptionToken(true, '/dashboard/')
+      if (permissionState !== 'granted') {
         alert('Enable notifications in your device settings to get alerts for new WhatsApp messages.')
         return
       }
-      const { token: fcmToken } = await getDevicePushToken(reg)
       if (!fcmToken) throw new Error('Could not get token')
       const res = await fetch('/api/admin/push-subscription', {
         method: 'POST',
