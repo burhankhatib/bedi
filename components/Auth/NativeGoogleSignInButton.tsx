@@ -9,6 +9,26 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 let socialLoginInitPromise: Promise<void> | null = null
 
+/** Decode JWT payload (no signature check) to compare `aud` with Clerk’s Google Web client ID. */
+function readGoogleIdTokenAud(idToken: string): string | null {
+  try {
+    const part = idToken.split('.')[1]
+    if (!part) return null
+    const base64 = part.replace(/-/g, '+').replace(/_/g, '/')
+    const pad = (4 - (base64.length % 4)) % 4
+    const binary = atob(base64 + '='.repeat(pad))
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    const payload = JSON.parse(new TextDecoder().decode(bytes)) as { aud?: unknown }
+    const { aud } = payload
+    if (typeof aud === 'string') return aud
+    if (Array.isArray(aud) && typeof aud[0] === 'string') return aud[0]
+    return null
+  } catch {
+    return null
+  }
+}
+
 async function ensureSocialLoginInitialized(): Promise<void> {
   if (socialLoginInitPromise) return socialLoginInitPromise
 
@@ -90,12 +110,15 @@ export function NativeGoogleSignInButton({
     if (!clerk.loaded || busy) return
     setBusy(true)
     setInitError(null)
+    let idTokenUsed: string | null = null
     try {
       await ensureSocialLoginInitialized()
       const { SocialLogin } = await import('@capgo/capacitor-social-login')
+      // Do not pass `scopes` here: the Android plugin rejects custom scopes unless MainActivity
+      // implements ModifiedMainActivityForSocialLoginPlugin. Defaults already include email + profile + openid.
       const loginResult = await SocialLogin.login({
         provider: 'google',
-        options: { scopes: ['email', 'profile'] },
+        options: {},
       })
 
       if (loginResult.provider !== 'google') {
@@ -111,7 +134,24 @@ export function NativeGoogleSignInButton({
         throw new Error('Google did not return an ID token. Check Android SHA-1 / iOS client ID in Google Cloud.')
       }
 
-      const authResult = await clerk.authenticateWithGoogleOneTap({ token })
+      idTokenUsed = token
+
+      const oneTapParams: { token: string; legalAccepted?: boolean } = { token }
+      if (process.env.NEXT_PUBLIC_NATIVE_GOOGLE_LEGAL_ACCEPTED === '1') {
+        oneTapParams.legalAccepted = true
+      }
+
+      const authResult = await clerk.authenticateWithGoogleOneTap(oneTapParams)
+
+      const sessionId = authResult.createdSessionId
+      const finished = authResult.status === 'complete'
+
+      if (sessionId && finished) {
+        const dest = mode === 'sign-in' ? afterSignInUrl() : afterSignUpUrl()
+        await clerk.setActive({ session: sessionId })
+        await router.replace(dest)
+        return
+      }
 
       await clerk.handleGoogleOneTapCallback(
         authResult,
@@ -120,19 +160,31 @@ export function NativeGoogleSignInButton({
           signUpUrl: '/sign-up',
           signInForceRedirectUrl: afterSignInUrl(),
           signUpForceRedirectUrl: afterSignUpUrl(),
+          verifyPhoneNumberUrl: afterSignUpUrl(),
         },
         async (to: string) => {
           await router.replace(to)
         }
       )
     } catch (e) {
-      const message = e instanceof Error ? e.message : 'Google sign-in failed'
+      let message = e instanceof Error ? e.message : 'Google sign-in failed'
+      if (/not authorized|authorization_invalid/i.test(message)) {
+        const tokenAud = idTokenUsed ? readGoogleIdTokenAud(idTokenUsed) : null
+        const expected = webClientId ?? ''
+        const audHint =
+          tokenAud && expected && tokenAud !== expected
+            ? ` Token aud is "${tokenAud}" but NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID is "${expected}" — they must match the Web client ID in Clerk → Google.`
+            : tokenAud && expected && tokenAud === expected
+              ? ' Token aud matches your Web client ID; if this persists, add the app under Clerk → Native applications (package + SHA-256) and redeploy.'
+              : ''
+        message = `${message} — Check Clerk → Native applications (Android package + SHA-256), and that the Google Web client in Clerk matches NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID.${audHint} Try NEXT_PUBLIC_NATIVE_GOOGLE_LEGAL_ACCEPTED=1 if your instance requires terms acceptance. See docs/NATIVE_GOOGLE_SETUP.md.`
+      }
       if (mounted.current) setInitError(message)
       console.error('[NativeGoogleSignIn]', e)
     } finally {
       if (mounted.current) setBusy(false)
     }
-  }, [afterSignInUrl, afterSignUpUrl, busy, clerk, router])
+  }, [afterSignInUrl, afterSignUpUrl, busy, clerk, mode, router, webClientId])
 
   if (!Capacitor.isNativePlatform()) return null
   if (!webClientId) return null
@@ -156,7 +208,7 @@ export function NativeGoogleSignInButton({
         </p>
       ) : (
         <p className="mt-2 text-center text-xs text-slate-500">
-          Use this button in the app — the Google option inside the form below does not work in the mobile app.
+          Uses your Google account saved on this device.
         </p>
       )}
     </div>

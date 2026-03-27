@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "clear && next dev --webpack",
     "dev:turbo": "clear && next dev",
+    "prebuild": "node -e \"const fs=require('node:fs'); try { fs.rmSync('.next', { recursive: true, force: true }); } catch (_) {}\"",
     "build": "next build --webpack",
     "build:mobile:customer": "cd capacitor/customer && mkdir -p out && npx cap sync",
     "build:mobile:driver": "cd capacitor/driver && mkdir -p out && npx cap sync",
@@ -62,6 +63,7 @@
     "firebase": "^12.9.0",
     "firebase-admin": "^13.0.1",
     "fuse.js": "^7.1.0",
+    "google-auth-library": "^10.6.2",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",
     "leaflet": "^1.9.4",

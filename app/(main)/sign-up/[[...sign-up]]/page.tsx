@@ -1,5 +1,4 @@
-import { ClerkSignUpNativeAware } from '@/components/Auth/ClerkSignUpNativeAware'
-import { NativeGoogleSignInButton } from '@/components/Auth/NativeGoogleSignInButton'
+import { SignUpAuthSection } from '@/components/Auth/SignUpAuthSection'
 import { getAllowedRedirectPath } from '@/lib/auth-utils'
 
 export default async function SignUpPage({
@@ -10,23 +9,11 @@ export default async function SignUpPage({
   const { redirect_url } = await searchParams
   const allowedRedirect = getAllowedRedirectPath(redirect_url, '/')
   const afterSignUpUrl = `/verify-phone?returnTo=${encodeURIComponent(allowedRedirect)}`
-  
+  const signInUrl = redirect_url ? `/sign-in?redirect_url=${encodeURIComponent(allowedRedirect)}` : '/sign-in'
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-12">
-      <div className="mx-auto w-full max-w-md space-y-4">
-        <NativeGoogleSignInButton mode="sign-up" redirectUrl={redirect_url} className="px-1" />
-        <ClerkSignUpNativeAware
-          appearance={{
-            variables: { colorPrimary: '#f59e0b' },
-            elements: {
-              rootBox: 'mx-auto',
-              card: 'shadow-xl border border-slate-800 bg-slate-900',
-            },
-          }}
-          afterSignUpUrl={afterSignUpUrl}
-          signInUrl={redirect_url ? `/sign-in?redirect_url=${encodeURIComponent(allowedRedirect)}` : '/sign-in'}
-        />
-      </div>
+      <SignUpAuthSection afterSignUpUrl={afterSignUpUrl} signInUrl={signInUrl} redirectUrl={redirect_url} />
     </div>
   )
 }

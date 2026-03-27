@@ -1,34 +1,35 @@
 'use client'
 
 import { SignIn } from '@clerk/nextjs'
-import { Capacitor } from '@capacitor/core'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { ComponentProps } from 'react'
 
-/**
- * On Capacitor, Clerk's redirect OAuth (e.g. Google in the card) opens Clerk URLs that fail with
- * `authorization_invalid` in WebView. Hide OAuth UI on native; use NativeGoogleSignInButton instead.
- */
-export function ClerkSignInNativeAware(props: ComponentProps<typeof SignIn>) {
-  const [isNative, setIsNative] = useState(false)
+export type ClerkSignInNativeAwareProps = ComponentProps<typeof SignIn> & {
+  /**
+   * `hide` — no Clerk social/OAuth row (native app uses `NativeGoogleSignInButton`).
+   * `show` — normal Clerk UI including Google etc.
+   */
+  oauthMode?: 'show' | 'hide'
+}
 
-  useEffect(() => {
-    setIsNative(Capacitor.isNativePlatform())
-  }, [])
-
+export function ClerkSignInNativeAware({
+  oauthMode = 'show',
+  ...props
+}: ClerkSignInNativeAwareProps) {
   const appearance = useMemo(() => {
     const base = props.appearance ?? {}
     const elements = {
       ...(typeof base.elements === 'object' && base.elements ? base.elements : {}),
-      ...(isNative
+      ...(oauthMode === 'hide'
         ? {
             socialButtonsRoot: '!hidden',
+            socialButtons: '!hidden',
             dividerRow: '!hidden',
           }
         : {}),
     }
     return { ...base, elements }
-  }, [isNative, props.appearance])
+  }, [oauthMode, props.appearance])
 
   return <SignIn {...props} appearance={appearance} />
 }

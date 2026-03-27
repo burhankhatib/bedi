@@ -48,6 +48,23 @@ Redeploy the site after changing env vars so the WebView loads JS with the new v
 - **Google** must stay enabled with **custom credentials** (same Web client as above).  
 - No separate “One Tap” toggle is required for this flow; the token is validated like One Tap.
 
+### Native applications (required for production mobile)
+
+Clerk’s production checklist expects each **Android** shell to be registered:
+
+1. Dashboard → **Native applications** → add one entry per app: `com.burhankhatib.bedi` (customer), `com.burhankhatib.bedi.driver` (driver), `com.burhankhatib.bedi.tenant` (tenant).  
+2. Provide the **SHA-256** fingerprint of the keystore that signs the build (debug keystore for local runs; Play signing key for store builds).  
+
+If these entries are missing, you can get a generic **“You are not authorized to perform this request”** / `authorization_invalid` **after** Google returns a token.
+
+### Optional: legal acceptance (sign-in and sign-up)
+
+If your Clerk instance **requires** terms/privacy acceptance for OAuth-style sign-in, native Google One Tap can return **authorization_invalid** until Clerk receives `legalAccepted`. Set on Vercel / `.env.local`:
+
+`NEXT_PUBLIC_NATIVE_GOOGLE_LEGAL_ACCEPTED=1`
+
+Only enable this if it matches your legal UX (e.g. user already accepted terms in-app).
+
 ## 4. Capacitor
 
 After `npm install`, sync native projects so Gradle/CocoaPods pick up the plugin:
@@ -70,7 +87,10 @@ On **native only**, `/sign-in` and `/sign-up` show **Continue with Google (nativ
 
 ## 6. Troubleshooting
 
+- **`You CANNOT use scopes without modifying the main activity`** – The Bedi app no longer passes custom `scopes` from JS (the plugin already adds email, profile, openid). All three Android `MainActivity` classes also implement `ModifiedMainActivityForSocialLoginPlugin` as required by `@capgo/capacitor-social-login` if you add scopes later. Rebuild the Android app after pulling changes.
 - **JSON error on `clerk.bedi.delivery/v1/oa…` with `authorization_invalid`** – You opened **Clerk’s Google button inside the sign-in card** (redirect OAuth). That path breaks in the app WebView. In the Bedi app build, those buttons are **hidden on native**; use **Continue with Google** at the top only. If you still see the in-card Google button, deploy the latest web app and hard-refresh the WebView.
 - **No ID token** – Almost always **missing Android OAuth client** or **wrong SHA-1** for the package you’re running.  
 - **Clerk errors after token** – Web client ID mismatch: `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` must match the Clerk Google **Web** client.  
+- **“You are not authorized to perform this request”** after native Google succeeds – Most often: **Native applications** not registered (package + SHA-256), or the ID token **`aud`** does not match the **Web** client Clerk uses. Decode the JWT (e.g. [jwt.io](https://jwt.io)) and compare `aud` to the Web client ID in Clerk → Google.  
+- **Debug endpoint** – Set `DIAGNOSE_GOOGLE_TOKEN_SECRET` in the environment, then `POST /api/debug/google-id-token` with header `x-debug-secret: <same>` and body `{ "idToken": "<paste>" }`. Optionally set server `GOOGLE_WEB_CLIENT_ID` (same as Web client) and comma-separated `GOOGLE_ANDROID_OAUTH_CLIENT_IDS` so the route can run `verifyIdToken` with multiple audiences.  
 - **iOS** – Ensure `NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID` and the iOS OAuth client bundle ID match the Xcode target.

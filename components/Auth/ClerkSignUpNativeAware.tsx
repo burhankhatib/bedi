@@ -1,31 +1,31 @@
 'use client'
 
 import { SignUp } from '@clerk/nextjs'
-import { Capacitor } from '@capacitor/core'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { ComponentProps } from 'react'
 
-/** Same as ClerkSignInNativeAware: avoid broken WebView OAuth on native. */
-export function ClerkSignUpNativeAware(props: ComponentProps<typeof SignUp>) {
-  const [isNative, setIsNative] = useState(false)
+export type ClerkSignUpNativeAwareProps = ComponentProps<typeof SignUp> & {
+  oauthMode?: 'show' | 'hide'
+}
 
-  useEffect(() => {
-    setIsNative(Capacitor.isNativePlatform())
-  }, [])
-
+export function ClerkSignUpNativeAware({
+  oauthMode = 'show',
+  ...props
+}: ClerkSignUpNativeAwareProps) {
   const appearance = useMemo(() => {
     const base = props.appearance ?? {}
     const elements = {
       ...(typeof base.elements === 'object' && base.elements ? base.elements : {}),
-      ...(isNative
+      ...(oauthMode === 'hide'
         ? {
             socialButtonsRoot: '!hidden',
+            socialButtons: '!hidden',
             dividerRow: '!hidden',
           }
         : {}),
     }
     return { ...base, elements }
-  }, [isNative, props.appearance])
+  }, [oauthMode, props.appearance])
 
   return <SignUp {...props} appearance={appearance} />
 }
