@@ -10,7 +10,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Bell, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
-import { getFCMToken } from '@/lib/firebase'
+import { getDevicePushToken } from '@/lib/push-token'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { useTenantPush } from '@/app/(main)/t/[slug]/manage/TenantPushContext'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
@@ -126,7 +126,7 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
         await navigator.serviceWorker.ready
         const reg = await navigator.serviceWorker.getRegistration(scopeForReg)
         if (cancelled || !reg) return
-        const { token } = await getFCMToken(reg)
+        const { token } = await getDevicePushToken(reg)
         if (cancelled || !token) return
         const res = await fetch(`/api/tenants/${slug}/push-subscription`, {
           method: 'POST',
@@ -172,7 +172,7 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
       const swScope = useUnified ? '/' : (scope ?? '/t')
       // Do NOT force a trailing slash — the manage scope is "/t/slug/manage" (no slash) so the SW
       // controls the layout index page. Adding "/" makes scope "/t/slug/manage/" which misses the
-      // index page and causes getFCMToken to fail on iOS/Android PWA.
+      // index page and causes getDevicePushToken to fail on iOS/Android PWA.
       const scopeForReg = swScope
       const swScript = useUnified
         ? '/dashboard-sw.js'
@@ -195,7 +195,7 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
         throw new Error('Service worker not active')
       }
       if (useFCM) {
-        const { token: fcmToken, error: fcmError } = await getFCMToken(registration)
+        const { token: fcmToken, error: fcmError } = await getDevicePushToken(registration)
         if (fcmToken) {
           const apiUrl = useUnified ? '/api/me/business-push-subscription' : `/api/tenants/${slug}/push-subscription`
           const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string } } = { fcmToken }

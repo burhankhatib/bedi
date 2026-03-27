@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
-import { getFCMToken } from '@/lib/firebase'
+import { getDevicePushToken } from '@/lib/push-token'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 
 async function getCurrentCustomerToken(): Promise<string> {
@@ -13,7 +13,7 @@ async function getCurrentCustomerToken(): Promise<string> {
       (await navigator.serviceWorker.getRegistration('/')) ??
       (await navigator.serviceWorker.getRegistration())
     if (!reg) return ''
-    const { token } = await getFCMToken(reg)
+    const { token } = await getDevicePushToken(reg)
     return token ?? ''
   } catch {
     return ''

@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useToast } from '@/components/ui/ToastProvider'
-import { getFCMToken } from '@/lib/firebase'
+import { getDevicePushToken } from '@/lib/push-token'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, getLastCheck, setLastCheck, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
 
@@ -157,7 +157,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
             const scriptPath = swScope.endsWith('/') ? `${swScope.replace(/\/$/, '')}/sw.js` : `${swScope}/sw.js`
             const reg = await navigator.serviceWorker.getRegistration(swScope)
             if (reg) {
-               const { token } = await getFCMToken(reg)
+               const { token } = await getDevicePushToken(reg)
                if (token) currentToken = token
             }
          } catch (e) {
@@ -256,7 +256,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
         return false
       }
       if (useFCM) {
-        const { token, error: fcmError } = await getFCMToken(reg)
+        const { token, error: fcmError } = await getDevicePushToken(reg)
         if (token) {
           const apiUrl = `/api/tenants/${slug}/push-subscription`
           const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string }; forceConfirmation?: boolean } = { fcmToken: token }

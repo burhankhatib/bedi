@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
-import { getFCMToken } from '@/lib/firebase'
+import { getDevicePushToken } from '@/lib/push-token'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, checkDeviceGeolocationPermission } from '@/lib/device-geolocation'
 
@@ -131,7 +131,7 @@ export function PWAInstall() {
         return false
       }
 
-      const { token } = await getFCMToken(registration)
+      const { token } = await getDevicePushToken(registration)
       if (!token) return false
       await fetch('/api/customer/push-subscription', {
         method: 'POST',

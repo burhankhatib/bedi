@@ -63,8 +63,8 @@ export function useFCMSetup(
       const { isFirebaseConfigured } = await import('@/lib/firebase-config')
       if (!isFirebaseConfigured()) return false
 
-      const { getFCMToken } = await import('@/lib/firebase')
-      const { token } = await getFCMToken(reg)
+      const { getDevicePushToken } = await import('@/lib/push-token')
+      const { token } = await getDevicePushToken(reg)
       if (!token) return false
 
       // Register token with the role-specific API

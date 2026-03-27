@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "16229698269",
+    "project_id": "bedi-delivery",
+    "storage_bucket": "bedi-delivery.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:16229698269:android:7b0885984bb1e355832934",
+        "android_client_info": {
+          "package_name": "com.burhankhatib.bedi"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "16229698269-qkhpioe7621jeg33oeqti52trd9q6eub.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAYQpr0cBf9_jclOPK6UX1Ey6mSvACp1HQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "16229698269-qkhpioe7621jeg33oeqti52trd9q6eub.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:16229698269:android:f5ae39c391e9322e832934",
+        "android_client_info": {
+          "package_name": "com.burhankhatib.bedi.driver"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "16229698269-qkhpioe7621jeg33oeqti52trd9q6eub.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAYQpr0cBf9_jclOPK6UX1Ey6mSvACp1HQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "16229698269-qkhpioe7621jeg33oeqti52trd9q6eub.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

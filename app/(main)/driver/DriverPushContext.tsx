@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ui/ToastProvider'
 import { useLanguage } from '@/components/LanguageContext'
-import { getFCMToken } from '@/lib/firebase'
+import { getDevicePushToken } from '@/lib/push-token'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
 import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, checkDeviceGeolocationPermission } from '@/lib/device-geolocation'
@@ -111,7 +111,7 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
         (await navigator.serviceWorker.getRegistration('/driver/')) ??
         (await navigator.serviceWorker.getRegistration())
       if (!reg) return ''
-      const { token } = await getFCMToken(reg)
+      const { token } = await getDevicePushToken(reg)
       return token ?? ''
     } catch {
       return ''
@@ -263,7 +263,7 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
         return false
       }
       if (useFCM) {
-        const { token, error: fcmError } = await getFCMToken(registration)
+        const { token, error: fcmError } = await getDevicePushToken(registration)
         if (token) {
           const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string }; forceConfirmation?: boolean } = { fcmToken: token }
           if (isRefresh) payload.forceConfirmation = true

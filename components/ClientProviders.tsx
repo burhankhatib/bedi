@@ -4,6 +4,7 @@ import { LanguageProvider, useLanguage } from '@/components/LanguageContext'
 import { LocationProvider } from '@/components/LocationContext'
 import { CartProvider } from '@/components/Cart/CartContext'
 import { ToastProvider } from '@/components/ui/ToastProvider'
+import { NativePushListener } from '@/components/pwa/NativePushListener'
 import { ClerkProvider } from '@clerk/nextjs'
 import { arSA, enUS } from '@clerk/localizations'
 
@@ -41,6 +42,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
         <LocationProvider>
           <CartProvider>
             <ToastProvider>
+              <NativePushListener />
               {children}
             </ToastProvider>
           </CartProvider>

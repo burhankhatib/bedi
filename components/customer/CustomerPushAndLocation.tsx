@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Bell, MapPin, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/components/LanguageContext'
-import { getFCMToken } from '@/lib/firebase'
+import { getDevicePushToken } from '@/lib/push-token'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, checkDeviceGeolocationPermission } from '@/lib/device-geolocation'
 
@@ -64,7 +64,7 @@ export function CustomerPushAndLocation() {
       const perm = await Notification.requestPermission()
       setPushPermission(perm)
       if (perm !== 'granted') return false
-      const { token } = await getFCMToken(registration)
+      const { token } = await getDevicePushToken(registration)
       if (token) {
         await fetch('/api/customer/push-subscription', {
           method: 'POST',

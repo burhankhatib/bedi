@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { MapPin, RefreshCw } from 'lucide-react'
 import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
-import { getFCMToken } from '@/lib/firebase'
+import { getDevicePushToken } from '@/lib/push-token'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, isGeolocationUserDenied } from '@/lib/device-geolocation'
 
@@ -47,7 +47,7 @@ export function CustomerSidebarActions() {
         return false
       }
       
-      const { token } = await getFCMToken(registration)
+      const { token } = await getDevicePushToken(registration)
       if (token) {
         await fetch('/api/customer/push-subscription', {
           method: 'POST',

@@ -8,7 +8,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Bell } from 'lucide-react'
 import { useToast } from '@/components/ui/ToastProvider'
-import { getFCMToken } from '@/lib/firebase'
+import { getDevicePushToken } from '@/lib/push-token'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { useLanguage } from '@/components/LanguageContext'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
@@ -52,7 +52,7 @@ export function BusinessPushSetup() {
         )
         return false
       }
-      const { token: fcmToken } = await getFCMToken(reg)
+      const { token: fcmToken } = await getDevicePushToken(reg)
       if (!fcmToken) throw new Error('Could not get token')
       const res = await fetch('/api/me/business-push-subscription', {
         method: 'POST',
@@ -95,7 +95,7 @@ export function BusinessPushSetup() {
           reg = await navigator.serviceWorker.getRegistration('/dashboard/')
         }
         if (cancelled || !reg) return
-        const { token } = await getFCMToken(reg)
+        const { token } = await getDevicePushToken(reg)
         if (cancelled || !token) return
         const res = await fetch('/api/me/business-push-subscription', {
           method: 'POST',

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { getFCMToken } from '@/lib/firebase'
+import { getDevicePushToken } from '@/lib/push-token'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
 
@@ -42,7 +42,7 @@ export function useCustomerTrackPush(slug: string, token: string) {
     try {
       const reg = await navigator.serviceWorker.getRegistration('/') ?? await navigator.serviceWorker.getRegistration()
       if (!reg) return ''
-      const { token } = await getFCMToken(reg)
+      const { token } = await getDevicePushToken(reg)
       return token ?? ''
     } catch {
       return ''
@@ -126,7 +126,7 @@ export function useCustomerTrackPush(slug: string, token: string) {
       const apiUrl = `/api/tenants/${encodeURIComponent(slug)}/track/${encodeURIComponent(token)}/push-subscription`
 
       if (useFCM) {
-        const { token: fcmToken } = await getFCMToken(reg)
+        const { token: fcmToken } = await getDevicePushToken(reg)
         if (fcmToken) {
           const res = await fetch(apiUrl, {
             method: 'POST',

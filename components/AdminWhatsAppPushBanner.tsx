@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Bell, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getFCMToken } from '@/lib/firebase'
+import { getDevicePushToken } from '@/lib/push-token'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 
 export function AdminWhatsAppPushBanner() {
@@ -35,7 +35,7 @@ export function AdminWhatsAppPushBanner() {
         alert('Enable notifications in your device settings to get alerts for new WhatsApp messages.')
         return
       }
-      const { token: fcmToken } = await getFCMToken(reg)
+      const { token: fcmToken } = await getDevicePushToken(reg)
       if (!fcmToken) throw new Error('Could not get token')
       const res = await fetch('/api/admin/push-subscription', {
         method: 'POST',

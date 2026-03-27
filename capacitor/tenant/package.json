@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "mkdir -p out && npx cap sync",
+    "sync:android": "mkdir -p out && npx cap sync android",
+    "sync:ios": "mkdir -p out && npx cap sync ios"
   },
   "keywords": [],
   "author": "",
@@ -13,10 +16,11 @@
   "dependencies": {
     "@capacitor/android": "^8.3.0",
     "@capacitor/core": "^8.3.0",
+    "@capacitor/geolocation": "^8.1.0",
     "@capacitor/ios": "^8.3.0",
+    "@capacitor/push-notifications": "^8.0.3",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
-    "@capacitor/geolocation": "^8.1.0",
     "@capgo/capacitor-social-login": "^8.3.9"
   },
   "devDependencies": {
