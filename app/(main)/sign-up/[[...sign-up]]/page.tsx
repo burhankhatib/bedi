@@ -1,4 +1,5 @@
 import { SignUp } from '@clerk/nextjs'
+import { NativeGoogleSignInButton } from '@/components/Auth/NativeGoogleSignInButton'
 import { getAllowedRedirectPath } from '@/lib/auth-utils'
 
 export default async function SignUpPage({
@@ -12,17 +13,20 @@ export default async function SignUpPage({
   
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-12">
-      <SignUp
-        appearance={{
-          variables: { colorPrimary: '#f59e0b' },
-          elements: {
-            rootBox: 'mx-auto',
-            card: 'shadow-xl border border-slate-800 bg-slate-900',
-          },
-        }}
-        afterSignUpUrl={afterSignUpUrl}
-        signInUrl={redirect_url ? `/sign-in?redirect_url=${encodeURIComponent(allowedRedirect)}` : '/sign-in'}
-      />
+      <div className="mx-auto w-full max-w-md space-y-4">
+        <NativeGoogleSignInButton mode="sign-up" redirectUrl={redirect_url} className="px-1" />
+        <SignUp
+          appearance={{
+            variables: { colorPrimary: '#f59e0b' },
+            elements: {
+              rootBox: 'mx-auto',
+              card: 'shadow-xl border border-slate-800 bg-slate-900',
+            },
+          }}
+          afterSignUpUrl={afterSignUpUrl}
+          signInUrl={redirect_url ? `/sign-in?redirect_url=${encodeURIComponent(allowedRedirect)}` : '/sign-in'}
+        />
+      </div>
     </div>
   )
 }

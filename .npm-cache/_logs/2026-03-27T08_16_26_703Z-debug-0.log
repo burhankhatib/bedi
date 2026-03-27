@@ -1,0 +1,76 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@11.12.0
+2 info using node@v22.19.0
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/home/Websites/Bedi Delivery/capacitor/customer/.npmrc
+5 silly config load:file:/Users/home/.npmrc
+6 silly config load:file:/usr/local/etc/npmrc
+7 verbose title npm install @capacitor/core @capacitor/ios @capacitor/android @capacitor/status-bar @capacitor/splash-screen
+8 verbose argv "install" "@capacitor/core" "@capacitor/ios" "@capacitor/android" "@capacitor/status-bar" "@capacitor/splash-screen" "--cache" "../../.npm-cache"
+9 verbose logfile logs-max:10 dir:/Users/home/Websites/Bedi Delivery/.npm-cache/_logs/2026-03-27T08_16_26_703Z-
+10 verbose logfile /Users/home/Websites/Bedi Delivery/.npm-cache/_logs/2026-03-27T08_16_26_703Z-debug-0.log
+11 warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+12 silly logfile done cleaning log files
+13 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+14 silly idealTree buildDeps
+15 silly fetch manifest @capacitor/core@*
+16 silly packumentCache full:https://registry.npmjs.org/@capacitor%2fcore cache-miss
+17 http cache https://registry.npmjs.org/@capacitor%2fcore 12ms (cache hit)
+18 silly packumentCache full:https://registry.npmjs.org/@capacitor%2fcore set size:4241934 disposed:false
+19 silly fetch manifest @capacitor/ios@*
+20 silly packumentCache full:https://registry.npmjs.org/@capacitor%2fios cache-miss
+21 http cache https://registry.npmjs.org/@capacitor%2fios 6ms (cache hit)
+22 silly packumentCache full:https://registry.npmjs.org/@capacitor%2fios set size:3194580 disposed:false
+23 silly fetch manifest @capacitor/android@*
+24 silly packumentCache full:https://registry.npmjs.org/@capacitor%2fandroid cache-miss
+25 http cache https://registry.npmjs.org/@capacitor%2fandroid 5ms (cache hit)
+26 silly packumentCache full:https://registry.npmjs.org/@capacitor%2fandroid set size:2950542 disposed:false
+27 silly fetch manifest @capacitor/status-bar@*
+28 silly packumentCache full:https://registry.npmjs.org/@capacitor%2fstatus-bar cache-miss
+29 http cache https://registry.npmjs.org/@capacitor%2fstatus-bar 7ms (cache hit)
+30 silly packumentCache full:https://registry.npmjs.org/@capacitor%2fstatus-bar set size:4611080 disposed:false
+31 silly fetch manifest @capacitor/splash-screen@*
+32 silly packumentCache full:https://registry.npmjs.org/@capacitor%2fsplash-screen cache-miss
+33 http cache https://registry.npmjs.org/@capacitor%2fsplash-screen 7ms (cache hit)
+34 silly packumentCache full:https://registry.npmjs.org/@capacitor%2fsplash-screen set size:4488200 disposed:false
+35 silly placeDep ROOT @capacitor/android@8.3.0 OK for: customer@1.0.0 want: *
+36 silly placeDep ROOT @capacitor/core@8.3.0 OK for: customer@1.0.0 want: *
+37 silly placeDep ROOT @capacitor/ios@8.3.0 OK for: customer@1.0.0 want: *
+38 silly placeDep ROOT @capacitor/splash-screen@8.0.1 OK for: customer@1.0.0 want: *
+39 silly placeDep ROOT @capacitor/status-bar@8.0.2 OK for: customer@1.0.0 want: *
+40 silly fetch manifest tslib@^2.1.0
+41 silly packumentCache full:https://registry.npmjs.org/tslib cache-miss
+42 http cache https://registry.npmjs.org/tslib 3ms (cache hit)
+43 silly packumentCache full:https://registry.npmjs.org/tslib set size:108760 disposed:false
+44 silly placeDep ROOT tslib@2.8.1 OK for: @capacitor/core@8.3.0 want: ^2.1.0
+45 silly reify moves {}
+46 silly audit bulk request {
+46 silly audit   '@capacitor/android': [ '8.3.0' ],
+46 silly audit   '@capacitor/core': [ '8.3.0' ],
+46 silly audit   '@capacitor/ios': [ '8.3.0' ],
+46 silly audit   '@capacitor/splash-screen': [ '8.0.1' ],
+46 silly audit   '@capacitor/status-bar': [ '8.0.2' ],
+46 silly audit   tslib: [ '2.8.1' ]
+46 silly audit }
+47 http cache tslib@https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz 0ms (cache hit)
+48 http cache @capacitor/status-bar@https://registry.npmjs.org/@capacitor/status-bar/-/status-bar-8.0.2.tgz 0ms (cache hit)
+49 http cache @capacitor/ios@https://registry.npmjs.org/@capacitor/ios/-/ios-8.3.0.tgz 0ms (cache hit)
+50 http cache @capacitor/android@https://registry.npmjs.org/@capacitor/android/-/android-8.3.0.tgz 0ms (cache hit)
+51 http cache @capacitor/splash-screen@https://registry.npmjs.org/@capacitor/splash-screen/-/splash-screen-8.0.1.tgz 0ms (cache hit)
+52 http cache @capacitor/core@https://registry.npmjs.org/@capacitor/core/-/core-8.3.0.tgz 0ms (cache hit)
+53 silly tarball no local data for tslib@https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz. Extracting by manifest.
+54 http fetch GET 200 https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz 167ms (cache miss)
+55 http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 584ms
+56 silly audit report {}
+57 silly ADD node_modules/tslib
+58 silly ADD node_modules/@capacitor/status-bar
+59 silly ADD node_modules/@capacitor/splash-screen
+60 silly ADD node_modules/@capacitor/ios
+61 silly ADD node_modules/@capacitor/core
+62 silly ADD node_modules/@capacitor/android
+63 verbose cwd /Users/home/Websites/Bedi Delivery/capacitor/customer
+64 verbose os Darwin 25.3.0
+65 verbose node v22.19.0
+66 verbose npm  v11.12.0
+67 verbose exit 0
+68 info ok

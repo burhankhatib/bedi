@@ -1,0 +1,29 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@11.12.0
+2 info using node@v22.19.0
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/home/Websites/Bedi Delivery/capacitor/customer/.npmrc
+5 silly config load:file:/Users/home/.npmrc
+6 silly config load:file:/usr/local/etc/npmrc
+7 verbose title npm install @capgo/capacitor-social-login@^8.3.9
+8 verbose argv "install" "@capgo/capacitor-social-login@^8.3.9" "--cache" "../../.npm-cache" "--no-fund" "--no-audit"
+9 verbose logfile logs-max:10 dir:/Users/home/Websites/Bedi Delivery/.npm-cache/_logs/2026-03-27T09_56_15_923Z-
+10 verbose logfile /Users/home/Websites/Bedi Delivery/.npm-cache/_logs/2026-03-27T09_56_15_923Z-debug-0.log
+11 warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+12 silly logfile done cleaning log files
+13 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+14 silly idealTree buildDeps
+15 silly fetch manifest @capgo/capacitor-social-login@^8.3.9
+16 silly packumentCache full:https://registry.npmjs.org/@capgo%2fcapacitor-social-login cache-miss
+17 http cache https://registry.npmjs.org/@capgo%2fcapacitor-social-login 49ms (cache hit)
+18 silly packumentCache full:https://registry.npmjs.org/@capgo%2fcapacitor-social-login set size:750800 disposed:false
+19 silly placeDep ROOT @capgo/capacitor-social-login@8.3.9 OK for: customer@1.0.0 want: ^8.3.9
+20 silly reify moves {}
+21 http cache @capgo/capacitor-social-login@https://registry.npmjs.org/@capgo/capacitor-social-login/-/capacitor-social-login-8.3.9.tgz 0ms (cache hit)
+22 silly ADD node_modules/@capgo/capacitor-social-login
+23 verbose cwd /Users/home/Websites/Bedi Delivery/capacitor/customer
+24 verbose os Darwin 25.3.0
+25 verbose node v22.19.0
+26 verbose npm  v11.12.0
+27 verbose exit 0
+28 info ok
