@@ -9,6 +9,8 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { getDeviceGeolocationPosition, isGeolocationUserDenied, isDeviceGeolocationSupported } from '@/lib/device-geolocation'
 import { getCityFromCoordinates } from '@/lib/geofencing'
 import type { Polygon } from '@/lib/geofencing'
 import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
@@ -271,7 +273,12 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const requestLocationPermission = useCallback(() => {
-    if (typeof window === 'undefined' || !navigator.geolocation) {
+    if (typeof window === 'undefined') {
+      setLocationStatus('error')
+      return
+    }
+    const canGeo = isDeviceGeolocationSupported()
+    if (!canGeo) {
       setLocationStatus('error')
       return
     }
@@ -282,7 +289,6 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     }
 
     setLocationStatus('detecting')
-    // Android WebView / Chrome occasionally never fires geolocation callbacks; bail out to manual city pick.
     locationPermissionWatchdogRef.current = setTimeout(() => {
       locationPermissionWatchdogRef.current = null
       setLocationStatus((s) => (s === 'detecting' ? 'error' : s))
@@ -295,22 +301,25 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
+    void (async () => {
+      try {
+        const coords = await getDeviceGeolocationPosition({
+          enableHighAccuracy: false,
+          timeout: 15_000,
+          maximumAge: 0,
+        })
         clearWatchdog()
         try {
-          await resolveCoordinates(position.coords.latitude, position.coords.longitude)
+          await resolveCoordinates(coords.latitude, coords.longitude)
         } catch {
           setLocationStatus('error')
         }
-      },
-      (err) => {
+      } catch (e) {
         clearWatchdog()
-        if (err.code === 1) setLocationStatus('denied')
+        if (isGeolocationUserDenied(e)) setLocationStatus('denied')
         else setLocationStatus('error')
-      },
-      { enableHighAccuracy: false, timeout: 15_000, maximumAge: 0 }
-    )
+      }
+    })()
   }, [resolveCoordinates])
 
   // Auto-detect location on first visit when no saved city (skip modal when in service area).
@@ -318,7 +327,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (!isInitialized || !citiesLoaded || city) return
-    if (!navigator.geolocation) {
+    const canGeo = isDeviceGeolocationSupported()
+    if (!canGeo) {
       const noGeoId = requestAnimationFrame(() => setLocationStatus('error'))
       return () => cancelAnimationFrame(noGeoId)
     }
@@ -329,37 +339,32 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     const forceTimeout = window.setTimeout(() => {
       if (settled) return
       settled = true
-      // iOS Safari and some Android WebViews can stall geolocation without firing callbacks.
       setLocationStatus('error')
     }, 18_000)
 
-    const onSuccess = async (position: GeolocationPosition) => {
-      if (settled) return
-      settled = true
-      clearTimeout(forceTimeout)
+    void (async () => {
       try {
-        await resolveCoordinates(position.coords.latitude, position.coords.longitude)
-      } catch {
-        setLocationStatus('error')
+        const coords = await getDeviceGeolocationPosition({
+          enableHighAccuracy: false,
+          timeout: 15_000,
+          maximumAge: 0,
+        })
+        if (settled) return
+        settled = true
+        clearTimeout(forceTimeout)
+        try {
+          await resolveCoordinates(coords.latitude, coords.longitude)
+        } catch {
+          setLocationStatus('error')
+        }
+      } catch (err) {
+        if (settled) return
+        settled = true
+        clearTimeout(forceTimeout)
+        if (isGeolocationUserDenied(err)) setLocationStatus('denied')
+        else setLocationStatus('error')
       }
-    }
-
-    const onError = (err: GeolocationPositionError) => {
-      if (settled) return
-      settled = true
-      clearTimeout(forceTimeout)
-      if (err.code === 1) {
-        setLocationStatus('denied')
-      } else {
-        setLocationStatus('error')
-      }
-    }
-
-    navigator.geolocation.getCurrentPosition(onSuccess, onError, {
-      enableHighAccuracy: false,
-      timeout: 15_000,
-      maximumAge: 0,
-    })
+    })()
 
     return () => {
       cancelAnimationFrame(detectingId)

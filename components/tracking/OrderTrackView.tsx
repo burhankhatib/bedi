@@ -15,6 +15,7 @@ const CustomerTrackingMap = dynamic(
 import { getWhatsAppUrl, normalizePhoneForWhatsApp } from '@/lib/whatsapp'
 import { formatCurrency } from '@/lib/currency'
 import { getMapLink } from '@/lib/maps-utils'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, watchDeviceGeolocation, clearDeviceGeolocationWatch, WatchGeolocationId, isGeolocationUserDenied } from '@/lib/device-geolocation'
 import Link from 'next/link'
 import {
   CheckCircle2,
@@ -157,13 +158,16 @@ function CustomerLocationShare({ orderId, trackingToken }: { orderId: string; tr
       }
       setState('loading')
 
-      let bestFix: GeolocationPosition | null = null
-      let watchId: number | null = null
+      let bestFix: { coords: { latitude: number; longitude: number; accuracy: number } } | null = null
+      let watchIdPromise: Promise<WatchGeolocationId> | null = null
       let timeoutId: number | null = null
       let fallbackTimeoutId: number | null = null
 
       const finishAndShare = async () => {
-        if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+        if (watchIdPromise !== null) {
+          watchIdPromise.then(id => clearDeviceGeolocationWatch(id))
+          watchIdPromise = null
+        }
         if (timeoutId !== null) window.clearTimeout(timeoutId)
         if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
 
@@ -197,29 +201,32 @@ function CustomerLocationShare({ orderId, trackingToken }: { orderId: string; tr
         }
       }
 
-      const onPosition = (pos: GeolocationPosition) => {
-        const accuracy = pos.coords.accuracy
+      const onPosition = (pos: { latitude: number; longitude: number; accuracy?: number | null }) => {
+        const accuracy = pos.accuracy ?? Infinity
         if (!bestFix || accuracy < bestFix.coords.accuracy) {
-          bestFix = pos
+          bestFix = { coords: { latitude: pos.latitude, longitude: pos.longitude, accuracy } }
         }
         if (accuracy <= 25) {
           finishAndShare()
         }
       }
 
-      const onError = (err: GeolocationPositionError) => {
+      const onError = (err: any) => {
         if (bestFix) {
           finishAndShare()
           return
         }
 
-        if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+        if (watchIdPromise !== null) {
+          watchIdPromise.then(id => clearDeviceGeolocationWatch(id))
+          watchIdPromise = null
+        }
         if (timeoutId !== null) window.clearTimeout(timeoutId)
         if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
 
         setState('idle')
         if (isAuto) return
-        if (err.code === 1) {
+        if (isGeolocationUserDenied(err)) {
           showToast(
             'Location access denied. Enable it in device settings.',
             'تم رفض الوصول للموقع. فعّله من إعدادات الجهاز.',
@@ -242,10 +249,13 @@ function CustomerLocationShare({ orderId, trackingToken }: { orderId: string; tr
         }
       }, 15000)
 
-      watchId = navigator.geolocation.watchPosition(onPosition, onError, {
+      watchIdPromise = watchDeviceGeolocation(onPosition, onError, {
         enableHighAccuracy: true,
         timeout: 10000,
         maximumAge: 0,
+      }).catch(err => {
+        onError(err)
+        return '' as WatchGeolocationId
       })
     },
     [orderId, trackingToken, showToast],
@@ -253,7 +263,7 @@ function CustomerLocationShare({ orderId, trackingToken }: { orderId: string; tr
 
   useEffect(() => {
     if (!orderId || !trackingToken.trim()) return
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    if (!isDeviceGeolocationSupported()) return
 
     let cancelled = false
     const handle = window.setTimeout(() => {

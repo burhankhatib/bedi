@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useDriverStatus } from './DriverStatusContext'
 import { usePusherSubscription } from '@/hooks/usePusherSubscription'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, watchDeviceGeolocation, clearDeviceGeolocationWatch, WatchGeolocationId } from '@/lib/device-geolocation'
 
 // Approx 50 meters in degrees
 const MIN_DISTANCE_DEGREES = 0.0005
@@ -24,25 +25,26 @@ const REFINE_WINDOW_MS = /samsung|android/i.test(
  */
 function getRefinedPosition(): Promise<{ lat: number; lng: number }> {
   return new Promise((resolve, reject) => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    if (!isDeviceGeolocationSupported()) {
       reject(new Error('Geolocation is not available'))
       return
     }
 
-    let best: GeolocationPosition | null = null
-    let watchId: number | null = null
+    let best: { coords: { latitude: number; longitude: number; accuracy: number | null } } | null = null
+    let watchIdPromise: Promise<WatchGeolocationId> | null = null
     // Browser timers are numeric handles; avoid NodeJS.Timeout from DOM/global setTimeout overloads.
     let timeoutId: number | null = null
     let settled = false
 
-    const cleanupWatch = () => {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId)
-        watchId = null
+    const cleanupWatch = async () => {
+      if (watchIdPromise !== null) {
+        const id = await watchIdPromise
+        clearDeviceGeolocationWatch(id)
+        watchIdPromise = null
       }
     }
 
-    const finish = (pos: GeolocationPosition) => {
+    const finish = (pos: { coords: { latitude: number; longitude: number; accuracy: number | null } }) => {
       if (settled) return
       settled = true
       cleanupWatch()
@@ -53,13 +55,15 @@ function getRefinedPosition(): Promise<{ lat: number; lng: number }> {
       resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude })
     }
 
-    const onPosition = (pos: GeolocationPosition) => {
-      const acc = pos.coords.accuracy
-      if (!best || acc < best.coords.accuracy) best = pos
-      if (acc <= GOOD_ACCURACY_M) finish(pos)
+    const onPosition = (pos: { latitude: number; longitude: number; accuracy?: number | null }) => {
+      const p = { coords: { latitude: pos.latitude, longitude: pos.longitude, accuracy: pos.accuracy ?? null } }
+      const acc = p.coords.accuracy ?? Infinity
+      const bestAcc = best?.coords?.accuracy ?? Infinity
+      if (!best || acc < bestAcc) best = p
+      if (acc <= GOOD_ACCURACY_M) finish(p)
     }
 
-    const onError = (err: GeolocationPositionError) => {
+    const onError = (err: unknown) => {
       if (best) {
         finish(best)
         return
@@ -74,9 +78,12 @@ function getRefinedPosition(): Promise<{ lat: number; lng: number }> {
       reject(err)
     }
 
-    watchId = navigator.geolocation.watchPosition(onPosition, onError, {
+    watchIdPromise = watchDeviceGeolocation(onPosition, onError, {
       enableHighAccuracy: true,
       maximumAge: 0,
+    }).catch(err => {
+      onError(err)
+      return '' as WatchGeolocationId
     })
 
     timeoutId = window.setTimeout(() => {
@@ -86,24 +93,22 @@ function getRefinedPosition(): Promise<{ lat: number; lng: number }> {
         return
       }
       cleanupWatch()
-      const isSamsungLike = /samsung|android/i.test(navigator.userAgent)
-      navigator.geolocation.getCurrentPosition(
-        (pos) => finish(pos),
-        () => {
-          if (settled) return
-          settled = true
-          if (timeoutId !== null) {
-            window.clearTimeout(timeoutId)
-            timeoutId = null
-          }
-          reject(new Error('Geolocation timeout'))
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: isSamsungLike ? 8000 : 5000,
-          maximumAge: 0,
+      const isSamsungLike = /samsung|android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '')
+      getDeviceGeolocationPosition({
+        enableHighAccuracy: true,
+        timeout: isSamsungLike ? 8000 : 5000,
+        maximumAge: 0,
+      }).then(pos => {
+        finish({ coords: { latitude: pos.latitude, longitude: pos.longitude, accuracy: pos.accuracy ?? null } })
+      }).catch(err => {
+        if (settled) return
+        settled = true
+        if (timeoutId !== null) {
+          window.clearTimeout(timeoutId)
+          timeoutId = null
         }
-      )
+        reject(new Error('Geolocation timeout'))
+      })
     }, REFINE_WINDOW_MS)
   })
 }
@@ -115,7 +120,7 @@ export function DriverLocationTracker() {
   const rerunAfterFlightRef = useRef(false)
 
   const sendLocation = useCallback((forced = false) => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    if (!isDeviceGeolocationSupported()) return
 
     const run = () => {
       inFlightRef.current = true

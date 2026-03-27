@@ -9,6 +9,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
 import { getFCMToken } from '@/lib/firebase'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, checkDeviceGeolocationPermission } from '@/lib/device-geolocation'
 
 const STORAGE_KEY_INSTALL_DISMISSED = 'bedi-pwa-install-dismissed-until'
 const DISMISS_HOURS_DEFAULT = 24
@@ -43,23 +44,15 @@ export function PWAInstall() {
 
   const STORAGE_KEY_PERMISSIONS_DISMISSED = 'bedi-pwa-permissions-dismissed'
 
-  const syncPermissions = useCallback(() => {
+  const syncPermissions = useCallback(async () => {
     if (typeof window === 'undefined') return
     if (typeof Notification !== 'undefined') setPushPermission(Notification.permission)
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      if (!('permissions' in navigator)) {
+    if (isDeviceGeolocationSupported()) {
+      const state = await checkDeviceGeolocationPermission()
+      if (state === 'prompt') {
         setLocationState((prev) => (prev === 'granted' ? prev : 'prompt'))
-        return
-      }
-      const perms = (navigator as { permissions?: { query: (p: { name: string }) => Promise<{ state: string }> } }).permissions
-      if (perms?.query) {
-        perms.query({ name: 'geolocation' }).then((r) => {
-          if (r.state === 'granted') setLocationState('granted')
-          else if (r.state === 'denied') setLocationState('denied')
-          else setLocationState('prompt')
-        }).catch(() => setLocationState('prompt'))
       } else {
-        setLocationState('prompt')
+        setLocationState(state)
       }
     } else setLocationState('unsupported')
   }, [])
@@ -78,7 +71,7 @@ export function PWAInstall() {
     setIsStandalone(standalone)
     syncPermissions()
     const canPush = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
-    const canLocation = typeof navigator !== 'undefined' && !!navigator.geolocation
+    const canLocation = isDeviceGeolocationSupported()
     // Only ask for permissions while placing orders in browser (not inside installed PWA).
     setShowPermissionsSection((canPush || canLocation) && inOrderFlow && !standalone)
     try {
@@ -214,42 +207,36 @@ export function PWAInstall() {
     )
   }, [isIOS, isAndroid, t])
 
-  const requestLocation = useCallback(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+  const requestLocation = useCallback(async () => {
+    if (!isDeviceGeolocationSupported()) return
     if (locationChecking) return
     setLocationChecking(true)
-    const guard = setTimeout(() => setLocationChecking(false), 6000)
-    navigator.geolocation.getCurrentPosition(
-      () => {
-        clearTimeout(guard)
-        setLocationState('granted')
-        setLocationChecking(false)
-        syncPermissions()
-        showToast(
-          t('Location enabled. It helps with delivery and nearby stores.', 'تم تفعيل الموقع. يساعد في التوصيل والعروض القريبة.'),
-          undefined,
-          'success'
-        )
-      },
-      (err: GeolocationPositionError) => {
-        clearTimeout(guard)
-        setLocationChecking(false)
-        if (err.code === 1) {
-          setLocationState('denied')
-          showToast(getLocationDeniedInstructions(), undefined, 'info')
-        } else {
-          setLocationState('prompt')
-          if (err.code === 2) {
-            showToast(
-              t('Could not get location. Try again when you have a clear sky view or move to a window.', 'تعذّر تحديد الموقع. حاول مرة أخرى عند وضوح السماء أو انقلك إلى نافذة.'),
-              undefined,
-              'info'
-            )
-          }
+    try {
+      await getDeviceGeolocationPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 })
+      setLocationState('granted')
+      setLocationChecking(false)
+      syncPermissions()
+      showToast(
+        t('Location enabled. It helps with delivery and nearby stores.', 'تم تفعيل الموقع. يساعد في التوصيل والعروض القريبة.'),
+        undefined,
+        'success'
+      )
+    } catch (err: any) {
+      setLocationChecking(false)
+      if (err?.code === 1) {
+        setLocationState('denied')
+        showToast(getLocationDeniedInstructions(), undefined, 'info')
+      } else {
+        setLocationState('prompt')
+        if (err?.code === 2) {
+          showToast(
+            t('Could not get location. Try again when you have a clear sky view or move to a window.', 'تعذّر تحديد الموقع. حاول مرة أخرى عند وضوح السماء أو انقلك إلى نافذة.'),
+            undefined,
+            'info'
+          )
         }
-      },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
-    )
+      }
+    }
   }, [syncPermissions, showToast, t, getLocationDeniedInstructions, locationChecking])
 
   useEffect(() => {

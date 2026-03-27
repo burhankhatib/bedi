@@ -14,6 +14,7 @@ import { useCart } from './CartContext'
 import { isWithinShift, getTodaysHours, isWithinHours, getTimeZoneForCountry } from '@/lib/business-hours'
 import { getShopperFeeByItemCount, getShopperFeeExplanation } from '@/lib/shopper-fee'
 import { formatCurrency } from '@/lib/currency'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, watchDeviceGeolocation, clearDeviceGeolocationWatch, WatchGeolocationId, isGeolocationUserDenied } from '@/lib/device-geolocation'
 
 const LocationPickerMap = dynamic(() => import('./LocationPickerMap'), { 
   ssr: false, 
@@ -233,9 +234,9 @@ export function UnifiedOrderDialog({
   }, [lang])
 
   const requestDeliveryLocation = useCallback(
-    (opts?: { highAccuracy?: boolean }) => {
-      if (!setDeliveryLocation || !navigator.geolocation) {
-        if (!navigator.geolocation) {
+    async (opts?: { highAccuracy?: boolean }) => {
+      if (!setDeliveryLocation || !isDeviceGeolocationSupported()) {
+        if (!isDeviceGeolocationSupported()) {
           setLocationError(t('Location is not supported by your browser.', 'المتصفح لا يدعم الموقع.'))
         }
         return
@@ -248,20 +249,20 @@ export function UnifiedOrderDialog({
 
       const highAccuracy = opts?.highAccuracy === true
 
-      let watchId: number | null = null
+      let watchId: WatchGeolocationId | null = null
       let fallbackTimeoutId: number | null = null
 
       const cleanup = () => {
-        if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+        if (watchId !== null) clearDeviceGeolocationWatch(watchId)
         if (fallbackTimeoutId !== null) window.clearTimeout(fallbackTimeoutId)
         geoInFlightRef.current = false
         setLocationLoading(false)
       }
 
-      const applyFix = (pos: GeolocationPosition) => {
+      const applyFix = (pos: { coords: { latitude: number; longitude: number; accuracy?: number | null } }) => {
         const lat = pos.coords.latitude
         const lng = pos.coords.longitude
-        const accuracy = pos.coords.accuracy
+        const accuracy = pos.coords.accuracy ?? null
         
         console.debug(`[GPS] Applied fix: accuracy ${accuracy}m`)
         setDeliveryLocation(lat, lng, accuracy, highAccuracy ? 'gps_high' : 'gps_low')
@@ -271,9 +272,9 @@ export function UnifiedOrderDialog({
         })
       }
 
-      const handleError = (err: GeolocationPositionError | { code: number }) => {
+      const handleError = (err: any) => {
         cleanup()
-        if (err.code === 1) {
+        if (isGeolocationUserDenied(err)) {
           setLocationError(
             isIOS
               ? t(
@@ -285,7 +286,7 @@ export function UnifiedOrderDialog({
                   'تم رفض الموقع. فعّله من إعدادات المتصفح أو الجهاز (الخصوصية > الموقع)، ثم اضغط الزر مرة أخرى.'
                 )
           )
-        } else if (err.code === 3) {
+        } else if (err?.code === 3) {
           setLocationError(
             t(
               'Location request timed out. Try again or enter your address below.',
@@ -310,17 +311,16 @@ export function UnifiedOrderDialog({
 
       if (!highAccuracy) {
         // Standard first-pass: direct getCurrentPosition, more reliable on Android for prompting
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            cleanup()
-            applyFix(pos)
-          },
-          (err) => handleError(err),
-          { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
-        )
+        try {
+          const pos = await getDeviceGeolocationPosition({ enableHighAccuracy: false, timeout: 10000, maximumAge: 0 })
+          cleanup()
+          applyFix({ coords: { latitude: pos.latitude, longitude: pos.longitude, accuracy: pos.accuracy } })
+        } catch (err) {
+          handleError(err)
+        }
       } else {
         // High accuracy pass: use watchPosition for a short window to find a better fix
-        let bestFix: GeolocationPosition | null = null
+        let bestFix: { coords: { latitude: number; longitude: number; accuracy: number } } | null = null
         let samplingTimeoutId: number | null = null
 
         const finishHighAccuracy = () => {
@@ -333,10 +333,11 @@ export function UnifiedOrderDialog({
           }
         }
 
-        const onPosition = (pos: GeolocationPosition) => {
-          const accuracy = pos.coords.accuracy
-          if (!bestFix || accuracy < bestFix.coords.accuracy) {
-            bestFix = pos
+        const onPosition = (pos: { latitude: number; longitude: number; accuracy?: number | null }) => {
+          const accuracy = pos.accuracy ?? Infinity
+          const bestAcc = bestFix?.coords.accuracy ?? Infinity
+          if (!bestFix || accuracy < bestAcc) {
+            bestFix = { coords: { latitude: pos.latitude, longitude: pos.longitude, accuracy } }
           }
           if (accuracy <= 25) {
             finishHighAccuracy()
@@ -347,18 +348,22 @@ export function UnifiedOrderDialog({
           finishHighAccuracy()
         }, 8000)
 
-        watchId = navigator.geolocation.watchPosition(
-          onPosition,
-          (err) => {
-            if (bestFix) {
-              finishHighAccuracy()
-            } else {
-              if (samplingTimeoutId !== null) window.clearTimeout(samplingTimeoutId)
-              handleError(err)
-            }
-          },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-        )
+        try {
+          watchId = await watchDeviceGeolocation(
+            onPosition,
+            (err) => {
+              if (bestFix) {
+                finishHighAccuracy()
+              } else {
+                if (samplingTimeoutId !== null) window.clearTimeout(samplingTimeoutId)
+                handleError(err)
+              }
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          )
+        } catch (err) {
+          handleError(err)
+        }
       }
     },
     [setDeliveryLocation, t, isIOS, reverseGeocode]

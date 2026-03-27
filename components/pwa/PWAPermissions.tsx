@@ -18,6 +18,7 @@ import { useToast } from '@/components/ui/ToastProvider'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import type { PWAConfig, OSInfo, FCMState } from '@/lib/pwa/types'
 import { STORAGE_KEY_PERMISSIONS_DISMISSED } from '@/lib/pwa/constants'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, checkDeviceGeolocationPermission } from '@/lib/device-geolocation'
 
 interface PWAPermissionsProps {
   config: PWAConfig
@@ -36,26 +37,14 @@ export function PWAPermissions({ config, os, fcm, inOrderFlow = false }: PWAPerm
   const [locationChecking, setLocationChecking] = useState(false)
   const checkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const syncLocation = useCallback(() => {
-    if (typeof window === 'undefined' || !navigator.geolocation) return
-    if (!('permissions' in navigator)) {
+  const syncLocation = useCallback(async () => {
+    if (!isDeviceGeolocationSupported()) return
+    const state = await checkDeviceGeolocationPermission()
+    if (state === 'prompt') {
       setLocationState((prev) => (prev === 'granted' ? prev : 'prompt'))
-      return
+    } else {
+      setLocationState(state)
     }
-    const perms = (navigator as { permissions?: { query: (p: { name: string }) => Promise<{ state: string }> } }).permissions
-    if (!perms?.query) {
-      setLocationState('prompt')
-      return
-    }
-    perms.query({ name: 'geolocation' }).then((r) => {
-      if (r.state === 'granted') {
-        setLocationState('granted')
-      } else if (r.state === 'denied') {
-        setLocationState('denied')
-      } else {
-        setLocationState('prompt')
-      }
-    }).catch(() => setLocationState('prompt'))
   }, [])
 
   useEffect(() => {
@@ -64,7 +53,7 @@ export function PWAPermissions({ config, os, fcm, inOrderFlow = false }: PWAPerm
       setDismissed(sessionStorage.getItem(STORAGE_KEY_PERMISSIONS_DISMISSED) === '1')
     } catch {}
 
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    if (!isDeviceGeolocationSupported()) {
       setLocationState('unsupported')
     } else {
       syncLocation()
@@ -85,8 +74,8 @@ export function PWAPermissions({ config, os, fcm, inOrderFlow = false }: PWAPerm
     try { sessionStorage.setItem(STORAGE_KEY_PERMISSIONS_DISMISSED, '1') } catch {}
   }, [])
 
-  const requestLocation = useCallback(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+  const requestLocation = useCallback(async () => {
+    if (!isDeviceGeolocationSupported()) return
     if (locationChecking) return
     setLocationChecking(true)
     if (checkTimeoutRef.current) clearTimeout(checkTimeoutRef.current)
@@ -95,46 +84,43 @@ export function PWAPermissions({ config, os, fcm, inOrderFlow = false }: PWAPerm
       checkTimeoutRef.current = null
     }, 6000)
 
-    navigator.geolocation.getCurrentPosition(
-      () => {
-        if (checkTimeoutRef.current) {
-          clearTimeout(checkTimeoutRef.current)
-          checkTimeoutRef.current = null
+    try {
+      await getDeviceGeolocationPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 })
+      if (checkTimeoutRef.current) {
+        clearTimeout(checkTimeoutRef.current)
+        checkTimeoutRef.current = null
+      }
+      setLocationState('granted')
+      setLocationChecking(false)
+      syncLocation()
+      showToast(
+        t('Location enabled. It helps with delivery and nearby stores.', 'تم تفعيل الموقع. يساعد في التوصيل والعروض القريبة.'),
+        undefined, 'success'
+      )
+    } catch (err: any) {
+      if (checkTimeoutRef.current) {
+        clearTimeout(checkTimeoutRef.current)
+        checkTimeoutRef.current = null
+      }
+      setLocationChecking(false)
+      if (err?.code === 1) {
+        setLocationState('denied')
+        const instructions = os.isIOS
+          ? t('To enable: open iPhone Settings → Privacy & Security → Location Services → turn On, then find this app (or Safari) and set to "While Using the App". Return here and tap Enable again.', 'للتفعيل: الإعدادات → الخصوصية والأمان → خدمات الموقع → تفعيل، ثم اختر هذا التطبيق (أو Safari) واختر "أثناء استخدام التطبيق". ارجع هنا واضغط تفعيل مرة أخرى.')
+          : os.isAndroid
+            ? t('To enable: open device Settings → Apps → find this app → Permissions → Location → Allow. Return here and tap Enable again.', 'للتفعيل: الإعدادات → التطبيقات → هذا التطبيق → الأذونات → الموقع → السماح. ارجع واضغط تفعيل مرة أخرى.')
+            : t('Enable location in your browser or device Settings (Privacy → Location), then tap Enable again.', 'فعّل الموقع من إعدادات المتصفح أو الجهاز (الخصوصية → الموقع)، ثم اضغط تفعيل مرة أخرى.')
+        showToast(instructions, undefined, 'info')
+      } else {
+        setLocationState('prompt')
+        if (err?.code === 2) {
+          showToast(
+            t('Could not get location. Try again when you have a clear sky view or move to a window.', 'تعذّر تحديد الموقع. حاول مرة أخرى عند وضوح السماء أو انقلك إلى نافذة.'),
+            undefined, 'info'
+          )
         }
-        setLocationState('granted')
-        setLocationChecking(false)
-        syncLocation()
-        showToast(
-          t('Location enabled. It helps with delivery and nearby stores.', 'تم تفعيل الموقع. يساعد في التوصيل والعروض القريبة.'),
-          undefined, 'success'
-        )
-      },
-      (err: GeolocationPositionError) => {
-        if (checkTimeoutRef.current) {
-          clearTimeout(checkTimeoutRef.current)
-          checkTimeoutRef.current = null
-        }
-        setLocationChecking(false)
-        if (err.code === 1) {
-          setLocationState('denied')
-          const instructions = os.isIOS
-            ? t('To enable: open iPhone Settings → Privacy & Security → Location Services → turn On, then find this app (or Safari) and set to "While Using the App". Return here and tap Enable again.', 'للتفعيل: الإعدادات → الخصوصية والأمان → خدمات الموقع → تفعيل، ثم اختر هذا التطبيق (أو Safari) واختر "أثناء استخدام التطبيق". ارجع هنا واضغط تفعيل مرة أخرى.')
-            : os.isAndroid
-              ? t('To enable: open device Settings → Apps → find this app → Permissions → Location → Allow. Return here and tap Enable again.', 'للتفعيل: الإعدادات → التطبيقات → هذا التطبيق → الأذونات → الموقع → السماح. ارجع واضغط تفعيل مرة أخرى.')
-              : t('Enable location in your browser or device Settings (Privacy → Location), then tap Enable again.', 'فعّل الموقع من إعدادات المتصفح أو الجهاز (الخصوصية → الموقع)، ثم اضغط تفعيل مرة أخرى.')
-          showToast(instructions, undefined, 'info')
-        } else {
-          setLocationState('prompt')
-          if (err.code === 2) {
-            showToast(
-              t('Could not get location. Try again when you have a clear sky view or move to a window.', 'تعذّر تحديد الموقع. حاول مرة أخرى عند وضوح السماء أو انقلك إلى نافذة.'),
-              undefined, 'info'
-            )
-          }
-        }
-      },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
-    )
+      }
+    }
   }, [os, showToast, t, syncLocation, locationChecking])
 
   const handleRequestPush = useCallback(async () => {
@@ -156,7 +142,7 @@ export function PWAPermissions({ config, os, fcm, inOrderFlow = false }: PWAPerm
 
   // Only show in standalone mode, in order flow, when not dismissed
   const canPush = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
-  const canLocation = typeof navigator !== 'undefined' && !!navigator.geolocation && locationState !== 'unsupported'
+  const canLocation = isDeviceGeolocationSupported() && locationState !== 'unsupported'
   const pushGranted = fcm.permission === 'granted'
   const locationGranted = locationState === 'granted'
   const bothGranted = (!canPush || pushGranted) && (!canLocation || locationGranted)

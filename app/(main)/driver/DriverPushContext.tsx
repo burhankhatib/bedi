@@ -15,6 +15,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { getFCMToken } from '@/lib/firebase'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, checkDeviceGeolocationPermission } from '@/lib/device-geolocation'
 
 const VAPID_PUBLIC = typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY : undefined
 
@@ -119,38 +120,30 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
 
   // Check location permission on mount. Samsung/Android may not support Permissions API; use probe when uncertain.
   useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    if (!isDeviceGeolocationSupported()) {
       setLocationChecked(true)
       return
     }
-    const perms = (navigator as { permissions?: { query: (p: { name: string }) => Promise<{ state: string }> } }).permissions
-    if (perms?.query) {
-      perms.query({ name: 'geolocation' }).then((result) => {
-        if (result.state === 'granted') {
-          setHasLocation(true)
-        } else if (result.state === 'denied') {
-          setHasLocation(false)
-        } else {
-          // "prompt" – Permissions API can't tell; probe with getCurrentPosition (Samsung often reports prompt even when working)
-          const probeOptions = { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
-          navigator.geolocation.getCurrentPosition(
-            () => {
-              setHasLocation(true)
-              setLocationChecked(true)
-            },
-            () => {
-              setHasLocation(false)
-              setLocationChecked(true)
-            },
-            probeOptions
-          )
-          return
-        }
+    checkDeviceGeolocationPermission().then((state) => {
+      if (state === 'granted') {
+        setHasLocation(true)
         setLocationChecked(true)
-      }).catch(() => setLocationChecked(true))
-    } else {
-      setLocationChecked(true)
-    }
+      } else if (state === 'denied') {
+        setHasLocation(false)
+        setLocationChecked(true)
+      } else {
+        // "prompt" – Permissions API can't tell; probe with getDeviceGeolocationPosition (Samsung often reports prompt even when working)
+        getDeviceGeolocationPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 })
+          .then(() => {
+            setHasLocation(true)
+            setLocationChecked(true)
+          })
+          .catch(() => {
+            setHasLocation(false)
+            setLocationChecked(true)
+          })
+      }
+    }).catch(() => setLocationChecked(true))
   }, [])
 
   const checkPushHealth = useCallback(async () => {
@@ -421,11 +414,11 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
   }, [needsPushRefresh, permission, refreshToken])
 
   const requestLocation = useCallback(async (): Promise<boolean> => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    if (!isDeviceGeolocationSupported()) {
       showToast('Location is not supported.', 'الموقع غير مدعوم.', 'error')
       return false
     }
-    const isSamsung = /samsung|android/i.test(navigator.userAgent)
+    const isSamsung = /samsung|android/i.test(typeof navigator !== 'undefined' ? navigator.userAgent : '')
     // Samsung/Android: use longer timeout (25s), try high accuracy first, fallback to battery-saving
     const highAccuracyOptions = {
       enableHighAccuracy: true,
@@ -439,15 +432,9 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     }
     setLocationLoading(true)
     try {
-      const tryGetPosition = (opts: typeof highAccuracyOptions) =>
-        new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => resolve(pos),
-            (err) => reject(err),
-            opts
-          )
-        })
-      let position: GeolocationPosition
+      const tryGetPosition = (opts: typeof highAccuracyOptions) => getDeviceGeolocationPosition(opts)
+        
+      let position: { latitude: number; longitude: number; accuracy?: number | null }
       try {
         position = await tryGetPosition(highAccuracyOptions)
       } catch (firstErr) {
@@ -467,8 +454,8 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
+          lat: position.latitude,
+          lng: position.longitude,
         }),
       }).catch(() => {})
 

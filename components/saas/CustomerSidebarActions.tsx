@@ -6,6 +6,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
 import { getFCMToken } from '@/lib/firebase'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, isGeolocationUserDenied } from '@/lib/device-geolocation'
 
 export function CustomerSidebarActions() {
   const { t } = useLanguage()
@@ -73,31 +74,28 @@ export function CustomerSidebarActions() {
     }
   }, [showToast])
 
-  const requestLocation = useCallback(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+  const requestLocation = useCallback(async () => {
+    if (!isDeviceGeolocationSupported()) {
       showToast('Location not supported in this browser.', 'الموقع غير مدعوم في هذا المتصفح.', 'error')
       return
     }
     setLocationLoading(true)
-    navigator.geolocation.getCurrentPosition(
-      () => {
-        setLocationLoading(false)
-        showToast('تم تفعيل الموقع بنجاح.', 'Location enabled successfully.', 'success')
-      },
-      (err) => {
-        setLocationLoading(false)
-        if (err.code === 1) {
-          showToast(
-            'تم رفض الوصول للموقع. فعّله من إعدادات المتصفح.',
-            'Location access denied. Enable it in your browser settings.',
-            'error'
-          )
-        } else {
-          showToast('تعذّر الحصول على الموقع.', 'Could not get location.', 'error')
-        }
-      },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 }
-    )
+    try {
+      await getDeviceGeolocationPosition({ enableHighAccuracy: false, timeout: 10000, maximumAge: 0 })
+      setLocationLoading(false)
+      showToast('تم تفعيل الموقع بنجاح.', 'Location enabled successfully.', 'success')
+    } catch (err) {
+      setLocationLoading(false)
+      if (isGeolocationUserDenied(err)) {
+        showToast(
+          'تم رفض الوصول للموقع. فعّله من إعدادات المتصفح.',
+          'Location access denied. Enable it in your browser settings.',
+          'error'
+        )
+      } else {
+        showToast('تعذّر الحصول على الموقع.', 'Could not get location.', 'error')
+      }
+    }
   }, [showToast])
 
   return (

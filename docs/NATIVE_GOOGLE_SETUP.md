@@ -48,22 +48,35 @@ Redeploy the site after changing env vars so the WebView loads JS with the new v
 - **Google** must stay enabled with **custom credentials** (same Web client as above).  
 - No separate “One Tap” toggle is required for this flow; the token is validated like One Tap.
 
-### Native applications (required for production mobile)
+### Native API + Native applications (required for mobile)
 
-Clerk’s production checklist expects each **Android** shell to be registered:
+Per [Clerk’s Android quickstart](https://clerk.com/docs/android/getting-started/quickstart), you must:
 
-1. Dashboard → **Native applications** → add one entry per app: `com.burhankhatib.bedi` (customer), `com.burhankhatib.bedi.driver` (driver), `com.burhankhatib.bedi.tenant` (tenant).  
-2. Provide the **SHA-256** fingerprint of the keystore that signs the build (debug keystore for local runs; Play signing key for store builds).  
+1. Open **[Native applications](https://dashboard.clerk.com/~/native-applications)** for the **same Clerk instance** as your production keys (`pk_live_…`).  
+2. Turn **ON** the **Native API** toggle (if it is off, Clerk can reject native / WebView flows with **authorization_invalid** even when the Google token’s `aud` is correct).  
+3. Register each **Android** shell:  
+   - **Customer:** `com.burhankhatib.bedi`  
+   - **Driver:** `com.burhankhatib.bedi.driver`  
+   - **Tenant:** `com.burhankhatib.bedi.tenant`  
+4. For each app, paste the **SHA-256** fingerprint of the keystore that signs the APK you run (**debug** keystore for emulator / local installs; Play App Signing certificate for Play builds).  
 
-If these entries are missing, you can get a generic **“You are not authorized to perform this request”** / `authorization_invalid` **after** Google returns a token.
+Get SHA-256 from the debug keystore:
 
-### Optional: legal acceptance (sign-in and sign-up)
+```bash
+keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
+```
 
-If your Clerk instance **requires** terms/privacy acceptance for OAuth-style sign-in, native Google One Tap can return **authorization_invalid** until Clerk receives `legalAccepted`. Set on Vercel / `.env.local`:
+If Native API is off or the package/SHA-256 pair does not match the installed APK, you often see **“You are not authorized to perform this request”** after choosing a Google account.
 
-`NEXT_PUBLIC_NATIVE_GOOGLE_LEGAL_ACCEPTED=1`
+### Legal acceptance (`legalAccepted`)
 
-Only enable this if it matches your legal UX (e.g. user already accepted terms in-app).
+The native Google button **sends `legalAccepted: true` on the first request by default** (many Clerk instances require it for this strategy).
+
+To match older behavior (try **without** legal first, then retry **with** legal only after an authorization error), set:
+
+`NEXT_PUBLIC_NATIVE_GOOGLE_SKIP_LEGAL_ACCEPTED=1`
+
+Only change this if your lawyer/product rules require not implying terms acceptance from this button alone.
 
 ## 4. Capacitor
 
@@ -85,12 +98,37 @@ Open **Android Studio** → **Sync Project with Gradle Files** if needed.
 
 On **native only**, `/sign-in` and `/sign-up` show **Continue with Google (native)** above the Clerk form. On **normal browsers** the button is hidden; use the regular Clerk Google button there.
 
-## 6. Troubleshooting
+## 6. If Google still fails after Native API + SHA-256 + legal flag
+
+Email/password proves your **Clerk instance and keys** work; the remaining failure is almost always **Clerk’s handling of the Google One Tap / ID-token path** for your exact setup (Capacitor WebView + native ID token).
+
+1. In **Clerk Dashboard → Logs**, find the failed request and copy the **trace / request id** for `authorization_invalid`.  
+2. Open **[Clerk support](https://clerk.com/support)** (or your plan’s channel) and ask why **`authenticateWithGoogleOneTap` / `google_one_tap`** returns **authorization_invalid** for a token whose **`aud`** matches your Web client, with **Native API enabled** and the **correct Android package + SHA-256** registered. Mention **Capacitor** and that the UI loads **`https://www.bedi.delivery`** in a WebView.
+
+We are **not** removing the native Google button; a fix may require a Clerk-side rule change, a documented alternate strategy, or a future SDK update.
+
+## 7. Troubleshooting
 
 - **`You CANNOT use scopes without modifying the main activity`** – The Bedi app no longer passes custom `scopes` from JS (the plugin already adds email, profile, openid). All three Android `MainActivity` classes also implement `ModifiedMainActivityForSocialLoginPlugin` as required by `@capgo/capacitor-social-login` if you add scopes later. Rebuild the Android app after pulling changes.
 - **JSON error on `clerk.bedi.delivery/v1/oa…` with `authorization_invalid`** – You opened **Clerk’s Google button inside the sign-in card** (redirect OAuth). That path breaks in the app WebView. In the Bedi app build, those buttons are **hidden on native**; use **Continue with Google** at the top only. If you still see the in-card Google button, deploy the latest web app and hard-refresh the WebView.
 - **No ID token** – Almost always **missing Android OAuth client** or **wrong SHA-1** for the package you’re running.  
 - **Clerk errors after token** – Web client ID mismatch: `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` must match the Clerk Google **Web** client.  
-- **“You are not authorized to perform this request”** after native Google succeeds – Most often: **Native applications** not registered (package + SHA-256), or the ID token **`aud`** does not match the **Web** client Clerk uses. Decode the JWT (e.g. [jwt.io](https://jwt.io)) and compare `aud` to the Web client ID in Clerk → Google.  
+- **“You are not authorized to perform this request”** after native Google succeeds – If **`aud` already matches** your Web client: turn **ON** [Native API](https://dashboard.clerk.com/~/native-applications) and register **package + SHA-256** for that APK. If **`aud` does not match**, fix `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` / Clerk Google Web client alignment.  
 - **Debug endpoint** – Set `DIAGNOSE_GOOGLE_TOKEN_SECRET` in the environment, then `POST /api/debug/google-id-token` with header `x-debug-secret: <same>` and body `{ "idToken": "<paste>" }`. Optionally set server `GOOGLE_WEB_CLIENT_ID` (same as Web client) and comma-separated `GOOGLE_ANDROID_OAUTH_CLIENT_IDS` so the route can run `verifyIdToken` with multiple audiences.  
 - **iOS** – Ensure `NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID` and the iOS OAuth client bundle ID match the Xcode target.
+
+## 8. Customer location in the native app (Capacitor Geolocation)
+
+The web app’s **`LocationProvider`** (`components/LocationContext.tsx`) now uses **`@capacitor/geolocation`** when `Capacitor.isNativePlatform()` is true, and falls back to `navigator.geolocation` in the browser.
+
+After pulling changes, run `npm install` at the repo root, then `npm run build:mobile:customer` (or per-app), and rebuild the native app. Android **`ACCESS_*_LOCATION`** and iOS **usage strings** are set in each shell under `capacitor/*/android` and `capacitor/*/ios`.
+
+Reuse **`getDeviceGeolocationPosition`** from `lib/device-geolocation.ts` anywhere you need a one-shot fix without duplicating native vs web logic.
+
+### 9. Emulator location setup
+
+If you run the app in an emulator and grant location permission but the app still shows "Where are you?" or says you are out of the service area:
+- **Android Emulator:** The emulator does not have a real GPS. Open the emulator's **Extended Controls** (three dots in the sidebar), go to **Location**, and search for or manually place a pin inside a configured service city for your app, then click **Set Location**.
+- **iOS Simulator:** In Xcode, select your scheme or go to **Features → Location** in the Simulator menu and select a **Custom Location** inside your service area.
+
+If the emulator location is unset or resolves to `0, 0`, geofencing and Nominatim reverse-geocoding will fail to match your available cities, resulting in the manual location gate fallback.

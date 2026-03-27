@@ -6,6 +6,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
 import { detectCityAndCountry } from '@/lib/geofencing-utils'
 import { useTenantPush } from './TenantPushContext'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, isGeolocationUserDenied } from '@/lib/device-geolocation'
 
 export function TenantSidebarActions({ slug }: { slug: string }) {
   const { t } = useLanguage()
@@ -37,48 +38,45 @@ export function TenantSidebarActions({ slug }: { slug: string }) {
   }
 
   const shareLocation = async () => {
-    if (!navigator.geolocation) {
+    if (!isDeviceGeolocationSupported()) {
       showToast('Location is not supported in this browser.', 'الموقع غير مدعوم في هذا المتصفح.', 'error')
       return
     }
     setLocationLoading(true)
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude
-        const lng = pos.coords.longitude
-        try {
-          const res = await fetch(`/api/tenants/${encodeURIComponent(slug)}/location`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lat, lng }),
-          })
-          if (!res.ok) throw new Error('Failed to save location')
-          const detected = detectCityAndCountry(lng, lat)
-          showToast(
-            'تم حفظ موقع العمل بنجاح!' + (detected ? ` (${detected.city})` : ''),
-            'Business location saved successfully!' + (detected ? ` (${detected.city})` : ''),
-            'success'
-          )
-        } catch {
-          showToast('فشل حفظ الموقع. حاول مرة أخرى.', 'Failed to save location. Try again.', 'error')
-        } finally {
-          setLocationLoading(false)
-        }
-      },
-      (err) => {
+    try {
+      const pos = await getDeviceGeolocationPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 })
+      const lat = pos.latitude
+      const lng = pos.longitude
+      try {
+        const res = await fetch(`/api/tenants/${encodeURIComponent(slug)}/location`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat, lng }),
+        })
+        if (!res.ok) throw new Error('Failed to save location')
+        const detected = detectCityAndCountry(lng, lat)
+        showToast(
+          'تم حفظ موقع العمل بنجاح!' + (detected ? ` (${detected.city})` : ''),
+          'Business location saved successfully!' + (detected ? ` (${detected.city})` : ''),
+          'success'
+        )
+      } catch {
+        showToast('فشل حفظ الموقع. حاول مرة أخرى.', 'Failed to save location. Try again.', 'error')
+      } finally {
         setLocationLoading(false)
-        if (err.code === 1) {
-          showToast(
-            'تم رفض الوصول للموقع. فعّله من إعدادات المتصفح أو الجهاز.',
-            'Location access denied. Enable it in your browser or device settings.',
-            'error'
-          )
-        } else {
-          showToast('تعذّر الحصول على الموقع. حاول مرة أخرى.', 'Could not get location. Try again.', 'error')
-        }
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    )
+      }
+    } catch (err: any) {
+      setLocationLoading(false)
+      if (isGeolocationUserDenied(err)) {
+        showToast(
+          'تم رفض الوصول للموقع. فعّله من إعدادات المتصفح أو الجهاز.',
+          'Location access denied. Enable it in your browser or device settings.',
+          'error'
+        )
+      } else {
+        showToast('تعذّر الحصول على الموقع. حاول مرة أخرى.', 'Could not get location. Try again.', 'error')
+      }
+    }
   }
 
   return (

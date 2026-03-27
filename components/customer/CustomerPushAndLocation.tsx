@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/components/LanguageContext'
 import { getFCMToken } from '@/lib/firebase'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, checkDeviceGeolocationPermission } from '@/lib/device-geolocation'
 
 const STORAGE_KEY_DISMISSED = 'bedi-customer-push-dismissed'
 const AUTO_PROMPT_DELAY_MS = 2000
@@ -19,23 +20,17 @@ export function CustomerPushAndLocation() {
   const [dismissed, setDismissed] = useState(false)
   const [showManualInstructions, setShowManualInstructions] = useState(false)
 
-  const syncPermissions = useCallback(() => {
+  const syncPermissions = useCallback(async () => {
     if (typeof window === 'undefined') return
     if (typeof Notification !== 'undefined') setPushPermission(Notification.permission)
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      if (!('permissions' in navigator)) {
-        setLocationState('unsupported')
-        return
-      }
-      const perms = (navigator as { permissions?: { query: (p: { name: string }) => Promise<{ state: string }> } }).permissions
-      if (perms?.query) {
-        perms.query({ name: 'geolocation' }).then((r) => {
-          if (r.state === 'granted') setLocationState('granted')
-          else if (r.state === 'denied') setLocationState('denied')
-          else setLocationState('prompt')
-        }).catch(() => setLocationState('unsupported'))
-      } else setLocationState('prompt')
-    } else setLocationState('unsupported')
+    
+    if (!isDeviceGeolocationSupported()) {
+      setLocationState('unsupported')
+      return
+    }
+    
+    const status = await checkDeviceGeolocationPermission()
+    setLocationState(status)
   }, [])
 
   useEffect(() => {
@@ -85,19 +80,16 @@ export function CustomerPushAndLocation() {
     }
   }, [])
 
-  const requestLocation = useCallback(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      () => {
-        setLocationState('granted')
-        syncPermissions()
-      },
-      () => {
-        setLocationState('denied')
-        setShowManualInstructions(true)
-      },
-      { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
-    )
+  const requestLocation = useCallback(async () => {
+    if (!isDeviceGeolocationSupported()) return
+    try {
+      await getDeviceGeolocationPosition({ enableHighAccuracy: false, timeout: 5000, maximumAge: 0 })
+      setLocationState('granted')
+      syncPermissions()
+    } catch {
+      setLocationState('denied')
+      setShowManualInstructions(true)
+    }
   }, [syncPermissions])
 
   const dismiss = () => {
@@ -112,7 +104,7 @@ export function CustomerPushAndLocation() {
   if (!mounted || dismissed) return null
   const canUsePush = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
   const needsPush = canUsePush && pushPermission !== 'granted' && typeof Notification !== 'undefined'
-  const needsLocation = locationState === 'prompt' && typeof navigator !== 'undefined' && !!navigator.geolocation
+  const needsLocation = locationState === 'prompt' && isDeviceGeolocationSupported()
   const showBanner = (needsPush || needsLocation) && (pushPermission !== 'denied' || locationState !== 'denied' || showManualInstructions)
 
   if (!showBanner) return null

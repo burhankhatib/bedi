@@ -5,6 +5,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { useToast } from '@/components/ui/ToastProvider'
 import { Button } from '@/components/ui/button'
 import { Clock3, LogIn, LogOut } from 'lucide-react'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported } from '@/lib/device-geolocation'
 
 type AttendanceSession = {
   _id: string
@@ -21,17 +22,15 @@ type AttendanceSession = {
 }
 
 async function getCurrentPosition(): Promise<{ lat: number; lng: number }> {
-  return new Promise((resolve, reject) => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      reject(new Error('Geolocation is not available on this device'))
-      return
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => reject(new Error(err.message || 'Location permission denied')),
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 }
-    )
-  })
+  if (!isDeviceGeolocationSupported()) {
+    throw new Error('Geolocation is not available on this device')
+  }
+  try {
+    const pos = await getDeviceGeolocationPosition({ enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 })
+    return { lat: pos.latitude, lng: pos.longitude }
+  } catch (err: any) {
+    throw new Error(err.message || 'Location permission denied')
+  }
 }
 
 export function AttendanceManageClient({

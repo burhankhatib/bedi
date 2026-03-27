@@ -26,6 +26,7 @@ import {
 } from '@/lib/maps-utils'
 import { getCityDisplayName } from '@/lib/registration-translations'
 import { formatQuantityWithUnit } from '@/lib/sale-units'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, watchDeviceGeolocation, clearDeviceGeolocationWatch, WatchGeolocationId } from '@/lib/device-geolocation'
 import dynamic from 'next/dynamic'
 
 import { SlideToComplete } from './SlideToComplete'
@@ -123,19 +124,18 @@ const isSamsungLike = () =>
   typeof navigator !== 'undefined' && /samsung|android/i.test(navigator.userAgent)
 const GEOLOC_TIMEOUT = () => (isSamsungLike() ? 25000 : 10000)
 
-const pushDriverLocation = () => {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) return
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      fetch('/api/driver/location', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      }).catch(() => {})
-    },
-    () => {},
-    { enableHighAccuracy: true, timeout: GEOLOC_TIMEOUT(), maximumAge: 0 },
-  )
+const pushDriverLocation = async () => {
+  if (!isDeviceGeolocationSupported()) return
+  try {
+    const pos = await getDeviceGeolocationPosition({ enableHighAccuracy: true, timeout: GEOLOC_TIMEOUT(), maximumAge: 0 })
+    await fetch('/api/driver/location', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat: pos.latitude, lng: pos.longitude }),
+    })
+  } catch {
+    // ignore
+  }
 }
 
 const fmtCurrency = (c: string) =>
@@ -283,26 +283,39 @@ function DriverOrdersV2Content() {
 
   /* ── always-on driver geolocation (for distance calcs + map). Samsung: longer timeout. ────── */
   useEffect(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    if (!isDeviceGeolocationSupported()) return
     const timeout = GEOLOC_TIMEOUT()
-    navigator.geolocation.getCurrentPosition(
+    
+    getDeviceGeolocationPosition({ enableHighAccuracy: true, timeout, maximumAge: 0 })
+      .then((pos) => {
+        setDriverLat(pos.latitude)
+        setDriverLng(pos.longitude)
+      })
+      .catch(() => {})
+
+    let watchId: WatchGeolocationId | null = null
+    let active = true
+
+    watchDeviceGeolocation(
       (pos) => {
-        setDriverLat(pos.coords.latitude)
-        setDriverLng(pos.coords.longitude)
+        if (!active) return
+        setDriverLat(pos.latitude)
+        setDriverLng(pos.longitude)
       },
       () => {},
-      // maximumAge 0: avoid reusing a coarse / stale fix (can be ~1km off indoors).
       { enableHighAccuracy: true, timeout, maximumAge: 0 },
-    )
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setDriverLat(pos.coords.latitude)
-        setDriverLng(pos.coords.longitude)
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout, maximumAge: 0 },
-    )
-    return () => navigator.geolocation.clearWatch(watchId)
+    ).then((id) => {
+      if (active) {
+        watchId = id
+      } else {
+        clearDeviceGeolocationWatch(id)
+      }
+    }).catch(() => {})
+
+    return () => {
+      active = false
+      if (watchId !== null) clearDeviceGeolocationWatch(watchId)
+    }
   }, [])
 
   useEffect(() => { activeMapOrderIdRef.current = activeMapOrderId }, [activeMapOrderId])

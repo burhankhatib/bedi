@@ -13,6 +13,7 @@ import { detectCityAndCountry } from '@/lib/geofencing-utils'
 import { compressImageForUpload } from '@/lib/compress-image'
 import { EntityRatingBadge } from '@/components/rating/EntityRatingBadge'
 import { Truck, Upload, ImageIcon, Trash2, AlertTriangle, LocateFixed } from 'lucide-react'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported } from '@/lib/device-geolocation'
 
 const VEHICLE_OPTIONS = [
   { value: '', label: '—', labelAr: '—' },
@@ -148,20 +149,18 @@ export function DriverProfileClient() {
       .finally(() => setLoading(false))
 
     // Auto-detect location for new registrations (when country/city are empty)
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const result = detectCityAndCountry(pos.coords.longitude, pos.coords.latitude)
+    if (isDeviceGeolocationSupported()) {
+      getDeviceGeolocationPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 })
+        .then((pos) => {
+          const result = detectCityAndCountry(pos.longitude, pos.latitude)
           if (result) {
             setForm((f) => {
               if (f.country && f.city) return f // don't overwrite if already set
               return { ...f, country: f.country || result.countryCode, city: f.city || result.city }
             })
           }
-        },
-        () => {}, // silently ignore — not a hard requirement
-        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
-      )
+        })
+        .catch(() => {}) // silently ignore — not a hard requirement
     }
   }, [])
 
@@ -483,29 +482,26 @@ export function DriverProfileClient() {
             type="button"
             disabled={detectingLocation}
             className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-amber-400 hover:bg-slate-800 transition-colors disabled:opacity-50"
-            onClick={() => {
-              if (!navigator.geolocation) {
+            onClick={async () => {
+              if (!isDeviceGeolocationSupported()) {
                 showToast(t('Location not supported.', 'الموقع غير مدعوم.'), '', 'error')
                 return
               }
               setDetectingLocation(true)
-              navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                  const result = detectCityAndCountry(pos.coords.longitude, pos.coords.latitude)
-                  setDetectingLocation(false)
-                  if (result) {
-                    setForm((f) => ({ ...f, country: result.countryCode, city: result.city }))
-                    showToast(t(`Detected: ${result.city}`, `تم الكشف: ${result.city}`), '', 'success')
-                  } else {
-                    showToast(t('Could not detect your city. Please select manually.', 'تعذر الكشف عن مدينتك. يرجى الاختيار يدوياً.'), '', 'error')
-                  }
-                },
-                () => {
-                  setDetectingLocation(false)
-                  showToast(t('Location access denied. Enable it in settings.', 'تم رفض الوصول للموقع. فعّله من الإعدادات.'), '', 'error')
-                },
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-              )
+              try {
+                const pos = await getDeviceGeolocationPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 })
+                const result = detectCityAndCountry(pos.longitude, pos.latitude)
+                setDetectingLocation(false)
+                if (result) {
+                  setForm((f) => ({ ...f, country: result.countryCode, city: result.city }))
+                  showToast(t(`Detected: ${result.city}`, `تم الكشف: ${result.city}`), '', 'success')
+                } else {
+                  showToast(t('Could not detect your city. Please select manually.', 'تعذر الكشف عن مدينتك. يرجى الاختيار يدوياً.'), '', 'error')
+                }
+              } catch (err) {
+                setDetectingLocation(false)
+                showToast(t('Location access denied. Enable it in settings.', 'تم رفض الوصول للموقع. فعّله من الإعدادات.'), '', 'error')
+              }
             }}
           >
             <LocateFixed className={`size-4 ${detectingLocation ? 'animate-pulse' : ''}`} />

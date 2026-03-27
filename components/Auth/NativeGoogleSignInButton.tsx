@@ -9,7 +9,41 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 let socialLoginInitPromise: Promise<void> | null = null
 
-/** Decode JWT payload (no signature check) to compare `aud` with Clerk’s Google Web client ID. */
+function looksLikeClerkAuthzFailure(e: unknown): boolean {
+  if (
+    typeof e === 'object' &&
+    e !== null &&
+    'errors' in e &&
+    Array.isArray((e as { errors: unknown }).errors)
+  ) {
+    const errors = (e as { errors: Array<{ code?: string; message?: string }> }).errors
+    if (
+      errors.some(
+        (err) =>
+          err.code === 'authorization_invalid' ||
+          /not authorized/i.test(err.message ?? '')
+      )
+    ) {
+      return true
+    }
+  }
+  if (
+    typeof e === 'object' &&
+    e !== null &&
+    'clerkError' in e &&
+    (e as { code?: string }).code === 'authorization_invalid'
+  ) {
+    return true
+  }
+  const msg =
+    e instanceof Error
+      ? `${e.message} ${'code' in e ? String((e as { code?: string }).code ?? '') : ''} ${'longMessage' in e ? String((e as { longMessage?: string }).longMessage ?? '') : ''}`
+      : typeof e === 'string'
+        ? e
+        : ''
+  return /not authorized|authorization_invalid|forbidden/i.test(msg)
+}
+
 function readGoogleIdTokenAud(idToken: string): string | null {
   try {
     const part = idToken.split('.')[1]
@@ -136,12 +170,26 @@ export function NativeGoogleSignInButton({
 
       idTokenUsed = token
 
-      const oneTapParams: { token: string; legalAccepted?: boolean } = { token }
-      if (process.env.NEXT_PUBLIC_NATIVE_GOOGLE_LEGAL_ACCEPTED === '1') {
-        oneTapParams.legalAccepted = true
+      // Clerk often requires legalAccepted for this flow. By default we send it on the first request.
+      // Set NEXT_PUBLIC_NATIVE_GOOGLE_SKIP_LEGAL_ACCEPTED=1 to try without legal first, then retry with legal only if Clerk returns an authorization error.
+      const skipLegalFirst = process.env.NEXT_PUBLIC_NATIVE_GOOGLE_SKIP_LEGAL_ACCEPTED === '1'
+
+      const runOneTap = (includeLegal: boolean) => {
+        const p: { token: string; legalAccepted?: boolean } = { token }
+        if (includeLegal) p.legalAccepted = true
+        return clerk.authenticateWithGoogleOneTap(p)
       }
 
-      const authResult = await clerk.authenticateWithGoogleOneTap(oneTapParams)
+      let authResult
+      try {
+        authResult = await runOneTap(!skipLegalFirst)
+      } catch (firstErr) {
+        if (skipLegalFirst && looksLikeClerkAuthzFailure(firstErr)) {
+          authResult = await runOneTap(true)
+        } else {
+          throw firstErr
+        }
+      }
 
       const sessionId = authResult.createdSessionId
       const finished = authResult.status === 'complete'
@@ -168,16 +216,16 @@ export function NativeGoogleSignInButton({
       )
     } catch (e) {
       let message = e instanceof Error ? e.message : 'Google sign-in failed'
-      if (/not authorized|authorization_invalid/i.test(message)) {
+      if (looksLikeClerkAuthzFailure(e) || /not authorized|authorization_invalid/i.test(message)) {
         const tokenAud = idTokenUsed ? readGoogleIdTokenAud(idTokenUsed) : null
         const expected = webClientId ?? ''
         const audHint =
           tokenAud && expected && tokenAud !== expected
             ? ` Token aud is "${tokenAud}" but NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID is "${expected}" — they must match the Web client ID in Clerk → Google.`
             : tokenAud && expected && tokenAud === expected
-              ? ' Token aud matches your Web client ID; if this persists, add the app under Clerk → Native applications (package + SHA-256) and redeploy.'
+              ? ' Google token is valid (aud matches). In Clerk: Native applications → enable “Native API”, then add this APK’s package + SHA-256 (debug keystore for emulator).'
               : ''
-        message = `${message} — Check Clerk → Native applications (Android package + SHA-256), and that the Google Web client in Clerk matches NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID.${audHint} Try NEXT_PUBLIC_NATIVE_GOOGLE_LEGAL_ACCEPTED=1 if your instance requires terms acceptance. See docs/NATIVE_GOOGLE_SETUP.md.`
+        message = `${message}${audHint} Confirm Clerk → Google uses the same Web client. See docs/NATIVE_GOOGLE_SETUP.md.`
       }
       if (mounted.current) setInitError(message)
       console.error('[NativeGoogleSignIn]', e)

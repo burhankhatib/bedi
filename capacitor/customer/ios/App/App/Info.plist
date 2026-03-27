@@ -47,5 +47,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Bedi Delivery uses your location to show nearby restaurants and delivery options.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Bedi Delivery uses your location to show nearby restaurants and delivery options.</string>
 </dict>
 </plist>

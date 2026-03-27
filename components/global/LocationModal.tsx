@@ -7,6 +7,7 @@ import { useLanguage } from '@/components/LanguageContext'
 import { getCityDisplayName, GEO_CITY_ALIASES } from '@/lib/registration-translations'
 import { getCityFromCoordinates } from '@/lib/geofencing'
 import { fetchWithTimeout } from '@/lib/fetchWithTimeout'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, isGeolocationUserDenied } from '@/lib/device-geolocation'
 
 const REVERSE_GEOCODE_TIMEOUT_MS = 12_000
 import { Button } from '@/components/ui/button'
@@ -44,9 +45,9 @@ export function LocationModal() {
     }
   }
 
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      alert(t('Geolocation is not supported by your browser.', 'الموقع الجغرافي غير مدعوم في متصفحك.'))
+  const handleUseCurrentLocation = async () => {
+    if (!isDeviceGeolocationSupported()) {
+      alert(t('Geolocation is not supported by your device.', 'الموقع الجغرافي غير مدعوم في جهازك.'))
       return
     }
 
@@ -54,85 +55,83 @@ export function LocationModal() {
     const locateWatchdog = window.setTimeout(() => {
       setIsLocating(false)
     }, 45_000)
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const { latitude, longitude } = position.coords
 
-          // 1) Try instant polygon-based geofencing first (accurate & offline)
-          const geofenceCity = getCityFromCoordinates(longitude, latitude, polygons ?? undefined)
-          if (geofenceCity) {
-            const match = availableCities.find(c => c.toLowerCase() === geofenceCity.toLowerCase())
-            if (match) {
-              setCity(match)
-              setLocation(match)
-              return
-            }
-          }
+    try {
+      const position = await getDeviceGeolocationPosition({ enableHighAccuracy: false, timeout: 15_000, maximumAge: 0 })
+      const { latitude, longitude } = position
 
-          // 2) Fallback: Nominatim reverse geocoding for locations outside defined polygons
-          const res = await fetchWithTimeout(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
-            { headers: { 'Accept-Language': 'en' } },
-            REVERSE_GEOCODE_TIMEOUT_MS
-          )
-          const data = await res.json()
-          const address = data.address || {}
-          const addressValues: string[] = [
-            address.city,
-            address.town,
-            address.village,
-            address.municipality,
-            address.suburb,
-            address.county,
-            address.state
-          ].filter(Boolean)
-
-          let foundCity = ''
-          for (const val of addressValues) {
-             const normalized = val.toLowerCase().trim()
-             if (GEO_CITY_ALIASES[normalized]) {
-               foundCity = GEO_CITY_ALIASES[normalized]
-               break
-             }
-          }
-
-          if (!foundCity && addressValues.length > 0) {
-            foundCity = addressValues[0]
-          }
-          
-          if (foundCity) {
-            const match = availableCities.find(c => {
-               const enMatch = c.toLowerCase() === foundCity.toLowerCase() || foundCity.toLowerCase().includes(c.toLowerCase())
-               const arName = getCityDisplayName(c, 'ar')
-               const arMatch = arName === foundCity || foundCity.includes(arName)
-               return enMatch || arMatch
-            })
-
-            if (match) {
-              setCity(match)
-              setLocation(match)
-            } else {
-              alert(t('We could not find active businesses in your area: ', 'عذراً لا توجد أعمال نشطة في منطقتك الحالية: ') + foundCity)
-            }
-          } else {
-             alert(t('Could not determine your city from coordinates.', 'لم نتمكن من تحديد مدينتك بدقة من الإحداثيات.'))
-          }
-        } catch (error) {
-          console.error("Geocoding failed", error)
-        } finally {
+      // 1) Try instant polygon-based geofencing first (accurate & offline)
+      const geofenceCity = getCityFromCoordinates(longitude, latitude, polygons ?? undefined)
+      if (geofenceCity) {
+        const match = availableCities.find(c => c.toLowerCase() === geofenceCity.toLowerCase())
+        if (match) {
+          setCity(match)
+          setLocation(match)
           clearTimeout(locateWatchdog)
           setIsLocating(false)
+          return
         }
-      },
-      (error) => {
-        console.error(error)
-        clearTimeout(locateWatchdog)
-        setIsLocating(false)
+      }
+
+      // 2) Fallback: Nominatim reverse geocoding for locations outside defined polygons
+      const res = await fetchWithTimeout(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
+        { headers: { 'Accept-Language': 'en' } },
+        REVERSE_GEOCODE_TIMEOUT_MS
+      )
+      const data = await res.json()
+      const address = data.address || {}
+      const addressValues: string[] = [
+        address.city,
+        address.town,
+        address.village,
+        address.municipality,
+        address.suburb,
+        address.county,
+        address.state
+      ].filter(Boolean)
+
+      let foundCity = ''
+      for (const val of addressValues) {
+         const normalized = val.toLowerCase().trim()
+         if (GEO_CITY_ALIASES[normalized]) {
+           foundCity = GEO_CITY_ALIASES[normalized]
+           break
+         }
+      }
+
+      if (!foundCity && addressValues.length > 0) {
+        foundCity = addressValues[0]
+      }
+      
+      if (foundCity) {
+        const match = availableCities.find(c => {
+           const enMatch = c.toLowerCase() === foundCity.toLowerCase() || foundCity.toLowerCase().includes(c.toLowerCase())
+           const arName = getCityDisplayName(c, 'ar')
+           const arMatch = arName === foundCity || foundCity.includes(arName)
+           return enMatch || arMatch
+        })
+
+        if (match) {
+          setCity(match)
+          setLocation(match)
+        } else {
+          alert(t('We could not find active businesses in your area: ', 'عذراً لا توجد أعمال نشطة في منطقتك الحالية: ') + foundCity)
+        }
+      } else {
+         alert(t('Could not determine your city from coordinates.', 'لم نتمكن من تحديد مدينتك بدقة من الإحداثيات.'))
+      }
+    } catch (error) {
+      console.error(error)
+      if (isGeolocationUserDenied(error)) {
         alert(t('Unable to retrieve your location. Please check your permissions.', 'تعذر الوصول إلى موقعك. يرجى التحقق من الصلاحيات.'))
-      },
-      { enableHighAccuracy: false, timeout: 15_000, maximumAge: 0 }
-    )
+      } else {
+        alert(t('Unable to retrieve your location.', 'تعذر الوصول إلى موقعك.'))
+      }
+    } finally {
+      clearTimeout(locateWatchdog)
+      setIsLocating(false)
+    }
   }
 
   const isRtl = lang === 'ar'

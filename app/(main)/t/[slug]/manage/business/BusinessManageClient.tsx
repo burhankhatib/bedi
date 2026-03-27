@@ -16,6 +16,7 @@ import { TenantQRCode } from '@/components/TenantQRCode'
 import { useTenantBusiness } from '../TenantBusinessContext'
 import { isAbortError } from '@/lib/abort-utils'
 import { AUTO_DELIVERY_DROPDOWN_SEQUENCE } from '@/lib/auto-delivery-request'
+import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, isGeolocationUserDenied } from '@/lib/device-geolocation'
 import dynamic from 'next/dynamic'
 
 const LocationPickerMap = dynamic(() => import('@/components/Cart/LocationPickerMap'), { ssr: false })
@@ -83,48 +84,45 @@ function BusinessLocationShare({ slug, onSuccess, onCityDetected }: { slug: stri
   const [saved, setSaved] = useState<{ lat: number; lng: number } | null>(null)
 
   const shareLocation = async () => {
-    if (!navigator.geolocation) {
+    if (!isDeviceGeolocationSupported()) {
       showToast('Location is not supported in this browser.', 'الموقع غير مدعوم في هذا المتصفح.', 'error')
       return
     }
     setState('loading')
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude
-        const lng = pos.coords.longitude
-        try {
-          const res = await fetch(`/api/tenants/${encodeURIComponent(slug)}/location`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lat, lng }),
-          })
-          if (!res.ok) throw new Error('Failed to save location')
-          setSaved({ lat, lng })
-          setState('done')
-          if (onSuccess) onSuccess(lat, lng)
-          // Auto-detect city from GPS polygon boundaries
-          const detected = detectCityAndCountry(lng, lat)
-          if (detected && onCityDetected) onCityDetected(detected.countryCode, detected.city)
-          showToast('تم حفظ موقع العمل بنجاح!' + (detected ? ` (${detected.city})` : ''), undefined, 'success')
-        } catch {
-          setState('idle')
-          showToast('فشل حفظ الموقع. حاول مرة أخرى.', undefined, 'error')
-        }
-      },
-      (err) => {
+    try {
+      const pos = await getDeviceGeolocationPosition({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 })
+      const lat = pos.latitude
+      const lng = pos.longitude
+      try {
+        const res = await fetch(`/api/tenants/${encodeURIComponent(slug)}/location`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat, lng }),
+        })
+        if (!res.ok) throw new Error('Failed to save location')
+        setSaved({ lat, lng })
+        setState('done')
+        if (onSuccess) onSuccess(lat, lng)
+        // Auto-detect city from GPS polygon boundaries
+        const detected = detectCityAndCountry(lng, lat)
+        if (detected && onCityDetected) onCityDetected(detected.countryCode, detected.city)
+        showToast('تم حفظ موقع العمل بنجاح!' + (detected ? ` (${detected.city})` : ''), undefined, 'success')
+      } catch {
         setState('idle')
-        if (err.code === 1) {
-          showToast(
-            'Location access denied. Enable it in your browser or device settings.',
-            'تم رفض الوصول للموقع. فعّله من إعدادات المتصفح أو الجهاز.',
-            'error'
-          )
-        } else {
-          showToast('Could not get location. Try again.', 'تعذّر الحصول على الموقع. حاول مرة أخرى.', 'error')
-        }
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    )
+        showToast('فشل حفظ الموقع. حاول مرة أخرى.', undefined, 'error')
+      }
+    } catch (err: any) {
+      setState('idle')
+      if (isGeolocationUserDenied(err)) {
+        showToast(
+          'Location access denied. Enable it in your browser or device settings.',
+          'تم رفض الوصول للموقع. فعّله من إعدادات المتصفح أو الجهاز.',
+          'error'
+        )
+      } else {
+        showToast('Could not get location. Try again.', 'تعذّر الحصول على الموقع. حاول مرة أخرى.', 'error')
+      }
+    }
   }
 
   return (
