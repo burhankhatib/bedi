@@ -70,6 +70,7 @@ On **native only**, `/sign-in` and `/sign-up` show **Continue with Google (nativ
 
 ## 6. Troubleshooting
 
+- **JSON error on `clerk.bedi.delivery/v1/oa…` with `authorization_invalid`** – You opened **Clerk’s Google button inside the sign-in card** (redirect OAuth). That path breaks in the app WebView. In the Bedi app build, those buttons are **hidden on native**; use **Continue with Google** at the top only. If you still see the in-card Google button, deploy the latest web app and hard-refresh the WebView.
 - **No ID token** – Almost always **missing Android OAuth client** or **wrong SHA-1** for the package you’re running.  
 - **Clerk errors after token** – Web client ID mismatch: `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` must match the Clerk Google **Web** client.  
 - **iOS** – Ensure `NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID` and the iOS OAuth client bundle ID match the Xcode target.

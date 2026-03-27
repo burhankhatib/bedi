@@ -1,4 +1,4 @@
-import { SignIn } from '@clerk/nextjs'
+import { ClerkSignInNativeAware } from '@/components/Auth/ClerkSignInNativeAware'
 import { NativeGoogleSignInButton } from '@/components/Auth/NativeGoogleSignInButton'
 import { getAllowedRedirectPath } from '@/lib/auth-utils'
 
@@ -16,7 +16,7 @@ export default async function SignInPage({
     <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-12">
       <div className="mx-auto w-full max-w-md space-y-4">
         <NativeGoogleSignInButton mode="sign-in" redirectUrl={redirect_url} className="px-1" />
-        <SignIn
+        <ClerkSignInNativeAware
           appearance={{
             variables: { colorPrimary: '#f59e0b' },
             elements: {

@@ -137,8 +137,7 @@ export function NativeGoogleSignInButton({
   if (!Capacitor.isNativePlatform()) return null
   if (!webClientId) return null
 
-  const label =
-    mode === 'sign-in' ? 'Continue with Google (native)' : 'Sign up with Google (native)'
+  const label = mode === 'sign-in' ? 'Continue with Google' : 'Sign up with Google'
 
   return (
     <div className={className}>
@@ -157,7 +156,7 @@ export function NativeGoogleSignInButton({
         </p>
       ) : (
         <p className="mt-2 text-center text-xs text-slate-500">
-          Uses your device Google account. Required on Android/iOS WebView.
+          Use this button in the app — the Google option inside the form below does not work in the mobile app.
         </p>
       )}
     </div>
