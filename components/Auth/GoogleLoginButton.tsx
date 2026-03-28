@@ -55,8 +55,8 @@ export function GoogleLoginButton({ mode, redirectUrl, className }: GoogleLoginB
       : t('Sign up with Google', 'إنشاء حساب عبر Google')
   const busyLabel = t('Signing in…', 'جاري تسجيل الدخول…')
   const helper = t(
-    'Uses the secure native Google account picker.',
-    'يستخدم منتقي حسابات Google الأصلي الآمن.',
+    'Opens Google in your browser, then returns to this app.',
+    'يفتح Google في المتصفح ثم يعيدك إلى التطبيق.',
   )
 
   return (

@@ -1,23 +1,28 @@
 'use client'
 
 /**
- * Clerk does not ship `useOAuth` in `@clerk/nextjs` v6. This hook mirrors the typical
- * `useOAuth({ strategy: 'oauth_google' })` shape for Capacitor: `startOAuth` builds the
- * Clerk OAuth URL via `signIn` / `signUp` and opens the system browser.
+ * Browser-based OAuth via Clerk `signIn` / `signUp` + `strategy: 'oauth_google'`.
+ *
+ * Opens the system browser (Custom Tabs / SFSafariViewController) for the OAuth flow.
+ * After Google + Clerk finish they redirect back to `<appId>://oauth-callback`; the OS
+ * re-opens the app and CapacitorAppUrlListener completes the session.
+ *
+ * This avoids the SHA-256 / Native-API attestation requirement of the ID-token path
+ * and is the standard Capacitor + Clerk approach.
  *
  * Prefer {@link GoogleLoginButton} unless you need a fully custom UI.
  */
 
 import { useCallback } from 'react'
-import { useSignIn, useSignUp, useClerk } from '@clerk/nextjs'
+import { useSignIn, useSignUp } from '@clerk/nextjs'
 import { Capacitor } from '@capacitor/core'
-import { SocialLogin } from '@capgo/capacitor-social-login'
+import { InAppBrowser, DefaultSystemBrowserOptions } from '@capacitor/inappbrowser'
+import { resolveNativeOAuthRedirectUrl, storeOAuthReturnTo } from '@/lib/capacitor-native-oauth'
 import { getAllowedRedirectPath } from '@/lib/auth-utils'
 
 export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
   const { isLoaded: signInLoaded, signIn } = useSignIn()
   const { isLoaded: signUpLoaded, signUp } = useSignUp()
-  const { setActive } = useClerk()
 
   const isLoaded = mode === 'sign-in' ? signInLoaded : signUpLoaded
 
@@ -30,58 +35,29 @@ export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
       if (mode === 'sign-up' && !signUp) throw new Error('Clerk sign-up not ready')
 
       const dest = getAllowedRedirectPath(opts?.redirectUrl ?? null, '/')
+      storeOAuthReturnTo(dest)
+      const nativeRedirect = await resolveNativeOAuthRedirectUrl()
 
-      // 1. Initialize Plugin
-      await SocialLogin.initialize({
-        google: {
-          webClientId: process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-          iOSClientId: process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-        },
-      })
-
-      // 2. Open Native Google Account Picker
-      const res = await SocialLogin.login({
-        provider: 'google',
-        options: {
-          scopes: ['email', 'profile'],
-        },
-      })
-
-      const idToken = (res.result as any).idToken
-      if (!idToken) throw new Error('No ID token returned from Google native login')
-
-      // 3. Authenticate with Clerk using the Google ID Token
-      try {
-        const result = await signIn!.create({
-          strategy: 'google_one_tap' as any,
-          token: idToken,
+      if (mode === 'sign-in') {
+        const res = await signIn!.create({
+          strategy: 'oauth_google',
+          redirectUrl: nativeRedirect,
         })
-
-        if (result.status === 'complete') {
-          await setActive({ session: result.createdSessionId })
-          window.location.href = dest
-        } else {
-          console.warn('Sign in not complete', result)
-        }
-      } catch (error: any) {
-        // If the user doesn't exist yet, we catch the error and sign them up instead
-        if (error?.errors?.[0]?.code === 'form_identifier_not_found') {
-          const signUpResult = await signUp!.create({
-            strategy: 'google_one_tap' as any,
-            token: idToken,
-          })
-          if (signUpResult.status === 'complete') {
-            await setActive({ session: signUpResult.createdSessionId })
-            window.location.href = dest
-          } else {
-            console.warn('Sign up not complete', signUpResult)
-          }
-        } else {
-          throw error
-        }
+        const authUrl = res.firstFactorVerification.externalVerificationRedirectURL?.href
+        if (!authUrl) throw new Error('No OAuth URL from Clerk')
+        await InAppBrowser.openInSystemBrowser({ url: authUrl, options: DefaultSystemBrowserOptions })
+        return
       }
+
+      const res = await signUp!.create({
+        strategy: 'oauth_google',
+        redirectUrl: nativeRedirect,
+      })
+      const authUrl = res.verifications?.externalAccount?.externalVerificationRedirectURL?.href
+      if (!authUrl) throw new Error('No OAuth URL from Clerk')
+      await InAppBrowser.openInSystemBrowser({ url: authUrl, options: DefaultSystemBrowserOptions })
     },
-    [mode, signIn, signUp, setActive]
+    [mode, signIn, signUp]
   )
 
   return { isLoaded, startOAuth }

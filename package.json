@@ -10,7 +10,8 @@
     "build:mobile:customer": "cd capacitor/customer && mkdir -p out && npx cap sync",
     "build:mobile:driver": "cd capacitor/driver && mkdir -p out && npx cap sync",
     "build:mobile:tenant": "cd capacitor/tenant && mkdir -p out && npx cap sync",
-    "build:mobile": "npm run build:mobile:customer && npm run build:mobile:driver && npm run build:mobile:tenant",
+    "fix:capacitor-logs": "node scripts/ensure-capacitor-log-writable.mjs",
+    "build:mobile": "node scripts/ensure-capacitor-log-writable.mjs && npm run build:mobile:customer && npm run build:mobile:driver && npm run build:mobile:tenant",
     "start": "next start",
     "lint": "eslint",
     "import:baladi": "PLAYWRIGHT_BROWSERS_PATH=0 tsx scripts/import-baladi.ts",
@@ -26,7 +27,7 @@
     "import:talabat:url": "PLAYWRIGHT_BROWSERS_PATH=0 TALABAT_HEADLESS=false tsx scripts/import-talabat.ts --interactive-auth",
     "import:yummy": "PLAYWRIGHT_BROWSERS_PATH=0 tsx scripts/import-yummy.ts",
     "import:yummy:url": "PLAYWRIGHT_BROWSERS_PATH=0 YUMMY_HEADLESS=false tsx scripts/import-yummy.ts --interactive-auth",
-    "deploy": "clear && npm run build && sudo npm run build:mobile && git add . && (git commit -m \"deploy\" || true) && git push origin main",
+    "deploy": "clear && npm run build && npm run build:mobile && git add . && (git commit -m \"deploy\" || true) && git push origin main",
     "firebase:deploy": "firebase deploy --only firestore:indexes"
   },
   "dependencies": {

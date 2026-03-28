@@ -12,6 +12,14 @@ export function CapacitorAppUrlListener() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
 
+    // Handle cold-start: app was killed while Custom Tab was open
+    App.getLaunchUrl().then((result) => {
+      if (result?.url && isNativeOAuthCallbackDeepLink(result.url)) {
+        const search = nativeOAuthCallbackSearchParams(result.url)
+        router.push(`/auth/capacitor-oauth-callback${search}`)
+      }
+    }).catch(() => {})
+
     let listenerRef: any = null
 
     try {
