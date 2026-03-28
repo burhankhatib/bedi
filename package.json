@@ -26,7 +26,7 @@
     "import:talabat:url": "PLAYWRIGHT_BROWSERS_PATH=0 TALABAT_HEADLESS=false tsx scripts/import-talabat.ts --interactive-auth",
     "import:yummy": "PLAYWRIGHT_BROWSERS_PATH=0 tsx scripts/import-yummy.ts",
     "import:yummy:url": "PLAYWRIGHT_BROWSERS_PATH=0 YUMMY_HEADLESS=false tsx scripts/import-yummy.ts --interactive-auth",
-    "deploy": "clear && npm run build && npm run build:mobile && git add . && (git commit -m \"deploy\" || true) && git push origin main",
+    "deploy": "clear && npm run build && sudo npm run build:mobile && git add . && (git commit -m \"deploy\" || true) && git push origin main",
     "firebase:deploy": "firebase deploy --only firestore:indexes"
   },
   "dependencies": {

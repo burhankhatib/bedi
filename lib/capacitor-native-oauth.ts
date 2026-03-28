@@ -54,9 +54,13 @@ export async function resolveNativeOAuthRedirectUrl(): Promise<string> {
   if (fromEnv) return `${fromEnv}://${NATIVE_OAUTH_HOST}`
 
   if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
-    const { App } = await import('@capacitor/app')
-    const { id } = await App.getInfo()
-    if (id?.trim()) return `${id.trim()}://${NATIVE_OAUTH_HOST}`
+    try {
+      const { App } = await import('@capacitor/app')
+      const { id } = await App.getInfo()
+      if (id?.trim()) return `${id.trim()}://${NATIVE_OAUTH_HOST}`
+    } catch (err) {
+      console.warn('App.getInfo() failed, falling back to path inference.', err)
+    }
   }
 
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '/'

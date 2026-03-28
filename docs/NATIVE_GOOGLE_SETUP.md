@@ -119,7 +119,9 @@ Only change this if your lawyer/product rules require not implying terms accepta
 
 ## 4. Capacitor
 
-After `npm install`, sync native projects so Gradle/CocoaPods pick up the plugin:
+The `@capacitor/app` plugin **must** be installed in each shell (`capacitor/customer`, `capacitor/driver`, `capacitor/tenant`). It is required to handle deep links and return to the app via `App.addListener('appUrlOpen')`. Without it, you will see `App plugin is not implemented on Android` and the login will not complete.
+
+After `npm install` or adding new plugins, sync native projects so Gradle/CocoaPods pick up the plugin:
 
 ```bash
 npm run build:mobile

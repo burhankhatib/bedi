@@ -12,23 +12,31 @@ export function CapacitorAppUrlListener() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
 
-    const listener = App.addListener('appUrlOpen', (event) => {
-      // Clerk native redirect: com.burhankhatib.bedi(.driver|.tenant)://oauth-callback?...
-      if (isNativeOAuthCallbackDeepLink(event.url)) {
-        const search = nativeOAuthCallbackSearchParams(event.url)
-        router.push(`/auth/capacitor-oauth-callback${search}`)
-        return
-      }
+    let listenerRef: any = null
 
-      const url = new URL(event.url)
-      if (url.hostname === 'www.bedi.delivery' || url.hostname === 'bedi.delivery') {
-        const pathWithQuery = url.pathname + url.search
-        router.push(pathWithQuery)
-      }
-    })
+    try {
+      listenerRef = App.addListener('appUrlOpen', (event) => {
+        // Clerk native redirect: com.burhankhatib.bedi(.driver|.tenant)://oauth-callback?...
+        if (isNativeOAuthCallbackDeepLink(event.url)) {
+          const search = nativeOAuthCallbackSearchParams(event.url)
+          router.push(`/auth/capacitor-oauth-callback${search}`)
+          return
+        }
+
+        const url = new URL(event.url)
+        if (url.hostname === 'www.bedi.delivery' || url.hostname === 'bedi.delivery') {
+          const pathWithQuery = url.pathname + url.search
+          router.push(pathWithQuery)
+        }
+      })
+    } catch (err) {
+      console.warn('App.addListener() failed, deep linking may not work.', err)
+    }
 
     return () => {
-      listener.then((l) => l.remove()).catch(() => {})
+      if (listenerRef) {
+        listenerRef.then?.((l: any) => l.remove()).catch(() => {})
+      }
     }
   }, [router])
 
