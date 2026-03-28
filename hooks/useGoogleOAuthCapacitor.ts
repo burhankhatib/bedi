@@ -15,8 +15,8 @@ import { InAppBrowser, DefaultSystemBrowserOptions } from '@capacitor/inappbrows
 import { resolveNativeOAuthRedirectUrl, storeOAuthReturnTo } from '@/lib/capacitor-native-oauth'
 import { getAllowedRedirectPath } from '@/lib/auth-utils'
 
-function shouldSkipLegalAccepted(): boolean {
-  return process.env.NEXT_PUBLIC_NATIVE_GOOGLE_SKIP_LEGAL_ACCEPTED === '1'
+function shouldSendLegalAccepted(): boolean {
+  return process.env.NEXT_PUBLIC_NATIVE_GOOGLE_LEGAL_ACCEPTED === '1'
 }
 
 export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
@@ -36,7 +36,7 @@ export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
       const dest = getAllowedRedirectPath(opts?.redirectUrl ?? null, '/')
       storeOAuthReturnTo(dest)
       const nativeRedirect = await resolveNativeOAuthRedirectUrl()
-      const withLegalAccepted = !shouldSkipLegalAccepted()
+      const withLegalAccepted = shouldSendLegalAccepted()
 
       if (mode === 'sign-in') {
         const createPayload: Record<string, unknown> = {
@@ -50,8 +50,8 @@ export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
           res = await signIn!.create(createPayload as any)
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error)
-          if (withLegalAccepted && msg.includes('authorization_invalid')) {
-            // Some Clerk instances may reject legalAccepted in this strategy; retry once without it.
+          if (withLegalAccepted && (msg.includes('authorization_invalid') || msg.includes('legal_accepted'))) {
+            console.warn('Clerk rejected legalAccepted on sign-in, retrying without it...')
             res = await signIn!.create({
               strategy: 'oauth_google',
               redirectUrl: nativeRedirect,
@@ -80,8 +80,8 @@ export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
         res = await signUp!.create(createPayload as any)
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error)
-        if (withLegalAccepted && msg.includes('authorization_invalid')) {
-          // Some Clerk instances may reject legalAccepted in this strategy; retry once without it.
+        if (withLegalAccepted && (msg.includes('authorization_invalid') || msg.includes('legal_accepted'))) {
+          console.warn('Clerk rejected legalAccepted on sign-up, retrying without it...')
           res = await signUp!.create({
             strategy: 'oauth_google',
             redirectUrl: nativeRedirect,

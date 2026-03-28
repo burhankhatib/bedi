@@ -117,22 +117,56 @@ self.addEventListener('notificationclick', function (event) {
     fullUrl += (fullUrl.indexOf('?') !== -1 ? '&' : '?') + 'goOnline=1'
   }
 
+  var targetPath = fullUrl.replace(self.location.origin, '').split('?')[0].split('#')[0]
+
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      for (var i = 0; i < clientList.length; i++) {
-        var client = clientList[i]
-        if (client.url === fullUrl && 'focus' in client) {
-          return client.focus()
+      var i, c, p
+
+      // 1) Exact path match — focus without navigation
+      for (i = 0; i < clientList.length; i++) {
+        c = clientList[i]
+        if (!c.url || c.url.indexOf(self.location.origin) !== 0) continue
+        p = c.url.replace(self.location.origin, '').split('?')[0].split('#')[0]
+        if (p === targetPath && 'focus' in c) return c.focus()
+      }
+
+      // 2) Prefer installed PWA window (standalone / fullscreen)
+      var standaloneClient = null
+      for (i = 0; i < clientList.length; i++) {
+        c = clientList[i]
+        if (!c.url || c.url.indexOf(self.location.origin) !== 0) continue
+        if (!('navigate' in c)) continue
+        var dm = c.displayMode
+        if (dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui') {
+          standaloneClient = c
+          break
         }
       }
-      for (var j = 0; j < clientList.length; j++) {
-        var c = clientList[j]
-        if (c.url && c.url.indexOf(self.location.origin) !== -1 && 'focus' in c) {
-          c.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
-          if ('navigate' in c && c.url !== fullUrl) c.navigate(fullUrl)
-          return c.focus()
-        }
+      if (standaloneClient) {
+        standaloneClient.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
+        return standaloneClient.navigate(fullUrl).then(function () { return standaloneClient.focus() }).catch(function () { return standaloneClient.focus() })
       }
+
+      // 3) Prefer currently focused same-origin window
+      for (i = 0; i < clientList.length; i++) {
+        c = clientList[i]
+        if (!c.url || c.url.indexOf(self.location.origin) !== 0) continue
+        if (!c.focused || !('navigate' in c)) continue
+        c.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
+        return c.navigate(fullUrl).then(function () { return c.focus() }).catch(function () { return c.focus() })
+      }
+
+      // 4) Any same-origin window
+      for (i = 0; i < clientList.length; i++) {
+        c = clientList[i]
+        if (!c.url || c.url.indexOf(self.location.origin) !== 0) continue
+        if (!('navigate' in c)) continue
+        c.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
+        return c.navigate(fullUrl).then(function () { return c.focus() }).catch(function () { return c.focus() })
+      }
+
+      // 5) Fallback to open a new tab/window
       if (self.clients.openWindow) return self.clients.openWindow(fullUrl)
     })
   )

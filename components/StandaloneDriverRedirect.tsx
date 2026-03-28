@@ -23,10 +23,19 @@ export function StandaloneDriverRedirect() {
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       Boolean((window.navigator as unknown as { standalone?: boolean }).standalone)
-    if (!isStandalone || pathname !== '/') return
+      
+    // Use Capacitor check as well for safer native navigation behavior
+    const isNative = (window as any).Capacitor?.isNativePlatform?.() || false
+      
+    if ((!isStandalone && !isNative) || pathname !== '/') return
+    
     try {
       if (localStorage.getItem(PREFER_DRIVER_KEY) === '1') {
-        router.replace('/driver')
+        if (isNative) {
+          window.location.href = '/driver'
+        } else {
+          router.replace('/driver')
+        }
       }
     } catch {
       // ignore
@@ -51,11 +60,19 @@ export function StandaloneTenantRedirect() {
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       Boolean((window.navigator as unknown as { standalone?: boolean }).standalone)
-    if (!isStandalone || pathname !== '/') return
+      
+    const isNative = (window as any).Capacitor?.isNativePlatform?.() || false
+      
+    if ((!isStandalone && !isNative) || pathname !== '/') return
+    
     try {
       if (localStorage.getItem(PREFER_DRIVER_KEY) === '1') return
       if (localStorage.getItem(PREFER_TENANT_KEY) === '1') {
-        router.replace('/dashboard')
+        if (isNative) {
+          window.location.href = '/dashboard'
+        } else {
+          router.replace('/dashboard')
+        }
       }
     } catch {
       // ignore

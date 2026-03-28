@@ -29,7 +29,27 @@ export function NativePushListener() {
           console.log('Push notification action performed', notificationAction)
           const data = notificationAction.notification.data
           if (data && data.url) {
-            router.push(data.url)
+            try {
+              // Normalize URL so we stay in-app for same-origin links
+              // If it's a full URL string (e.g. https://bedi.delivery/driver)
+              if (data.url.startsWith('http')) {
+                const targetUrl = new URL(data.url)
+                const currentUrl = new URL(window.location.href)
+                // Same origin -> push path+search
+                if (targetUrl.origin === currentUrl.origin) {
+                  router.push(targetUrl.pathname + targetUrl.search)
+                } else {
+                  // External link (should be rare) -> force full load or native open
+                  window.location.href = data.url
+                }
+              } else {
+                // Already relative
+                router.push(data.url)
+              }
+            } catch (e) {
+              console.error('Failed to parse push data URL', e)
+              router.push(data.url) // Fallback
+            }
           }
         })
         

@@ -14,6 +14,13 @@ export default function CapacitorOAuthCallback() {
   const router = useRouter()
   const [status, setStatus] = useState('Completing sign in...')
   const handled = useRef(false)
+  const mounted = useRef(true)
+
+  useEffect(() => {
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (handled.current || !clerk.loaded) return
@@ -39,6 +46,13 @@ export default function CapacitorOAuthCallback() {
           signInForceRedirectUrl: returnTo ? `/auth/continue?returnTo=${encodeURIComponent(safeReturn)}` : '/',
           signUpForceRedirectUrl: returnTo ? `/verify-phone?returnTo=${encodeURIComponent(safeReturn)}` : '/verify-phone',
         })
+        
+        // Safety timeout if handleRedirectCallback finishes but router hasn't moved
+        setTimeout(() => {
+          if (mounted.current) {
+            window.location.href = returnTo ? `/auth/continue?returnTo=${encodeURIComponent(safeReturn)}` : '/'
+          }
+        }, 1500)
       } catch (err) {
         console.error('OAuth callback error:', err)
         setStatus('Sign in failed. Redirecting...')

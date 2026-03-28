@@ -109,13 +109,12 @@ You can test if your file is valid by running Google's [Statement List Generator
 
 ### Legal acceptance (`legalAccepted`)
 
-The native Google button **sends `legalAccepted: true` on the first request by default** (many Clerk instances require it for this strategy).
+The native Google button will not send `legalAccepted: true` by default since newer Clerk instances reject it on `oauth_google` create endpoints (resulting in a "legal_accepted is not a valid parameter" error).
 
-To match older behavior (try **without** legal first, then retry **with** legal only after an authorization error), set:
+If your instance requires it, you can explicitly opt in by setting:
+`NEXT_PUBLIC_NATIVE_GOOGLE_LEGAL_ACCEPTED=1`
 
-`NEXT_PUBLIC_NATIVE_GOOGLE_SKIP_LEGAL_ACCEPTED=1`
-
-Only change this if your lawyer/product rules require not implying terms acceptance from this button alone.
+If this flag is enabled and Clerk rejects the request, the code will automatically retry without the parameter to recover the session.
 
 ## 4. Capacitor
 
