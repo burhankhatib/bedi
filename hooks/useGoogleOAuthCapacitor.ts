@@ -57,7 +57,7 @@ export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
           },
         })
 
-        const idToken = res.result.idToken
+        const idToken = 'idToken' in res.result ? res.result.idToken : null
         if (!idToken) {
           throw new Error('No ID token received from Google')
         }
