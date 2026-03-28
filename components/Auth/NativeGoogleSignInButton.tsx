@@ -6,6 +6,7 @@ import { getAllowedRedirectPath } from '@/lib/auth-utils'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { InAppBrowser } from '@capacitor/inappbrowser'
 
 let socialLoginInitPromise: Promise<void> | null = null
 
@@ -234,6 +235,42 @@ export function NativeGoogleSignInButton({
     }
   }, [afterSignInUrl, afterSignUpUrl, busy, clerk, mode, router, webClientId])
 
+  const onBrowserPress = useCallback(async () => {
+    if (!clerk.loaded || busy) return
+    setBusy(true)
+    setInitError(null)
+
+    try {
+      const dest = mode === 'sign-in' ? afterSignInUrl() : afterSignUpUrl()
+      // Create a sign in attempt
+      // We pass the callback url to redirectUrlComplete, and Clerk handles the rest
+      const returnTo = new URL(dest, window.location.origin).searchParams.get('returnTo') || '/'
+      const redirectUrl = new URL(`/auth/capacitor-oauth-callback?returnTo=${encodeURIComponent(returnTo)}`, window.location.origin).toString()
+
+      // To start OAuth, we can use clerk.client.signIn.create or useSignIn
+      const res = await clerk.client.signIn.create({
+        strategy: 'oauth_google',
+        redirectUrl: redirectUrl,
+      })
+      
+      // Get the authorization URL that Google needs
+      const authUrl = res.firstFactorVerification.externalVerificationRedirectURL?.href
+      
+      if (!authUrl) {
+        throw new Error('Failed to generate Google OAuth URL')
+      }
+
+      // @ts-expect-error capacitor inappbrowser typings require options but it is optional at runtime
+      await InAppBrowser.openInSystemBrowser({ url: authUrl })
+    } catch (e) {
+      let message = e instanceof Error ? e.message : 'Browser sign-in failed'
+      if (mounted.current) setInitError(message)
+      console.error('[NativeGoogleSignInBrowser]', e)
+    } finally {
+      if (mounted.current) setBusy(false)
+    }
+  }, [afterSignInUrl, afterSignUpUrl, busy, clerk, mode])
+
   if (!Capacitor.isNativePlatform()) return null
   if (!webClientId) return null
 
@@ -250,6 +287,17 @@ export function NativeGoogleSignInButton({
       >
         {busy ? 'Signing in…' : label}
       </Button>
+
+      <Button
+        type="button"
+        variant="ghost"
+        disabled={!clerk.loaded || busy}
+        className="w-full mt-2 text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+        onClick={() => void onBrowserPress()}
+      >
+        {busy ? '...' : `${label} (browser)`}
+      </Button>
+
       {initError ? (
         <p className="mt-2 text-center text-xs text-red-400" role="alert">
           {initError}

@@ -26,7 +26,7 @@
     "import:talabat:url": "PLAYWRIGHT_BROWSERS_PATH=0 TALABAT_HEADLESS=false tsx scripts/import-talabat.ts --interactive-auth",
     "import:yummy": "PLAYWRIGHT_BROWSERS_PATH=0 tsx scripts/import-yummy.ts",
     "import:yummy:url": "PLAYWRIGHT_BROWSERS_PATH=0 YUMMY_HEADLESS=false tsx scripts/import-yummy.ts --interactive-auth",
-    "deploy": "clear && npm run build && git add . && (git commit -m \"deploy\" || true) && git push origin main",
+    "deploy": "clear && npm run build && npm run build:mobile && git add . && (git commit -m \"deploy\" || true) && git push origin main",
     "firebase:deploy": "firebase deploy --only firestore:indexes"
   },
   "dependencies": {
@@ -38,6 +38,8 @@
     "@capacitor/cli": "^8.3.0",
     "@capacitor/core": "^8.3.0",
     "@capacitor/geolocation": "^8.1.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/inappbrowser": "^3.0.2",
     "@capacitor/ios": "^8.3.0",
     "@capacitor/push-notifications": "^8.0.3",
     "@capacitor/splash-screen": "^8.0.1",

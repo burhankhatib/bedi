@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { Capacitor } from '@capacitor/core'
 import { useLanguage } from '@/components/LanguageContext'
 import { isStandaloneMode } from '@/lib/pwa/detect'
 
@@ -30,14 +31,15 @@ export function DriverHomeRedirect() {
     const timeout = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS)
     const fallback = setTimeout(() => hardRedirect('/driver/profile'), FALLBACK_REDIRECT_MS)
 
-    fetch('/api/driver/profile', { signal: ctrl.signal })
+    fetch('/api/driver/profile', { signal: ctrl.signal, credentials: 'include' })
       .then((r) => r.json())
       .then((data) => {
         clearTimeout(timeout)
         clearTimeout(fallback)
         if (hasRedirected.current) return
         const target = data?._id ? '/driver/orders' : '/driver/profile'
-        if (isStandaloneMode()) {
+        // Capacitor WebView: client router.replace often stalls after OAuth; hard navigation matches PWA standalone.
+        if (isStandaloneMode() || Capacitor.isNativePlatform()) {
           hardRedirect(target)
           return
         }
@@ -49,7 +51,7 @@ export function DriverHomeRedirect() {
         clearTimeout(fallback)
         if (!hasRedirected.current) {
           const target = '/driver/profile'
-          if (isStandaloneMode()) {
+          if (isStandaloneMode() || Capacitor.isNativePlatform()) {
             hardRedirect(target)
             return
           }

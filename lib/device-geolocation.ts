@@ -51,6 +51,7 @@ export async function getDeviceGeolocationPosition(options?: {
         enableHighAccuracy,
         timeout,
         maximumAge,
+        enableLocationFallback: true, // Capacitor 8: fallback to Android LocationManager if Play Services fails
       })
       if (pos.coords.latitude === 0 && pos.coords.longitude === 0) {
         console.warn('Geolocation returned exactly 0,0 - this is often an emulator without mock location set.')
@@ -128,7 +129,7 @@ export async function watchDeviceGeolocation(
         throw err
       }
       return await Geolocation.watchPosition(
-        { enableHighAccuracy, timeout, maximumAge },
+        { enableHighAccuracy, timeout, maximumAge, enableLocationFallback: true },
         (pos, err) => {
           if (err) {
             if (isPermissionDeniedError(err)) {

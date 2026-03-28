@@ -375,6 +375,14 @@ function DeliveryETABox({
   const tipIncluded = !!order.tipIncludedInTotal
   const tipRemovedByDriver = !!order.tipRemovedByDriver
 
+  const prevDriverArrivedRef = useRef(driverArrived)
+  useEffect(() => {
+    if (!prevDriverArrivedRef.current && driverArrived) {
+      import('@/lib/native-haptics').then(m => m.hapticNotification('success'))
+    }
+    prevDriverArrivedRef.current = driverArrived
+  }, [driverArrived])
+
   useEffect(() => {
     if (!isActive || driverArrived) return
     const id = setInterval(() => setNow(Date.now()), 1000)

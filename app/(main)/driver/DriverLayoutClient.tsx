@@ -25,6 +25,7 @@ import { PWAManager } from '@/components/pwa/PWAManager'
 import { PWAInstallIcon } from '@/components/pwa/PWAInstallIcon'
 import { PWAReinstallHelp } from '@/components/pwa/PWAReinstallHelp'
 import { DriverPushStatusCard } from '@/components/push/DriverPushStatusCard'
+import { Capacitor } from '@capacitor/core'
 import { getDriverPWAConfig } from '@/lib/pwa/configs'
 import { isStandaloneMode } from '@/lib/pwa/detect'
 import { PREFER_DRIVER_KEY } from '@/components/StandaloneDriverRedirect'
@@ -86,7 +87,7 @@ export function DriverLayoutClient({
   useEffect(() => {
     if (!needsRedirect) return
     const target = '/driver/profile'
-    if (typeof window !== 'undefined' && isStandaloneMode()) {
+    if (typeof window !== 'undefined' && (isStandaloneMode() || Capacitor.isNativePlatform())) {
       window.location.href = target
       return
     }
@@ -112,7 +113,7 @@ export function DriverLayoutClient({
     profileCheckAbortRef.current?.abort()
     const ac = new AbortController()
     profileCheckAbortRef.current = ac
-    fetch('/api/driver/profile', { signal: ac.signal })
+    fetch('/api/driver/profile', { signal: ac.signal, credentials: 'include' })
       .then((r) => r.json())
       .then((data) => {
         if (!mountedRef.current || ac.signal.aborted) return

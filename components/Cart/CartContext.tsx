@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/components/LanguageContext'
 import { Store, RotateCcw } from 'lucide-react'
 import { getVariantOptionModifier } from '@/lib/cart-price'
+import { hapticImpact, hapticNotification } from '@/lib/native-haptics'
 
 export interface CartTenant {
   slug: string
@@ -467,6 +468,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (tenant) setCartTenant(tenant)
+    hapticImpact('medium')
     showToast(t('Item added to cart!', 'تمت إضافة الصنف للسلة'), product.title_en || product.title_ar || 'Item')
   }, [t, showToast])
 
@@ -529,11 +531,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const removeFromCart = useCallback((cartItemId: string) => {
+    hapticImpact('medium')
     updateItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))
     dispatchAtomicAction({ action: 'remove_item_any', cartItemId })
   }, [updateItems, dispatchAtomicAction])
 
   const updateQuantity = useCallback((cartItemId: string, quantity: number) => {
+    hapticImpact('medium')
     if (quantity <= 0) {
       updateItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))
       dispatchAtomicAction({ action: 'remove_item_any', cartItemId })

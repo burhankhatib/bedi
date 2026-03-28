@@ -464,3 +464,34 @@ export function getCityFromCoordinates(
   }
   return null
 }
+
+/**
+ * Calculates a simple bounding box center for a given city polygon.
+ * @param cityName The name of the city
+ * @param polygons Optional custom polygons
+ * @returns { lat, lng } or null if city not found
+ */
+export function getCityCenter(
+  cityName: string,
+  polygons?: Polygon[]
+): { lat: number; lng: number } | null {
+  if (!cityName) return null
+  const source = polygons ?? CITY_POLYGONS
+  const city = source.find((c) => c.name.toLowerCase() === cityName.toLowerCase())
+  if (!city || city.coordinates.length === 0) return null
+
+  let minLng = Infinity, maxLng = -Infinity
+  let minLat = Infinity, maxLat = -Infinity
+
+  for (const [lng, lat] of city.coordinates) {
+    if (lng < minLng) minLng = lng
+    if (lng > maxLng) maxLng = lng
+    if (lat < minLat) minLat = lat
+    if (lat > maxLat) maxLat = lat
+  }
+
+  return {
+    lat: (minLat + maxLat) / 2,
+    lng: (minLng + maxLng) / 2
+  }
+}

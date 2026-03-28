@@ -51,11 +51,15 @@ export function usePusherStream(
 
     // In Capacitor, if the app was suspended, we might miss real-time events.
     // Trigger a refetch when returning to the foreground just in case.
-    let resumeListener: any = null
+    let resumeListener: Promise<{ remove: () => Promise<void> }> | null = null
     if (Capacitor.isNativePlatform()) {
-      resumeListener = App.addListener('appStateChange', ({ isActive }) => {
-        if (isActive) trigger()
-      })
+      try {
+        resumeListener = App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) trigger()
+        })
+      } catch {
+        resumeListener = null
+      }
     }
 
     return () => {
@@ -63,7 +67,7 @@ export function usePusherStream(
       channel.unbind(eventName, trigger)
       pusher.unsubscribe(channelName)
       if (resumeListener) {
-        resumeListener.then((sub: any) => sub.remove()).catch(() => {})
+        resumeListener.then((sub) => sub.remove()).catch(() => {})
       }
     }
   }, [channelName, eventName, debounceMs])

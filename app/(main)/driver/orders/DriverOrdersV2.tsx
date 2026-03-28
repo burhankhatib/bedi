@@ -27,6 +27,7 @@ import {
 import { getCityDisplayName } from '@/lib/registration-translations'
 import { formatQuantityWithUnit } from '@/lib/sale-units'
 import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, watchDeviceGeolocation, clearDeviceGeolocationWatch, WatchGeolocationId } from '@/lib/device-geolocation'
+import { hapticImpact } from '@/lib/native-haptics'
 import dynamic from 'next/dynamic'
 
 import { SlideToComplete } from './SlideToComplete'
@@ -111,6 +112,8 @@ type ReplacementProduct = {
 const NEW_ORDER_SOUND = '/sounds/1.wav'
 const MAX_ACTIVE_DELIVERIES = 1
 const OFFLINE_PUSH_SENT_KEY = 'driverOfflinePushSent'
+/** Android WebView: unbounded fetch can leave orders stuck on "Loading…" if the connection stalls. */
+const DRIVER_ORDERS_FETCH_MS = 28000
 /** After accept/confirm, ignore Bedi Maps taps briefly so the finger-up from slide-to-accept cannot ghost-open the map (PWA stuck map). */
 const BEDI_MAP_OPEN_GUARD_MS = 700
 
@@ -322,8 +325,14 @@ function DriverOrdersV2Content() {
 
   /* ── fetch orders ─────────────────────────────────────────────────── */
   const fetchOrders = useCallback(async () => {
+    const ctrl = new AbortController()
+    const tid = window.setTimeout(() => ctrl.abort(), DRIVER_ORDERS_FETCH_MS)
     try {
-      const res = await fetch('/api/driver/orders', { cache: 'no-store' })
+      const res = await fetch('/api/driver/orders', {
+        cache: 'no-store',
+        credentials: 'include',
+        signal: ctrl.signal,
+      })
       if (res.status === 403) {
         window.location.href = '/suspended?type=driver'
         return
@@ -381,6 +390,21 @@ function DriverOrdersV2Content() {
               }
             }
           }
+
+          let triggeredHaptic = false
+          for (const newO of mergedMy) {
+            if (needsReconfirm(newO)) {
+              const oldO = prev.find(o => o.orderId === newO.orderId)
+              if (!oldO || !needsReconfirm(oldO)) {
+                triggeredHaptic = true
+                break
+              }
+            }
+          }
+          if (triggeredHaptic) {
+            hapticImpact('medium')
+          }
+
           return mergedMy
         })
         setMyCompletedToday(nextCompleted)
@@ -397,6 +421,7 @@ function DriverOrdersV2Content() {
     } catch {
       /* keep previous state */
     } finally {
+      window.clearTimeout(tid)
       setLoading(false)
     }
   }, [])

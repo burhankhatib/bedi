@@ -91,13 +91,17 @@ export function usePusherSubscription<TData = unknown>(
     channel.bind(eventName, handler)
 
     // Ensure connection is active when returning to foreground
-    let resumeListener: any = null
+    let resumeListener: Promise<{ remove: () => Promise<void> }> | null = null
     if (Capacitor.isNativePlatform()) {
-      resumeListener = App.addListener('appStateChange', ({ isActive }) => {
-        if (isActive && pusher.connection.state !== 'connected') {
-          pusher.connect()
-        }
-      })
+      try {
+        resumeListener = App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive && pusher.connection.state !== 'connected') {
+            pusher.connect()
+          }
+        })
+      } catch {
+        resumeListener = null
+      }
     }
 
     return () => {
@@ -107,7 +111,7 @@ export function usePusherSubscription<TData = unknown>(
       pusher.unsubscribe(channelName)
       setIsLive(false)
       if (resumeListener) {
-        resumeListener.then((sub: any) => sub.remove()).catch(() => {})
+        resumeListener.then((sub) => sub.remove()).catch(() => {})
       }
     }
     // authParamsKey is a stable string derived from authParams

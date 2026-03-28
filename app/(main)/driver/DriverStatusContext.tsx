@@ -30,6 +30,7 @@ function formatOnlineDuration(onlineSince: string | undefined, t: (en: string, a
 }
 
 const SKIP_APPLY_MS = 3500
+const DRIVER_STATUS_FETCH_MS = 20000
 
 type DriverStatusContextValue = {
   isOnline: boolean
@@ -85,7 +86,9 @@ export function DriverStatusProvider({ children }: { children: ReactNode }) {
   const { userId } = useAuth()
 
   const fetchStatus = useCallback(() => {
-    return fetch('/api/driver/status')
+    const ctrl = new AbortController()
+    const tid = window.setTimeout(() => ctrl.abort(), DRIVER_STATUS_FETCH_MS)
+    return fetch('/api/driver/status', { credentials: 'include', signal: ctrl.signal })
       .then((r) => r.json())
       .then((data) => {
         const skipApply = Date.now() < skipStatusApplyUntilRef.current
@@ -109,7 +112,10 @@ export function DriverStatusProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => {})
-      .finally(() => setLoading(false))
+      .finally(() => {
+        window.clearTimeout(tid)
+        setLoading(false)
+      })
   }, [t, showToast])
 
   useEffect(() => {

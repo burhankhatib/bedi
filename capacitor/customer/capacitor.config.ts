@@ -21,6 +21,12 @@ const config: CapacitorConfig = {
     StatusBar: {
       style: 'DARK',
     },
+    SystemBars: {
+      insetsHandling: "css",
+      style: "DARK",
+      hidden: false,
+      animation: "NONE"
+    },
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"]
     }

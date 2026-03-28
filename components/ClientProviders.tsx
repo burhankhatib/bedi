@@ -5,7 +5,13 @@ import { LocationProvider } from '@/components/LocationContext'
 import { CartProvider } from '@/components/Cart/CartContext'
 import { ToastProvider } from '@/components/ui/ToastProvider'
 import { NativePushListener } from '@/components/pwa/NativePushListener'
+import { CapacitorAppUrlListener } from '@/components/CapacitorAppUrlListener'
+import { initCapacitorShell } from '@/lib/capacitor-shell-init'
 import { ClerkProvider } from '@clerk/nextjs'
+
+if (typeof window !== 'undefined') {
+  initCapacitorShell().catch(console.error)
+}
 import { arSA, enUS } from '@clerk/localizations'
 
 const clerkAppearance = {
@@ -43,6 +49,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
           <CartProvider>
             <ToastProvider>
               <NativePushListener />
+              <CapacitorAppUrlListener />
               {children}
             </ToastProvider>
           </CartProvider>

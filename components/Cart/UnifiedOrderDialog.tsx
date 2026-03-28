@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/components/LanguageContext'
 import { toEnglishDigits } from '@/lib/phone'
 import { Store, UtensilsCrossed, Truck, User, MapPin, Phone, Locate, Check, Loader2, Link, Edit2, Map as MapIcon } from 'lucide-react'
-import { OrderType } from './CartContext'
+import { useCart, OrderType } from './CartContext'
 import { parseCoordsFromGoogleMapsUrl } from '@/lib/maps-utils'
-import { useCart } from './CartContext'
+import { useLocation } from '@/components/LocationContext'
+import { getCityCenter } from '@/lib/geofencing'
 import { isWithinShift, getTodaysHours, isWithinHours, getTimeZoneForCountry } from '@/lib/business-hours'
 import { getShopperFeeByItemCount, getShopperFeeExplanation } from '@/lib/shopper-fee'
 import { formatCurrency } from '@/lib/currency'
@@ -75,6 +76,15 @@ export function UnifiedOrderDialog({
   const isTableLocked = Boolean(lockedTableNumber)
   const { t, lang } = useLanguage()
   const { cartTenant, items, totalItems } = useCart()
+  
+  // Call useLocation unconditionally. If it might throw (not in provider), we need a wrapper, 
+  // but since CartContext is already inside LocationProvider in this app, it's safe.
+  const locationCtx = useLocation()
+  const cityStr = locationCtx?.city || ''
+
+  const fallbackCenter = useMemo(() => (cityStr ? getCityCenter(cityStr) : null), [cityStr])
+  const mapLat = deliveryLat ?? fallbackCenter?.lat ?? 31.7804
+  const mapLng = deliveryLng ?? fallbackCenter?.lng ?? 35.2570
 
   /** Business is closed (manual or by schedule). When true, only scheduling is allowed at checkout. */
   const effectiveClosed = useMemo(() => {
@@ -402,8 +412,8 @@ export function UnifiedOrderDialog({
     if (deliveryLat != null && deliveryLng != null) return
     if (autoDeliveryGeoRef.current) return
     autoDeliveryGeoRef.current = true
-    // requestDeliveryLocation() // Disabled to require explicit user tap for better permission reliability on Android
-  }, [open, step, orderType, setDeliveryLocation, deliveryLat, deliveryLng])
+    requestDeliveryLocation() 
+  }, [open, step, orderType, setDeliveryLocation, deliveryLat, deliveryLng, requestDeliveryLocation])
 
   const handleFinalSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -991,113 +1001,90 @@ export function UnifiedOrderDialog({
                   </div>
 
                   {deliveryLat == null || deliveryLng == null ? (
-                    <div className="space-y-2">
-                      <div className="h-[100px] rounded-lg bg-slate-200/80 animate-pulse flex items-center justify-center">
-                        {locationLoading ? (
-                          <div className="flex flex-col items-center gap-1 text-slate-600">
-                            <Loader2 className="w-6 h-6 animate-spin" aria-hidden />
-                            <span className="text-[11px] font-bold">{t('Detecting location…', 'جاري اكتشاف الموقع…')}</span>
-                          </div>
-                        ) : (
-                          <span className="text-[11px] font-semibold text-slate-500 px-2 text-center">{t('Allow location or use link below', 'اسمح بالموقع أو استخدم الرابط أدناه')}</span>
-                        )}
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 flex items-start gap-2 mb-2">
+                      <Locate className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-[11px] font-bold text-amber-900 leading-tight">
+                          {t('We need your location', 'نحتاج لموقعك')}
+                        </p>
+                        <p className="text-[10px] text-amber-700 leading-snug">
+                          {t('Please allow location access, drag the map pin to your address, or paste a Maps link below.', 'يرجى السماح بالوصول للموقع، اسحب الدبوس لعنوانك، أو الصق رابط الخرائط أدناه.')}
+                        </p>
                       </div>
-                      <Button
-                        type="button"
-                        onClick={() => requestDeliveryLocation()}
-                        disabled={locationLoading}
-                        className="w-full h-11 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-sm flex items-center justify-center gap-2"
-                      >
-                        {locationLoading ? (
-                          <>
-                            <Loader2 className="w-4 h-4 shrink-0 animate-spin" aria-hidden />
-                            {t('Getting your location…', 'جاري الحصول على موقعك…')}
-                          </>
-                        ) : (
-                          <>
-                            <Locate className="w-4 h-4 shrink-0" aria-hidden />
-                            {t('Share My Location', 'مشاركة موقعي')}
-                          </>
-                        )}
-                      </Button>
                     </div>
-                  ) : (
-                    <>
-                      <div
-                        className={`transition-all duration-300 w-full relative z-0 rounded-lg overflow-hidden border border-slate-200/80 ${showMapModal ? 'h-[min(220px,32dvh)]' : 'h-[112px]'}`}
-                      >
-                        <LocationPickerMap
-                          lat={deliveryLat}
-                          lng={deliveryLng}
-                          onChange={async (lat, lng) => {
-                            setDeliveryLocation(lat, lng, null, 'manual_picker')
-                            const name = await reverseGeocode(lat, lng)
-                            if (name) setAddress(name)
-                          }}
-                          onRequestMyLocation={() => requestDeliveryLocation()}
-                          locationLoading={locationLoading}
-                          gpsAriaLabel={t('Use my current location', 'استخدام موقعي الحالي')}
-                          centerPinAriaLabel={t('Center map on pin', 'توسيط الخريطة على الدبوس')}
-                        />
-                      </div>
-                      <div className="flex justify-between items-center px-1 mb-0.5">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowLocationControls(!showLocationControls)}
-                          className="h-6 text-[10px] font-bold px-2 ml-auto rtl:mr-auto rtl:ml-0 text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-                        >
-                          {showLocationControls ? t('Hide options', 'إخفاء الخيارات') : t('Location options', 'خيارات الموقع')}
-                        </Button>
-                      </div>
-                      <div className={`grid grid-cols-2 sm:grid-cols-4 gap-1 transition-all duration-300 overflow-hidden ${showLocationControls ? 'max-h-[100px] opacity-100 mt-0.5' : 'max-h-0 opacity-0 m-0'}`}>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => requestDeliveryLocation()}
-                          disabled={locationLoading}
-                          className="h-auto min-h-[2.75rem] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 rounded-lg border-emerald-200 bg-emerald-50/80 text-[10px] font-bold text-emerald-900 hover:bg-emerald-100 leading-tight"
-                        >
-                          {locationLoading ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden /> : <Locate className="size-3.5 shrink-0" aria-hidden />}
-                          <span className="text-center px-0.5 line-clamp-2">{t('Refresh location', 'تحديث الموقع')}</span>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => requestDeliveryLocation({ highAccuracy: true })}
-                          disabled={locationLoading}
-                          className="h-auto min-h-[2.75rem] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 rounded-lg border-slate-300 bg-white text-[10px] font-bold text-slate-800 leading-tight"
-                        >
-                          <span className="text-center px-0.5 line-clamp-2">{t('Improve accuracy', 'تحسين الدقة')}</span>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowMapModal(!showMapModal)}
-                          className="h-auto min-h-[2.75rem] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 rounded-lg border-slate-300 bg-white text-[10px] font-bold text-slate-800 leading-tight"
-                        >
-                          <MapIcon className="size-3.5 shrink-0" aria-hidden />
-                          <span className="text-center px-0.5 line-clamp-2">
-                            {showMapModal ? t('Close Map', 'إغلاق الخريطة') : t('Adjust on Map', 'تعديل على الخريطة')}
-                          </span>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={showNotes ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setShowNotes(!showNotes)}
-                          className={`h-auto min-h-[2.75rem] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 rounded-lg text-[10px] font-bold leading-tight ${showNotes ? 'bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-300 bg-white text-slate-800'}`}
-                        >
-                          <Edit2 className="size-3.5 shrink-0" aria-hidden />
-                          <span className="text-center px-0.5 line-clamp-2">{t('Add Details', 'إضافة تفاصيل')}</span>
-                        </Button>
-                      </div>
-                    </>
-                  )}
+                  ) : null}
+
+                  <div className={`transition-all duration-300 w-full relative z-0 rounded-lg overflow-hidden border ${deliveryLat == null || deliveryLng == null ? 'border-amber-300 shadow-[0_0_0_2px_rgba(251,191,36,0.3)]' : 'border-slate-200/80'} ${showMapModal ? 'h-[min(220px,32dvh)]' : 'h-[160px]'}`}>
+                    <LocationPickerMap
+                      lat={mapLat}
+                      lng={mapLng}
+                      onChange={async (lat, lng) => {
+                        setDeliveryLocation(lat, lng, null, 'manual_picker')
+                        const name = await reverseGeocode(lat, lng)
+                        if (name) setAddress(name)
+                      }}
+                      onRequestMyLocation={() => requestDeliveryLocation()}
+                      locationLoading={locationLoading}
+                      gpsAriaLabel={t('Use my current location', 'استخدام موقعي الحالي')}
+                      centerPinAriaLabel={t('Center map on pin', 'توسيط الخريطة على الدبوس')}
+                    />
+                  </div>
+                  <div className="flex justify-between items-center px-1 mb-0.5">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowLocationControls(!showLocationControls)}
+                      className="h-6 text-[10px] font-bold px-2 ml-auto rtl:mr-auto rtl:ml-0 text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                    >
+                      {showLocationControls ? t('Hide options', 'إخفاء الخيارات') : t('Location options', 'خيارات الموقع')}
+                    </Button>
+                  </div>
+                  <div className={`grid grid-cols-2 sm:grid-cols-4 gap-1 transition-all duration-300 overflow-hidden ${showLocationControls ? 'max-h-[100px] opacity-100 mt-0.5' : 'max-h-0 opacity-0 m-0'}`}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => requestDeliveryLocation()}
+                      disabled={locationLoading}
+                      className="h-auto min-h-[2.75rem] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 rounded-lg border-emerald-200 bg-emerald-50/80 text-[10px] font-bold text-emerald-900 hover:bg-emerald-100 leading-tight"
+                    >
+                      {locationLoading ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden /> : <Locate className="size-3.5 shrink-0" aria-hidden />}
+                      <span className="text-center px-0.5 line-clamp-2">{t('Refresh location', 'تحديث الموقع')}</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => requestDeliveryLocation({ highAccuracy: true })}
+                      disabled={locationLoading}
+                      className="h-auto min-h-[2.75rem] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 rounded-lg border-slate-300 bg-white text-[10px] font-bold text-slate-800 leading-tight"
+                    >
+                      <span className="text-center px-0.5 line-clamp-2">{t('Improve accuracy', 'تحسين الدقة')}</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowMapModal(!showMapModal)}
+                      className="h-auto min-h-[2.75rem] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 rounded-lg border-slate-300 bg-white text-[10px] font-bold text-slate-800 leading-tight"
+                    >
+                      <MapIcon className="size-3.5 shrink-0" aria-hidden />
+                      <span className="text-center px-0.5 line-clamp-2">
+                        {showMapModal ? t('Close Map', 'إغلاق الخريطة') : t('Adjust on Map', 'تعديل على الخريطة')}
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={showNotes ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setShowNotes(!showNotes)}
+                      className={`h-auto min-h-[2.75rem] py-1.5 px-1 flex flex-col items-center justify-center gap-0.5 rounded-lg text-[10px] font-bold leading-tight ${showNotes ? 'bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-300 bg-white text-slate-800'}`}
+                    >
+                      <Edit2 className="size-3.5 shrink-0" aria-hidden />
+                      <span className="text-center px-0.5 line-clamp-2">{t('Add Details', 'إضافة تفاصيل')}</span>
+                    </Button>
+                  </div>
 
                   {(deliveryLat == null || deliveryLng == null) && (
                     <div className="pt-1.5 border-t border-slate-200/80">

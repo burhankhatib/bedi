@@ -312,6 +312,47 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
     }
   }
 
+  const handleTestFCM = async () => {
+    if (!message.trim()) {
+      alert('Message cannot be empty.')
+      return
+    }
+    const phone = prompt('Enter your phone number (e.g. +9705...) to receive the test FCM push:')
+    if (!phone) return
+
+    setSending(true)
+    setResult(null)
+    setJobId(null)
+    setJobStatus(null)
+
+    try {
+      const res = await fetch('/api/admin/broadcast-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channels: ['fcm'],
+          targets: [],
+          country: '',
+          city: '',
+          specificUsers: [{ name: 'Admin Test', phone: phone.trim() }],
+          excludedPhones: [],
+          message
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setResult({ error: data.error || 'Test request failed' })
+        setSending(false)
+      } else {
+        setJobId(data.jobId)
+        setJobStatus({ totalFound: data.totalFound, sentCount: 0, failedCount: 0, status: 'pending' })
+      }
+    } catch (err: any) {
+      setResult({ error: err.message || 'Error communicating with server' })
+      setSending(false)
+    }
+  }
+
   useEffect(() => {
     if (!jobId) return
     let timeoutId: any
@@ -968,7 +1009,7 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
             </p>
           </div>
           
-          <div className="pt-6">
+          <div className="pt-6 flex flex-col gap-3">
             <Button
               type="submit"
               disabled={sending || (preview && preview.sample && preview.sample.length - excludedPhones.length === 0) || (!preview && specificUsers.length === 0) || !message.trim()}
@@ -985,6 +1026,17 @@ export function AdminBroadcastClient({ initialTab = 'broadcast' }: { initialTab?
                   <span className="font-semibold">Send Broadcast</span>
                 </>
               )}
+            </Button>
+            
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleTestFCM}
+              disabled={sending || !message.trim()}
+              className="w-full border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white py-6"
+            >
+              <BellRing className="size-4 mr-2" />
+              Test FCM to my device
             </Button>
           </div>
         </div>
