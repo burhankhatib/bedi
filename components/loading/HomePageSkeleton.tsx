@@ -9,7 +9,9 @@ export function HomePageSkeleton() {
   return (
     <div className="min-h-screen bg-slate-50 pb-16">
       {/* Header placeholder */}
-      <div className="sticky top-0 z-50 h-[72px] border-b border-slate-100 bg-white" />
+      <div className="sticky top-0 z-50 border-b border-slate-100 bg-white pt-[env(safe-area-inset-top,0px)]">
+        <div className="h-[72px]" aria-hidden />
+      </div>
 
       <main className="container mx-auto px-4 py-6 max-w-[1440px]">
         <div className="flex flex-col md:flex-row md:gap-8 mb-8">

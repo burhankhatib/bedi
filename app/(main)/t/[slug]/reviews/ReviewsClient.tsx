@@ -26,7 +26,7 @@ export default function ReviewsClient({ tenant, aggregate, initialReviews }: any
 
   return (
     <div className="min-h-screen bg-slate-50" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 px-4 py-3 sm:py-3.5">
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] sm:pb-3.5 sm:pt-[calc(0.875rem+env(safe-area-inset-top,0px))]">
         <div className="max-w-3xl mx-auto flex items-center gap-3 sm:gap-4">
           <Link href={`/t/${tenant.slug}`} className="p-2 -ml-2 rounded-full hover:bg-slate-100 transition-colors shrink-0">
             {lang === 'ar' ? <ArrowRight className="w-5 h-5" /> : <ArrowLeft className="w-5 h-5" />}

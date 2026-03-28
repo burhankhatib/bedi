@@ -146,7 +146,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={cairo.variable} suppressHydrationWarning>
-      <body className="font-sans antialiased pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+      <body className="font-sans antialiased">
         <WebSiteStructuredData />
         <Script
           id="customer-pwa-sw"

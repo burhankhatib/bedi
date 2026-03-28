@@ -51,5 +51,16 @@
 	<string>Bedi uses your location when you choose to share it.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Bedi uses your location when you choose to share it.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.burhankhatib.bedi.tenant.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.burhankhatib.bedi.tenant</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

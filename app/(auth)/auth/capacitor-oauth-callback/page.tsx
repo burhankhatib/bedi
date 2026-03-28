@@ -7,6 +7,7 @@ import { Capacitor } from '@capacitor/core'
 import { InAppBrowser } from '@capacitor/inappbrowser'
 import { Loader2 } from 'lucide-react'
 import { getAllowedRedirectPath } from '@/lib/auth-utils'
+import { consumeOAuthReturnTo } from '@/lib/capacitor-native-oauth'
 
 export default function CapacitorOAuthCallback() {
   const clerk = useClerk()
@@ -29,7 +30,7 @@ export default function CapacitorOAuthCallback() {
 
       try {
         const url = new URL(window.location.href)
-        const returnTo = url.searchParams.get('returnTo')
+        const returnTo = url.searchParams.get('returnTo') ?? consumeOAuthReturnTo()
         const safeReturn = getAllowedRedirectPath(returnTo, '/')
         
         await clerk.handleRedirectCallback({

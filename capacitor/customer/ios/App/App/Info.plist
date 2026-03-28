@@ -51,5 +51,16 @@
 	<string>Bedi Delivery uses your location to show nearby restaurants and delivery options.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Bedi Delivery uses your location to show nearby restaurants and delivery options.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.burhankhatib.bedi.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.burhankhatib.bedi</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -1,6 +1,24 @@
 # Native Google sign-in (Capacitor + Clerk)
 
-The Bedi app loads your real site inside a WebView. **Google blocks OAuth in that WebView**, so we use the device’s Google account via **`@capgo/capacitor-social-login`**, get a **Google ID token**, and finish the session with **Clerk** using `authenticateWithGoogleOneTap` (same token shape as Google One Tap).
+The Bedi app loads your real site inside a WebView. **Google blocks OAuth in that WebView**, so the **primary** flow is:
+
+1. **`GoogleLoginButton`** + **`useGoogleOAuthCapacitor`** — Clerk `oauth_google` with **`redirectUrl` = `<applicationId>://oauth-callback`** (same string as `appId` in `capacitor.config.ts` and as Android `applicationId` / iOS bundle ID).
+2. The auth URL opens in the **system browser** (Custom Tabs / SFSafariViewController) via `@capacitor/inappbrowser`.
+3. After Google + Clerk finish, the OS opens the app on that custom URL; **`CapacitorAppUrlListener`** routes to `/auth/capacitor-oauth-callback` and **`handleRedirectCallback`** completes the session.
+
+**Clerk Dashboard:** allow-list each native redirect exactly, for example:
+
+- Customer: `com.burhankhatib.bedi://oauth-callback`
+- Driver: `com.burhankhatib.bedi.driver://oauth-callback`
+- Tenant: `com.burhankhatib.bedi.tenant://oauth-callback`
+
+**Clerk → Native applications:** the **package / bundle identifier** must match `appId` for that shell (see comments in each `capacitor/*/capacitor.config.ts`).
+
+Optional override: set **`NEXT_PUBLIC_CAPACITOR_APP_ID`** if you must force an app id (normally **`App.getInfo().id`** from Capacitor is used on native, so `/sign-in` still resolves to the correct package).
+
+`@clerk/nextjs` v6 does **not** export `useOAuth`; use **`useGoogleOAuthCapacitor`** (wrapper around `useSignIn` / `useSignUp` + `create({ strategy: 'oauth_google' })`).
+
+The sections below about **`@capgo/capacitor-social-login`** and ID tokens still apply if you use or debug that path elsewhere.
 
 ## 1. Environment variables (Vercel + local)
 
@@ -131,7 +149,7 @@ We are **not** removing the native Google button; a fix may require a Clerk-side
 ## 7. Troubleshooting
 
 - **`You CANNOT use scopes without modifying the main activity`** – The Bedi app no longer passes custom `scopes` from JS (the plugin already adds email, profile, openid). All three Android `MainActivity` classes also implement `ModifiedMainActivityForSocialLoginPlugin` as required by `@capgo/capacitor-social-login` if you add scopes later. Rebuild the Android app after pulling changes.
-- **JSON error on `clerk.bedi.delivery/v1/oa…` with `authorization_invalid`** – You opened **Clerk’s Google button inside the sign-in card** (redirect OAuth). That path breaks in the app WebView. In the Bedi app build, those buttons are **hidden on native**; use **Continue with Google** at the top only. If you still see the in-card Google button, deploy the latest web app and hard-refresh the WebView.
+- **JSON error on `clerk.bedi.delivery/v1/oa…` with `authorization_invalid`** – Avoid Clerk’s in-card Google OAuth inside the WebView. On native, social buttons in `<SignIn />` are hidden; use **Continue with Google** (system browser + `appId://oauth-callback`). If you still see the in-card Google button, deploy the latest web app and hard-refresh the WebView.
 - **No ID token** – Almost always **missing Android OAuth client** or **wrong SHA-1** for the package you’re running.  
 - **Clerk errors after token** – Web client ID mismatch: `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` must match the Clerk Google **Web** client.  
 - **“You are not authorized to perform this request”** after native Google succeeds – If **`aud` already matches** your Web client: turn **ON** [Native API](https://dashboard.clerk.com/~/native-applications) and register **package + SHA-256** for that APK. If **`aud` does not match**, fix `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` / Clerk Google Web client alignment.  

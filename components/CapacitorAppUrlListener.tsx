@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { App } from '@capacitor/app'
 import { useRouter } from 'next/navigation'
+import { isNativeOAuthCallbackDeepLink, nativeOAuthCallbackSearchParams } from '@/lib/capacitor-native-oauth'
 
 export function CapacitorAppUrlListener() {
   const router = useRouter()
@@ -12,9 +13,14 @@ export function CapacitorAppUrlListener() {
     if (!Capacitor.isNativePlatform()) return
 
     const listener = App.addListener('appUrlOpen', (event) => {
-      // The URL will be something like https://www.bedi.delivery/auth/capacitor-oauth-callback...
+      // Clerk native redirect: com.burhankhatib.bedi(.driver|.tenant)://oauth-callback?...
+      if (isNativeOAuthCallbackDeepLink(event.url)) {
+        const search = nativeOAuthCallbackSearchParams(event.url)
+        router.push(`/auth/capacitor-oauth-callback${search}`)
+        return
+      }
+
       const url = new URL(event.url)
-      // Only route if it belongs to our domain
       if (url.hostname === 'www.bedi.delivery' || url.hostname === 'bedi.delivery') {
         const pathWithQuery = url.pathname + url.search
         router.push(pathWithQuery)

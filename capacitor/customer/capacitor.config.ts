@@ -1,5 +1,9 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+/**
+ * `appId` must match Android `applicationId`, iOS bundle identifier, and Clerk → Native applications.
+ * OAuth return URL: `com.burhankhatib.bedi://oauth-callback` (allow-list in Clerk + intent / URL type in native projects).
+ */
 const config: CapacitorConfig = {
   appId: 'com.burhankhatib.bedi',
   appName: 'Bedi Delivery',

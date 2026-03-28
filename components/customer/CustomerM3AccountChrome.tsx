@@ -50,14 +50,14 @@ export function CustomerM3TopAppBar({
 
   return (
     <header
-      className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-1 border-b px-1 sm:px-2"
+      className="sticky top-0 z-30 shrink-0 border-b px-1 pt-[env(safe-area-inset-top,0px)] sm:px-2"
       style={{
         backgroundColor: 'var(--m3-surface-container-high)',
         borderColor: 'var(--m3-outline-variant)',
         boxShadow: 'var(--m3-elevation-1)',
       }}
     >
-      <div className={cn(M3_INSET, 'flex w-full max-w-3xl items-center gap-1')}>
+      <div className={cn(M3_INSET, 'flex h-16 w-full max-w-3xl items-center gap-1')}>
         <Link
           href={backHref}
           className={cn(

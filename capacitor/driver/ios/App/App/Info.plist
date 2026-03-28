@@ -51,5 +51,16 @@
 	<string>Bedi Driver uses your location for deliveries and navigation.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Bedi Driver uses your location for deliveries and navigation.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.burhankhatib.bedi.driver.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.burhankhatib.bedi.driver</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

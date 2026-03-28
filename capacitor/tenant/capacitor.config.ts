@@ -1,5 +1,6 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+/** Same `appId` as Android/iOS package and Clerk Native app. OAuth: `com.burhankhatib.bedi.tenant://oauth-callback` */
 const config: CapacitorConfig = {
   appId: 'com.burhankhatib.bedi.tenant',
   appName: 'Bedi Tenant',

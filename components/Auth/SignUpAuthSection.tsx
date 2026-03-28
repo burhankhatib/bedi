@@ -3,7 +3,7 @@
 import { Capacitor } from '@capacitor/core'
 import { useEffect, useState } from 'react'
 import { ClerkSignUpNativeAware } from '@/components/Auth/ClerkSignUpNativeAware'
-import { NativeGoogleSignInButton } from '@/components/Auth/NativeGoogleSignInButton'
+import { GoogleLoginButton } from '@/components/Auth/GoogleLoginButton'
 
 type Surface = 'pending' | 'web' | 'native'
 
@@ -38,7 +38,7 @@ export function SignUpAuthSection({ afterSignUpUrl, signInUrl, redirectUrl }: Si
   return (
     <div className="mx-auto w-full max-w-md space-y-4">
       {surface === 'native' ? (
-        <NativeGoogleSignInButton mode="sign-up" redirectUrl={redirectUrl} className="px-1" />
+        <GoogleLoginButton mode="sign-up" redirectUrl={redirectUrl} className="px-1" />
       ) : null}
       <ClerkSignUpNativeAware
         oauthMode={oauthMode}

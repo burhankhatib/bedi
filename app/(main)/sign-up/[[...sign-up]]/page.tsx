@@ -12,7 +12,7 @@ export default async function SignUpPage({
   const signInUrl = redirect_url ? `/sign-in?redirect_url=${encodeURIComponent(allowedRedirect)}` : '/sign-in'
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-12">
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 pb-12 pt-[max(3rem,env(safe-area-inset-top,0px))]">
       <SignUpAuthSection afterSignUpUrl={afterSignUpUrl} signInUrl={signInUrl} redirectUrl={redirect_url} />
     </div>
   )
