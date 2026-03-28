@@ -1,22 +1,18 @@
 'use client'
 
 /**
- * Native Google Sign-In using @capgo/capacitor-social-login + Clerk's `google_one_tap`.
- * 
- * We must use this native flow because opening Clerk's web OAuth URL in `InAppBrowser` 
- * fails with `authorization_invalid` (the Custom Tab lacks the app's webview cookies).
- * 
- * IMPORTANT: To prevent "You are not authorized to perform this request" here:
- * 1. Go to Clerk Dashboard -> User & Authentication -> Social Connections
- * 2. Click "Add connection" and choose **Google One Tap** (it is a separate connection from "Google"!)
- * 3. Turn ON "Use custom credentials"
- * 4. Paste your WEB Client ID (`162296...qkhp...apps.googleusercontent.com`)
- * 5. Paste your Client Secret
- * 6. Save!
+ * Native Google Sign-In using @capgo/capacitor-social-login.
+ *
+ * The client gets a Google ID token natively, sends it to our server route, and receives
+ * a short-lived Clerk "sign-in ticket". We then complete session creation with
+ * `signIn.create({ strategy: 'ticket' })`.
+ *
+ * This avoids the failing mobile OAuth redirect path that was returning
+ * `authorization_invalid` in external browser flows.
  */
 
 import { useCallback } from 'react'
-import { useClerk } from '@clerk/nextjs'
+import { useClerk, useSignIn } from '@clerk/nextjs'
 import { Capacitor } from '@capacitor/core'
 import { SocialLogin } from '@capgo/capacitor-social-login'
 import { useRouter } from 'next/navigation'
@@ -27,16 +23,17 @@ let socialLoginInitialized = false
 
 export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
   const clerk = useClerk()
+  const { signIn, isLoaded: signInLoaded } = useSignIn()
   const router = useRouter()
 
-  const isLoaded = clerk.loaded
+  const isLoaded = clerk.loaded && signInLoaded
 
   const startOAuth = useCallback(
     async (opts?: { redirectUrl?: string | null }) => {
       if (!Capacitor.isNativePlatform()) {
         throw new Error('useGoogleOAuthCapacitor is only for native Capacitor')
       }
-      if (!clerk.loaded) throw new Error('Clerk not ready')
+      if (!clerk.loaded || !signIn) throw new Error('Clerk sign-in not ready')
 
       try {
         if (!socialLoginInitialized) {
@@ -65,25 +62,38 @@ export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
         const dest = getAllowedRedirectPath(opts?.redirectUrl ?? null, '/')
         storeOAuthReturnTo(dest)
 
-        // Clerk's unified Google One Tap method
-        const attempt = await clerk.authenticateWithGoogleOneTap({
-          token: idToken,
+        const ticketRes = await fetch('/api/auth/native-google-ticket', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            idToken,
+            mode,
+          }),
+        })
+        const ticketJson = await ticketRes.json().catch(() => ({}))
+        if (!ticketRes.ok || !ticketJson?.ticket) {
+          throw new Error(ticketJson?.error || 'Failed to create Clerk sign-in ticket')
+        }
+
+        const attempt = await signIn.create({
+          strategy: 'ticket',
+          ticket: ticketJson.ticket,
         })
 
         if (attempt.status === 'complete') {
           await clerk.setActive({ session: attempt.createdSessionId })
           router.push(dest)
-        } else if (attempt.status === 'needs_second_factor') {
-          router.push('/verify-phone')
         } else {
-          console.warn('Unhandled One Tap status:', attempt.status)
+          throw new Error(`Unexpected sign-in status: ${attempt.status}`)
         }
       } catch (err: any) {
         console.error('Native Google OAuth Error:', err)
         throw err
       }
     },
-    [clerk, router]
+    [clerk, mode, router, signIn]
   )
 
   return { isLoaded, startOAuth }
