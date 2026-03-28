@@ -50,9 +50,6 @@ export function getCapacitorAppIdForPath(pathname: string): string {
  * like `/sign-in` (driver app is no longer inferred only from `/driver` in the path).
  */
 export async function resolveNativeOAuthRedirectUrl(): Promise<string> {
-  const fromEnv = getCapacitorAppIdFromEnv()
-  if (fromEnv) return `${fromEnv}://${NATIVE_OAUTH_HOST}`
-
   if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
     try {
       const { App } = await import('@capacitor/app')
@@ -62,6 +59,9 @@ export async function resolveNativeOAuthRedirectUrl(): Promise<string> {
       console.warn('App.getInfo() failed, falling back to path inference.', err)
     }
   }
+
+  const fromEnv = getCapacitorAppIdFromEnv()
+  if (fromEnv) return `${fromEnv}://${NATIVE_OAUTH_HOST}`
 
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '/'
   return `${getCapacitorAppIdForPath(pathname)}://${NATIVE_OAUTH_HOST}`
