@@ -1,63 +1,89 @@
 'use client'
 
 /**
- * Browser-based OAuth via Clerk `signIn` / `signUp` + `strategy: 'oauth_google'`.
- *
- * Opens the system browser (Custom Tabs / SFSafariViewController) for the OAuth flow.
- * After Google + Clerk finish they redirect back to `<appId>://oauth-callback`; the OS
- * re-opens the app and CapacitorAppUrlListener completes the session.
- *
- * This avoids the SHA-256 / Native-API attestation requirement of the ID-token path
- * and is the standard Capacitor + Clerk approach.
- *
- * Prefer {@link GoogleLoginButton} unless you need a fully custom UI.
+ * Native Google Sign-In using @capgo/capacitor-social-login + Clerk's `google_one_tap`.
+ * 
+ * We must use this native flow because opening Clerk's web OAuth URL in `InAppBrowser` 
+ * fails with `authorization_invalid` (the Custom Tab lacks the app's webview cookies).
+ * 
+ * IMPORTANT: To prevent "You are not authorized to perform this request" here:
+ * 1. Go to Clerk Dashboard -> User & Authentication -> Social Connections
+ * 2. Click "Add connection" and choose **Google One Tap** (it is a separate connection from "Google"!)
+ * 3. Turn ON "Use custom credentials"
+ * 4. Paste your WEB Client ID (`162296...qkhp...apps.googleusercontent.com`)
+ * 5. Paste your Client Secret
+ * 6. Save!
  */
 
 import { useCallback } from 'react'
-import { useSignIn, useSignUp } from '@clerk/nextjs'
+import { useClerk } from '@clerk/nextjs'
 import { Capacitor } from '@capacitor/core'
-import { InAppBrowser, DefaultSystemBrowserOptions } from '@capacitor/inappbrowser'
-import { resolveNativeOAuthRedirectUrl, storeOAuthReturnTo } from '@/lib/capacitor-native-oauth'
+import { SocialLogin } from '@capgo/capacitor-social-login'
+import { useRouter } from 'next/navigation'
 import { getAllowedRedirectPath } from '@/lib/auth-utils'
+import { storeOAuthReturnTo } from '@/lib/capacitor-native-oauth'
+
+let socialLoginInitialized = false
 
 export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
-  const { isLoaded: signInLoaded, signIn } = useSignIn()
-  const { isLoaded: signUpLoaded, signUp } = useSignUp()
+  const clerk = useClerk()
+  const router = useRouter()
 
-  const isLoaded = mode === 'sign-in' ? signInLoaded : signUpLoaded
+  const isLoaded = clerk.loaded
 
   const startOAuth = useCallback(
     async (opts?: { redirectUrl?: string | null }) => {
       if (!Capacitor.isNativePlatform()) {
         throw new Error('useGoogleOAuthCapacitor is only for native Capacitor')
       }
-      if (mode === 'sign-in' && !signIn) throw new Error('Clerk sign-in not ready')
-      if (mode === 'sign-up' && !signUp) throw new Error('Clerk sign-up not ready')
+      if (!clerk.loaded) throw new Error('Clerk not ready')
 
-      const dest = getAllowedRedirectPath(opts?.redirectUrl ?? null, '/')
-      storeOAuthReturnTo(dest)
-      const nativeRedirect = await resolveNativeOAuthRedirectUrl()
+      try {
+        if (!socialLoginInitialized) {
+          await SocialLogin.initialize({
+            google: {
+              // We MUST use the Web Client ID here!
+              // Google Play Services uses this to know which backend app the token is for.
+              webClientId: process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
+            },
+          })
+          socialLoginInitialized = true
+        }
 
-      if (mode === 'sign-in') {
-        const res = await signIn!.create({
-          strategy: 'oauth_google',
-          redirectUrl: nativeRedirect,
+        const res = await SocialLogin.login({
+          provider: 'google',
+          options: {
+            scopes: ['email', 'profile'],
+          },
         })
-        const authUrl = res.firstFactorVerification.externalVerificationRedirectURL?.href
-        if (!authUrl) throw new Error('No OAuth URL from Clerk')
-        await InAppBrowser.openInSystemBrowser({ url: authUrl, options: DefaultSystemBrowserOptions })
-        return
-      }
 
-      const res = await signUp!.create({
-        strategy: 'oauth_google',
-        redirectUrl: nativeRedirect,
-      })
-      const authUrl = res.verifications?.externalAccount?.externalVerificationRedirectURL?.href
-      if (!authUrl) throw new Error('No OAuth URL from Clerk')
-      await InAppBrowser.openInSystemBrowser({ url: authUrl, options: DefaultSystemBrowserOptions })
+        const idToken = res.result.idToken
+        if (!idToken) {
+          throw new Error('No ID token received from Google')
+        }
+
+        const dest = getAllowedRedirectPath(opts?.redirectUrl ?? null, '/')
+        storeOAuthReturnTo(dest)
+
+        // Clerk's unified Google One Tap method
+        const attempt = await clerk.authenticateWithGoogleOneTap({
+          token: idToken,
+        })
+
+        if (attempt.status === 'complete') {
+          await clerk.setActive({ session: attempt.createdSessionId })
+          router.push(dest)
+        } else if (attempt.status === 'needs_second_factor') {
+          router.push('/verify-phone')
+        } else {
+          console.warn('Unhandled One Tap status:', attempt.status)
+        }
+      } catch (err: any) {
+        console.error('Native Google OAuth Error:', err)
+        throw err
+      }
     },
-    [mode, signIn, signUp]
+    [clerk, router]
   )
 
   return { isLoaded, startOAuth }
