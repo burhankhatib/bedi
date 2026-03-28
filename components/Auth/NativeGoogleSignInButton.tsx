@@ -6,7 +6,7 @@ import { getAllowedRedirectPath } from '@/lib/auth-utils'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { InAppBrowser } from '@capacitor/inappbrowser'
+import { InAppBrowser, DefaultSystemBrowserOptions } from '@capacitor/inappbrowser'
 
 let socialLoginInitPromise: Promise<void> | null = null
 
@@ -260,8 +260,10 @@ export function NativeGoogleSignInButton({
         throw new Error('Failed to generate Google OAuth URL')
       }
 
-      // @ts-expect-error capacitor inappbrowser typings require options but it is optional at runtime
-      await InAppBrowser.openInSystemBrowser({ url: authUrl })
+      await InAppBrowser.openInSystemBrowser({
+        url: authUrl,
+        options: DefaultSystemBrowserOptions,
+      })
     } catch (e) {
       let message = e instanceof Error ? e.message : 'Browser sign-in failed'
       if (mounted.current) setInitError(message)
@@ -275,6 +277,13 @@ export function NativeGoogleSignInButton({
   if (!webClientId) return null
 
   const label = mode === 'sign-in' ? 'Continue with Google' : 'Sign up with Google'
+  const isAndroid = Capacitor.getPlatform() === 'android'
+  /** Android: Custom Tabs OAuth is reliable with Google + Clerk. iOS: native Google account flow first. */
+  const primaryAction = isAndroid ? onBrowserPress : onPress
+  const secondaryAction = isAndroid ? onPress : onBrowserPress
+  const secondaryLabel = isAndroid
+    ? `${label} (device account)`
+    : `${label} (browser)`
 
   return (
     <div className={className}>
@@ -283,7 +292,7 @@ export function NativeGoogleSignInButton({
         variant="outline"
         disabled={!clerk.loaded || busy}
         className="w-full border-slate-600 bg-slate-800 text-slate-100 hover:bg-slate-700 hover:text-white"
-        onClick={() => void onPress()}
+        onClick={() => void primaryAction()}
       >
         {busy ? 'Signing in…' : label}
       </Button>
@@ -293,9 +302,9 @@ export function NativeGoogleSignInButton({
         variant="ghost"
         disabled={!clerk.loaded || busy}
         className="w-full mt-2 text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-        onClick={() => void onBrowserPress()}
+        onClick={() => void secondaryAction()}
       >
-        {busy ? '...' : `${label} (browser)`}
+        {busy ? '…' : secondaryLabel}
       </Button>
 
       {initError ? (
@@ -304,7 +313,9 @@ export function NativeGoogleSignInButton({
         </p>
       ) : (
         <p className="mt-2 text-center text-xs text-slate-500">
-          Uses your Google account saved on this device.
+          {isAndroid
+            ? 'Opens Google in your browser for a secure sign-in, then returns to the app.'
+            : 'Uses your Google account saved on this device.'}
         </p>
       )}
     </div>

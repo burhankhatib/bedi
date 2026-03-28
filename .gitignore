@@ -39,6 +39,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local npm cache (used when ~/.npm-cache has permission issues)
+.npm-cache-cap/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

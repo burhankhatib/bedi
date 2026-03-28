@@ -20,6 +20,8 @@
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2",
     "@capacitor/geolocation": "^8.1.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/inappbrowser": "^3.0.2",
     "@capacitor/push-notifications": "^8.0.3",
     "@capgo/capacitor-social-login": "^8.3.9"
   },
