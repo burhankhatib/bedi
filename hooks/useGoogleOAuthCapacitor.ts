@@ -9,19 +9,15 @@
  */
 
 import { useCallback } from 'react'
-import { useSignIn, useSignUp } from '@clerk/nextjs'
+import { useSignIn, useSignUp, useClerk } from '@clerk/nextjs'
 import { Capacitor } from '@capacitor/core'
-import { InAppBrowser, DefaultSystemBrowserOptions } from '@capacitor/inappbrowser'
-import { resolveNativeOAuthRedirectUrl, storeOAuthReturnTo } from '@/lib/capacitor-native-oauth'
+import { SocialLogin } from '@capgo/capacitor-social-login'
 import { getAllowedRedirectPath } from '@/lib/auth-utils'
-
-function shouldSendLegalAccepted(): boolean {
-  return process.env.NEXT_PUBLIC_NATIVE_GOOGLE_LEGAL_ACCEPTED === '1'
-}
 
 export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
   const { isLoaded: signInLoaded, signIn } = useSignIn()
   const { isLoaded: signUpLoaded, signUp } = useSignUp()
+  const { setActive } = useClerk()
 
   const isLoaded = mode === 'sign-in' ? signInLoaded : signUpLoaded
 
@@ -34,70 +30,58 @@ export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
       if (mode === 'sign-up' && !signUp) throw new Error('Clerk sign-up not ready')
 
       const dest = getAllowedRedirectPath(opts?.redirectUrl ?? null, '/')
-      storeOAuthReturnTo(dest)
-      const nativeRedirect = await resolveNativeOAuthRedirectUrl()
-      const withLegalAccepted = shouldSendLegalAccepted()
 
-      if (mode === 'sign-in') {
-        const createPayload: Record<string, unknown> = {
-          strategy: 'oauth_google',
-          redirectUrl: nativeRedirect,
-        }
-        if (withLegalAccepted) createPayload.legalAccepted = true
+      // 1. Initialize Plugin
+      await SocialLogin.initialize({
+        google: {
+          webClientId: process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+          iOSClientId: process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+        },
+      })
 
-        let res
-        try {
-          res = await signIn!.create(createPayload as any)
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error)
-          if (withLegalAccepted && (msg.includes('authorization_invalid') || msg.includes('legal_accepted'))) {
-            console.warn('Clerk rejected legalAccepted on sign-in, retrying without it...')
-            res = await signIn!.create({
-              strategy: 'oauth_google',
-              redirectUrl: nativeRedirect,
-            })
-          } else {
-            throw error
-          }
-        }
-        const authUrl = res.firstFactorVerification.externalVerificationRedirectURL?.href
-        if (!authUrl) throw new Error('No OAuth URL from Clerk')
-        await InAppBrowser.openInSystemBrowser({
-          url: authUrl,
-          options: DefaultSystemBrowserOptions,
-        })
-        return
-      }
+      // 2. Open Native Google Account Picker
+      const res = await SocialLogin.login({
+        provider: 'google',
+        options: {
+          scopes: ['email', 'profile'],
+        },
+      })
 
-      const createPayload: Record<string, unknown> = {
-        strategy: 'oauth_google',
-        redirectUrl: nativeRedirect,
-      }
-      if (withLegalAccepted) createPayload.legalAccepted = true
+      const idToken = (res.result as any).idToken
+      if (!idToken) throw new Error('No ID token returned from Google native login')
 
-      let res
+      // 3. Authenticate with Clerk using the Google ID Token
       try {
-        res = await signUp!.create(createPayload as any)
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        if (withLegalAccepted && (msg.includes('authorization_invalid') || msg.includes('legal_accepted'))) {
-          console.warn('Clerk rejected legalAccepted on sign-up, retrying without it...')
-          res = await signUp!.create({
-            strategy: 'oauth_google',
-            redirectUrl: nativeRedirect,
+        const result = await signIn!.create({
+          strategy: 'google_one_tap' as any,
+          token: idToken,
+        })
+
+        if (result.status === 'complete') {
+          await setActive({ session: result.createdSessionId })
+          window.location.href = dest
+        } else {
+          console.warn('Sign in not complete', result)
+        }
+      } catch (error: any) {
+        // If the user doesn't exist yet, we catch the error and sign them up instead
+        if (error?.errors?.[0]?.code === 'form_identifier_not_found') {
+          const signUpResult = await signUp!.create({
+            strategy: 'google_one_tap' as any,
+            token: idToken,
           })
+          if (signUpResult.status === 'complete') {
+            await setActive({ session: signUpResult.createdSessionId })
+            window.location.href = dest
+          } else {
+            console.warn('Sign up not complete', signUpResult)
+          }
         } else {
           throw error
         }
       }
-      const authUrl = res.verifications?.externalAccount?.externalVerificationRedirectURL?.href
-      if (!authUrl) throw new Error('No OAuth URL from Clerk')
-      await InAppBrowser.openInSystemBrowser({
-        url: authUrl,
-        options: DefaultSystemBrowserOptions,
-      })
     },
-    [mode, signIn, signUp]
+    [mode, signIn, signUp, setActive]
   )
 
   return { isLoaded, startOAuth }
