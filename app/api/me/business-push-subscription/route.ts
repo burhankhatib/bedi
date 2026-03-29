@@ -82,6 +82,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => ({}))
     const fcmToken = body?.fcmToken && typeof body.fcmToken === 'string' ? body.fcmToken.trim() : null
+    const pushClient = ['native', 'pwa', 'browser'].includes(body?.pushClient) ? body.pushClient : null
     if (!fcmToken) {
       return NextResponse.json({ error: 'fcmToken required' }, { status: 400 })
     }
@@ -113,6 +114,7 @@ export async function POST(req: NextRequest) {
       roleContext: 'tenant',
       siteIds,
       fcmToken,
+      pushClient,
     }).catch((e) => {
       console.warn('[business-push-subscription] central upsert failed', e)
       return null

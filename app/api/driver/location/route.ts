@@ -116,9 +116,12 @@ export async function POST(req: NextRequest) {
       const subs = await getActiveSubscriptionsForUser({ clerkUserId: driver.clerkUserId, roleContext: 'driver' })
       for (const sub of subs) {
         for (const dev of sub?.devices ?? []) {
-          if (dev?.fcmToken && isFCMConfigured() && (await sendFCMToToken(dev.fcmToken, driverPushPayload))) {
-            driverPushSent = true
-            break
+          if (dev?.fcmToken && isFCMConfigured()) {
+            const payloadWithClient = dev.pushClient ? { ...driverPushPayload, pushClient: dev.pushClient } : driverPushPayload
+            if (await sendFCMToToken(dev.fcmToken, payloadWithClient)) {
+              driverPushSent = true
+              break
+            }
           }
           if (
             dev?.webPush?.endpoint &&

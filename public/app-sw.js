@@ -72,26 +72,67 @@ self.addEventListener('push', function (event) {
 self.addEventListener('notificationclick', function (event) {
   event.notification.close()
   var path = event.notification.data && event.notification.data.url ? event.notification.data.url : PWA_DEFAULT_URL
+  var pushClient = event.notification.data && event.notification.data.pushClient ? event.notification.data.pushClient : null
+
   var fullUrl
   try {
     fullUrl = new URL(path, self.location.origin).href
   } catch (_) {
     fullUrl = self.location.origin + (path.startsWith('/') ? path : '/' + path)
   }
+
+  var targetPath = fullUrl.replace(self.location.origin, '').split('?')[0].split('#')[0]
+
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      for (var i = 0; i < clientList.length; i++) {
-        var client = clientList[i]
-        if (client.url === fullUrl && 'focus' in client) return client.focus()
+      var i, c, p, dm
+      
+      // 1) Exact path match
+      for (i = 0; i < clientList.length; i++) {
+        c = clientList[i]
+        if (c.url === fullUrl || (c.url && c.url.replace(self.location.origin, '').split('?')[0].split('#')[0] === targetPath)) {
+          dm = c.displayMode
+          var isStandalone = dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui'
+          if (pushClient === 'pwa' && !isStandalone) continue
+          if (pushClient === 'browser' && isStandalone) continue
+          if ('focus' in c) return c.focus()
+        }
       }
-      for (var j = 0; j < clientList.length; j++) {
-        var c = clientList[j]
+
+      // 2) Prefer installed PWA window
+      if (pushClient !== 'browser') {
+        var standaloneClient = null
+        for (i = 0; i < clientList.length; i++) {
+          c = clientList[i]
+          if (!c.url || c.url.indexOf(self.location.origin) === -1) continue
+          if (!('navigate' in c)) continue
+          dm = c.displayMode
+          if (dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui') {
+            standaloneClient = c
+            break
+          }
+        }
+        if (standaloneClient) {
+          standaloneClient.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
+          return standaloneClient.navigate(fullUrl).then(function () { return standaloneClient.focus() }).catch(function () { return standaloneClient.focus() })
+        }
+      }
+
+      // 3) Any same-origin window
+      for (i = 0; i < clientList.length; i++) {
+        c = clientList[i]
         if (c.url && c.url.indexOf(self.location.origin) !== -1 && 'focus' in c) {
+          dm = c.displayMode
+          var isStandalone2 = dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui'
+          if (pushClient === 'pwa' && !isStandalone2) continue
+          if (pushClient === 'browser' && isStandalone2) continue
+
           c.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
           if ('navigate' in c && c.url !== fullUrl) c.navigate(fullUrl)
           return c.focus()
         }
       }
+      
       if (self.clients.openWindow) return self.clients.openWindow(fullUrl)
     })
   )

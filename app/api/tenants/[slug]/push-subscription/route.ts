@@ -133,6 +133,7 @@ export async function POST(
   const p256dh = keys?.p256dh && typeof keys.p256dh === 'string' ? keys.p256dh : null
   const authKey = keys?.auth && typeof keys.auth === 'string' ? keys.auth : null
   const forceConfirmation = body?.forceConfirmation === true || body?.source === 'manual-refresh'
+  const pushClient = ['native', 'pwa', 'browser'].includes(body?.pushClient) ? body.pushClient : null
 
   const hasWebPush = !!(endpoint && p256dh && authKey)
   if (!fcmToken && !hasWebPush) {
@@ -171,6 +172,7 @@ export async function POST(
     siteIds,
     fcmToken: fcmToken || null,
     webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : null,
+    pushClient,
   }).catch((e) => console.warn('[push-subscription] central upsert failed', e))
 
   // ── 2. Also write to legacy tenant / tenantStaff document (backward compat) ──

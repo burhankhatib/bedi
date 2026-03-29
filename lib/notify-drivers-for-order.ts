@@ -12,15 +12,15 @@ import { getOfflineOrderAvailableReminderPushAr } from '@/lib/driver-push-messag
 const writeClient = client.withConfig({ token: token || undefined, useCdn: false })
 const OFFLINE_REMINDER_INTERVAL_MS = 2 * 60 * 60 * 1000
 
-type CentralSub = { clerkUserId: string; devices?: Array<{ fcmToken?: string; webPush?: { endpoint?: string; p256dh?: string; auth?: string } }> }
+type CentralSub = { clerkUserId: string; devices?: Array<{ fcmToken?: string; webPush?: { endpoint?: string; p256dh?: string; auth?: string }; pushClient?: string }> }
 
 async function getDriverTokens(
   d: { _id: string; clerkUserId?: string; fcmToken?: string; pushSubscription?: { endpoint?: string; p256dh?: string; auth?: string } },
   centralByClerk: Map<string, CentralSub[]>
-): Promise<{ fcmTokens: string[]; webPush: Array<{ endpoint: string; p256dh: string; auth: string }> }> {
-  const fcmTokens: string[] = []
+): Promise<{ fcmTokens: Array<{ token: string; pushClient?: string }>; webPush: Array<{ endpoint: string; p256dh: string; auth: string }> }> {
+  const fcmTokens: Array<{ token: string; pushClient?: string }> = []
   const webPush: Array<{ endpoint: string; p256dh: string; auth: string }> = []
-  if (d.fcmToken && d.fcmToken.trim()) fcmTokens.push(d.fcmToken.trim())
+  if (d.fcmToken && d.fcmToken.trim()) fcmTokens.push({ token: d.fcmToken.trim() })
   const sub = d.pushSubscription
   if (sub?.endpoint && sub?.p256dh && sub?.auth) {
     webPush.push({ endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth })
@@ -30,7 +30,7 @@ async function getDriverTokens(
     const central = centralByClerk.get(clerkUserId) ?? []
     for (const c of central) {
       for (const dev of c.devices ?? []) {
-        if (dev.fcmToken && !fcmTokens.includes(dev.fcmToken)) fcmTokens.push(dev.fcmToken)
+        if (dev.fcmToken && !fcmTokens.some(t => t.token === dev.fcmToken)) fcmTokens.push({ token: dev.fcmToken, pushClient: dev.pushClient })
         const wp = dev.webPush
         if (wp?.endpoint && wp?.p256dh && wp?.auth && !webPush.some((w) => w.endpoint === wp.endpoint)) {
           webPush.push({ endpoint: wp.endpoint, p256dh: wp.p256dh, auth: wp.auth })
@@ -44,7 +44,7 @@ async function getDriverTokens(
 type DriverCleanupContext = { driverId: string; clerkUserId?: string; legacyFcmToken?: string }
 
 async function sendToDriverTokens(
-  tokens: { fcmTokens: string[]; webPush: Array<{ endpoint: string; p256dh: string; auth: string }> },
+  tokens: { fcmTokens: Array<{ token: string; pushClient?: string }>; webPush: Array<{ endpoint: string; p256dh: string; auth: string }> },
   payload: { title: string; body: string; url: string; dir: 'rtl' },
   driverCtx?: DriverCleanupContext,
   opts?: { dataOnly?: boolean }
@@ -52,9 +52,9 @@ async function sendToDriverTokens(
   let sent = false
   /** Default false so Android/iOS/Web show a real notification (data-only often shows nothing when app is backgrounded). */
   const useDataOnly = opts?.dataOnly === true
-  const fcmPayload = useDataOnly ? { ...payload, dataOnly: true as const } : payload
-  for (const tok of tokens.fcmTokens) {
+  for (const { token: tok, pushClient } of tokens.fcmTokens) {
     if (!isFCMConfigured()) break
+    const fcmPayload = useDataOnly ? { ...payload, dataOnly: true as const, pushClient: pushClient as any } : { ...payload, pushClient: pushClient as any }
     const result = await sendFCMToTokenDetailed(tok, fcmPayload)
     if (result.ok) {
       sent = true

@@ -129,6 +129,7 @@ export function useCustomerTrackPush(slug: string, token: string) {
         
         if (fcmToken) {
           const apiUrl = `/api/tenants/${encodeURIComponent(slug)}/track/${encodeURIComponent(token)}/push-subscription`
+          const pushClient = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
           const res = await fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -136,7 +137,8 @@ export function useCustomerTrackPush(slug: string, token: string) {
               fcmToken,
               source: 'customer-track',
               isIOS,
-              standalone: isStandalone() || isNative
+              standalone: isStandalone() || isNative,
+              pushClient,
             }),
           })
           if (res.ok) {
@@ -169,6 +171,7 @@ export function useCustomerTrackPush(slug: string, token: string) {
         })
         const p256 = new Uint8Array(subscription.getKey('p256dh')!)
         const auth = new Uint8Array(subscription.getKey('auth')!)
+        const pushClient = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
         const apiUrl = `/api/tenants/${encodeURIComponent(slug)}/track/${encodeURIComponent(token)}/push-subscription`
         const res = await fetch(apiUrl, {
           method: 'POST',
@@ -178,6 +181,7 @@ export function useCustomerTrackPush(slug: string, token: string) {
             source: 'customer-track',
             isIOS,
             standalone: isStandalone(),
+            pushClient,
             keys: {
               p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
               auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
@@ -221,6 +225,30 @@ export function useCustomerTrackPush(slug: string, token: string) {
     setNeedsRefresh(false)
     doSubscribe().catch(() => {})
   }, [needsRefresh, permission, doSubscribe])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform()) {
+      if (permission === 'denied' || permission === 'granted') return
+      
+      const timeoutId = setTimeout(() => {
+        if (!hasPush) doSubscribe().catch(() => {})
+      }, 1500)
+      
+      let listener: any = null
+      import('@capacitor/app').then(({ App }) => {
+        App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive && !hasPush) {
+            doSubscribe().catch(() => {})
+          }
+        }).then(l => listener = l)
+      }).catch(() => {})
+      
+      return () => {
+        clearTimeout(timeoutId)
+        if (listener) listener.remove()
+      }
+    }
+  }, [permission, hasPush, doSubscribe])
 
   useEffect(() => {
     if (!checked || permission !== 'granted') return

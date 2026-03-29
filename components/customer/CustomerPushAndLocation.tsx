@@ -78,6 +78,34 @@ export function CustomerPushAndLocation() {
     }
   }, [])
 
+  // Native auto-prompt
+  useEffect(() => {
+    if (!mounted || dismissed) return
+    const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform()
+    if (!isNative) return
+    
+    // Attempt prompt if permission is unknown/prompt
+    if (pushPermission !== 'granted' && pushPermission !== 'denied') {
+      const timer = setTimeout(() => {
+        requestPush().catch(() => {})
+      }, 1500)
+      
+      let listener: any = null
+      import('@capacitor/app').then(({ App }) => {
+        App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            requestPush().catch(() => {})
+          }
+        }).then(l => listener = l)
+      }).catch(() => {})
+      
+      return () => {
+        clearTimeout(timer)
+        if (listener) listener.remove()
+      }
+    }
+  }, [mounted, dismissed, pushPermission, requestPush])
+
   const requestLocation = useCallback(async () => {
     if (!isDeviceGeolocationSupported()) return
     try {

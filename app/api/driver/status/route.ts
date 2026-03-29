@@ -91,9 +91,12 @@ export async function PATCH(req: NextRequest) {
       const subs = await getActiveSubscriptionsForUser({ clerkUserId: driver.clerkUserId, roleContext: 'driver' })
       for (const sub of subs) {
         for (const dev of sub?.devices ?? []) {
-          if (dev?.fcmToken && isFCMConfigured() && (await sendFCMToToken(dev.fcmToken, payload))) {
-            sent = true
-            break
+          if (dev?.fcmToken && isFCMConfigured()) {
+            const payloadWithClient = dev.pushClient ? { ...payload, pushClient: dev.pushClient } : payload
+            if (await sendFCMToToken(dev.fcmToken, payloadWithClient)) {
+              sent = true
+              break
+            }
           }
           if (
             dev?.webPush?.endpoint &&
@@ -185,9 +188,12 @@ export async function GET() {
     const subs = await getActiveSubscriptionsForUser({ clerkUserId: userId, roleContext: 'driver' })
     for (const sub of subs) {
       for (const dev of sub?.devices ?? []) {
-        if (dev?.fcmToken && isFCMConfigured() && (await sendFCMToToken(dev.fcmToken, payload))) {
-          sent = true
-          break
+        if (dev?.fcmToken && isFCMConfigured()) {
+          const payloadWithClient = dev.pushClient ? { ...payload, pushClient: dev.pushClient } : payload
+          if (await sendFCMToToken(dev.fcmToken, payloadWithClient)) {
+            sent = true
+            break
+          }
         }
         if (
           dev?.webPush?.endpoint &&

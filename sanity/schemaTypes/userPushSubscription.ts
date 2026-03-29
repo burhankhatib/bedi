@@ -52,6 +52,12 @@ export const userPushSubscriptionType = defineType({
           fields: [
             { name: 'fcmToken', type: 'string', title: 'FCM Token' },
             {
+              name: 'pushClient',
+              title: 'Push Client',
+              type: 'string',
+              options: { list: ['native', 'pwa', 'browser'] },
+            },
+            {
               name: 'webPush',
               title: 'Web Push Subscription',
               type: 'object',

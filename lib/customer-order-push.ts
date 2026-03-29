@@ -198,6 +198,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
   type Recipient = {
     clerkUserId?: string
     fcmToken?: string
+    pushClient?: string
     webPush?: { endpoint?: string; p256dh?: string; auth?: string }
     source: 'central' | 'legacy'
   }
@@ -221,6 +222,7 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
             recipients.push({
               clerkUserId,
               fcmToken: device.fcmToken,
+              pushClient: device.pushClient,
               webPush: device.webPush,
               source: 'central',
             })
@@ -260,7 +262,8 @@ export async function sendCustomerOrderStatusPush(options: SendCustomerOrderPush
     let delivered = false
 
     if (recipient.fcmToken && isFCMConfigured()) {
-      const fcmResult = await sendFCMToTokenDetailed(recipient.fcmToken, finalPayload)
+      const payloadWithClient = recipient.pushClient ? { ...finalPayload, pushClient: recipient.pushClient as any } : finalPayload
+      const fcmResult = await sendFCMToTokenDetailed(recipient.fcmToken, payloadWithClient)
       if (fcmResult.ok) {
         delivered = true
       } else if (recipient.source === 'central' && recipient.clerkUserId && fcmResult.permanent) {

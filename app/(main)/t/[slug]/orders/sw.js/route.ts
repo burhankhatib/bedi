@@ -90,6 +90,7 @@ self.addEventListener('notificationclick', function (event) {
   var path = event.notification.data && event.notification.data.url
     ? event.notification.data.url
     : PWA_DEFAULT_URL
+  var pushClient = event.notification.data && event.notification.data.pushClient ? event.notification.data.pushClient : null
 
   var fullUrl
   try {
@@ -100,15 +101,25 @@ self.addEventListener('notificationclick', function (event) {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      var dm
       for (var i = 0; i < clientList.length; i++) {
         var client = clientList[i]
+        dm = client.displayMode
+        var isStandalone = dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui'
         if (client.url === fullUrl && 'focus' in client) {
+          if (pushClient === 'pwa' && !isStandalone) continue
+          if (pushClient === 'browser' && isStandalone) continue
           return client.focus()
         }
       }
       for (var j = 0; j < clientList.length; j++) {
         var c = clientList[j]
         if (c.url && c.url.indexOf(self.location.origin) !== -1 && 'focus' in c) {
+          dm = c.displayMode
+          var isStandalone2 = dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui'
+          if (pushClient === 'pwa' && !isStandalone2) continue
+          if (pushClient === 'browser' && isStandalone2) continue
+
           c.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
           if ('navigate' in c && c.url !== fullUrl) c.navigate(fullUrl)
           return c.focus()

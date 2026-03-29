@@ -17,6 +17,11 @@ import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, PUSH_CONTEXT_KEYS 
 const REMIND_LATER_KEY = 'bedi-business-push-remind'
 const REMIND_MS = 24 * 60 * 60 * 1000
 
+function isStandalone(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true
+}
+
 export function BusinessPushSetup() {
   const { t, lang } = useLanguage()
   const { showToast } = useToast()
@@ -52,11 +57,16 @@ export function BusinessPushSetup() {
         return false
       }
       if (!fcmToken) throw new Error('Could not get token')
+      const isStandalone = () => {
+        if (typeof window === 'undefined') return false
+        return window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true
+      }
+      const pushClient = typeof window !== 'undefined' && Capacitor.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
       const res = await fetch('/api/me/business-push-subscription', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fcmToken }),
+        body: JSON.stringify({ fcmToken, pushClient }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -90,11 +100,12 @@ export function BusinessPushSetup() {
       try {
         const { token } = await getTenantPushSubscriptionToken(false, '/dashboard/')
         if (cancelled || !token) return
+        const pushClient = typeof window !== 'undefined' && Capacitor.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
         const res = await fetch('/api/me/business-push-subscription', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fcmToken: token }),
+          body: JSON.stringify({ fcmToken: token, pushClient }),
         })
         if (res.ok) {
           setStoredPushOk(PUSH_CONTEXT_KEYS.business())

@@ -1372,7 +1372,7 @@ function DriverOrdersV2Content() {
   const isIOSStandalone =
     typeof window !== 'undefined' && (navigator as unknown as { standalone?: boolean }).standalone === true
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (isIOSStandalone) return
+    if (isIOSStandalone || (typeof document !== 'undefined' && (document.body.style.overflow === 'hidden' || !!document.body.getAttribute('data-scroll-locked')))) return
     if (window.scrollY <= 5) {
       const y = e.touches[0].clientY
       setStartY(y)
@@ -1383,7 +1383,7 @@ function DriverOrdersV2Content() {
     }
   }
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (isIOSStandalone) return
+    if (isIOSStandalone || (typeof document !== 'undefined' && (document.body.style.overflow === 'hidden' || !!document.body.getAttribute('data-scroll-locked')))) return
     if (startYRef.current !== null && window.scrollY <= 5) {
       const dist = e.touches[0].clientY - startYRef.current
       if (dist > 0) setPullDistance(Math.min(dist * 0.5, MAX_PULL))
@@ -1394,6 +1394,7 @@ function DriverOrdersV2Content() {
     const el = pullContainerRef.current
     if (!el) return
     const onMove = (e: TouchEvent) => {
+      if (typeof document !== 'undefined' && (document.body.style.overflow === 'hidden' || !!document.body.getAttribute('data-scroll-locked'))) return
       const sy = startYRef.current
       if (sy === null) return
       if (window.scrollY > 10) {
@@ -1421,11 +1422,17 @@ function DriverOrdersV2Content() {
         window.location.reload()
         return
       }
-      await fetchOrders()
-      setIsRefreshing(false)
+      try {
+        await fetchOrders()
+      } finally {
+        setIsRefreshing(false)
+        setPullDistance(0)
+        setStartY(null)
+      }
+    } else {
+      setPullDistance(0)
+      setStartY(null)
     }
-    setPullDistance(0)
-    setStartY(null)
   }
 
   const toggleExpandedDetails = (orderId: string, idx: number) => {

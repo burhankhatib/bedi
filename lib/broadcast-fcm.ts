@@ -18,6 +18,7 @@ type PushSubscription = {
   roleContext: string
   devices?: Array<{
     fcmToken?: string
+    pushClient?: string
     webPush?: { endpoint?: string; p256dh?: string; auth?: string }
   }>
 }
@@ -201,7 +202,8 @@ export async function sendFCMToRecipients(
         const key = `fcm:${dev.fcmToken}`
         if (!seenTokens.has(key)) {
           seenTokens.add(key)
-          const ok = await sendFCMToToken(dev.fcmToken, fullPayload)
+          const payloadWithClient = dev.pushClient ? { ...fullPayload, pushClient: dev.pushClient as any } : fullPayload
+          const ok = await sendFCMToToken(dev.fcmToken, payloadWithClient)
           if (ok) sent++
           else failed++
           attempts.push({

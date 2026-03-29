@@ -13,6 +13,7 @@ export type WebPushKeys = {
 export type PushDevice = {
   _key: string
   fcmToken?: string
+  pushClient?: 'native' | 'pwa' | 'browser'
   webPush?: WebPushKeys
   deviceInfo?: string
   lastRefreshedAt: string
@@ -45,6 +46,7 @@ export async function upsertUserPushSubscription(input: {
   fcmToken?: string | null
   webPush?: WebPushKeys | null
   deviceInfo?: string | null
+  pushClient?: 'native' | 'pwa' | 'browser' | null
 }): Promise<{ id: string; created: boolean } | null> {
   if (!token) return null
   const clerkUserId = normalizeToken(input.clerkUserId)
@@ -52,6 +54,7 @@ export async function upsertUserPushSubscription(input: {
   const fcmToken = normalizeToken(input.fcmToken)
   const webPush = input.webPush
   const deviceInfo = normalizeDeviceInfo(input.deviceInfo)
+  const pushClient = input.pushClient
 
   if (!clerkUserId || !roleContext) return null
   if (!fcmToken && !webPush?.endpoint) return null
@@ -89,6 +92,7 @@ export async function upsertUserPushSubscription(input: {
   if (fcmToken) newDevice.fcmToken = fcmToken
   if (webPush) newDevice.webPush = webPush
   if (deviceInfo) newDevice.deviceInfo = deviceInfo
+  if (pushClient) newDevice.pushClient = pushClient
 
   if (mainDoc) {
     // Consolidate legacy docs

@@ -77,48 +77,63 @@ self.addEventListener('push', function (event) {
 self.addEventListener('notificationclick', function (event) {
   event.notification.close()
   var url = event.notification.data?.url || self.location.origin + '/'
+  var pushClient = event.notification.data?.pushClient || null
   var fullUrl = url.startsWith('http') ? url : self.location.origin + (url.startsWith('/') ? url : '/' + url)
   var origin = self.location.origin
   var targetPath = fullUrl.replace(origin, '').split('?')[0].split('#')[0]
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      var i
-      var c
-      var p
+      var i, c, p, dm
       // 1) Exact path match — focus without navigation
       for (i = 0; i < clientList.length; i++) {
         c = clientList[i]
         if (!c.url || c.url.indexOf(origin) !== 0) continue
         p = c.url.replace(origin, '').split('?')[0].split('#')[0]
-        if (p === targetPath && 'focus' in c) return c.focus()
-      }
-      // 2) Prefer installed PWA window (standalone / fullscreen) when multiple tabs exist (Chromium WindowClient.displayMode)
-      var standaloneClient = null
-      for (i = 0; i < clientList.length; i++) {
-        c = clientList[i]
-        if (!c.url || c.url.indexOf(origin) !== 0) continue
-        if (!('navigate' in c)) continue
-        var dm = c.displayMode
-        if (dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui') {
-          standaloneClient = c
-          break
+        dm = c.displayMode
+        var isStandalone = dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui'
+        if (p === targetPath && 'focus' in c) {
+          if (pushClient === 'pwa' && !isStandalone) continue
+          if (pushClient === 'browser' && isStandalone) continue
+          return c.focus()
         }
       }
-      if (standaloneClient) {
-        return standaloneClient.navigate(fullUrl).then(function () { return standaloneClient.focus() }).catch(function () { return standaloneClient.focus() })
+      // 2) Prefer installed PWA window (standalone / fullscreen) when multiple tabs exist
+      if (pushClient !== 'browser') {
+        var standaloneClient = null
+        for (i = 0; i < clientList.length; i++) {
+          c = clientList[i]
+          if (!c.url || c.url.indexOf(origin) !== 0) continue
+          if (!('navigate' in c)) continue
+          dm = c.displayMode
+          if (dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui') {
+            standaloneClient = c
+            break
+          }
+        }
+        if (standaloneClient) {
+          return standaloneClient.navigate(fullUrl).then(function () { return standaloneClient.focus() }).catch(function () { return standaloneClient.focus() })
+        }
       }
       // 3) Prefer currently focused same-origin window
       for (i = 0; i < clientList.length; i++) {
         c = clientList[i]
         if (!c.url || c.url.indexOf(origin) !== 0) continue
         if (!c.focused || !('navigate' in c)) continue
+        dm = c.displayMode
+        var isStandalone2 = dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui'
+        if (pushClient === 'pwa' && !isStandalone2) continue
+        if (pushClient === 'browser' && isStandalone2) continue
         return c.navigate(fullUrl).then(function () { return c.focus() }).catch(function () { return c.focus() })
       }
-      // 4) Any same-origin window (e.g. PWA in background — visibility was hidden, old logic skipped these and opened a new browser tab)
+      // 4) Any same-origin window
       for (i = 0; i < clientList.length; i++) {
         c = clientList[i]
         if (!c.url || c.url.indexOf(origin) !== 0) continue
         if (!('navigate' in c)) continue
+        dm = c.displayMode
+        var isStandalone3 = dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui'
+        if (pushClient === 'pwa' && !isStandalone3) continue
+        if (pushClient === 'browser' && isStandalone3) continue
         return c.navigate(fullUrl).then(function () { return c.focus() }).catch(function () { return c.focus() })
       }
       if (self.clients.openWindow) return self.clients.openWindow(fullUrl)

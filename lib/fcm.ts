@@ -86,6 +86,8 @@ export type FcmPayload = {
   critical?: boolean
   /** When true, send data-only (no notification block) so the service worker fully controls display and click. Use for customer PWA to fix Android tap-to-open. */
   dataOnly?: boolean
+  /** Identifies the target platform to adjust link behavior (prevents Capacitor from opening browser) */
+  pushClient?: 'native' | 'pwa' | 'browser'
 }
 
 /**
@@ -108,13 +110,19 @@ export async function sendFCMToTokenDetailed(
 ): Promise<FcmSendResult> {
   const msg = getAdminMessaging()
   if (!msg) return { ok: false, permanent: false, reason: 'fcm_not_configured' }
-  const url = payload.url ?? '/driver/orders'
-  const fullUrl = buildFullUrl(url)
+  const rawUrl = payload.url ?? '/driver/orders'
+  const fullUrl = buildFullUrl(rawUrl)
+  
+  // If native or auto (unknown), omit web link and use path-first for data.url
+  const isNativeOrAuto = !payload.pushClient || payload.pushClient === 'native'
+  const targetUrl = isNativeOrAuto ? rawUrl : fullUrl
+
   const title = payload.title || 'Notification'
   const body = (payload.body ?? '').replace(/"/g, "'")
-  const data: Record<string, string> = { title, body, url: fullUrl }
+  const data: Record<string, string> = { title, body, url: targetUrl }
   if (payload.dir) data.dir = payload.dir
   if (payload.icon) data.icon = payload.icon
+  if (payload.pushClient) data.pushClient = payload.pushClient
   if (payload.data && typeof payload.data === 'object') {
     for (const [k, v] of Object.entries(payload.data)) {
       if (typeof v === 'string') data[k] = v
@@ -129,9 +137,11 @@ export async function sendFCMToTokenDetailed(
       token,
       data,
       webpush: {
-        fcmOptions: { link: fullUrl },
         headers: { Urgency: 'high' },
       },
+    }
+    if (!isNativeOrAuto) {
+      ;(message.webpush as any).fcmOptions = { link: fullUrl }
     }
     if (!dataOnly) {
       message.notification = { title, body }
@@ -180,7 +190,7 @@ export async function sendFCMToTokenDetailed(
 
 export async function sendFCMToToken(
   token: string,
-  payload: { title: string; body?: string; url?: string; dir?: 'rtl' | 'ltr'; icon?: string }
+  payload: { title: string; body?: string; url?: string; dir?: 'rtl' | 'ltr'; icon?: string; pushClient?: 'native' | 'pwa' | 'browser' }
 ): Promise<boolean> {
   const result = await sendFCMToTokenDetailed(token, payload)
   return result.ok

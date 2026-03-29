@@ -267,7 +267,8 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
         }
 
         if (token) {
-          const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string }; forceConfirmation?: boolean } = { fcmToken: token }
+          const pushClient = Capacitor.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
+          const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string }; forceConfirmation?: boolean; pushClient: string } = { fcmToken: token, pushClient }
           if (isRefresh) payload.forceConfirmation = true
           if (VAPID_PUBLIC && registration) {
             try {
@@ -317,12 +318,14 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
             })
             const p256 = new Uint8Array(sub.getKey('p256dh')!)
             const auth = new Uint8Array(sub.getKey('auth')!)
+            const pushClient = Capacitor.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
             const webPushBody: Record<string, unknown> = {
               endpoint: sub.endpoint,
               keys: {
                 p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
                 auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
               },
+              pushClient,
             }
             if (isRefresh) webPushBody.forceConfirmation = true
             const res = await fetch('/api/driver/push-subscription', {
@@ -370,6 +373,7 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
       })
       const p256 = new Uint8Array(sub.getKey('p256dh')!)
       const auth = new Uint8Array(sub.getKey('auth')!)
+      const pushClient = Capacitor.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
       const res = await fetch('/api/driver/push-subscription', {
         method: 'POST',
         credentials: 'include',
@@ -380,6 +384,7 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
             p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
             auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
           },
+          pushClient,
         }),
       })
       if (res.status === 404) {

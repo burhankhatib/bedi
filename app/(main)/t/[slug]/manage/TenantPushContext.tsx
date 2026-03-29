@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { useToast } from '@/components/ui/ToastProvider'
+import { App } from '@capacitor/app'
 import { getTenantPushSubscriptionToken } from '@/lib/tenant-push-subscribe'
 import { isFirebaseConfigured } from '@/lib/firebase-config'
 import { getStoredPushOk, setStoredPushOk, clearStoredPushOk, getLastCheck, setLastCheck, PUSH_CONTEXT_KEYS } from '@/lib/push-storage'
@@ -254,7 +255,8 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
 
         if (token) {
           const apiUrl = `/api/tenants/${slug}/push-subscription`
-          const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string }; forceConfirmation?: boolean } = { fcmToken: token }
+          const pushClient = typeof window !== 'undefined' && Capacitor.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
+          const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string }; forceConfirmation?: boolean; pushClient: string } = { fcmToken: token, pushClient }
           if (!silent) payload.forceConfirmation = true
           if (VAPID_PUBLIC && registration) {
             try {
@@ -301,12 +303,14 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
             })
             const p256 = new Uint8Array(sub.getKey('p256dh')!)
             const auth = new Uint8Array(sub.getKey('auth')!)
+            const pushClient = typeof window !== 'undefined' && Capacitor.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
             const webPushBody: Record<string, unknown> = {
               endpoint: sub.endpoint,
               keys: {
                 p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
                 auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
               },
+              pushClient,
             }
             if (!silent) webPushBody.forceConfirmation = true
             const res = await fetch(`/api/tenants/${slug}/push-subscription`, {
@@ -359,12 +363,14 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
       })
       const p256 = new Uint8Array(sub.getKey('p256dh')!)
       const auth = new Uint8Array(sub.getKey('auth')!)
+      const pushClient = typeof window !== 'undefined' && Capacitor.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
       const webPushBody: Record<string, unknown> = {
         endpoint: sub.endpoint,
         keys: {
           p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
           auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
         },
+        pushClient,
       }
       if (!silent) webPushBody.forceConfirmation = true
       const res = await fetch(`/api/tenants/${slug}/push-subscription`, {
@@ -409,17 +415,34 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
   }, [slug, swScope, showToast])
 
   /**
-   * Auto re-subscribe (silent):
-   * - When API says no push (hasPush=false) but permission is already granted.
-   * - Covers both first-time visits and stale-token recovery after server-side cleanup.
+   * Auto re-subscribe:
+   * - Native: always attempt if not granted/denied.
+   * - Web: only if already granted.
    */
   useEffect(() => {
     if (!slug || !checked || hasPush || loading) return
     if (autoSubscribeRef.current) return
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
+    
+    const isNative = typeof window !== 'undefined' && Capacitor.isNativePlatform()
+    
+    if (!isNative && (typeof Notification === 'undefined' || Notification.permission !== 'granted')) return
+    if (isNative && permission === 'denied') return
+    if (isNative && permission === 'granted') return // already handled if we had push, but just in case
+    
     autoSubscribeRef.current = true
-    subscribe(true).catch(() => {})
-  }, [slug, checked, hasPush, loading, subscribe])
+    subscribe(isNative ? false : true).catch(() => {})
+    
+    if (isNative) {
+      const listener = App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive && !hasPush) {
+          subscribe(false).catch(() => {})
+        }
+      })
+      return () => {
+        listener.then(l => l.remove())
+      }
+    }
+  }, [slug, checked, hasPush, loading, permission, subscribe])
 
   /**
    * Force a fresh FCM token — call this manually when the user suspects their

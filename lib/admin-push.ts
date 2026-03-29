@@ -17,7 +17,7 @@ export async function sendAdminNotification(title: string, body: string, url: st
     if (!superAdminId) return false
 
     const subs = await clientNoCdn.fetch<
-      { _id: string; fcmToken?: string; webPush?: any; devices?: Array<{ fcmToken?: string; webPush?: { endpoint?: string; p256dh?: string; auth?: string } }> }[]
+      { _id: string; fcmToken?: string; webPush?: any; devices?: Array<{ fcmToken?: string; pushClient?: string; webPush?: { endpoint?: string; p256dh?: string; auth?: string } }> }[]
     >(
       `*[_type == "userPushSubscription" && clerkUserId == $superAdminId && isActive != false]{ _id, fcmToken, "webPush": webPush, devices }`,
       { superAdminId }
@@ -29,10 +29,10 @@ export async function sendAdminNotification(title: string, body: string, url: st
     let sent = false
 
     for (const sub of subs) {
-      const tokens: string[] = []
+      const tokens: Array<{ token: string; pushClient?: string }> = []
       const webPushSubs: Array<{ endpoint: string; p256dh: string; auth: string }> = []
 
-      if (sub.fcmToken) tokens.push(sub.fcmToken)
+      if (sub.fcmToken) tokens.push({ token: sub.fcmToken })
       if (sub.webPush?.endpoint && sub.webPush?.p256dh && sub.webPush?.auth) {
         webPushSubs.push({
           endpoint: sub.webPush.endpoint,
@@ -42,7 +42,7 @@ export async function sendAdminNotification(title: string, body: string, url: st
       }
       if (Array.isArray(sub.devices)) {
         for (const d of sub.devices) {
-          if (d.fcmToken) tokens.push(d.fcmToken)
+          if (d.fcmToken) tokens.push({ token: d.fcmToken, pushClient: d.pushClient })
           if (d.webPush?.endpoint && d.webPush?.p256dh && d.webPush?.auth) {
             webPushSubs.push({
               endpoint: d.webPush.endpoint,
@@ -53,8 +53,9 @@ export async function sendAdminNotification(title: string, body: string, url: st
         }
       }
 
-      for (const token of tokens) {
-        if (isFCMConfigured() && (await sendFCMToToken(token, payload))) sent = true
+      for (const { token, pushClient } of tokens) {
+        const payloadWithClient = pushClient ? { ...payload, pushClient: pushClient as any } : payload
+        if (isFCMConfigured() && (await sendFCMToToken(token, payloadWithClient))) sent = true
       }
       for (const wp of webPushSubs) {
         if (isPushConfigured()) {

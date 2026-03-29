@@ -85,6 +85,7 @@ export async function getCustomerPushSubscriptionToken(
  */
 export async function syncCustomerTokenToServer(token: string, options?: { source?: string, tenantSlug?: string, isIOS?: boolean, standalone?: boolean }): Promise<boolean> {
   try {
+    const pushClient = typeof window !== 'undefined' && Capacitor.isNativePlatform() ? 'native' : (options?.standalone ? 'pwa' : 'browser')
     const res = await fetch('/api/customer/push-subscription', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -95,6 +96,7 @@ export async function syncCustomerTokenToServer(token: string, options?: { sourc
         tenantSlug: options?.tenantSlug,
         isIOS: options?.isIOS,
         standalone: options?.standalone,
+        pushClient,
       }),
     })
     return res.ok

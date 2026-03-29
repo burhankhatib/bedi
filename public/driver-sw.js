@@ -118,41 +118,57 @@ self.addEventListener('notificationclick', function (event) {
   }
 
   var targetPath = fullUrl.replace(self.location.origin, '').split('?')[0].split('#')[0]
+  var pushClient = event.notification.data && event.notification.data.pushClient ? event.notification.data.pushClient : null
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      var i, c, p
+      var i, c, p, dm
 
-      // 1) Exact path match — focus without navigation
+      // 1) Exact path match — focus without navigation (respect pushClient if possible)
       for (i = 0; i < clientList.length; i++) {
         c = clientList[i]
         if (!c.url || c.url.indexOf(self.location.origin) !== 0) continue
         p = c.url.replace(self.location.origin, '').split('?')[0].split('#')[0]
-        if (p === targetPath && 'focus' in c) return c.focus()
-      }
-
-      // 2) Prefer installed PWA window (standalone / fullscreen)
-      var standaloneClient = null
-      for (i = 0; i < clientList.length; i++) {
-        c = clientList[i]
-        if (!c.url || c.url.indexOf(self.location.origin) !== 0) continue
-        if (!('navigate' in c)) continue
-        var dm = c.displayMode
-        if (dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui') {
-          standaloneClient = c
-          break
+        dm = c.displayMode
+        var isStandalone = dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui'
+        if (p === targetPath && 'focus' in c) {
+          if (pushClient === 'pwa' && !isStandalone) continue
+          if (pushClient === 'browser' && isStandalone) continue
+          return c.focus()
         }
       }
-      if (standaloneClient) {
-        standaloneClient.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
-        return standaloneClient.navigate(fullUrl).then(function () { return standaloneClient.focus() }).catch(function () { return standaloneClient.focus() })
+
+      // 2) Prefer installed PWA window if pushClient isn't explicitly browser
+      if (pushClient !== 'browser') {
+        var standaloneClient = null
+        for (i = 0; i < clientList.length; i++) {
+          c = clientList[i]
+          if (!c.url || c.url.indexOf(self.location.origin) !== 0) continue
+          if (!('navigate' in c)) continue
+          dm = c.displayMode
+          if (dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui') {
+            standaloneClient = c
+            break
+          }
+        }
+        if (standaloneClient) {
+          standaloneClient.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
+          return standaloneClient.navigate(fullUrl).then(function () { return standaloneClient.focus() }).catch(function () { return standaloneClient.focus() })
+        }
       }
 
-      // 3) Prefer currently focused same-origin window
+      // If pushClient is strictly PWA and we found no PWA window, we'll try to openWindow or fallback
+      
+      // 3) Prefer currently focused same-origin window (skip if pushClient === 'pwa' and it's not)
       for (i = 0; i < clientList.length; i++) {
         c = clientList[i]
         if (!c.url || c.url.indexOf(self.location.origin) !== 0) continue
         if (!c.focused || !('navigate' in c)) continue
+        dm = c.displayMode
+        var isStandalone2 = dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui'
+        if (pushClient === 'pwa' && !isStandalone2) continue
+        if (pushClient === 'browser' && isStandalone2) continue
+        
         c.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
         return c.navigate(fullUrl).then(function () { return c.focus() }).catch(function () { return c.focus() })
       }
@@ -162,6 +178,11 @@ self.addEventListener('notificationclick', function (event) {
         c = clientList[i]
         if (!c.url || c.url.indexOf(self.location.origin) !== 0) continue
         if (!('navigate' in c)) continue
+        dm = c.displayMode
+        var isStandalone3 = dm === 'standalone' || dm === 'fullscreen' || dm === 'minimal-ui'
+        if (pushClient === 'pwa' && !isStandalone3) continue
+        if (pushClient === 'browser' && isStandalone3) continue
+
         c.postMessage({ type: 'PUSH_NOTIFICATION_CLICK', url: fullUrl })
         return c.navigate(fullUrl).then(function () { return c.focus() }).catch(function () { return c.focus() })
       }

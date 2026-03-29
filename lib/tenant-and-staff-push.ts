@@ -73,6 +73,7 @@ type CentralSub = {
   devices?: Array<{
     _key: string
     fcmToken?: string
+    pushClient?: string
     webPush?: { endpoint: string; p256dh: string; auth: string }
   }>
 }
@@ -82,10 +83,12 @@ type CentralSub = {
 // ──────────────────────────────────────────────────────────
 async function sendCentralFcm(
   token: string,
-  payload: TenantPushPayload
+  payload: TenantPushPayload,
+  pushClient?: string
 ): Promise<{ sent: boolean; permanent: boolean }> {
   if (!token || !isFCMConfigured()) return { sent: false, permanent: false }
-  const result = await sendFCMToTokenDetailed(token, payload)
+  const fcmPayload = pushClient ? { ...payload, pushClient: pushClient as any } : payload
+  const result = await sendFCMToTokenDetailed(token, fcmPayload)
   return { sent: result.ok, permanent: !result.ok && !!result.permanent }
 }
 
@@ -303,7 +306,7 @@ export async function sendTenantAndStaffPush(
       let fcmSent = false
       if (device.fcmToken && !sentTokens.has(device.fcmToken)) {
         console.log(`[tenant-push] Sending to central FCM token: ${device.fcmToken.substring(0, 10)}...`)
-        const { sent: ok, permanent } = await sendCentralFcm(device.fcmToken, payload)
+        const { sent: ok, permanent } = await sendCentralFcm(device.fcmToken, payload, device.pushClient)
         if (ok) {
           sent = true
           fcmSent = true

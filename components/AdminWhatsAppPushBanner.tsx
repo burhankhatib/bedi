@@ -34,11 +34,16 @@ export function AdminWhatsAppPushBanner() {
         return
       }
       if (!fcmToken) throw new Error('Could not get token')
+      const isStandalone = () => {
+        if (typeof window === 'undefined') return false
+        return window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true
+      }
+      const pushClient = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
       const res = await fetch('/api/admin/push-subscription', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fcmToken }),
+        body: JSON.stringify({ fcmToken, pushClient }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))

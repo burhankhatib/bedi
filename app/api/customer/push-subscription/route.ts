@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
   const tenantSlug = body?.tenantSlug && typeof body.tenantSlug === 'string' ? body.tenantSlug.trim() : null
   const isIOS = body?.isIOS === true
   const standalone = body?.standalone === true
+  const pushClient = ['native', 'pwa', 'browser'].includes(body?.pushClient) ? body.pushClient : null
   if (!fcmToken) {
     return NextResponse.json({ error: 'fcmToken required' }, { status: 400 })
   }
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
         roleContext: 'customer',
         fcmToken,
         deviceInfo: req.headers.get('user-agent') ?? undefined,
+        pushClient,
       })
       if (result?.created) wasNewToken = true
       console.info('[customer-push-subscription] central upsert', {

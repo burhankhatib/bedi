@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { App } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
 import { useDriverPush } from './DriverPushContext'
 
 const AUTO_PROMPT_KEY = 'bedi-driver-push-autoprompt-attempted'
@@ -20,11 +22,19 @@ export function DriverPushSetup() {
     // Skip if already has push, is denied, or needs iOS home screen
     if (hasPush || isDenied || needsIOSHomeScreen) return
 
-    try {
-      const alreadyAttempted = localStorage.getItem(AUTO_PROMPT_KEY) === '1'
-      if (alreadyAttempted) return
+    let cleanupAppListener: any = null
 
-      localStorage.setItem(AUTO_PROMPT_KEY, '1')
+    try {
+      const isNative = Capacitor.isNativePlatform()
+      if (!isNative) {
+        const alreadyAttempted = localStorage.getItem(AUTO_PROMPT_KEY) === '1'
+        if (alreadyAttempted) return
+        localStorage.setItem(AUTO_PROMPT_KEY, '1')
+      } else {
+        App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) subscribe().catch(() => {})
+        }).then(l => cleanupAppListener = l)
+      }
       attemptedRef.current = true
 
       // Slight delay to ensure UI is settled and doesn't overlap immediately with layout render
@@ -33,7 +43,10 @@ export function DriverPushSetup() {
         subscribe().catch(() => {})
       }, 1500)
       
-      return () => clearTimeout(timer)
+      return () => {
+        clearTimeout(timer)
+        if (cleanupAppListener) cleanupAppListener.remove()
+      }
     } catch {
       // storage might throw in private mode
     }

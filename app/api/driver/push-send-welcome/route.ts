@@ -42,7 +42,7 @@ export async function POST(_req: NextRequest) {
     writeClient.fetch<Array<{
       _id: string
       lastWelcomePushAt?: string
-      devices?: Array<{ _key?: string; fcmToken?: string; webPush?: { endpoint?: string; p256dh?: string; auth?: string } }>
+      devices?: Array<{ _key?: string; fcmToken?: string; pushClient?: string; webPush?: { endpoint?: string; p256dh?: string; auth?: string } }>
     }>>(
       `*[_type == "userPushSubscription" && clerkUserId == $userId && roleContext == "driver" && isActive != false]{
         _id,
@@ -87,7 +87,8 @@ export async function POST(_req: NextRequest) {
 
       let delivered = false
       if (fcm && isFCMConfigured()) {
-        const result = await sendFCMToTokenDetailed(fcm, payload)
+        const payloadWithClient = device.pushClient ? { ...payload, pushClient: device.pushClient as any } : payload
+        const result = await sendFCMToTokenDetailed(fcm, payloadWithClient)
         if (result.ok) {
           sent = true
           delivered = true

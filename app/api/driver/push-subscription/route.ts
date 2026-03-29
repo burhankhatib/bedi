@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
   const p256dh = keys?.p256dh && typeof keys.p256dh === 'string' ? keys.p256dh : null
   const authKey = keys?.auth && typeof keys.auth === 'string' ? keys.auth : null
   const forceConfirmation = body?.forceConfirmation === true || body?.source === 'manual-refresh'
+  const pushClient = ['native', 'pwa', 'browser'].includes(body?.pushClient) ? body.pushClient : null
 
   const hasWebPush = !!(endpoint && p256dh && authKey)
   if (!fcmToken && !hasWebPush) {
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
     fcmToken,
     webPush: hasWebPush ? { endpoint: endpoint!, p256dh: p256dh!, auth: authKey! } : null,
     deviceInfo: req.headers.get('user-agent') ?? undefined,
+    pushClient,
   }).catch((e) => console.warn('[driver push] central upsert failed', e))
 
   const driver = await writeClient.fetch<{ _id: string; fcmToken?: string } | null>(

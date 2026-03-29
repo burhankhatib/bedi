@@ -23,6 +23,7 @@ type PwaItem = {
   installUrl: string
   installHint: string
   installHintAr: string
+  apkUrl?: string
   note?: string
   noteAr?: string
 }
@@ -36,6 +37,7 @@ const PWA_APPS: PwaItem[] = [
     descriptionAr: 'اطلب من المطاعم والمتاجر. احصل على تحديثات الطلب وتتبع توصيلك.',
     icon: '/customersLogo.webp',
     installUrl: '/',
+    apkUrl: '/apps/customer/bedi.apk',
     installHint: 'Open the homepage, then add to Home Screen or use the browser install prompt.',
     installHintAr: 'افتح الصفحة الرئيسية، ثم أضف إلى الشاشة الرئيسية أو استخدم خيار التثبيت في المتصفح.',
   },
@@ -47,6 +49,7 @@ const PWA_APPS: PwaItem[] = [
     descriptionAr: 'استلم وادِر طلبات التوصيل. احصل على تنبيهات الطلبات الجديدة وتذكيرات التشغيل.',
     icon: '/driversLogo.webp',
     installUrl: '/driver',
+    apkUrl: '/apps/driver/bedi-driver.apk',
     installHint: 'Open the Driver app, then use your browser menu to install.',
     installHintAr: 'افتح تطبيق السائق، ثم استخدم قائمة المتصفح للتثبيت.',
     note: 'This is only for users who registered for free as a driver. Start making extra money without any hidden or extra fees.',
@@ -60,6 +63,7 @@ const PWA_APPS: PwaItem[] = [
     descriptionAr: 'تطبيق مستقل لكل متجر بشعارك واسمك. استلم إشعارات FCM لهذا المتجر فقط — طلبات جديدة، تحديثات الحالة، طلبات الطاولة — حتى عند إغلاق الشاشة.',
     icon: '/adminslogo.webp',
     installUrl: '/dashboard',
+    apkUrl: '/apps/tenant/bedi-tenant.apk',
     installHint: 'Sign in → open your business Orders page → tap the install banner that appears at the bottom → follow the prompt. Each business installs as its own separate app.',
     installHintAr: 'سجّل الدخول → افتح صفحة الطلبات لمتجرك → اضغط على شريط التثبيت الذي يظهر أسفل الصفحة → اتبع التعليمات. كل متجر يُثبَّت كتطبيق مستقل.',
     note: 'This is only for registered tenants. Start your store today for free — no hidden fees, no app store approval needed. Own your brand and receive instant order alerts.',
@@ -184,7 +188,7 @@ export function DownloadAppPageClient() {
                     </div>
                   )}
                 </CardContent>
-                <CardFooter className="pt-0">
+                <CardFooter className="flex-col gap-3 pt-0">
                   <Button
                     asChild
                     size="lg"
@@ -199,6 +203,25 @@ export function DownloadAppPageClient() {
                       />
                     </a>
                   </Button>
+
+                  {app.apkUrl && (
+                    <Button
+                      asChild
+                      size="lg"
+                      variant="outline"
+                      className="w-full gap-2 border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+                    >
+                      <a href={app.apkUrl} download className="inline-flex items-center justify-center">
+                        <svg className="size-5 shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M3.5,2.1C3.2,2.4 3,3 3,3.7V20.3C3,21 3.2,21.6 3.5,21.9L3.6,22L14.3,11.3L14.4,11.2L14.3,11.1L3.6,0.4L3.5,0.5L3.5,2.1Z" fill="#4CAF50"/>
+                          <path d="M17.9,14.8L14.4,11.2L14.4,11.1L14.4,11L17.9,7.5L18,7.6L21.3,9.5C22.2,10 22.2,10.9 21.3,11.4L18,13.3L17.9,14.8Z" fill="#FFC107"/>
+                          <path d="M14.4,11.2L3.5,21.9C3.9,22.3 4.5,22.3 5.3,21.9L17.9,14.8L14.4,11.2Z" fill="#F44336"/>
+                          <path d="M14.4,11.1L3.5,0.5C3.9,0.1 4.5,0 5.3,0.5L17.9,7.5L14.4,11.1Z" fill="#2196F3"/>
+                        </svg>
+                        <span className="font-semibold">{isRtl ? 'تطبيق أندرويد (APK)' : 'Android App (APK)'}</span>
+                      </a>
+                    </Button>
+                  )}
                 </CardFooter>
               </Card>
             </motion.div>

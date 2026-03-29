@@ -187,7 +187,8 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
 
         if (fcmToken) {
           const apiUrl = useUnified ? '/api/me/business-push-subscription' : `/api/tenants/${slug}/push-subscription`
-          const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string } } = { fcmToken }
+          const pushClient = typeof window !== 'undefined' && Capacitor.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
+          const payload: { fcmToken: string; endpoint?: string; keys?: { p256dh: string; auth: string }; pushClient: string } = { fcmToken, pushClient }
           if (!useUnified && VAPID_PUBLIC && registration) {
             try {
               const sub = await registration.pushManager.subscribe({
@@ -242,6 +243,7 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
             })
             const p256 = new Uint8Array(sub.getKey('p256dh')!)
             const auth = new Uint8Array(sub.getKey('auth')!)
+            const pushClient = typeof window !== 'undefined' && Capacitor.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
             const res = await fetch(`/api/tenants/${slug}/push-subscription`, {
               method: 'POST',
               credentials: 'include',
@@ -252,6 +254,7 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
                   p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
                   auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
                 },
+                pushClient,
               }),
             })
             if (!res.ok) {
@@ -300,6 +303,7 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
       })
       const p256 = new Uint8Array(sub.getKey('p256dh')!)
       const auth = new Uint8Array(sub.getKey('auth')!)
+      const pushClient = typeof window !== 'undefined' && Capacitor.isNativePlatform() ? 'native' : (isStandalone() ? 'pwa' : 'browser')
       const res = await fetch(`/api/tenants/${slug}/push-subscription`, {
         method: 'POST',
         credentials: 'include',
@@ -310,6 +314,7 @@ export function TenantPushSetup({ slug, scope }: { slug: string; scope?: string 
             p256dh: btoa(String.fromCharCode.apply(null, Array.from(p256))),
             auth: btoa(String.fromCharCode.apply(null, Array.from(auth))),
           },
+          pushClient,
         }),
       })
       if (!res.ok) {
