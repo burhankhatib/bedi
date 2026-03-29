@@ -42,6 +42,7 @@ export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
               // We MUST use the Web Client ID here!
               // Google Play Services uses this to know which backend app the token is for.
               webClientId: process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
+              iOSClientId: process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
             },
           })
           socialLoginInitialized = true
