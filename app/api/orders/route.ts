@@ -7,6 +7,7 @@ import { toEnglishDigits } from '@/lib/phone'
 import { isVerifiedPhoneForUser } from '@/lib/order-auth'
 import { NotificationService } from '@/lib/notifications/NotificationService'
 import { pusherServer } from '@/lib/pusher'
+import { getTableSession, saveTableSession } from '@/lib/table-session'
 import { getShopperFeeByItemCount } from '@/lib/shopper-fee'
 import { sendHumorousHostPush } from '@/lib/humorous-host-push'
 import {
@@ -326,11 +327,33 @@ export async function POST(request: NextRequest) {
     const trackingToken = crypto.randomUUID().replace(/-/g, '')
     await writeClient.patch(result._id).set({ trackingToken }).commit()
 
-    if (orderType === 'dine-in' && tableNumber && tenantSlug) {
-      await pusherServer.trigger(`tenant-${tenantSlug}-table-${tableNumber}-cart`, 'order-submitted', { trackingToken })
-      
-      // If the host placed the order, send them a funny collaborative message
-      // We don't await this so we don't block the API response
+    if (orderType === 'dine-in' && tableNumber && typeof tenantSlug === 'string' && tenantSlug) {
+      // Capture participant count from session, mark session as ordered, then broadcast.
+      let participantsCount = 1
+      try {
+        const session = await getTableSession(tenantSlug, tableNumber)
+        if (session) {
+          participantsCount = session.members.length
+          await saveTableSession({
+            ...session,
+            status: 'ordered',
+            trackingToken,
+            participantsCount,
+          })
+          // Also store participantsCount on the order doc for split-bill UX.
+          await writeClient.patch(result._id).set({ groupParticipantsCount: participantsCount }).commit()
+        }
+      } catch (err) {
+        console.error('[orders] Failed to update table session on submit:', err)
+      }
+
+      await pusherServer.trigger(
+        `tenant-${tenantSlug}-table-${tableNumber}-cart`,
+        'order-submitted',
+        { trackingToken, participantsCount }
+      )
+
+      // Funny host push is non-blocking
       sendHumorousHostPush(userId, trackingToken, tenantSlug).catch(console.error)
     }
 

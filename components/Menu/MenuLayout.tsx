@@ -234,7 +234,7 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
     : null
   const headerTitle = storeName || localizedName || t('Restaurant', 'المطعم')
 
-  const handleJoinTable = useCallback(() => {
+  const handleJoinTable = useCallback((displayName: string) => {
     if (!tenantSlug || !initialTableNumber) return
     const tenantCtx = {
       slug: tenantSlug,
@@ -258,8 +258,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
       supportsReceiveInPerson: supportsReceiveInPerson ?? true,
       hasDelivery: hasDelivery ?? false
     }
-    joinTableSession(tenantCtx, initialTableNumber, opts)
+    joinTableSession(tenantCtx, initialTableNumber, opts, displayName)
 
+    // Remove ?table= from URL so re-scanning later shows the modal fresh.
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href)
       if (url.searchParams.has('table')) {
@@ -269,29 +270,31 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
     }
   }, [tenantSlug, initialTableNumber, headerTitle, restaurantInfo, initialData, isManuallyClosed, deactivateUntil, freeDeliveryEnabled, supportsDineIn, supportsReceiveInPerson, hasDelivery, joinTableSession])
 
-  // Show table choice modal when landing with ?table= (dine-in QR)
+  // Show table choice modal whenever user lands with ?table= in URL.
+  // No sessionStorage lock — re-scanning always shows the modal fresh.
   useEffect(() => {
-    if (tenantSlug && initialTableNumber && typeof window !== 'undefined') {
-      const key = `bedi-table-choice-seen-${tenantSlug}-${initialTableNumber}`
-      if (sessionStorage.getItem(key) !== '1') {
-        setShowTableChoiceModal(true)
-      } else {
-        handleJoinTable()
-      }
+    if (tenantSlug && initialTableNumber) {
+      /* eslint-disable-next-line react-hooks/set-state-in-effect -- intentional one-time show on QR scan mount */
+      setShowTableChoiceModal(true)
     }
-  }, [tenantSlug, initialTableNumber, handleJoinTable])
+  }, [tenantSlug, initialTableNumber])
 
-  const handleTableChoiceViewMenu = () => {
-    if (tenantSlug && initialTableNumber && typeof window !== 'undefined') {
-      try {
-        sessionStorage.setItem(`bedi-table-choice-seen-${tenantSlug}-${initialTableNumber}`, '1')
-      } catch {
-        // ignore
+  const handleJoinGroup = useCallback((displayName: string) => {
+    handleJoinTable(displayName)
+    setShowTableChoiceModal(false)
+  }, [handleJoinTable])
+
+  const handleDeclineGroup = useCallback(() => {
+    setShowTableChoiceModal(false)
+    // Also clean the URL so a fresh re-scan will show the modal again.
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      if (url.searchParams.has('table')) {
+        url.searchParams.delete('table')
+        window.history.replaceState({}, '', url.pathname + url.search + url.hash)
       }
     }
-    handleJoinTable()
-    setShowTableChoiceModal(false)
-  }
+  }, [])
 
   const businessTimeZone = getTimeZoneForCountry(initialData.businessCountry)
   const todaysHours = getTodaysHours(restaurantInfo?.openingHours, restaurantInfo?.customDateHours, businessTimeZone)
@@ -1263,7 +1266,9 @@ export default function MenuLayout({ initialData, tenantSlug, initialTableNumber
           onOpenChange={setShowTableChoiceModal}
           tenantSlug={tenantSlug}
           tableNumber={initialTableNumber}
-          onViewMenu={handleTableChoiceViewMenu}
+          onJoinGroup={handleJoinGroup}
+          onDecline={handleDeclineGroup}
+          initialDisplayName={user?.fullName || user?.firstName || ''}
           wifiNetwork={restaurantInfo?.wifiNetwork}
           wifiPassword={restaurantInfo?.wifiPassword}
         />

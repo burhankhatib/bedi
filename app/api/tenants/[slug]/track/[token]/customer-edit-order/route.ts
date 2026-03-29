@@ -60,6 +60,7 @@ export async function PATCH(
     items?: Array<{ productName?: string; quantity?: number; productId?: string }>
     subtotal?: number
     totalAmount?: number
+    businessType?: string
   } | null>(
     `*[_type == "order" && site._ref == $tenantId && trackingToken == $trackingToken][0]{
       _id,
@@ -70,6 +71,7 @@ export async function PATCH(
       deliveryFee,
       deliveryFeePaidByBusiness,
       requiresPersonalShopper,
+      "businessType": site->businessType,
       items,
       subtotal,
       totalAmount
@@ -81,6 +83,17 @@ export async function PATCH(
   }
   if (order.orderType !== 'delivery') {
     return NextResponse.json({ error: 'Only delivery orders can be edited' }, { status: 400 })
+  }
+  // Block editing for restaurant and cafe orders — prepared food cannot be modified after submission.
+  const DINING_TYPES = ['restaurant', 'cafe']
+  if (order.businessType && DINING_TYPES.includes(order.businessType)) {
+    return NextResponse.json(
+      {
+        error:
+          'Order editing is not available for restaurant and cafe orders. Contact the business directly if you need to make changes.',
+      },
+      { status: 403 }
+    )
   }
 
   const original = order.items ?? []

@@ -75,35 +75,32 @@ export function PopularProductCard({
       )}
     >
       {/* Background Image Layer */}
-      <div className="absolute inset-0 bg-slate-100">
+      <div className="absolute inset-0 bg-slate-900">
         {displayImage && (
           <>
             <div style={{ opacity: isHovered && hoverImage ? 0 : 1 }} className="absolute inset-0 transition-opacity duration-300">
               <Image
-                src={urlFor(displayImage).width(800).height(500).url()}
+                src={urlFor(displayImage).width(900).height(560).url()}
                 alt={t(product.title_en, product.title_ar)}
                 fill
                 sizes="(max-width: 768px) 320px, 450px"
                 placeholder="blur"
                 blurDataURL={SHIMMER_PLACEHOLDER}
                 priority={priority}
-                className={cn(
-                  "transition-transform duration-700 ease-out group-hover:scale-110",
-                  product.image ? "object-cover" : "object-contain p-12"
-                )}
+                className="object-contain object-center p-6 transition-transform duration-700 ease-out group-hover:scale-[1.04]"
               />
             </div>
             
             {hoverImage && (
               <div style={{ opacity: isHovered ? 1 : 0 }} className="absolute inset-0 transition-opacity duration-300">
                 <Image
-                  src={urlFor(hoverImage).width(800).height(500).url()}
+                  src={urlFor(hoverImage).width(900).height(560).url()}
                   alt={t(product.title_en, product.title_ar)}
                   fill
                   sizes="(max-width: 768px) 320px, 450px"
                   placeholder="blur"
                   blurDataURL={SHIMMER_PLACEHOLDER}
-                  className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+                  className="object-contain object-center p-6 transition-transform duration-700 ease-out group-hover:scale-[1.04]"
                 />
               </div>
             )}

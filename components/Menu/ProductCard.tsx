@@ -97,7 +97,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
       </div>
 
       <div
-        className="relative aspect-square w-full overflow-hidden bg-muted/50 rounded-t-[20px]"
+        className="relative aspect-[4/3] w-full overflow-hidden bg-muted/40 rounded-t-[20px]"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -110,7 +110,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
               className="absolute inset-0 transition-opacity duration-200"
             >
               <Image
-                src={urlFor(displayImage).width(600).height(600).url()}
+                src={urlFor(displayImage).width(800).height(600).url()}
                 alt={t(product.title_en, product.title_ar)}
                 fill
                 sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
@@ -119,10 +119,7 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
                 loading={priority ? "eager" : "lazy"}
                 priority={priority}
                 fetchPriority={priority ? "high" : "auto"}
-                className={cn(
-                  "object-center transition-transform duration-700 ease-out",
-                  product.image ? "object-cover group-hover:scale-110" : "object-contain p-8"
-                )}
+                className="object-contain object-center p-3 transition-transform duration-700 ease-out group-hover:scale-[1.04]"
               />
             </div>
             {/* Hover Image - Only when hovering and available */}
@@ -133,13 +130,13 @@ export function ProductCard({ product, onClick, layoutPrefix = 'product', priori
                 className="absolute inset-0 transition-opacity duration-200"
               >
                 <Image
-                  src={urlFor(hoverImage).width(600).height(600).url()}
+                  src={urlFor(hoverImage).width(800).height(600).url()}
                   alt={t(product.title_en, product.title_ar)}
                   fill
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   placeholder="blur"
                   blurDataURL={SHIMMER_PLACEHOLDER}
-                  className="object-cover object-center group-hover:scale-110 transition-transform duration-700 ease-out"
+                  className="object-contain object-center p-3 transition-transform duration-700 ease-out group-hover:scale-[1.04]"
                 />
               </div>
             )}

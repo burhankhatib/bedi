@@ -208,11 +208,11 @@ export async function POST(
       const title_ar = titleAr || catalogProduct.title_ar || 'منتج'
       const price = priceOverride ?? 0
 
-      let imageRef = imageAssetId
-      if (!imageRef && catalogProduct.images?.length) {
-        const first = catalogProduct.images.find((img) => img?.asset?._ref)
-        imageRef = first?.asset?._ref
-      }
+      // Only set a custom image when the tenant explicitly uploaded one.
+      // When imageAssetId is absent, leave product.image unset so the menu
+      // GROQ coalesce(image, catalogRef->images[0], …) resolves live from the
+      // global catalog — meaning Super Admin image updates propagate automatically.
+      const imageRef = imageAssetId || undefined
 
       const saleUnit = saleUnitOverride ?? catalogProduct.defaultUnit ?? 'piece'
       const doc: Record<string, unknown> = {

@@ -180,7 +180,7 @@ export function MenuSearch({ categories, popularProducts, onProductClick, onProd
                     )}
                   >
                     {displayImage && (
-                      <div className="relative w-16 h-16 rounded-lg overflow-hidden shrink-0 bg-slate-100">
+                      <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-muted/40">
                         <Image
                           src={urlFor(displayImage).width(128).height(128).url()}
                           alt={lang === 'ar' ? product.title_ar : product.title_en}
@@ -188,9 +188,7 @@ export function MenuSearch({ categories, popularProducts, onProductClick, onProd
                           sizes="64px"
                           placeholder="blur"
                           blurDataURL={SHIMMER_PLACEHOLDER}
-                          className={cn(
-                            product.image ? "object-cover" : "object-contain p-2"
-                          )}
+                          className="object-contain object-center p-1.5"
                         />
                       </div>
                     )}

@@ -44,6 +44,14 @@ export interface OrderTypeOptions {
   hasDelivery: boolean
 }
 
+/** Member of a dine-in table group session. Safe for client-side usage. */
+export type GroupSessionMember = {
+  deviceId: string
+  displayName: string
+  role: 'leader' | 'member'
+  joinedAt: string
+}
+
 export interface CartItem extends Product {
   cartItemId: string // Unique ID for product + add-ons + variants
   quantity: number
@@ -128,11 +136,18 @@ interface CartContextType {
   /** When customer landed via table QR (?table=N), lock Dine-in and table number. */
   lockedTableNumber: string | null
   setLockedTableNumber: (table: string | null) => void
+  /** Display name used in group ordering for this device. */
+  groupMemberName: string
+  setGroupMemberName: (name: string) => void
+  /** True when this device is the group leader (can submit, clear cart, remove any item). */
+  isGroupLeader: boolean
+  /** All members currently in the table session. */
+  groupSessionMembers: GroupSessionMember[]
   /** Joins a table session explicitly, establishing cartTenant and table session states */
-  joinTableSession: (tenant: CartTenant, tableId: string, options?: OrderTypeOptions) => void
+  joinTableSession: (tenant: CartTenant, tableId: string, options?: OrderTypeOptions, displayName?: string) => void
   /** Disconnects from the current table session and removes owned items from the shared cart */
   leaveTable: () => void
-  /** Clears all items from the shared table cart (for all users) */
+  /** Clears all items from the shared table cart (leader only) */
   clearTableCart: () => void
   /**
    * Removes this device from the shared table cart (`leave_table`), clears all local cart/checkout state,
@@ -157,6 +172,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [lockedTableNumber, setLockedTableNumber] = useState<string | null>(null)
   const [conflictState, setConflictState] = useState<CartContextType['conflictState']>(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [groupMemberName, setGroupMemberName] = useState<string>('')
+  const [groupSessionMembers, setGroupSessionMembers] = useState<GroupSessionMember[]>([])
+  const prevGroupMemberNameRef = useRef<string>('')
   const [customerName, setCustomerName] = useState<string>('')
   const [tableNumber, setTableNumber] = useState<string>('')
   const [isReady, setIsReady] = useState<boolean>(false)
@@ -369,30 +387,45 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     let active = true
     if (orderType === 'dine-in' && tableNumber && cartTenant?.slug && deviceId) {
       const channelName = `tenant-${cartTenant.slug}-table-${tableNumber}-cart`
-      
+
       fetch(`/api/tenants/${cartTenant.slug}/table/${tableNumber}/cart`)
         .then(r => r.json())
         .then(data => {
-          if (active && data && data.items) {
-            setItems(data.items)
-            setHostId(data.hostId)
-          }
+          if (!active) return
+          if (data?.items) setItems(data.items)
+          if (data?.hostId) setHostId(data.hostId)
+          if (data?.session?.members) setGroupSessionMembers(data.session.members)
         })
         .catch(err => console.error('Failed to fetch shared cart:', err))
 
       const channel = pusherClient?.subscribe(channelName)
-      channel?.bind('cart-updated', (data: any) => {
+      channel?.bind('cart-updated', (data: { items: CartItem[]; hostId: string | null }) => {
         if (active) {
           setItems(data.items)
-          setHostId(data.hostId)
+          if (data.hostId !== undefined) setHostId(data.hostId)
+        }
+      })
+      channel?.bind('session-updated', (data: { leaderDeviceId: string; members: GroupSessionMember[]; status: string }) => {
+        if (active) {
+          setHostId(data.leaderDeviceId)
+          setGroupSessionMembers(data.members || [])
         }
       })
       channel?.bind('order-submitted', (data: { trackingToken: string }) => {
         if (active && data.trackingToken) {
+          const slug = cartTenant.slug
+          // Reset all session/cart state
           setItems([])
+          setOrderType(null)
+          setTableNumber('')
+          setLockedTableNumber(null)
+          setGroupMemberName('')
+          setGroupSessionMembers([])
+          setHostId(null)
           setIsOpen(false)
+          prevGroupMemberNameRef.current = ''
           setTimeout(() => {
-            router.replace(`/t/${cartTenant.slug}/track/${data.trackingToken}`)
+            router.replace(`/t/${slug}/track/${data.trackingToken}`)
           }, 0)
         }
       })
@@ -406,15 +439,39 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [orderType, tableNumber, cartTenant?.slug, deviceId, router, setIsOpen])
 
-  const dispatchAtomicAction = useCallback((payload: any) => {
-    if (orderType === 'dine-in' && tableNumber && cartTenant?.slug && deviceId) {
+  // When groupMemberName is set (or changes), register in the table session.
+  useEffect(() => {
+    const name = groupMemberName.trim()
+    const prevName = prevGroupMemberNameRef.current.trim()
+    if (name && name !== prevName && orderType === 'dine-in' && tableNumber && cartTenant?.slug && deviceId) {
+      prevGroupMemberNameRef.current = name
       fetch(`/api/tenants/${cartTenant.slug}/table/${tableNumber}/cart`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, deviceId, ownerName: customerName })
+        body: JSON.stringify({ action: 'join_session', deviceId, displayName: name }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data?.session) {
+            setHostId(data.session.leaderDeviceId)
+            setGroupSessionMembers(data.session.members || [])
+          }
+          if (data?.items) setItems(data.items)
+        })
+        .catch(() => {})
+    }
+  }, [groupMemberName, orderType, tableNumber, cartTenant?.slug, deviceId])
+
+  const dispatchAtomicAction = useCallback((payload: Record<string, unknown>) => {
+    if (orderType === 'dine-in' && tableNumber && cartTenant?.slug && deviceId) {
+      const effectiveName = groupMemberName || customerName
+      fetch(`/api/tenants/${cartTenant.slug}/table/${tableNumber}/cart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, deviceId, ownerName: effectiveName, displayName: effectiveName })
       }).catch(console.error)
     }
-  }, [orderType, tableNumber, cartTenant?.slug, deviceId, customerName])
+  }, [orderType, tableNumber, cartTenant?.slug, deviceId, customerName, groupMemberName])
 
   const updateItems = useCallback((updater: React.SetStateAction<CartItem[]>) => {
     setItems((prevItems) => {
@@ -533,14 +590,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const removeFromCart = useCallback((cartItemId: string) => {
     hapticImpact('medium')
     updateItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))
-    dispatchAtomicAction({ action: 'remove_item_any', cartItemId })
-  }, [updateItems, dispatchAtomicAction])
+    // Leaders can remove any item; members can only remove their own.
+    const amLeader = Boolean(deviceId && hostId && deviceId === hostId)
+    dispatchAtomicAction({ action: amLeader ? 'remove_item_any' : 'remove_item', cartItemId })
+  }, [updateItems, dispatchAtomicAction, deviceId, hostId])
 
   const updateQuantity = useCallback((cartItemId: string, quantity: number) => {
     hapticImpact('medium')
     if (quantity <= 0) {
       updateItems((prevItems) => prevItems.filter((item) => item.cartItemId !== cartItemId))
-      dispatchAtomicAction({ action: 'remove_item_any', cartItemId })
+      const amLeader = Boolean(deviceId && hostId && deviceId === hostId)
+      dispatchAtomicAction({ action: amLeader ? 'remove_item_any' : 'remove_item', cartItemId })
       return
     }
     updateItems((prevItems) =>
@@ -549,7 +609,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       )
     )
     dispatchAtomicAction({ action: 'update_quantity', cartItemId, quantity })
-  }, [updateItems, dispatchAtomicAction])
+  }, [updateItems, dispatchAtomicAction, deviceId, hostId])
 
   const updateNotes = useCallback((cartItemId: string, notes: string) => {
     updateItems((prevItems) =>
@@ -601,7 +661,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     dispatchAtomicAction({ action: 'clear_cart' })
   }, [dispatchAtomicAction])
 
-  const joinTableSession = useCallback((tenant: CartTenant, tableId: string, options?: OrderTypeOptions) => {
+  const joinTableSession = useCallback((tenant: CartTenant, tableId: string, options?: OrderTypeOptions, displayName?: string) => {
     setCartTenant(tenant)
     setLockedTableNumber(tableId)
     setOrderType('dine-in')
@@ -609,28 +669,40 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (options) {
       setOrderTypeOptions(options)
     }
+    if (displayName) {
+      setGroupMemberName(displayName)
+    }
   }, [setCartTenant, setLockedTableNumber, setOrderType, setTableNumber, setOrderTypeOptions])
 
   const leaveTable = useCallback(() => {
-    dispatchAtomicAction({ action: 'leave_table' })
+    // Use leave_session for proper session cleanup (not legacy leave_table).
+    if (orderType === 'dine-in' && tableNumber && cartTenant?.slug && deviceId) {
+      fetch(`/api/tenants/${cartTenant.slug}/table/${tableNumber}/cart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'leave_session', deviceId }),
+      }).catch(() => {})
+    }
     updateItems([])
     setTableNumber('')
     setOrderType(null)
     setLockedTableNumber(null)
+    setGroupMemberName('')
+    setGroupSessionMembers([])
+    setHostId(null)
     setIsOpen(false)
-    if (typeof window !== 'undefined' && cartTenant?.slug && lockedTableNumber) {
-      try {
-        sessionStorage.removeItem(`bedi-table-choice-seen-${cartTenant.slug}-${lockedTableNumber}`)
-      } catch {
-        // ignore
-      }
-    }
-  }, [updateItems, dispatchAtomicAction, setTableNumber, setOrderType, setLockedTableNumber, setIsOpen, cartTenant?.slug, lockedTableNumber])
+    prevGroupMemberNameRef.current = ''
+  }, [updateItems, orderType, tableNumber, cartTenant?.slug, deviceId, setTableNumber, setOrderType, setLockedTableNumber, setIsOpen])
 
   const resetCartAndDisconnectCollaboration = useCallback(() => {
-    const slugForStorage = cartTenant?.slug
-    const tableKey = lockedTableNumber || tableNumber
-    dispatchAtomicAction({ action: 'leave_table' })
+    // Properly leave the session on the server side.
+    if (orderType === 'dine-in' && tableNumber && cartTenant?.slug && deviceId) {
+      fetch(`/api/tenants/${cartTenant.slug}/table/${tableNumber}/cart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'leave_session', deviceId }),
+      }).catch(() => {})
+    }
     updateItems([])
     setCartTenant(null)
     setOrderTypeOptions(null)
@@ -644,24 +716,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setDeliveryFee(0)
     setDeliveryFeePaidByBusiness(false)
     setLockedTableNumber(null)
+    setGroupMemberName('')
+    setGroupSessionMembers([])
+    setHostId(null)
+    prevGroupMemberNameRef.current = ''
     clearDeliveryLocation()
     setScheduledFor(undefined)
     setIsOpen(false)
-    if (typeof window !== 'undefined' && slugForStorage && tableKey) {
-      try {
-        sessionStorage.removeItem(`bedi-table-choice-seen-${slugForStorage}-${tableKey}`)
-      } catch {
-        // ignore
-      }
-    }
   }, [
-    dispatchAtomicAction,
-    updateItems,
-    cartTenant?.slug,
-    lockedTableNumber,
+    orderType,
     tableNumber,
+    cartTenant?.slug,
+    deviceId,
+    updateItems,
     clearDeliveryLocation,
   ])
+
+  const isGroupLeader = Boolean(deviceId && hostId && deviceId === hostId)
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
 
@@ -748,6 +819,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         orderTypeOptions,
         lockedTableNumber,
         setLockedTableNumber,
+        groupMemberName,
+        setGroupMemberName,
+        isGroupLeader,
+        groupSessionMembers,
         joinTableSession,
         leaveTable,
         clearTableCart,

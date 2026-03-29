@@ -171,9 +171,9 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
       <div
         className="fixed inset-x-0 bottom-0 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 w-full md:max-w-md bg-white md:rounded-[32px] rounded-t-[24px] overflow-hidden z-[60] shadow-2xl flex flex-col max-h-[95dvh] md:max-h-[90vh]"
       >
-            {/* Square image: full square visible, mobile-first */}
+            {/* Product image: full art visible, 4:3 aspect */}
             <div
-              className="relative w-full aspect-square max-h-[45vh] md:max-h-[320px] shrink-0 bg-slate-100 flex items-center justify-center overflow-hidden"
+              className="relative w-full aspect-[4/3] max-h-[42vh] md:max-h-[300px] shrink-0 bg-muted/40 flex items-center justify-center overflow-hidden"
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => setIsHovered(false)}
             >
@@ -185,13 +185,13 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                     className="absolute inset-0 transition-opacity duration-200"
                   >
                     <Image
-                      src={urlFor(displayImage).width(800).height(800).url()}
+                      src={urlFor(displayImage).width(800).height(600).url()}
                       alt={t(product.title_en, product.title_ar)}
                       fill
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 512px"
                       placeholder="blur"
                       blurDataURL={SHIMMER_PLACEHOLDER}
-                      className="object-cover object-center"
+                      className="object-contain object-center p-4"
                     />
                   </div>
                   {hoverImage && (
@@ -201,13 +201,13 @@ export function ProductModal({ product, isOpen, onClose, layoutPrefix = 'product
                       className="absolute inset-0 transition-opacity duration-200"
                     >
                       <Image
-                        src={urlFor(hoverImage).width(800).height(800).url()}
+                        src={urlFor(hoverImage).width(800).height(600).url()}
                         alt={t(product.title_en, product.title_ar)}
                         fill
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 512px"
                         placeholder="blur"
                         blurDataURL={SHIMMER_PLACEHOLDER}
-                        className="object-cover object-center"
+                        className="object-contain object-center p-4"
                       />
                     </div>
                   )}

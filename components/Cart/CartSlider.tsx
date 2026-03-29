@@ -89,6 +89,9 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
     lockedTableNumber,
     deviceId,
     hostId,
+    isGroupLeader,
+    groupSessionMembers,
+    groupMemberName,
     leaveTable,
     clearTableCart,
     resetCartAndDisconnectCollaboration,
@@ -525,7 +528,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                     onUpdateQuantity={updateQuantity}
                     onUpdateNotes={updateNotes}
                     isSharedCart={isSharedCart}
-                    canEdit={!isSharedCart || item.ownerId === deviceId}
+                    canEdit={!isSharedCart || item.ownerId === deviceId || isGroupLeader}
                   />
                 ))}
               </div>
@@ -656,18 +659,52 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
                     </span>
                   </div>
 
-                  {/* Main SEND Button */}
-                  <Button
-                    onClick={isSharedCart ? () => setShowHostConfirmDialog(true) : handleSendOrder}
-                    disabled={isSendingOrder}
-                    className="w-full h-16 rounded-2xl font-black text-lg bg-green-600 hover:bg-green-700 text-white shadow-xl shadow-green-600/20 active:scale-[0.98] transition-all"
-                  >
-                    <Send className="w-5 h-5 mr-2" />
-                    {isSendingOrder
-                      ? t('Sending...', 'جارٍ الإرسال...')
-                      : isSharedCart ? t('Review & Send Order', 'مراجعة وإرسال الطلب') : t('SEND ORDER', 'إرسال الطلب')
-                    }
-                  </Button>
+                  {/* Group session member badges */}
+                  {isSharedCart && groupSessionMembers.length > 0 && (
+                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
+                        {t('At the table', 'عند الطاولة')} ({groupSessionMembers.length})
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {groupSessionMembers.map((m) => (
+                          <span
+                            key={m.deviceId}
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                              m.deviceId === deviceId
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {m.role === 'leader' && <span className="text-amber-500">👑</span>}
+                            {m.displayName || groupMemberName}
+                            {m.deviceId === deviceId && ` (${t('You', 'أنت')})`}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Main SEND Button — leader only for shared carts */}
+                  {isSharedCart && !isGroupLeader ? (
+                    <div className="w-full h-16 rounded-2xl bg-slate-100 flex items-center justify-center gap-2 text-slate-500 font-semibold">
+                      <span className="animate-pulse">⏳</span>
+                      {t('Waiting for group leader to place order…', 'بانتظار قائد المجموعة لإرسال الطلب…')}
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={isSharedCart ? () => setShowHostConfirmDialog(true) : handleSendOrder}
+                      disabled={isSendingOrder}
+                      className="w-full h-16 rounded-2xl font-black text-lg bg-green-600 hover:bg-green-700 text-white shadow-xl shadow-green-600/20 active:scale-[0.98] transition-all"
+                    >
+                      <Send className="w-5 h-5 mr-2" />
+                      {isSendingOrder
+                        ? t('Sending...', 'جارٍ الإرسال...')
+                        : isSharedCart
+                          ? t('Send Group Order', 'إرسال طلب المجموعة')
+                          : t('SEND ORDER', 'إرسال الطلب')
+                      }
+                    </Button>
+                  )}
 
                   {/* QR code temporarily disabled – only SEND ORDER sends to Order Management. To re-enable: show when orderType === 'dine-in'. */}
                   {false && orderType === 'dine-in' && (
@@ -685,19 +722,21 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
 
                   {isSharedCart ? (
                     <div className="space-y-2 mt-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          onClick={() => {
-                            if (confirm(t('Clear all items from this table?', 'مسح كل الأصناف من هذه الطاولة؟'))) {
-                              clearTableCart?.()
-                            }
-                          }}
-                          variant="outline"
-                          className="h-11 rounded-xl font-bold border-2 border-slate-300 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          {t('Clear Table', 'مسح الطاولة')}
-                        </Button>
+                      <div className={`grid gap-2 ${isGroupLeader ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                        {isGroupLeader && (
+                          <Button
+                            onClick={() => {
+                              if (confirm(t('Clear all items from this table?', 'مسح كل الأصناف من هذه الطاولة؟'))) {
+                                clearTableCart?.()
+                              }
+                            }}
+                            variant="outline"
+                            className="h-11 rounded-xl font-bold border-2 border-slate-300 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            {t('Clear Table', 'مسح الطاولة')}
+                          </Button>
+                        )}
                         <Button
                           onClick={() => {
                             if (confirm(t('Leave this table and remove your items?', 'مغادرة هذه الطاولة وإزالة أصنافك؟'))) {
@@ -870,13 +909,30 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
         <DialogContent className="max-w-sm rounded-[24px]">
           <DialogHeader>
             <DialogTitle className="text-xl font-black text-center">
-              {t('Ready to send?', 'هل أنتم مستعدون للإرسال؟')}
+              {t('Send group order?', 'إرسال طلب المجموعة؟')}
             </DialogTitle>
             <DialogDescription className="text-center mt-2">
-              {t('Are you sure everyone at the table is finished ordering?', 'هل أنت متأكد أن جميع من على الطاولة قد انتهوا من الطلب؟')}
+              {t(
+                'As the group leader, you\'re about to place the order for everyone at the table. Make sure everyone is done adding items.',
+                'بصفتك قائد المجموعة، ستقوم بإرسال الطلب لجميع من على الطاولة. تأكد من أن الجميع انتهى من إضافة طلباته.'
+              )}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-3 mt-4">
+          {groupSessionMembers.length > 0 && (
+            <div className="rounded-xl bg-slate-50 p-3 my-2">
+              <p className="text-xs font-semibold text-slate-500 mb-2">
+                {t('Ordering for', 'الطلب لـ')} {groupSessionMembers.length} {t('people', 'أشخاص')}:
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {groupSessionMembers.map((m) => (
+                  <span key={m.deviceId} className="rounded-full bg-white border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700">
+                    {m.displayName}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex flex-col gap-3 mt-2">
             <Button
               onClick={() => {
                 setShowHostConfirmDialog(false)
@@ -884,7 +940,7 @@ export function CartSlider({ supportsDineIn = true, supportsReceiveInPerson = tr
               }}
               className="w-full h-14 rounded-2xl font-black text-lg bg-green-600 hover:bg-green-700 text-white"
             >
-              {t('Yes, send order', 'نعم، أرسل الطلب')}
+              {t('Yes, send for everyone', 'نعم، أرسل للجميع')}
             </Button>
             <Button
               onClick={() => setShowHostConfirmDialog(false)}

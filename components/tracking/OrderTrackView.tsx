@@ -131,6 +131,8 @@ type TrackData = {
       toQuantity?: number
       note?: string
     }>
+    groupParticipantsCount?: number | null
+    businessType?: string | null
   }
   restaurant: { name_en?: string; name_ar?: string; whatsapp?: string } | null
   driver: { _id: string; name: string; phoneNumber: string; lat: number | null; lng: number | null; rating?: { averageScore: number; totalCount: number } | null } | null
@@ -1500,6 +1502,7 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
   const [tipSending, setTipSending] = useState(false)
   const [splitPeople, setSplitPeople] = useState(1)
   const [showSplitModal, setShowSplitModal] = useState(false)
+  const [splitExpanded, setSplitExpanded] = useState(false)
   const [restaurantOpen, setRestaurantOpen] = useState(false)
   const [driverOpen, setDriverOpen] = useState(false)
   const [changeResponseSending, setChangeResponseSending] = useState(false)
@@ -1581,6 +1584,15 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
   const tipAmount = tipEnabled ? selectedTipAmount : 0
   const displayTotal = totalAmount + tipAmount
   const perPerson = splitPeople > 0 ? displayTotal / splitPeople : displayTotal
+
+  // Auto-initialize split count from group participants when order data loads.
+  const groupParticipantsCount = data?.order?.groupParticipantsCount ?? null
+  useEffect(() => {
+    if (groupParticipantsCount && groupParticipantsCount > 1) {
+      setSplitPeople(groupParticipantsCount)
+      setSplitExpanded(true)
+    }
+  }, [groupParticipantsCount])
 
   /** URL token or token returned from Clerk order-by-id API — required for /track/... API routes */
   const effectiveTrackingToken = (token?.trim() || data?.order?.trackingToken || '').trim()
@@ -2666,8 +2678,12 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
         </div>
       </div>
 
-      {/* Edit Order — delivery only, before picked up / completed / cancelled. Hide once driver confirms pickup. */}
-      {isDelivery && data.order && !['completed', 'cancelled', 'refunded', 'out-for-delivery'].includes(data.order.status ?? '') && !data.order.driverPickedUpAt && (
+      {/* Edit Order — delivery only, for stores (not restaurants/cafes), before picked up / completed / cancelled. */}
+      {isDelivery &&
+        data.order &&
+        !['restaurant', 'cafe'].includes(data.order.businessType ?? '') &&
+        !['completed', 'cancelled', 'refunded', 'out-for-delivery'].includes(data.order.status ?? '') &&
+        !data.order.driverPickedUpAt && (
         <div className="mt-4 px-4">
           <button
             type="button"
@@ -3229,16 +3245,80 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
       
       </div>
 
+            {/* Split Bill — shown inline for dine-in, auto-expanded for group orders */}
+      {isDineIn && (
+        <div className="mt-6 px-4">
+          <button
+            onClick={() => setSplitExpanded(v => !v)}
+            className="w-full flex items-center justify-between rounded-2xl border-2 border-amber-200 bg-amber-50 px-5 py-4 text-left shadow-sm hover:bg-amber-100 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <Users className="w-5 h-5 text-amber-600 shrink-0" />
+              <div>
+                <p className="font-bold text-amber-900 text-sm">{t('Split the bill', 'تقسيم الفاتورة')}</p>
+                {!splitExpanded && (
+                  <p className="text-xs text-amber-700">
+                    {splitPeople > 1
+                      ? `${splitPeople} ${t('people', 'أشخاص')} · ${perPerson.toFixed(2)} ${formatCurrency(currency)} ${t('each', 'لكل شخص')}`
+                      : t('Tap to split among guests', 'اضغط للتقسيم على الضيوف')}
+                  </p>
+                )}
+              </div>
+            </div>
+            <span className="text-amber-600 text-sm font-medium">{splitExpanded ? '▲' : '▼'}</span>
+          </button>
+
+          {splitExpanded && (
+            <div className="mt-2 rounded-2xl border-2 border-amber-200 bg-white p-5 shadow-sm">
+              <p className="text-sm text-slate-500 mb-4 leading-relaxed">
+                {t('Dividing among friends? Choose how many people.', 'تقسمون بين الأصدقاء؟ اختروا عدد الأشخاص.')}
+                {groupParticipantsCount && groupParticipantsCount > 1 && (
+                  <span className="ml-1 text-amber-600 font-medium">
+                    {t(`(${groupParticipantsCount} people joined the group order)`, `(${groupParticipantsCount} أشخاص انضموا للطلب الجماعي)`)}
+                  </span>
+                )}
+              </p>
+              <div className="flex items-center justify-between bg-slate-50 rounded-2xl p-4 border border-slate-200 mb-4">
+                <span className="font-medium text-slate-700">{t('People', 'الأشخاص')}</span>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setSplitPeople(n => Math.max(1, n - 1))}
+                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-600 shadow-sm active:scale-95 transition"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <span className="text-xl font-bold text-slate-900 w-6 text-center">{splitPeople}</span>
+                  <button
+                    onClick={() => setSplitPeople(n => n + 1)}
+                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-600 shadow-sm active:scale-95 transition"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-5 flex items-center justify-between">
+                <span className="text-sm font-bold text-amber-900">{t('Each pays', 'كل شخص يدفع')}</span>
+                <span className="text-2xl font-black text-amber-600">
+                  {perPerson.toFixed(2)} <span className="text-sm">{formatCurrency(currency)}</span>
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
             {/* Utility Actions */}
-      <div className="mt-6 px-4 flex flex-col gap-3">
-        <Button
-          variant="outline"
-          onClick={() => setShowSplitModal(true)}
-          className="rounded-[2rem] border-slate-300 text-slate-800 h-14 font-medium hover:bg-slate-50 shadow-sm justify-start px-6"
-        >
-          <Users className="w-5 h-5 mr-3 rtl:ml-3 rtl:mr-0 text-slate-500" />
-          {t('Split the bill', 'تقسيم الفاتورة')}
-        </Button>
+      <div className="mt-4 px-4 flex flex-col gap-3">
+        {!isDineIn && (
+          <Button
+            variant="outline"
+            onClick={() => setShowSplitModal(true)}
+            className="rounded-[2rem] border-slate-300 text-slate-800 h-14 font-medium hover:bg-slate-50 shadow-sm justify-start px-6"
+          >
+            <Users className="w-5 h-5 mr-3 rtl:ml-3 rtl:mr-0 text-slate-500" />
+            {t('Split the bill', 'تقسيم الفاتورة')}
+          </Button>
+        )}
         <Button
           variant="outline"
           onClick={copyTrackLink}

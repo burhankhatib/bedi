@@ -58,18 +58,16 @@ export function ProductListItem({ product, onClick, layoutPrefix = 'list', resta
       transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
     >
       {/* Image - M3 thumbnail */}
-      <div className="relative w-24 h-24 rounded-xl overflow-hidden bg-muted/50 shrink-0">
+      <div className="relative w-28 h-28 rounded-2xl overflow-hidden bg-muted/40 shrink-0">
         {displayImage ? (
           <Image
-            src={urlFor(displayImage).width(200).height(200).url()}
+            src={urlFor(displayImage).width(224).height(224).url()}
             alt={t(product.title_en, product.title_ar)}
             fill
-            sizes="96px"
+            sizes="112px"
             placeholder="blur"
             blurDataURL={SHIMMER_PLACEHOLDER}
-            className={cn(
-              product.image ? "object-cover" : "object-contain p-4"
-            )}
+            className="object-contain object-center p-2"
           />
         ) : (
           <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs">

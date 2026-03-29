@@ -17,8 +17,18 @@ export async function GET(
   const tenantId = await getTenantIdBySlug(slug)
   if (!tenantId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const order = await client.fetch<{ _id: string; site?: { _ref?: string }; orderType?: string } | null>(
-    `*[_type == "order" && site._ref == $tenantId && trackingToken == $trackingToken][0]{ _id, "site": site, orderType }`,
+  const order = await client.fetch<{
+    _id: string
+    site?: { _ref?: string }
+    orderType?: string
+    businessType?: string
+  } | null>(
+    `*[_type == "order" && site._ref == $tenantId && trackingToken == $trackingToken][0]{
+      _id,
+      "site": site,
+      orderType,
+      "businessType": site->businessType
+    }`,
     { tenantId, trackingToken }
   )
   if (!order || order.site?._ref !== tenantId) {
@@ -26,6 +36,14 @@ export async function GET(
   }
   if (order.orderType !== 'delivery') {
     return NextResponse.json({ error: 'Only delivery orders can add products' }, { status: 400 })
+  }
+  // Block for restaurant/cafe — prepared food cannot be edited by customers after submission.
+  const DINING_TYPES = ['restaurant', 'cafe']
+  if (order.businessType && DINING_TYPES.includes(order.businessType)) {
+    return NextResponse.json(
+      { error: 'Order editing is not available for restaurant and cafe orders.' },
+      { status: 403 }
+    )
   }
 
   const { searchParams } = new URL(req.url)

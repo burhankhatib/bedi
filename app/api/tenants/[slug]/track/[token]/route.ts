@@ -80,6 +80,8 @@ export async function GET(
       toQuantity?: number
       note?: string
     }>
+    groupParticipantsCount?: number | null
+    businessType?: string | null
   } | null>(
     `*[_type == "order" && site._ref == $tenantId && trackingToken == $trackingToken][0]{
       _id,
@@ -110,6 +112,7 @@ export async function GET(
       totalAmount,
       currency,
       createdAt,
+      groupParticipantsCount,
       preparedAt,
       driverAcceptedAt,
       driverPickedUpAt,
@@ -139,6 +142,7 @@ export async function GET(
       customerItemChangeSummary,
       deliveryLat,
       deliveryLng,
+      "businessType": site->businessType,
       "site": site,
       "assignedDriver": assignedDriver
     }`,
@@ -246,6 +250,8 @@ export async function GET(
       totalAmount: order.totalAmount,
       currency: order.currency,
       createdAt: order.createdAt,
+      groupParticipantsCount: order.groupParticipantsCount ?? null,
+      businessType: order.businessType ?? null,
       preparedAt: order.preparedAt ?? null,
       driverAcceptedAt: order.driverAcceptedAt ?? null,
       driverPickedUpAt: order.driverPickedUpAt ?? null,
