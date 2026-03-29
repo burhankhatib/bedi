@@ -16,7 +16,7 @@ export function DriverAnalyticsPageClient() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const id = setTimeout(() => setMounted(true), 0)
+    const id = setTimeout(() => setMounted(true), 300)
     return () => clearTimeout(id)
   }, [])
 

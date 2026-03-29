@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useState, useEffect, useCallback, useRef, useMemo, startTransition } from 'react'
+import dynamic from 'next/dynamic'
 import { createPortal } from 'react-dom'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -28,7 +29,6 @@ import { getCityDisplayName } from '@/lib/registration-translations'
 import { formatQuantityWithUnit } from '@/lib/sale-units'
 import { getDeviceGeolocationPosition, isDeviceGeolocationSupported, watchDeviceGeolocation, clearDeviceGeolocationWatch, WatchGeolocationId } from '@/lib/device-geolocation'
 import { hapticImpact } from '@/lib/native-haptics'
-import dynamic from 'next/dynamic'
 
 import { SlideToComplete } from './SlideToComplete'
 import { SlideToPickUp } from './SlideToPickUp'
@@ -220,6 +220,12 @@ function DriverOrdersV2Content() {
   const [actionId, setActionId] = useState<string | null>(null)
 
   const [reportOrderId, setReportOrderId] = useState<string | null>(null)
+  const [mountedLocal, setMountedLocal] = useState(false)
+  
+  useEffect(() => {
+    setMountedLocal(true)
+  }, [])
+
   const [mapState, setMapState] = useState<'hidden' | 'minimized' | 'maximized'>('hidden')
   const [activeMapOrderId, setActiveMapOrderId] = useState<string | null>(null)
   /** Incremented on each explicit Bedi Maps open so Leaflet remounts cleanly (avoids blank/stuck tiles in PWA). */
@@ -3381,14 +3387,20 @@ function DriverOrdersV2Content() {
 
 /* ─── Wrapper with Suspense boundary ────────────────────────────────── */
 
+// Next.js config optimization for large clients
+const DriverOrdersV2ContentDynamic = dynamic(() => Promise.resolve(DriverOrdersV2Content), {
+  ssr: false,
+  loading: () => <p className="text-slate-400 text-base p-6">Loading…</p>
+})
+
 export function DriverOrdersV2() {
   return (
     <Suspense
       fallback={
-        <p className="text-slate-400 text-base p-6">Loading\u2026</p>
+        <p className="text-slate-400 text-base p-6">Loading…</p>
       }
     >
-      <DriverOrdersV2Content />
+      <DriverOrdersV2ContentDynamic />
     </Suspense>
   )
 }

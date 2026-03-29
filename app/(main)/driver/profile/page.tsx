@@ -19,7 +19,6 @@ export default async function DriverProfilePage() {
   }
   return (
     <div>
-      <h1 className="mb-4 font-bold text-white sm:mb-6">الملف الشخصي</h1>
       <Suspense fallback={<FormSkeleton />}>
         <DriverProfileClient />
       </Suspense>

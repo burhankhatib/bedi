@@ -20,7 +20,8 @@ export function DriverHistoryPageClient() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const id = setTimeout(() => setMounted(true), 0)
+    // Longer delay to ensure layout animations finish
+    const id = setTimeout(() => setMounted(true), 300)
     return () => clearTimeout(id)
   }, [])
 

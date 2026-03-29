@@ -30,6 +30,7 @@ const GENDER_OPTIONS = [
 ]
 
 export function DriverProfileClient() {
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -67,6 +68,11 @@ export function DriverProfileClient() {
   const searchParams = useSearchParams()
 
   const [rating, setRating] = useState<{ averageScore: number; totalCount: number } | null>(null)
+
+  useEffect(() => {
+    const id = setTimeout(() => setMounted(true), 300)
+    return () => clearTimeout(id)
+  }, [])
 
   useEffect(() => {
     fetch('/api/countries?registration=1')
@@ -253,7 +259,7 @@ export function DriverProfileClient() {
           )
         }
         // Re-fetch server layout so it sees the new driver doc before showing orders (avoids redirect loop)
-        // router.refresh() // Removed to prevent React Error #310 race condition with window.location.href
+        router.refresh()
         const phoneTrimmed = form.phoneNumber.replace(/\s/g, '').trim()
         if (phoneTrimmed && !phoneVerified) {
           const digits = toEnglishDigits(phoneTrimmed).replace(/\D/g, '')
@@ -276,7 +282,7 @@ export function DriverProfileClient() {
           if (isNewRegistration) {
             window.location.href = '/driver/orders?registered=1'
           } else {
-            window.location.href = '/driver/profile'
+            router.push('/driver/orders')
           }
         }
       } else {
@@ -285,6 +291,14 @@ export function DriverProfileClient() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (!mounted) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <p className="text-slate-400">Loading…</p>
+      </div>
+    )
   }
 
   if (loading) return <p className="text-slate-500">{t('Loading…', 'جاري التحميل…')}</p>

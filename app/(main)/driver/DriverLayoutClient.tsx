@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, startTransition } from 'react'
+import { useState, useEffect, useRef, useTransition } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useClerk } from '@clerk/nextjs'
@@ -73,6 +73,7 @@ export function DriverLayoutClient({
   const isRtl = lang === 'ar'
   const profileCheckAbortRef = useRef<AbortController | null>(null)
   const mountedRef = useRef(false)
+  const [isPending, startTransitionHook] = useTransition()
 
   const needsRedirect = hasNoProfileYet && pathname && !DRIVER_SETUP_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
 
@@ -154,15 +155,6 @@ export function DriverLayoutClient({
       <header className="sticky top-0 z-10 border-b border-slate-800/60 bg-slate-950/95 pt-[env(safe-area-inset-top,0px)] backdrop-blur shadow-sm">
         <div className="mx-auto flex w-full max-w-[100vw] items-center justify-between px-3 py-3 sm:max-w-lg">
           <div className="flex items-center gap-2 sm:gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-12 w-12 shrink-0 rounded-full text-slate-300 hover:bg-slate-800 hover:text-white"
-              onClick={() => setMenuOpen(true)}
-              aria-label={t('Open menu', 'فتح القائمة')}
-            >
-              <Menu className="size-6" />
-            </Button>
             <Link href="/driver/orders" className="font-black text-lg sm:text-xl text-white hover:text-slate-200 tracking-wide">
               Bedi Driver
             </Link>
@@ -209,28 +201,6 @@ export function DriverLayoutClient({
                 <span className="font-medium text-[15px]">{t('Back to Bedi Delivery', 'العودة لبدي للتوصيل')}</span>
               </Link>
 
-              <div className="my-2 border-t border-slate-800/60 mx-2"></div>
-
-              {(hasNoProfileYet ? NAV_ITEMS.filter((i) => i.href === '/driver/profile') : NAV_ITEMS).map((item) => {
-                const isActive = pathname === item.href
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex w-full items-center gap-4 px-4 py-3.5 rounded-2xl transition-colors text-left rtl:text-right ${
-                      isActive 
-                        ? 'bg-emerald-500/10 text-emerald-400' 
-                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                    }`}
-                    onClick={() => {
-                      setMenuOpen(false)
-                    }}
-                  >
-                    <item.icon className={`size-6 shrink-0 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
-                    <span className="font-medium text-[15px]">{navLabel(item)}</span>
-                  </Link>
-                )
-              })}
 
               <div className="my-2 border-t border-slate-800/60 mx-2"></div>
 
@@ -247,7 +217,7 @@ export function DriverLayoutClient({
         </SheetContent>
       </Sheet>
 
-      <main className="mx-auto max-w-lg px-4 py-4 sm:py-6 sm:max-w-[100vw] overflow-visible">
+      <main className="mx-auto max-w-lg px-4 py-4 sm:py-6 pb-24 sm:pb-28 sm:max-w-[100vw] overflow-visible">
         <DriverIOSPullToRefresh />
         <PWAManager role="driver" variant="inline" hideInstall />
         {pathname !== '/driver/profile' && (
@@ -263,6 +233,43 @@ export function DriverLayoutClient({
         </DriverOrdersGate>
         <DriverPushStatusCard />
       </main>
+
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-800/60 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-lg items-center justify-around px-2">
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href
+            const isDisabled = hasNoProfileYet && item.href !== '/driver/profile'
+            
+            return isDisabled ? (
+              <div key={item.href} className="flex flex-col items-center justify-center w-16 gap-1 opacity-40">
+                <item.icon className="size-5" />
+                <span className="text-[10px] font-medium truncate w-full text-center">{navLabel(item)}</span>
+              </div>
+            ) : (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex flex-col items-center justify-center w-16 gap-1 transition-colors ${
+                  isActive ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'
+                }`}
+                prefetch={false}
+              >
+                <item.icon className="size-5" />
+                <span className="text-[10px] font-medium truncate w-full text-center">{navLabel(item)}</span>
+              </Link>
+            )
+          })}
+          
+          <button
+            onClick={() => setMenuOpen(true)}
+            className="flex flex-col items-center justify-center w-16 gap-1 text-slate-400 hover:text-slate-200 transition-colors"
+            aria-label={t('Menu', 'القائمة')}
+          >
+            <Menu className="size-5" />
+            <span className="text-[10px] font-medium truncate w-full text-center">{t('Menu', 'القائمة')}</span>
+          </button>
+        </div>
+      </nav>
     </div>
     </DriverStatusProvider>
     </DriverPushProvider>
