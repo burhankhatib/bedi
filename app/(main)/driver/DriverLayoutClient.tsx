@@ -114,10 +114,20 @@ export function DriverLayoutClient({
     const ac = new AbortController()
     profileCheckAbortRef.current = ac
     fetch('/api/driver/profile', { signal: ac.signal, credentials: 'include' })
-      .then((r) => r.json())
-      .then((data) => {
+      .then(async (r) => {
         if (!mountedRef.current || ac.signal.aborted) return
-        if (data == null || !data._id) router.replace('/driver/profile')
+        if (r.status === 404) {
+          router.replace('/driver/profile')
+          return
+        }
+        if (!r.ok) return // Ignore 500s or other transient errors
+        const data = await r.json().catch(() => null)
+        // Only replace if we get an explicit clear response that profile is missing
+        if (data && (data.status === 'not_found' || (data.success === false && !data._id))) {
+          // If the server explicitly responded with no _id but 200 OK, we might want to redirect,
+          // but we should be careful not to redirect on empty JSON.
+          // In many cases, it's safer to only redirect on 404.
+        }
       })
       .catch((err) => {
         if ((err as Error)?.name === 'AbortError') return

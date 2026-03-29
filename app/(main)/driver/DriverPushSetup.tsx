@@ -1,9 +1,43 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
+import { useDriverPush } from './DriverPushContext'
+
+const AUTO_PROMPT_KEY = 'bedi-driver-push-autoprompt-attempted'
+
 /**
  * FCM check runs in background. Status and enable/refresh live in PushStatusCard at bottom.
- * No top banner; unified UX via PushStatusCard.
+ * This component triggers a one-time automatic push subscription prompt on first open.
  */
 export function DriverPushSetup() {
+  const { hasPush, checked, isDenied, needsIOSHomeScreen, subscribe, locationChecked } = useDriverPush()
+  const attemptedRef = useRef(false)
+
+  useEffect(() => {
+    // Only attempt auto-prompt once the context is checked and location has been resolved
+    if (!checked || !locationChecked || attemptedRef.current) return
+    
+    // Skip if already has push, is denied, or needs iOS home screen
+    if (hasPush || isDenied || needsIOSHomeScreen) return
+
+    try {
+      const alreadyAttempted = localStorage.getItem(AUTO_PROMPT_KEY) === '1'
+      if (alreadyAttempted) return
+
+      localStorage.setItem(AUTO_PROMPT_KEY, '1')
+      attemptedRef.current = true
+
+      // Slight delay to ensure UI is settled and doesn't overlap immediately with layout render
+      const timer = setTimeout(() => {
+        // subscribe runs the prompt flow
+        subscribe().catch(() => {})
+      }, 1500)
+      
+      return () => clearTimeout(timer)
+    } catch {
+      // storage might throw in private mode
+    }
+  }, [checked, locationChecked, hasPush, isDenied, needsIOSHomeScreen, subscribe])
+
   return null
 }

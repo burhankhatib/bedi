@@ -8,6 +8,8 @@ import { DriverLayoutClient } from './DriverLayoutClient'
 import { enforcePhoneVerification } from '@/lib/enforce-phone'
 import { MANIFEST_VERSION } from '@/lib/pwa/constants'
 
+import { headers } from 'next/headers'
+
 export const dynamic = 'force-dynamic'
 
 export const metadata = {
@@ -24,11 +26,28 @@ export const metadata = {
   },
 }
 
-const DRIVER_SIGN_IN = '/sign-in?redirect_url=/driver'
-
 /** Redirect to sign-in so user can log in with driver credentials. Never show 500 for auth/context failures. */
-function redirectToDriverSignIn(): never {
-  redirect(DRIVER_SIGN_IN)
+async function redirectToDriverSignIn(): Promise<never> {
+  let redirectUrl = '/driver'
+  try {
+    const headersList = await headers()
+    // In Next.js App Router, layout doesn't have direct access to pathname.
+    // Try x-invoke-path (Next.js internal) or referer to reconstruct the intended destination.
+    const invokePath = headersList.get('x-invoke-path')
+    const referer = headersList.get('referer')
+    
+    if (invokePath && invokePath.startsWith('/driver')) {
+      redirectUrl = invokePath
+    } else if (referer) {
+      const url = new URL(referer)
+      if (url.pathname.startsWith('/driver')) {
+        redirectUrl = url.pathname + url.search
+      }
+    }
+  } catch {
+    // fallback to /driver
+  }
+  redirect(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`)
 }
 
 /**
@@ -48,9 +67,9 @@ export default async function DriverLayout({
       sessionClaims = (result?.sessionClaims as Record<string, unknown> | null) ?? null
     } catch {
       // Any auth() failure → redirect to sign-in (user can then open driver dashboard)
-      redirectToDriverSignIn()
+      return redirectToDriverSignIn()
     }
-    if (!userId) redirectToDriverSignIn()
+    if (!userId) return redirectToDriverSignIn()
     await enforcePhoneVerification('/driver')
 
     let email = ''
@@ -80,6 +99,6 @@ export default async function DriverLayout({
       throw err
     }
     console.error('[Driver layout] Error (redirecting to sign-in):', err)
-    redirectToDriverSignIn()
+    return redirectToDriverSignIn()
   }
 }
