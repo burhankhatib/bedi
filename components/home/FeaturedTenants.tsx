@@ -7,6 +7,7 @@ import { Store, Plus } from 'lucide-react'
 import Image from 'next/image'
 import { BusinessListingCard } from '@/components/home/BusinessListingCard'
 import { useLocation } from '@/components/LocationContext'
+import { getCityCenter } from '@/lib/geofencing'
 import { useLanguage } from '@/components/LanguageContext'
 import type { HomePageFilters } from '@/components/home/QuickFiltersRow'
 
@@ -48,6 +49,8 @@ type FeaturedTenantsProps = {
 export function FeaturedTenants({ category, filters }: FeaturedTenantsProps) {
   const { lang, t } = useLanguage()
   const { city, isChosen, deviceCoordinates } = useLocation()
+  const feeCoords =
+    deviceCoordinates ?? (city ? getCityCenter(city) : null)
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -63,9 +66,9 @@ export function FeaturedTenants({ category, filters }: FeaturedTenantsProps) {
     if (filters.dealOnly) params.set('dealOnly', 'true')
     if (filters.minRating !== null) params.set('minRating', filters.minRating.toString())
     if (filters.fastest) params.set('fastest', 'true')
-    if (deviceCoordinates?.lat != null && deviceCoordinates?.lng != null) {
-      params.set('lat', deviceCoordinates.lat.toString())
-      params.set('lng', deviceCoordinates.lng.toString())
+    if (feeCoords?.lat != null && feeCoords?.lng != null) {
+      params.set('lat', feeCoords.lat.toString())
+      params.set('lng', feeCoords.lng.toString())
     }
     const controller = new AbortController()
 
@@ -80,7 +83,7 @@ export function FeaturedTenants({ category, filters }: FeaturedTenantsProps) {
       })
       .finally(() => setLoading(false))
     return () => controller.abort()
-  }, [isChosen, city, category, filters, deviceCoordinates?.lat, deviceCoordinates?.lng])
+  }, [isChosen, city, category, filters, feeCoords?.lat, feeCoords?.lng])
 
   if (!isChosen || (loading && tenants.length === 0)) {
     return (
@@ -132,7 +135,7 @@ export function FeaturedTenants({ category, filters }: FeaturedTenantsProps) {
   }).filter(dish => typeof dish.name === 'object' ? (dish.name.en || dish.name.ar) : dish.name)
 
   return (
-    <section className="mx-auto max-w-7xl pt-6 pb-12 overflow-hidden">
+    <section className="mx-auto max-w-7xl pt-2 pb-12 overflow-hidden">
       <div className="px-4 sm:px-6">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">

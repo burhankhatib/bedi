@@ -6,6 +6,7 @@ import { normalizeSectionKey } from '@/lib/section-key'
 import { BUSINESS_TYPES, STORE_BUSINESS_TYPES } from '@/lib/constants'
 import { distanceKm } from '@/lib/maps-utils'
 import { estimateDeliveryTravelMinutes, prepMinutesFromBucket } from '@/lib/home-tenant-eta'
+import { computeDistanceBasedDeliveryFee } from '@/lib/compute-distance-delivery-fee'
 
 /** Cache 60s per (city, category, section, area) to reduce Sanity API calls. */
 export const revalidate = 60
@@ -288,42 +289,23 @@ export async function GET(req: NextRequest) {
     const estimatedPrepMinutes = prepMinutesFromBucket(t.prepTimeBucket)
 
     if (customerLat !== null && customerLng !== null && t.locationLat != null && t.locationLng != null) {
-      distKm = distanceKm(
-        { lat: t.locationLat, lng: t.locationLng },
-        { lat: customerLat, lng: customerLng }
+      const priced = computeDistanceBasedDeliveryFee(
+        {
+          locationLat: t.locationLat,
+          locationLng: t.locationLng,
+          city: t.city,
+          deliveryFeeMin: t.deliveryFeeMin,
+          deliveryFeeMax: t.deliveryFeeMax,
+        },
+        customerLat,
+        customerLng
       )
-
-      const minFee = Math.max(10, t.deliveryFeeMin ?? Number(process.env.DEFAULT_DELIVERY_FEE_MIN || 10))
-      const tenantCity = (t.city || '').toLowerCase().trim()
-      const smallCities = ['bethany', 'al-eizariya', 'العيزرية', 'jericho', 'اريحا', 'أريحا']
-      const largeCities = ['jerusalem', 'القدس', 'ramallah', 'رام الله', 'nablus', 'نابلس', 'bethlehem', 'بيت لحم', 'hebron', 'الخليل']
-      const maxFee = t.deliveryFeeMax ?? (
-        largeCities.includes(tenantCity) ? 35 :
-        smallCities.includes(tenantCity) ? 30 :
-        Number(process.env.DEFAULT_DELIVERY_FEE_MAX || 25)
-      )
-
-      let rawFee: number
-      if (largeCities.includes(tenantCity)) {
-        if (distKm <= 1.5) rawFee = 10
-        else rawFee = 10 + Math.ceil((distKm - 1.5) / 0.75) * 5
-      } else if (smallCities.includes(tenantCity)) {
-        if (distKm <= 1) rawFee = 10
-        else rawFee = 10 + Math.ceil((distKm - 1) / 0.5) * 5
-      } else {
-        const baseDistance = 1.5
-        const extraKmRate = 5
-        rawFee = minFee
-        if (distKm > baseDistance) {
-          rawFee = minFee + ((distKm - baseDistance) * extraKmRate)
-        }
+      if (priced) {
+        distKm = priced.distanceKm
+        computedDeliveryFee = t.freeDeliveryEnabled ? 0 : priced.fee
+        estimatedTravelMinutes = estimateDeliveryTravelMinutes(distKm, t.city)
+        etaMinutes = estimatedPrepMinutes + estimatedTravelMinutes
       }
-      let fee = Math.round(rawFee / 5) * 5
-      fee = Math.max(minFee, Math.min(fee, maxFee))
-      computedDeliveryFee = t.freeDeliveryEnabled ? 0 : fee
-
-      estimatedTravelMinutes = estimateDeliveryTravelMinutes(distKm, t.city)
-      etaMinutes = estimatedPrepMinutes + estimatedTravelMinutes
     } else {
       estimatedTravelMinutes = null
       const nominalTravelWhenNoGps = 10
@@ -363,7 +345,10 @@ export async function GET(req: NextRequest) {
     if (deliveryFilter === 'free') {
       result = result.filter(t => t.freeDeliveryEnabled || (t.computedDeliveryFee !== null && t.computedDeliveryFee <= 0))
     } else if (deliveryFilter === 'under10') {
-      result = result.filter(t => t.computedDeliveryFee !== null && t.computedDeliveryFee < 10)
+      // ₪10 or less (includes exactly 10 and free delivery)
+      result = result.filter(
+        (t) => t.computedDeliveryFee !== null && t.computedDeliveryFee <= 10
+      )
     }
   }
 

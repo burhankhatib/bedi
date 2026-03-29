@@ -85,7 +85,8 @@ export function useGoogleOAuthCapacitor(mode: 'sign-in' | 'sign-up') {
 
         if (attempt.status === 'complete') {
           await clerk.setActive({ session: attempt.createdSessionId })
-          router.push(dest)
+          // Same path as Clerk `<SignIn afterSignInUrl />`: phone verification before final destination.
+          router.push(`/auth/continue?returnTo=${encodeURIComponent(dest)}`)
         } else {
           throw new Error(`Unexpected sign-in status: ${attempt.status}`)
         }

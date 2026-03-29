@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { TENANT_DASHBOARD_SIGN_IN_REDIRECT } from '@/lib/auth-utils'
 import { LogIn, RefreshCw } from 'lucide-react'
 
 /**
@@ -22,7 +23,7 @@ export default function DashboardError({
 
   useEffect(() => {
     if (isAuthRelated) {
-      window.location.href = '/sign-in?redirect_url=/'
+      window.location.href = TENANT_DASHBOARD_SIGN_IN_REDIRECT
       return
     }
   }, [isAuthRelated])
@@ -40,7 +41,7 @@ export default function DashboardError({
         </p>
         <div className="flex flex-wrap justify-center gap-3">
           <Button asChild className="bg-amber-500 text-slate-950 hover:bg-amber-400" size="lg">
-            <Link href="/sign-in?redirect_url=/">
+            <Link href={TENANT_DASHBOARD_SIGN_IN_REDIRECT}>
               <LogIn className="mr-2 size-4" />
               Sign in
             </Link>

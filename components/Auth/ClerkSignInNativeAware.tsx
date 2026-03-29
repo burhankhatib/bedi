@@ -6,7 +6,7 @@ import type { ComponentProps } from 'react'
 
 export type ClerkSignInNativeAwareProps = ComponentProps<typeof SignIn> & {
   /**
-   * `hide` — no Clerk social/OAuth row (native app uses `GoogleLoginButton` + system browser).
+   * `hide` — no Clerk social/OAuth row (native app uses `GoogleLoginButton` + native Google Sign-In).
    * `show` — normal Clerk UI including Google etc.
    */
   oauthMode?: 'show' | 'hide'

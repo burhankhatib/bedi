@@ -3,6 +3,13 @@
  * Ensures one account can be used as customer, tenant, and/or driver without confusion or errors.
  */
 
+/**
+ * Tenant dashboard auth gate: Capacitor shell loads `/dashboard`; after sign-in we must return
+ * there (not `/`), or Android may resolve the root URL outside the tenant WebView (browser / wrong app).
+ */
+export const TENANT_DASHBOARD_SIGN_IN_REDIRECT =
+  '/sign-in?redirect_url=' + encodeURIComponent('/dashboard')
+
 /** Allowed path prefixes for redirect_url (sign-in/sign-up). Prevents open redirects. */
 const ALLOWED_REDIRECT_PREFIXES = [
   '/',

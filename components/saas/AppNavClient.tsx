@@ -164,7 +164,7 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
                     </Button>
                   </>
                 )}
-                <UserButtonWithSignOutUrl />
+                <UserButtonWithSignOutUrl afterSignOutUrl="/dashboard" />
               </>
             )}
           </nav>
@@ -195,7 +195,7 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
                 >
                   <Menu className="size-6" />
                 </Button>
-                <UserButtonWithSignOutUrl />
+                <UserButtonWithSignOutUrl afterSignOutUrl="/dashboard" />
               </>
             )}
           </div>
@@ -267,7 +267,7 @@ export function AppNavClient({ variant, showAdmin, hasDriver, signInLabel, getSt
             <div className="mt-4 border-t border-slate-800 px-6 pt-4">
               <p className="text-xs text-slate-500">{dashboardNavLabels.account}</p>
               <div className="mt-2 flex items-center gap-2">
-                <UserButtonWithSignOutUrl />
+                <UserButtonWithSignOutUrl afterSignOutUrl="/dashboard" />
                 <span className="text-sm text-slate-400">{dashboardNavLabels.profileSignOut}</span>
               </div>
             </div>

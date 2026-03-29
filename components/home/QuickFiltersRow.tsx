@@ -25,7 +25,7 @@ export const DEFAULT_HOME_FILTERS: HomePageFilters = {
   deliveryFee: 'all',
   dealOnly: false,
   minRating: null,
-  fastest: false,
+  fastest: true,
 }
 
 export function hasActiveHomeFilters(f: HomePageFilters): boolean {
@@ -197,7 +197,7 @@ export function QuickFiltersRow({ filters, onChange }: QuickFiltersRowProps) {
   const deliveryItems: DropdownItem[] = [
     { value: 'all', label: t('Show all', 'عرض الكل') },
     { value: 'free', label: t('Free delivery', 'توصيل مجاني') },
-    { value: 'under10', label: t('Delivery under ₪10', 'توصيل أقل من 10₪') },
+    { value: 'under10', label: t('Delivery ₪10 or less', 'توصيل 10₪ أو أقل') },
   ]
 
   const ratingItems: DropdownItem[] = [
@@ -223,7 +223,7 @@ export function QuickFiltersRow({ filters, onChange }: QuickFiltersRowProps) {
       ? t('All fees', 'كل الرسوم')
       : filters.deliveryFee === 'free'
         ? t('Free delivery', 'توصيل مجاني')
-        : t('Under ₪10', 'أقل من 10₪')
+        : t('₪10 or less', '10₪ أو أقل')
 
   const ratingLabel =
     filters.minRating === null

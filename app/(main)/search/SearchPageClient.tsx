@@ -17,6 +17,9 @@ import { getCityDisplayName } from '@/lib/registration-translations'
 import { UniversalSearch } from '@/components/search/UniversalSearch'
 import { CategoryIconsBar } from '@/components/home/CategoryIconsBar'
 import { BusinessListingCard } from '@/components/home/BusinessListingCard'
+import { QuickFiltersRow } from '@/components/home/QuickFiltersRow'
+import { usePersistedHomeFilters } from '@/hooks/usePersistedHomeFilters'
+import { getCityCenter } from '@/lib/geofencing'
 import { BUSINESS_LISTING_CARD_GRID_CLASS } from '@/lib/ui/businessListingGrid'
 import { isLikelyQuestion } from '@/lib/ai/question-detection'
 import { cn } from '@/lib/utils'
@@ -31,6 +34,11 @@ type Tenant = {
   slug: string
   businessType: string
   freeDeliveryEnabled?: boolean
+  hasActiveDeal?: boolean
+  computedDeliveryFee?: number | null
+  etaMinutes?: number | null
+  estimatedTravelMinutes?: number | null
+  estimatedPrepMinutes?: number | null
   logoUrl: string | null
   sections: Localized[]
   popularItems: Localized[]
@@ -174,7 +182,9 @@ const categoriesCache = new Map<string, { data: any; expires: number }>()
 
 export function SearchPageClient() {
   const { t, lang } = useLanguage()
-  const { city, isChosen, setOpenLocationModal } = useLocation()
+  const { city, isChosen, setOpenLocationModal, deviceCoordinates } = useLocation()
+  const { filters: homeFilters, setFilters: setHomeFilters } = usePersistedHomeFilters()
+  const feeCoords = deviceCoordinates ?? (city ? getCityCenter(city) : null)
   const searchParams = useSearchParams()
   const router = useRouter()
   const category = searchParams.get('category') ?? ''
@@ -292,6 +302,14 @@ export function SearchPageClient() {
     if (category) params.set('category', category)
     if (subcategory) params.set('subcategory', subcategory)
     if (area) params.set('area', area)
+    if (homeFilters.deliveryFee !== 'all') params.set('deliveryFilter', homeFilters.deliveryFee)
+    if (homeFilters.dealOnly) params.set('dealOnly', 'true')
+    if (homeFilters.minRating !== null) params.set('minRating', homeFilters.minRating.toString())
+    if (homeFilters.fastest) params.set('fastest', 'true')
+    if (feeCoords?.lat != null && feeCoords?.lng != null) {
+      params.set('lat', feeCoords.lat.toString())
+      params.set('lng', feeCoords.lng.toString())
+    }
 
     const cacheKey = params.toString()
     const now = Date.now()
@@ -317,7 +335,18 @@ export function SearchPageClient() {
       .catch((err) => { if (mounted && err?.name !== 'AbortError') { setTenants([]); setMeta(null) } })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false; ac.abort() }
-  }, [isChosen, city, category, subcategory, area, debouncedQuery, lang])
+  }, [
+    isChosen,
+    city,
+    category,
+    subcategory,
+    area,
+    debouncedQuery,
+    lang,
+    homeFilters,
+    feeCoords?.lat,
+    feeCoords?.lng,
+  ])
 
   useEffect(() => {
     if (!isChosen || !city) {
@@ -547,6 +576,13 @@ export function SearchPageClient() {
                       (getCityDisplayName(city ?? null, lang) || city) ?? ''
                     )}
             </h1>
+
+            {/* Same delivery/deal/rating/speed filters as the home featured list (browse mode only) */}
+            {!debouncedQuery && (
+              <div className="relative left-1/2 mb-6 w-screen max-w-none -translate-x-1/2">
+                <QuickFiltersRow filters={homeFilters} onChange={setHomeFilters} />
+              </div>
+            )}
 
             {/* M3 Search Header - desktop: inline. Mobile: fixed above nav (see fixed bar below) */}
             <div className="mb-6 flex gap-3 items-center max-md:hidden">
@@ -797,6 +833,11 @@ export function SearchPageClient() {
                     t={t}
                     useFullPageLink
                     titleTag="h3"
+                    computedDeliveryFee={tenant.computedDeliveryFee}
+                    etaMinutes={tenant.etaMinutes}
+                    estimatedTravelMinutes={tenant.estimatedTravelMinutes}
+                    estimatedPrepMinutes={tenant.estimatedPrepMinutes}
+                    hasActiveDeal={tenant.hasActiveDeal}
                   />
                 ))}
               </div>

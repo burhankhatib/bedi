@@ -8,15 +8,14 @@ import { isSuperAdminEmail } from '@/lib/constants'
 import { getEmailForUser } from '@/lib/getClerkEmail'
 import { DashboardClient } from './DashboardClient'
 import { enforcePhoneVerification } from '@/lib/enforce-phone'
+import { TENANT_DASHBOARD_SIGN_IN_REDIRECT } from '@/lib/auth-utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-const SIGN_IN_REDIRECT = '/sign-in?redirect_url=/'
-
 /** Redirect to sign-in so user can log in with the correct credentials. Never show 500 for auth/context failures. */
 function redirectToSignIn(): never {
-  redirect(SIGN_IN_REDIRECT)
+  redirect(TENANT_DASHBOARD_SIGN_IN_REDIRECT)
 }
 
 /**

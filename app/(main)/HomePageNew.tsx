@@ -7,7 +7,8 @@ import { SiteHeader } from '@/components/global/SiteHeader'
 import { LocationGate } from '@/components/home/LocationGate'
 import { HeroBannerFallback } from '@/components/home/HeroBanner'
 import { CategoryIconsBar } from '@/components/home/CategoryIconsBar'
-import { QuickFiltersRow, HomePageFilters, DEFAULT_HOME_FILTERS } from '@/components/home/QuickFiltersRow'
+import { QuickFiltersRow } from '@/components/home/QuickFiltersRow'
+import { usePersistedHomeFilters } from '@/hooks/usePersistedHomeFilters'
 import { PastOrdersSection } from '@/components/home/PastOrdersSection'
 import { PublicFooter } from '@/components/saas/PublicFooter'
 import { PopularProductsSection } from '@/components/home/PopularProductsSection'
@@ -25,7 +26,7 @@ export function HomePageNew() {
   const isRtl = lang === 'ar'
   const [activeCategory, setActiveCategory] = useState<'restaurant' | 'stores'>('restaurant')
   const [showSubcategories, setShowSubcategories] = useState(false)
-  const [filters, setFilters] = useState<HomePageFilters>(DEFAULT_HOME_FILTERS)
+  const { filters, setFilters } = usePersistedHomeFilters()
   const m3Ease = [0.2, 0, 0, 1] as const
 
   return (
@@ -97,8 +98,6 @@ export function HomePageNew() {
             </AnimatePresence>
           </div>
 
-          <QuickFiltersRow filters={filters} onChange={setFilters} />
-
           {/* 3. Hero — full viewport width, natural height */}
           <motion.section
             initial={{ opacity: 0, scale: 0.995 }}
@@ -118,8 +117,9 @@ export function HomePageNew() {
             <ScrollDrivenBanner />
           </div> */}
 
-          {/* Featured tenants — light surface */}
+          {/* Featured tenants — light surface; filters sit directly above the section heading */}
           <div className="relative left-1/2 w-screen max-w-none -translate-x-1/2 bg-white">
+            <QuickFiltersRow filters={filters} onChange={setFilters} />
             <div className="mx-auto w-full max-w-none px-4 pb-10 pt-2 md:px-6 md:pb-12">
               <FeaturedTenants category={activeCategory} filters={filters} />
             </div>
