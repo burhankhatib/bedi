@@ -35,8 +35,12 @@ export function NativePushListener() {
               if (data.url.startsWith('http')) {
                 const targetUrl = new URL(data.url)
                 const currentUrl = new URL(window.location.href)
-                // Same origin -> push path+search
-                if (targetUrl.origin === currentUrl.origin) {
+                
+                const targetHost = targetUrl.hostname.replace(/^www\./, '')
+                const currentHost = currentUrl.hostname.replace(/^www\./, '')
+                
+                // Same origin or our domain -> push path+search
+                if (targetHost === currentHost || targetHost === 'bedi.delivery') {
                   router.push(targetUrl.pathname + targetUrl.search)
                 } else {
                   // External link (should be rare) -> force full load or native open

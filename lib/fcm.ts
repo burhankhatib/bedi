@@ -115,7 +115,16 @@ export async function sendFCMToTokenDetailed(
   
   // If native or auto (unknown), omit web link and use path-first for data.url
   const isNativeOrAuto = !payload.pushClient || payload.pushClient === 'native'
-  const targetUrl = isNativeOrAuto ? rawUrl : fullUrl
+  let targetUrl = isNativeOrAuto ? rawUrl : fullUrl
+
+  if (isNativeOrAuto && targetUrl.startsWith('http')) {
+    try {
+      const u = new URL(targetUrl)
+      targetUrl = u.pathname + u.search
+    } catch {
+      // ignore
+    }
+  }
 
   const title = payload.title || 'Notification'
   const body = (payload.body ?? '').replace(/"/g, "'")
