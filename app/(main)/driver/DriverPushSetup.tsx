@@ -5,11 +5,9 @@ import { App } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { useDriverPush } from './DriverPushContext'
 
-const AUTO_PROMPT_KEY = 'bedi-driver-push-autoprompt-attempted'
-
 /**
  * FCM check runs in background. Status and enable/refresh live in PushStatusCard at bottom.
- * This component triggers a one-time automatic push subscription prompt on first open.
+ * This component triggers an automatic push subscription prompt on startup until the user allows/denies it.
  */
 export function DriverPushSetup() {
   const { hasPush, checked, isDenied, needsIOSHomeScreen, subscribe, locationChecked } = useDriverPush()
@@ -26,11 +24,7 @@ export function DriverPushSetup() {
 
     try {
       const isNative = Capacitor.isNativePlatform()
-      if (!isNative) {
-        const alreadyAttempted = localStorage.getItem(AUTO_PROMPT_KEY) === '1'
-        if (alreadyAttempted) return
-        localStorage.setItem(AUTO_PROMPT_KEY, '1')
-      } else {
+      if (isNative) {
         App.addListener('appStateChange', ({ isActive }) => {
           if (isActive) subscribe().catch(() => {})
         }).then(l => cleanupAppListener = l)
@@ -48,7 +42,7 @@ export function DriverPushSetup() {
         if (cleanupAppListener) cleanupAppListener.remove()
       }
     } catch {
-      // storage might throw in private mode
+      // ignore
     }
   }, [checked, locationChecked, hasPush, isDenied, needsIOSHomeScreen, subscribe])
 

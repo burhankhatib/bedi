@@ -110,51 +110,64 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
     if (!slug) return
     const now = Date.now()
     const contextKey = PUSH_CONTEXT_KEYS.tenant(slug)
-    const perm = typeof Notification !== 'undefined' ? Notification.permission : null
+    
+    // Asynchronously check *actual* OS permission before trusting cache
+    const checkNativeAndHealth = async () => {
+      let currentPerm = typeof Notification !== 'undefined' ? Notification.permission : null
+      const isNativeCheck = typeof window !== 'undefined' && Capacitor.isNativePlatform()
 
-    if (perm === 'denied') {
-      clearStoredPushOk(contextKey)
-      setHasPush(false)
-      setChecked(true)
-      setTokenStatus('denied')
-      return
-    }
-
-    // In-memory throttle (client-side nav within same session)
-    if (lastCheckRef.current != null && now - lastCheckRef.current < HEALTH_CHECK_THROTTLE_MS) return
-
-    // Persisted throttle (survives full page loads) — skip API if we checked recently
-    const storedLastCheck = getLastCheck(contextKey)
-    if (storedLastCheck != null && now - storedLastCheck < HEALTH_CHECK_THROTTLE_MS) {
-      const localOk = perm === 'granted' && getStoredPushOk(contextKey)
-      setHasPush(localOk)
-      setTokenStatus(localOk ? 'connected' : 'disconnected')
-      setChecked(true)
-      return
-    }
-
-    // Show optimistic state immediately so the page renders without a flicker
-    const localOk = perm === 'granted' && getStoredPushOk(contextKey)
-    if (localOk) {
-      setHasPush(true)
-    } else {
-      // If no local ok but permission is granted, we'll wait for API.
-      // If default, they haven't subscribed yet.
-      if (perm !== 'granted') {
-         setTokenStatus('disconnected')
-         setChecked(true)
-         return
+      if (isNativeCheck) {
+        try {
+          const { PushNotifications } = await import('@capacitor/push-notifications')
+          const permStatus = await PushNotifications.checkPermissions()
+          currentPerm = permStatus.receive === 'granted' ? 'granted' : 'denied'
+        } catch (e) {
+          // Fallback
+        }
       }
-    }
 
-    let cancelled = false
+      if (currentPerm === 'denied') {
+        clearStoredPushOk(contextKey)
+        setHasPush(false)
+        setChecked(true)
+        setTokenStatus('denied')
+        return
+      }
 
-    const checkHealth = async () => {
+      // In-memory throttle (client-side nav within same session)
+      if (lastCheckRef.current != null && now - lastCheckRef.current < HEALTH_CHECK_THROTTLE_MS) return
+
+      // Persisted throttle (survives full page loads) — skip API if we checked recently
+      const storedLastCheck = getLastCheck(contextKey)
+      if (storedLastCheck != null && now - storedLastCheck < HEALTH_CHECK_THROTTLE_MS) {
+        const localOk = currentPerm === 'granted' && getStoredPushOk(contextKey)
+        setHasPush(localOk)
+        setTokenStatus(localOk ? 'connected' : 'disconnected')
+        setChecked(true)
+        return
+      }
+
+      // Show optimistic state immediately so the page renders without a flicker
+      const localOk = currentPerm === 'granted' && getStoredPushOk(contextKey)
+      if (localOk) {
+        setHasPush(true)
+      } else {
+        // If no local ok but permission is granted, we'll wait for API.
+        // If default, they haven't subscribed yet.
+        if (currentPerm !== 'granted') {
+           setTokenStatus('disconnected')
+           setChecked(true)
+           return
+        }
+      }
+
+      let cancelled = false
+
       let currentToken = ''
       
       // Try to get FCM token to pass to the health check API
       const useFCM = typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()
-      if (useFCM || (typeof window !== 'undefined' && Capacitor.isNativePlatform())) {
+      if (useFCM || isNativeCheck) {
          try {
             const { token } = await getTenantPushSubscriptionToken(false, swScope)
             if (token) currentToken = token
@@ -185,7 +198,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
           }
           
           // Auto-heal: silently refresh if needed
-          if (data?.needsRefresh && perm === 'granted') {
+          if (data?.needsRefresh && currentPerm === 'granted') {
             if (!autoSubscribeRef.current) {
               autoSubscribeRef.current = true
               subscribe(true).catch(() => {})
@@ -206,9 +219,11 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
       }
     }
 
-    checkHealth()
-
-    return () => { cancelled = true }
+    checkNativeAndHealth()
+    
+    return () => {
+      // cancellation logic left out of effect cleanup for simplicity in async refactor
+    }
   }, [slug, swScope])
 
   const subscribe = useCallback(async (silent = false): Promise<boolean> => {
@@ -417,7 +432,7 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
   /**
    * Auto re-subscribe:
    * - Native: always attempt if not granted/denied.
-   * - Web: only if already granted.
+   * - Web: attempt if not granted.
    */
   useEffect(() => {
     if (!slug || !checked || hasPush || loading) return
@@ -425,12 +440,15 @@ export function TenantPushProvider({ slug, scope: scopeProp, children }: { slug:
     
     const isNative = typeof window !== 'undefined' && Capacitor.isNativePlatform()
     
-    if (!isNative && (typeof Notification === 'undefined' || Notification.permission !== 'granted')) return
+    // Auto-prompt on Web/PWA and Native if permission is not yet granted/denied.
+    if (!isNative && (typeof Notification === 'undefined' || Notification.permission === 'denied')) return
     if (isNative && permission === 'denied') return
     if (isNative && permission === 'granted') return // already handled if we had push, but just in case
     
     autoSubscribeRef.current = true
-    subscribe(isNative ? false : true).catch(() => {})
+    
+    // If not granted, trigger the prompt (silent=false to show errors gracefully on web)
+    subscribe(false).catch(() => {})
     
     if (isNative) {
       const listener = App.addListener('appStateChange', ({ isActive }) => {

@@ -147,14 +147,26 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
     if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
     if (typeof navigator !== 'undefined' && 'onLine' in navigator && !navigator.onLine) return
     const isNativeCheck = typeof window !== 'undefined' && Capacitor.isNativePlatform()
-    const perm = typeof Notification !== 'undefined' ? Notification.permission : null
-    if (!isNativeCheck && perm === 'denied') {
+    
+    // Asynchronously check *actual* OS permission before trusting cache
+    let currentPerm = typeof Notification !== 'undefined' ? Notification.permission : null
+    if (isNativeCheck) {
+      try {
+        const { PushNotifications } = await import('@capacitor/push-notifications')
+        const permStatus = await PushNotifications.checkPermissions()
+        currentPerm = permStatus.receive === 'granted' ? 'granted' : 'denied'
+      } catch (e) {
+        // Fallback
+      }
+    }
+    
+    if (!isNativeCheck && currentPerm === 'denied') {
       clearStoredPushOk(PUSH_CONTEXT_KEYS.driver())
       setHasPush(false)
       setChecked(true)
       return
     }
-    if ((isNativeCheck || perm === 'granted') && getStoredPushOk(PUSH_CONTEXT_KEYS.driver())) {
+    if ((isNativeCheck || currentPerm === 'granted') && getStoredPushOk(PUSH_CONTEXT_KEYS.driver())) {
       setHasPush(true)
       // still continue health check in background
     }
@@ -177,7 +189,7 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
         clearStoredPushOk(PUSH_CONTEXT_KEYS.driver())
         setHasPush(false)
       }
-      if (data?.needsRefresh && (isNativeCheck || perm === 'granted')) setNeedsPushRefresh(true)
+      if (data?.needsRefresh && (isNativeCheck || currentPerm === 'granted')) setNeedsPushRefresh(true)
     } catch {
       // ignore temporary failures
     } finally {

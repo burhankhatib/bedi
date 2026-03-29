@@ -52,14 +52,26 @@ export function useCustomerTrackPush(slug: string, token: string) {
     if (!slug || !token) return
     const contextKey = PUSH_CONTEXT_KEYS.customer(slug, token)
     const isNativeCheck = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform()
-    const perm = typeof Notification !== 'undefined' ? Notification.permission : null
-    if (!isNativeCheck && perm === 'denied') {
+    
+    // Asynchronously check *actual* OS permission before trusting cache
+    let currentPerm = typeof Notification !== 'undefined' ? Notification.permission : null
+    if (isNativeCheck) {
+      try {
+        const { PushNotifications } = await import('@capacitor/push-notifications')
+        const permStatus = await PushNotifications.checkPermissions()
+        currentPerm = permStatus.receive === 'granted' ? 'granted' : 'denied'
+      } catch (e) {
+        // Fallback
+      }
+    }
+    
+    if (!isNativeCheck && currentPerm === 'denied') {
       clearStoredPushOk(contextKey)
       setHasPush(false)
       setChecked(true)
       return
     }
-    if ((isNativeCheck || perm === 'granted') && getStoredPushOk(contextKey)) {
+    if ((isNativeCheck || currentPerm === 'granted') && getStoredPushOk(contextKey)) {
       setHasPush(true)
       setChecked(true)
       return
@@ -74,7 +86,7 @@ export function useCustomerTrackPush(slug: string, token: string) {
       if (ok) setStoredPushOk(contextKey)
       else clearStoredPushOk(contextKey)
       setHasPush(ok)
-      if (data?.needsRefresh && (isNativeCheck || perm === 'granted')) {
+      if (data?.needsRefresh && (isNativeCheck || currentPerm === 'granted')) {
         setNeedsRefresh(true)
       }
     } catch {

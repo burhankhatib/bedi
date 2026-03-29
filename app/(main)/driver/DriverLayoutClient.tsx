@@ -214,9 +214,9 @@ export function DriverLayoutClient({
               {(hasNoProfileYet ? NAV_ITEMS.filter((i) => i.href === '/driver/profile') : NAV_ITEMS).map((item) => {
                 const isActive = pathname === item.href
                 return (
-                  <button
+                  <Link
                     key={item.href}
-                    type="button"
+                    href={item.href}
                     className={`flex w-full items-center gap-4 px-4 py-3.5 rounded-2xl transition-colors text-left rtl:text-right ${
                       isActive 
                         ? 'bg-emerald-500/10 text-emerald-400' 
@@ -224,14 +224,11 @@ export function DriverLayoutClient({
                     }`}
                     onClick={() => {
                       setMenuOpen(false)
-                      startTransition(() => {
-                        router.push(item.href)
-                      })
                     }}
                   >
                     <item.icon className={`size-6 shrink-0 ${isActive ? 'text-emerald-400' : 'text-slate-400'}`} />
                     <span className="font-medium text-[15px]">{navLabel(item)}</span>
-                  </button>
+                  </Link>
                 )
               })}
 
