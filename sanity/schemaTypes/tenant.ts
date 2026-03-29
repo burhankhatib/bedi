@@ -285,6 +285,21 @@ export const tenantType = defineType({
       description: 'When enabled, new delivery orders are automatically sent to drivers (online and offline reminders) without manual "request driver" from the business.',
     }),
     defineField({
+      name: 'prepTimeBucket',
+      title: 'Preparation Time (Fastest filter)',
+      type: 'string',
+      options: {
+        list: [
+          { title: '10-20 minutes', value: '10-20' },
+          { title: '20-30 minutes', value: '20-30' },
+          { title: '30-40 minutes', value: '30-40' },
+          { title: '40-50 minutes', value: '40-50' },
+        ],
+      },
+      initialValue: '20-30',
+      description: 'Average time needed to prepare most orders. Used with distance for the "Fastest" ETA filter.',
+    }),
+    defineField({
       name: 'defaultAutoDeliveryRequestMinutes',
       title: 'Default auto delivery request delay (minutes)',
       type: 'number',

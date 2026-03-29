@@ -26,6 +26,7 @@ export async function GET() {
       trackingToken?: string
       siteSlug?: string
       siteName?: string
+      siteLogo?: string
     }>
   >(
     `*[_type == "order" && customer._ref == $customerId] | order(createdAt desc) {
@@ -39,7 +40,8 @@ export async function GET() {
       completedAt,
       trackingToken,
       "siteSlug": site->slug.current,
-      "siteName": site->name
+      "siteName": site->name,
+      "siteLogo": site->logo.asset->url
     }`,
     { customerId: customer._id }
   )

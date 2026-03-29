@@ -4,6 +4,8 @@ import { sanityFetch } from '@/sanity/lib/fetch'
 import { urlFor } from '@/sanity/lib/image'
 import { normalizeSectionKey } from '@/lib/section-key'
 import { BUSINESS_TYPES, STORE_BUSINESS_TYPES } from '@/lib/constants'
+import { distanceKm } from '@/lib/maps-utils'
+import { estimateDeliveryTravelMinutes, prepMinutesFromBucket } from '@/lib/home-tenant-eta'
 
 /** Cache 60s per (city, category, section, area) to reduce Sanity API calls. */
 export const revalidate = 60
@@ -62,6 +64,16 @@ export async function GET(req: NextRequest) {
   const subcategory = searchParams.get('subcategory') ?? ''
   const section = searchParams.get('section') ?? ''
   const area = searchParams.get('area') ?? ''
+  const deliveryFilter = searchParams.get('deliveryFilter') ?? 'all'
+  const dealOnly = searchParams.get('dealOnly') === 'true'
+  const minRatingParam = searchParams.get('minRating')
+  const minRating = minRatingParam ? parseFloat(minRatingParam) : null
+  const fastest = searchParams.get('fastest') === 'true'
+  
+  const latStr = searchParams.get('lat')
+  const lngStr = searchParams.get('lng')
+  const customerLat = latStr ? parseFloat(latStr) : null
+  const customerLng = lngStr ? parseFloat(lngStr) : null
 
   const isStoresCategory = category === 'stores'
   const isStoreTypeSubcategory = isStoresCategory && subcategory.startsWith('storetype:')
@@ -96,6 +108,12 @@ export async function GET(req: NextRequest) {
       slug: { current?: string }
       businessType: string
       freeDeliveryEnabled?: boolean
+      deliveryFeeMin?: number
+      deliveryFeeMax?: number
+      locationLat?: number
+      locationLng?: number
+      prepTimeBucket?: string
+      hasActiveDeal: boolean
       city?: string
       country?: string
       businessLogo?: LogoSource
@@ -114,6 +132,12 @@ export async function GET(req: NextRequest) {
       "slug": slug.current,
       businessType,
       freeDeliveryEnabled,
+      deliveryFeeMin,
+      deliveryFeeMax,
+      locationLat,
+      locationLng,
+      prepTimeBucket,
+      "hasActiveDeal": count(*[_type == "product" && site._ref == ^._id && defined(specialPrice) && (!defined(specialPriceExpires) || dateTime(specialPriceExpires) > now())]) > 0,
       city,
       country,
       businessLogo,
@@ -242,7 +266,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const result = tenants.map((t) => {
+  let result = tenants.map((t) => {
     const slug = typeof t.slug === 'string' ? t.slug : null
     const logoSource = t.businessLogo?.asset?._ref ? t.businessLogo : t.restaurantLogo?.asset?._ref ? t.restaurantLogo : null
     const logoUrl = logoSource ? urlFor(logoSource).width(200).height(200).url() : null
@@ -255,6 +279,57 @@ export async function GET(req: NextRequest) {
       .filter((x) => x.en || x.ar)
       .slice(0, 3)
 
+    const rating = ratingsMap.get(t._id) || null
+
+    let distKm: number | null = null
+    let computedDeliveryFee: number | null = null
+    let etaMinutes: number | null = null
+    let estimatedTravelMinutes: number | null = null
+    const estimatedPrepMinutes = prepMinutesFromBucket(t.prepTimeBucket)
+
+    if (customerLat !== null && customerLng !== null && t.locationLat != null && t.locationLng != null) {
+      distKm = distanceKm(
+        { lat: t.locationLat, lng: t.locationLng },
+        { lat: customerLat, lng: customerLng }
+      )
+
+      const minFee = Math.max(10, t.deliveryFeeMin ?? Number(process.env.DEFAULT_DELIVERY_FEE_MIN || 10))
+      const tenantCity = (t.city || '').toLowerCase().trim()
+      const smallCities = ['bethany', 'al-eizariya', 'العيزرية', 'jericho', 'اريحا', 'أريحا']
+      const largeCities = ['jerusalem', 'القدس', 'ramallah', 'رام الله', 'nablus', 'نابلس', 'bethlehem', 'بيت لحم', 'hebron', 'الخليل']
+      const maxFee = t.deliveryFeeMax ?? (
+        largeCities.includes(tenantCity) ? 35 :
+        smallCities.includes(tenantCity) ? 30 :
+        Number(process.env.DEFAULT_DELIVERY_FEE_MAX || 25)
+      )
+
+      let rawFee: number
+      if (largeCities.includes(tenantCity)) {
+        if (distKm <= 1.5) rawFee = 10
+        else rawFee = 10 + Math.ceil((distKm - 1.5) / 0.75) * 5
+      } else if (smallCities.includes(tenantCity)) {
+        if (distKm <= 1) rawFee = 10
+        else rawFee = 10 + Math.ceil((distKm - 1) / 0.5) * 5
+      } else {
+        const baseDistance = 1.5
+        const extraKmRate = 5
+        rawFee = minFee
+        if (distKm > baseDistance) {
+          rawFee = minFee + ((distKm - baseDistance) * extraKmRate)
+        }
+      }
+      let fee = Math.round(rawFee / 5) * 5
+      fee = Math.max(minFee, Math.min(fee, maxFee))
+      computedDeliveryFee = t.freeDeliveryEnabled ? 0 : fee
+
+      estimatedTravelMinutes = estimateDeliveryTravelMinutes(distKm, t.city)
+      etaMinutes = estimatedPrepMinutes + estimatedTravelMinutes
+    } else {
+      estimatedTravelMinutes = null
+      const nominalTravelWhenNoGps = 10
+      etaMinutes = estimatedPrepMinutes + nominalTravelWhenNoGps
+    }
+
     return {
       _id: t._id,
       name: t.name,
@@ -263,12 +338,46 @@ export async function GET(req: NextRequest) {
       slug: slug ?? '',
       businessType: t.businessType,
       freeDeliveryEnabled: t.freeDeliveryEnabled === true,
+      hasActiveDeal: t.hasActiveDeal === true,
       logoUrl,
       sections,
       popularItems,
-      rating: ratingsMap.get(t._id) || null
+      rating,
+      distanceKm: distKm,
+      computedDeliveryFee,
+      etaMinutes,
+      estimatedTravelMinutes,
+      estimatedPrepMinutes,
     }
   })
+
+  if (dealOnly) {
+    result = result.filter(t => t.hasActiveDeal)
+  }
+  
+  if (minRating !== null) {
+    result = result.filter(t => t.rating && t.rating.averageScore >= minRating)
+  }
+  
+  if (deliveryFilter !== 'all') {
+    if (deliveryFilter === 'free') {
+      result = result.filter(t => t.freeDeliveryEnabled || (t.computedDeliveryFee !== null && t.computedDeliveryFee <= 0))
+    } else if (deliveryFilter === 'under10') {
+      result = result.filter(t => t.computedDeliveryFee !== null && t.computedDeliveryFee < 10)
+    }
+  }
+
+  if (fastest) {
+    result.sort((a, b) => {
+      if (a.etaMinutes !== b.etaMinutes) {
+        return (a.etaMinutes ?? 999) - (b.etaMinutes ?? 999)
+      }
+      const ratingA = a.rating?.averageScore ?? 0
+      const ratingB = b.rating?.averageScore ?? 0
+      if (ratingA !== ratingB) return ratingB - ratingA
+      return a.name.localeCompare(b.name)
+    })
+  }
 
   return Response.json({
     tenants: result,

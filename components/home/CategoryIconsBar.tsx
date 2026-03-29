@@ -5,7 +5,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { FullPageLink } from '@/components/ui/FullPageLink'
 import { useLocation } from '@/components/LocationContext'
 import { useLanguage } from '@/components/LanguageContext'
-import { getSectionIcon } from '@/lib/section-icons'
+import { getSectionEmoji } from '@/lib/section-icons'
 import { cn } from '@/lib/utils'
 
 type SubcategoryItem = {
@@ -95,7 +95,7 @@ export function CategoryIconsBar({
   const stickyRail = stickyBack ? (
     <div
       className={cn(
-        'relative z-10 flex shrink-0 flex-col items-center bg-slate-50/95 py-5 backdrop-blur-sm',
+        'relative z-10 flex shrink-0 flex-col items-center bg-slate-50/95 backdrop-blur-sm justify-center',
         'border-[var(--m3-outline-variant)] shadow-[4px_0_12px_-6px_rgba(0,0,0,0.08)]',
         isRtl ? 'border-s ps-3 pe-4 sm:pe-6' : 'border-e ps-4 pe-3 sm:ps-6'
       )}
@@ -107,9 +107,9 @@ export function CategoryIconsBar({
   if (!isChosen || (loading && subcategories.length === 0)) {
     if (stickyBack) {
       return (
-        <div className={cn('flex w-full items-stretch', className)}>
+        <div className={cn('flex w-full items-stretch h-[120px]', className)}>
           {stickyRail}
-          <div className={cn('flex min-w-0 flex-1 justify-start overflow-x-auto py-6 no-scrollbar', chipGap, 'px-2 pe-4 sm:pe-6')}>
+          <div className={cn('flex min-w-0 flex-1 justify-start overflow-x-auto py-3 items-center no-scrollbar', chipGap, 'px-2 pe-4 sm:pe-6')}>
             {[...Array(5)].map((_, i) => (
               <div key={i} className="flex min-w-[70px] flex-shrink-0 flex-col items-center gap-2">
                 <div className="h-14 w-14 animate-pulse rounded-full bg-slate-200 sm:h-16 sm:w-16" />
@@ -121,7 +121,7 @@ export function CategoryIconsBar({
       )
     }
     return (
-      <div className={`flex justify-center gap-4 overflow-x-auto px-4 py-6 no-scrollbar sm:gap-6 md:gap-8 ${className}`}>
+      <div className={`flex justify-center gap-4 overflow-x-auto px-4 py-3 items-center h-[120px] no-scrollbar sm:gap-6 md:gap-8 ${className}`}>
         {[...Array(5)].map((_, i) => (
           <div key={i} className="flex min-w-[70px] flex-col items-center gap-2">
             <div className="h-14 w-14 animate-pulse rounded-full bg-slate-200" />
@@ -135,27 +135,29 @@ export function CategoryIconsBar({
   if (subcategories.length === 0 && !stickyBack) return null
 
   const chips = subcategories.map((s) => {
-    const Icon = getSectionIcon(s.slug)
+    const emoji = getSectionEmoji(s.slug, s.title_en, s.title_ar)
     const isActive = activeSubcategoryId === s._id
 
     return (
       <div key={s._id} className="flex-shrink-0">
         <FullPageLink
           href={`/search?subcategory=${encodeURIComponent(s._id)}&category=${encodeURIComponent(category || 'restaurant')}`}
-          className="group flex w-16 cursor-pointer flex-col items-center gap-2.5 outline-none sm:w-[84px]"
+          className="group flex w-[72px] cursor-pointer flex-col items-center gap-1.5 outline-none sm:w-[84px]"
         >
           <div
-            className={`relative flex h-14 w-14 items-center justify-center rounded-full shadow-sm transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] sm:h-16 sm:w-16 ${
+            className={`relative flex h-[64px] w-[64px] items-center justify-center rounded-[20px] transition-all duration-300 ease-[cubic-bezier(0.2,0,0,1)] sm:h-[72px] sm:w-[72px] ${
               isActive
-                ? 'bg-brand-yellow text-brand-black ring-2 ring-brand-yellow/30 ring-offset-2'
-                : 'border border-slate-100 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                ? 'bg-transparent ring-[3px] ring-slate-800'
+                : 'bg-transparent text-slate-500 hover:bg-slate-100/50'
             }`}
           >
-            <Icon className="h-6 w-6 transition-transform duration-300 group-hover:scale-110 sm:h-7 sm:w-7" />
+            <span className="text-[32px] transition-transform duration-300 group-hover:scale-110 sm:text-4xl">
+              {emoji}
+            </span>
           </div>
           <span
-            className={`line-clamp-2 px-1 text-center text-[11px] font-medium leading-tight transition-colors sm:text-[13px] ${
-              isActive ? 'font-bold text-brand-black' : 'text-slate-600 group-hover:text-brand-black'
+            className={`line-clamp-2 px-1 text-center text-[12px] font-semibold leading-tight transition-colors sm:text-[13px] ${
+              isActive ? 'text-slate-900' : 'text-slate-600 group-hover:text-slate-900'
             }`}
           >
             {lang === 'ar' ? s.title_ar : s.title_en}
@@ -167,11 +169,11 @@ export function CategoryIconsBar({
 
   if (stickyBack) {
     return (
-      <div className={cn('flex w-full items-stretch', className)}>
+      <div className={cn('flex w-full items-stretch h-[120px]', className)}>
         {stickyRail}
         <div
           className={cn(
-            'flex min-w-0 flex-1 items-start overflow-x-auto pb-4 pt-5 no-scrollbar',
+            'flex min-w-0 flex-1 items-center justify-start overflow-x-auto py-3 no-scrollbar',
             chipGap,
             'px-2 pe-4 sm:pe-6'
           )}
@@ -189,8 +191,8 @@ export function CategoryIconsBar({
   }
 
   return (
-    <div className={`w-full py-6 ${className}`}>
-      <div className={`flex justify-start gap-4 overflow-x-auto px-4 pb-4 no-scrollbar sm:gap-6 md:gap-8`}>{chips}</div>
+    <div className={`w-full h-[120px] py-3 flex items-center ${className}`}>
+      <div className={`flex justify-start gap-4 overflow-x-auto px-4 no-scrollbar sm:gap-6 md:gap-8`}>{chips}</div>
     </div>
   )
 }

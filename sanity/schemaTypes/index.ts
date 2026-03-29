@@ -12,6 +12,7 @@ import { orderType } from './order'
 import { customerType } from './customer'
 import { heroBannerType } from './heroBanner'
 import { bannerSettingsType } from './bannerSettings'
+import { promoBannerType } from './promoBanner'
 import { businessCategoryType } from './businessCategory'
 import { businessSubcategoryType } from './businessSubcategory'
 import { reportType } from './report'
@@ -34,5 +35,5 @@ import { staffAttendanceSessionType } from './staffAttendanceSession'
 import { staffPayrollPeriodType } from './staffPayrollPeriod'
 
 export const schema: { types: SchemaTypeDefinition[] } = {
-  types: [tenantType, categoryType, catalogCategoryType, catalogProductType, masterCatalogProductType, productType, restaurantInfoType, aboutUsType, platformAreaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType, broadcastHistoryType, whatsappMessageType, bopProcessedPaymentType, scrollAnimationType, staffAttendanceSessionType, staffPayrollPeriodType],
+  types: [tenantType, categoryType, catalogCategoryType, catalogProductType, masterCatalogProductType, productType, restaurantInfoType, aboutUsType, platformAreaType, driverType, tenantDriverType, platformUserType, orderType, customerType, customerPushSubscriptionType, userPushSubscriptionType, heroBannerType, bannerSettingsType, promoBannerType, businessCategoryType, businessSubcategoryType, reportType, tenantTransferRequestType, suspendedContactType, tenantTableType, tenantStaffType, tableServiceRequestType, otpVerificationType, broadcastHistoryType, whatsappMessageType, bopProcessedPaymentType, scrollAnimationType, staffAttendanceSessionType, staffPayrollPeriodType],
 }

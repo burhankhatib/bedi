@@ -234,8 +234,11 @@ export function DriverLayoutClient({
         <DriverPushStatusCard />
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-800/60 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-lg items-center justify-around px-2">
+      <nav 
+        className="fixed bottom-0 inset-x-0 z-[100] border-t border-slate-800/90 bg-slate-950/95 backdrop-blur-lg"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}
+      >
+        <div className="mx-auto flex h-14 max-w-lg items-center justify-around px-2">
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href
             const isDisabled = hasNoProfileYet && item.href !== '/driver/profile'

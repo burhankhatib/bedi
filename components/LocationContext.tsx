@@ -34,7 +34,11 @@ export type LocationState = {
   isChosen: boolean
 }
 
+/** GPS from auto-detect / permission; cleared when the user picks a city manually. */
+export type DeviceCoordinates = { lat: number; lng: number }
+
 type LocationContextValue = LocationState & {
+  deviceCoordinates: DeviceCoordinates | null
   setLocation: (city: string) => void
   clearLocation: () => void
   openLocationModal: boolean
@@ -95,6 +99,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const [citiesLoaded, setCitiesLoaded] = useState(false)
   const [locationStatus, setLocationStatus] = useState<LocationStatus>('idle')
   const [detectedCityName, setDetectedCityName] = useState<string | null>(null)
+  const [deviceCoordinates, setDeviceCoordinates] = useState<DeviceCoordinates | null>(null)
   const [autoDetectTrigger, setAutoDetectTrigger] = useState(0)
   const hasTriedAutoDetect = useRef(false)
   const availableCitiesRef = useRef<string[]>([])
@@ -170,6 +175,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     setIsChosen(!!c?.trim())
     setOpenLocationModal(false)
     setLocationStatus('in_service')
+    setDeviceCoordinates(null)
   }, [])
 
   const clearLocation = useCallback(() => {
@@ -177,6 +183,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     setIsChosen(false)
     setLocationStatus('idle')
     setDetectedCityName(null)
+    setDeviceCoordinates(null)
     if (typeof window !== 'undefined') {
       localStorage.removeItem(STORAGE_CITY)
     }
@@ -190,6 +197,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const resolveCoordinates = useCallback(async (latitude: number, longitude: number) => {
+    setDeviceCoordinates({ lat: latitude, lng: longitude })
     const seq = ++reverseGeocodeSeqRef.current
     const cities = availableCitiesRef.current
 
@@ -398,6 +406,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const value: LocationContextValue = {
     city,
     isChosen,
+    deviceCoordinates,
     setLocation,
     clearLocation,
     openLocationModal,

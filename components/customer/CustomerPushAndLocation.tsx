@@ -38,8 +38,10 @@ export function CustomerPushAndLocation() {
   }, [])
   useEffect(() => {
     if (!mounted) return
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(STORAGE_KEY_DISMISSED)) {
+      setDismissed(true)
+    }
     syncPermissions()
-    // Removed sessionStorage retrieval so banner isn't permanently hidden
   }, [mounted, syncPermissions])
 
   const requestPush = useCallback(async () => {
@@ -116,7 +118,9 @@ export function CustomerPushAndLocation() {
 
   const dismiss = () => {
     setDismissed(true)
-    // Removed sessionStorage logic to ensure the banner can prompt again if needed.
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(STORAGE_KEY_DISMISSED, '1')
+    }
   }
 
   if (!mounted || dismissed) return null

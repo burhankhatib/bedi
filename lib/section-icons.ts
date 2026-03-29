@@ -43,10 +43,11 @@ import {
   MdWaterDrop,
 } from 'react-icons/md'
 
+import { GiNoodles, GiDonerKebab, GiRoastChicken } from 'react-icons/gi'
+
 import {
   FaDrumstickBite,
   FaFish,
-  FaLeaf,
   FaCarrot,
   FaAppleAlt,
   FaIceCream,
@@ -61,14 +62,17 @@ import {
   FaUtensils,
   FaFireAlt,
   FaStoreAlt,
+  FaSeedling,
+  FaCookieBite,
 } from 'react-icons/fa'
 
 const SECTION_ICON_MAP: Record<string, IconType> = {
-  // Pizza & Italian
+  // Pizza & Italian (pizza icon only for pizza; Italian / pasta → noodles)
   pizza: MdLocalPizza,
   pizzas: MdLocalPizza,
-  pasta: MdRestaurantMenu,
-  italian: MdLocalPizza,
+  pasta: GiNoodles,
+  italian: GiNoodles,
+  italy: GiNoodles,
 
   // Burgers & sandwiches
   burger: MdLunchDining,
@@ -78,7 +82,10 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
   sandwiches: MdLunchDining,
   sandwich: MdLunchDining,
   shawarma: FaHotdog,
-  toasts: MdLunchDining,
+  toasts: GiDonerKebab,
+  toast: GiDonerKebab,
+  wraps: GiDonerKebab,
+  wrap: GiDonerKebab,
   hotdog: FaHotdog,
   hotdogs: FaHotdog,
 
@@ -86,7 +93,8 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
   chicken: FaDrumstickBite,
   'chicken wings': FaDrumstickBite,
   wings: FaDrumstickBite,
-  broasted: FaDrumstickBite,
+  broasted: GiRoastChicken,
+  broast: GiRoastChicken,
   kebab: MdKebabDining,
   kebabs: MdKebabDining,
   meat: MdDinnerDining,
@@ -110,7 +118,7 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
   manakeesh: MdBakeryDining,
   kunafa: FaCandyCane,
   baklava: FaCandyCane,
-  falafel: FaLeaf,
+  falafel: MdTapas,
   hummus: MdTapas,
   mezze: MdTapas,
   lebanese: MdRestaurant,
@@ -123,10 +131,10 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
   mediterranean: MdRestaurant,
   barbecue: FaFireAlt,
   'fried-chicken': FaDrumstickBite,
-  wraps: MdLunchDining,
   'rice-dishes': MdSetMeal,
   donuts: MdCake,
-  snacks: MdLocalDining,
+  snacks: FaCookieBite,
+  snack: FaCookieBite,
 
   // Mains & dishes
   'main dishes': MdDinnerDining,
@@ -187,11 +195,11 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
   // Soups & salads
   soups: MdSoupKitchen,
   soup: MdSoupKitchen,
-  salads: FaLeaf,
-  salad: FaLeaf,
+  salads: MdGrass,
+  salad: MdGrass,
   healthy: MdEco,
-  vegan: FaLeaf,
-  vegetarian: FaLeaf,
+  vegan: FaSeedling,
+  vegetarian: FaCarrot,
 
   // Groceries & Retail & Pharmacy
   grocery: MdLocalGroceryStore,
@@ -263,11 +271,20 @@ const SECTION_ICON_MAP: Record<string, IconType> = {
 // Order matters: more specific keywords first
 const KEYWORD_FALLBACKS: Array<{ keyword: string; icon: IconType }> = [
   { keyword: 'pizza', icon: MdLocalPizza },
+  { keyword: 'italian', icon: GiNoodles },
+  { keyword: 'italy', icon: GiNoodles },
+  { keyword: 'pasta', icon: GiNoodles },
   { keyword: 'burger', icon: MdLunchDining },
+  { keyword: 'vegetarian', icon: FaCarrot },
+  { keyword: 'veggie', icon: FaCarrot },
+  { keyword: 'vegan', icon: FaSeedling },
+  { keyword: 'wrap', icon: GiDonerKebab },
+  { keyword: 'toast', icon: GiDonerKebab },
+  { keyword: 'snack', icon: FaCookieBite },
   { keyword: 'sandwich', icon: MdLunchDining },
   { keyword: 'shawarma', icon: FaHotdog },
+  { keyword: 'broast', icon: GiRoastChicken },
   { keyword: 'chicken', icon: FaDrumstickBite },
-  { keyword: 'broast', icon: FaDrumstickBite },
   { keyword: 'fish', icon: FaFish },
   { keyword: 'seafood', icon: FaFish },
   { keyword: 'grill', icon: FaFireAlt },
@@ -283,9 +300,8 @@ const KEYWORD_FALLBACKS: Array<{ keyword: string; icon: IconType }> = [
   { keyword: 'drink', icon: FaCocktail },
   { keyword: 'juice', icon: MdEmojiFoodBeverage },
   { keyword: 'smooth', icon: MdEmojiFoodBeverage },
-  { keyword: 'salad', icon: FaLeaf },
+  { keyword: 'salad', icon: MdGrass },
   { keyword: 'soup', icon: MdSoupKitchen },
-  { keyword: 'vegan', icon: FaLeaf },
   { keyword: 'health', icon: MdEco },
   { keyword: 'organic', icon: MdEco },
   { keyword: 'pet', icon: MdPets },
@@ -303,7 +319,7 @@ const KEYWORD_FALLBACKS: Array<{ keyword: string; icon: IconType }> = [
   { keyword: 'kabsa', icon: MdSetMeal },
   { keyword: 'manakeesh', icon: MdBakeryDining },
   { keyword: 'kunafa', icon: FaCandyCane },
-  { keyword: 'falafel', icon: FaLeaf },
+  { keyword: 'falafel', icon: MdTapas },
   { keyword: 'hummus', icon: MdTapas },
   { keyword: 'mezze', icon: MdTapas },
   { keyword: 'ramen', icon: MdRamenDining },
@@ -328,3 +344,121 @@ export function getSectionIcon(key: string): IconType {
   // 3. Default fallback
   return MdRestaurant
 }
+
+/**
+ * Emoji for specialty chips. Uses slug + titles so CMS Arabic/English labels resolve even when slug is opaque.
+ * Order matters: more specific phrases before broad keywords (e.g. vegan before vegetarian, broasted before chicken).
+ */
+export function getSectionEmoji(
+  slug: string,
+  titleEn?: string | null,
+  titleAr?: string | null
+): string {
+  const H = [slug ?? '', titleEn ?? '', titleAr ?? '']
+    .join(' ')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+
+  if (H.includes('vegetarian') || H.includes('veggie')) return '🥕'
+  if (H.includes('نباتي صرف') || (H.includes('vegan') && !H.includes('vegetarian'))) return '🌱'
+  if (H.includes('نباتي')) return '🥕'
+
+  if (H.includes('بروست') || H.includes('broast') || H.includes('broasted')) return '🐔'
+
+  if (
+    H.includes('دجاج مقلي') ||
+    H.includes('fried chicken') ||
+    H.includes('fried-chicken') ||
+    (H.includes('fried') && H.includes('chicken'))
+  )
+    return '🍗'
+
+  if (H.includes('pizza')) return '🍕'
+
+  if (H.includes('برجر') || H.includes('burger') || H.includes('hamburger')) return '🍔'
+
+  if (
+    H.includes('إيطالي') ||
+    H.includes('ايطالي') ||
+    H.includes('italian') ||
+    H.includes('italy')
+  )
+    return '🍝'
+
+  if (H.includes('مكسيك') || H.includes('mexican') || H.includes('taco')) return '🌮'
+  if (H.includes('هندي') || H.includes('indian') || H.includes('curry')) return '🍛'
+  if (H.includes('صيني') || H.includes('chinese')) return '🥟'
+  if (H.includes('ياباني') || H.includes('japanese')) return '🍱'
+  if (H.includes('كوري') || H.includes('korean')) return '🍲'
+  if (H.includes('تايلاندي') || H.includes('thai')) return '🍜'
+  if (H.includes('فرنسي') || H.includes('french')) return '🥐'
+  if (H.includes('لبناني') || H.includes('lebanese')) return '🥙'
+  if (H.includes('تركي') || H.includes('turkish')) return '🫓'
+  if (H.includes('مصري') || H.includes('egyptian')) return '🧆'
+  if (H.includes('سوري') || H.includes('syrian')) return '🥙'
+  if (H.includes('ألماني') || H.includes('german')) return '🥨'
+  if (H.includes('يوناني') || H.includes('greek')) return '🫒'
+  if (H.includes('إسبان') || H.includes('spanish')) return '🥘'
+  if (H.includes('بريطان') || H.includes('british')) return '🫖'
+  if ((H.includes('أمريكي') || H.includes('american')) && !H.includes('mexican')) return '🌭'
+
+  if (
+    H.includes('wrap') ||
+    H.includes('burrito') ||
+    H.includes('لفاف') ||
+    H.includes('راب') ||
+    H.includes('توست') ||
+    H.includes('toast')
+  )
+    return '🌯'
+
+  if (H.includes('شطائر') || H.includes('sandwich') || H.includes('shawarma')) return '🥪'
+
+  if (H.includes('خفيفة') || H.includes('light meal') || H.includes('light-meal')) return '🍱'
+  if (H.includes('snack') || H.includes('مقرمشات')) return '🍪'
+
+  if (H.includes('سلطة') || H.includes('salad')) return '🥗'
+
+  if (H.includes('صحي') || H.includes('healthy')) return '🥑'
+
+  if (H.includes('مشاو') || H.includes('grill') || H.includes('bbq') || H.includes('barbecue')) return '🥩'
+
+  if (H.includes('كباب') || H.includes('kebab')) return '🍢'
+
+  if (H.includes('chicken') || H.includes('wing') || H.includes('دجاج')) return '🍗'
+
+  if (H.includes('meat') || H.includes('steak')) return '🥩'
+
+  if ((H.includes('seafood') || H.includes('fish')) && !H.includes('sushi')) return '🐟'
+  if (H.includes('sushi')) return '🍣'
+  if (H.includes('asian') || H.includes('ramen') || H.includes('noodle')) return '🍜'
+
+  if (H.includes('soup')) return '🥣'
+  if (H.includes('dessert') || H.includes('cake') || H.includes('sweet') || H.includes('baklava') || H.includes('kunafa'))
+    return '🍰'
+  if (H.includes('ice cream')) return '🍦'
+  if (H.includes('cookie')) return '🍪'
+  if (H.includes('coffee') || H.includes('cafe')) return '☕'
+  if (H.includes('tea')) return '🍵'
+  if (H.includes('مشروب') || H.includes('drink') || H.includes('beverage') || H.includes('juice') || H.includes('smooth'))
+    return '🥤'
+  if (H.includes('فطور') || H.includes('breakfast')) return '🍳'
+  if (H.includes('bakery') || H.includes('bread') || H.includes('manakeesh') || H.includes('pastries')) return '🥐'
+  if (H.includes('falafel')) return '🧆'
+
+  if (H.includes('grocery') || H.includes('market') || H.includes('supermarket')) return '🛒'
+  if (H.includes('fruit') || H.includes('veg') || H.includes('produce')) return '🍎'
+  if (H.includes('dairy') || H.includes('cheese')) return '🧀'
+  if (H.includes('pharmacy') || H.includes('medicine')) return '💊'
+  if (H.includes('cleaning') || H.includes('hygiene')) return '🧼'
+  if (H.includes('beauty') || H.includes('spa')) return '💄'
+  if (H.includes('pet')) return '🐾'
+  if (H.includes('electronics')) return '📱'
+  if (H.includes('clothing') || H.includes('retail')) return '👕'
+  if (H.includes('gift')) return '🎁'
+  if (H.includes('acclaimed') || H.includes('featured') || H.includes('popular')) return '🏆'
+
+  return '🍽️'
+}
+

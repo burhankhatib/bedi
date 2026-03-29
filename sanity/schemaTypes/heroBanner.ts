@@ -1,6 +1,6 @@
 import { defineField, defineType } from 'sanity'
 
-/** Hero banner for homepage. Rotates with others. Can link to business (tenant) or external URL. */
+/** Simpler Hero banner for homepage. Scrolls horizontally. Can be image or text-based. */
 export const heroBannerType = defineType({
   name: 'heroBanner',
   title: 'Hero Banner',
@@ -8,90 +8,138 @@ export const heroBannerType = defineType({
   fields: [
     defineField({
       name: 'title',
-      title: 'Banner name',
+      title: 'Internal Name',
       type: 'string',
-      description: 'Name this banner (e.g. "Summer promo", "New restaurant"). Shown in the Studio list.',
+      description: 'Name this banner (e.g. "Summer promo"). Shown in the Studio list.',
     }),
     defineField({
       name: 'language',
-      title: 'Language',
+      title: 'Language (deprecated)',
+      type: 'string',
+      hidden: true,
+      description: 'Unused. Banners show for every site language; text and images follow Arabic/English fields.',
+    }),
+    defineField({
+      name: 'bannerType',
+      title: 'Banner Type',
       type: 'string',
       options: {
         list: [
-          { title: 'Arabic', value: 'ar' },
-          { title: 'English', value: 'en' },
+          { title: 'Image Banner', value: 'image' },
+          { title: 'Text Banner', value: 'text' },
         ],
       },
-      initialValue: 'ar',
-      description: 'Banner language. Default is Arabic. If no English banner exists, Arabic is shown.',
+      initialValue: 'image',
     }),
+
+    // --- IMAGE FIELDS (Arabic = default; English optional, falls back to Arabic) ---
     defineField({
       name: 'imageDesktopAr',
-      title: 'Desktop Image (Arabic)',
+      title: 'Desktop — Arabic (500×280, default)',
       type: 'image',
       options: { hotspot: true },
-      description: 'Desktop banner in Arabic. Fallback for all if only this is set.',
+      hidden: ({ parent }) => parent?.bannerType !== 'image',
+      description: 'Default desktop art. Shown for Arabic and for English if no English desktop image is set.',
     }),
     defineField({
       name: 'imageDesktopEn',
-      title: 'Desktop Image (English)',
+      title: 'Desktop — English (500×280, optional)',
       type: 'image',
       options: { hotspot: true },
-      description: 'Desktop banner in English. Falls back to Arabic if empty.',
+      hidden: ({ parent }) => parent?.bannerType !== 'image',
+      description: 'Optional. When the site is in English, this is used if set; otherwise the Arabic desktop image is used.',
     }),
     defineField({
       name: 'imageMobileAr',
-      title: 'Mobile Image (Arabic)',
+      title: 'Mobile — Arabic (320×180, optional)',
       type: 'image',
       options: { hotspot: true },
-      description: 'Mobile banner in Arabic. Falls back to desktop if empty.',
+      hidden: ({ parent }) => parent?.bannerType !== 'image',
+      description: 'Optional mobile crop. Falls back to Arabic desktop image if empty.',
     }),
     defineField({
       name: 'imageMobileEn',
-      title: 'Mobile Image (English)',
+      title: 'Mobile — English (320×180, optional)',
       type: 'image',
       options: { hotspot: true },
-      description: 'Mobile banner in English. Falls back to Arabic, then desktop.',
+      hidden: ({ parent }) => parent?.bannerType !== 'image',
+      description: 'Optional. Falls back to Arabic mobile, then English desktop, then Arabic desktop.',
     }),
     defineField({
-      name: 'image',
-      title: 'Legacy Image (fallback)',
+      name: 'imageDesktop',
+      title: 'Legacy desktop image',
       type: 'image',
       options: { hotspot: true },
       hidden: true,
-      description: 'Old single image. Used only when none of the 4 size/language images exist.',
+      description: 'Old field. Treated as Arabic desktop if Arabic desktop is empty.',
     }),
     defineField({
-      name: 'videoDesktopAr',
-      title: 'Desktop Video (Arabic)',
-      type: 'file',
-      options: { accept: 'video/mp4,video/webm,video/ogg' },
-      description: 'Desktop banner video in Arabic. Same fallback order as images. Shown muted, autoplay, loop. Prefer MP4 for compatibility.',
+      name: 'imageMobile',
+      title: 'Legacy mobile image',
+      type: 'image',
+      options: { hotspot: true },
+      hidden: true,
+      description: 'Old field. Treated as Arabic mobile if Arabic mobile is empty.',
+    }),
+
+    // --- TEXT FIELDS ---
+    defineField({
+      name: 'textTitleAr',
+      title: 'Title (Arabic)',
+      type: 'string',
+      hidden: ({ parent }) => parent?.bannerType !== 'text',
     }),
     defineField({
-      name: 'videoDesktopEn',
-      title: 'Desktop Video (English)',
-      type: 'file',
-      options: { accept: 'video/mp4,video/webm,video/ogg' },
-      description: 'Desktop banner video in English. Falls back to Arabic if empty.',
+      name: 'textTitleEn',
+      title: 'Title (English)',
+      type: 'string',
+      hidden: ({ parent }) => parent?.bannerType !== 'text',
     }),
     defineField({
-      name: 'videoMobileAr',
-      title: 'Mobile Video (Arabic)',
-      type: 'file',
-      options: { accept: 'video/mp4,video/webm,video/ogg' },
-      description: 'Mobile banner video in Arabic. Falls back to desktop if empty.',
+      name: 'textDescriptionAr',
+      title: 'Description (Arabic)',
+      type: 'text',
+      hidden: ({ parent }) => parent?.bannerType !== 'text',
     }),
     defineField({
-      name: 'videoMobileEn',
-      title: 'Mobile Video (English)',
-      type: 'file',
-      options: { accept: 'video/mp4,video/webm,video/ogg' },
-      description: 'Mobile banner video in English. Falls back to Arabic, then desktop.',
+      name: 'textDescriptionEn',
+      title: 'Description (English)',
+      type: 'text',
+      hidden: ({ parent }) => parent?.bannerType !== 'text',
     }),
+    defineField({
+      name: 'textButtonLabelAr',
+      title: 'Button Label (Arabic)',
+      type: 'string',
+      hidden: ({ parent }) => parent?.bannerType !== 'text',
+    }),
+    defineField({
+      name: 'textButtonLabelEn',
+      title: 'Button Label (English)',
+      type: 'string',
+      hidden: ({ parent }) => parent?.bannerType !== 'text',
+    }),
+    defineField({
+      name: 'backgroundColor',
+      title: 'Background Color Code (e.g. #3b82f6 or name)',
+      type: 'string',
+      initialValue: '#111827',
+      hidden: ({ parent }) => parent?.bannerType !== 'text',
+      description: 'Valid CSS color value.',
+    }),
+    defineField({
+      name: 'textColor',
+      title: 'Text Color Code',
+      type: 'string',
+      initialValue: '#ffffff',
+      hidden: ({ parent }) => parent?.bannerType !== 'text',
+      description: 'Valid CSS color value.',
+    }),
+
+    // --- LINKING ---
     defineField({
       name: 'linkType',
-      title: 'Link Type',
+      title: 'Link To',
       type: 'string',
       options: {
         list: [
@@ -108,15 +156,16 @@ export const heroBannerType = defineType({
       type: 'reference',
       to: [{ type: 'tenant' }],
       hidden: ({ parent }) => parent?.linkType !== 'tenant',
-      description: 'Link to this business menu (e.g. /t/[slug])',
+      description: 'Link to this business menu',
     }),
     defineField({
       name: 'url',
       title: 'External URL',
       type: 'url',
       hidden: ({ parent }) => parent?.linkType !== 'url',
-      description: 'Full URL when clicked (e.g. https://...)',
     }),
+
+    // --- TARGETING ---
     defineField({
       name: 'countries',
       title: 'Countries (filter)',
@@ -128,103 +177,50 @@ export const heroBannerType = defineType({
           { title: 'Jerusalem', value: 'jerusalem' },
         ],
       },
-      description: 'Leave empty to show in all locations. Otherwise, only show when user country matches.',
+      description: 'Leave empty to show everywhere.',
     }),
     defineField({
       name: 'cities',
       title: 'Cities (filter)',
       type: 'array',
       of: [{ type: 'string' }],
-      description: 'Leave empty to show in all cities. Otherwise, only show when user city matches.',
+      description: 'Leave empty to show in all cities.',
     }),
-    defineField({
-      name: 'height',
-      title: 'Banner Height (legacy)',
-      type: 'string',
-      options: {
-        list: [
-          { title: 'Small (420px)', value: 'small' },
-          { title: 'Medium (560px)', value: 'medium' },
-          { title: 'Large (780px)', value: 'large' },
-          { title: 'Full (1080px)', value: 'full' },
-        ],
-      },
-      initialValue: 'medium',
-      hidden: true,
-      description: 'Legacy. Defaults are now 1130×320 (desktop) and 320×320 (mobile).',
-    }),
-    defineField({
-      name: 'preferredDesktopWidth',
-      title: 'Desktop Width (optional)',
-      type: 'number',
-      description: 'Override desktop width in pixels. Default: 1130. Used with height for aspect ratio.',
-      validation: (Rule) => Rule.min(1).max(4096),
-    }),
-    defineField({
-      name: 'preferredDesktopHeight',
-      title: 'Desktop Height (optional)',
-      type: 'number',
-      description: 'Override desktop height in pixels. Default: 320. With width, sets aspect ratio.',
-      validation: (Rule) => Rule.min(1).max(4096),
-    }),
-    defineField({
-      name: 'preferredMobileWidth',
-      title: 'Mobile Width (optional)',
-      type: 'number',
-      description: 'Override mobile width in pixels. Default: 320. Use with height for non-square banners.',
-      validation: (Rule) => Rule.min(1).max(2048),
-    }),
-    defineField({
-      name: 'preferredMobileHeight',
-      title: 'Mobile Height (optional)',
-      type: 'number',
-      description: 'Override mobile height in pixels. Default: 320. With width, sets aspect ratio.',
-      validation: (Rule) => Rule.min(1).max(2048),
-    }),
+
+    // --- SCHEDULING / ORDERING ---
     defineField({
       name: 'sortOrder',
       title: 'Sort Order',
       type: 'number',
       initialValue: 0,
-      description: 'Lower = first. Use for controlling rotation order.',
+      description: 'Lower = first.',
     }),
     defineField({
       name: 'startDate',
       title: 'Start Date & Time',
       type: 'datetime',
-      description: 'When to start showing this banner. Leave empty to show immediately.',
+      description: 'Optional',
     }),
     defineField({
       name: 'endDate',
       title: 'End Date & Time',
       type: 'datetime',
-      description: 'When to stop showing this banner. Leave empty to show indefinitely.',
+      description: 'Optional',
     }),
   ],
   preview: {
     select: {
       title: 'title',
-      language: 'language',
-      linkType: 'linkType',
-      tenant: 'tenant.name',
-      url: 'url',
-      startDate: 'startDate',
-      endDate: 'endDate',
-      media: 'imageDesktopAr',
+      type: 'bannerType',
+      mediaAr: 'imageDesktopAr',
+      mediaLeg: 'imageDesktop',
     },
     prepare(selection) {
-      const { title, language, linkType, tenant, url, startDate, endDate, media } = selection ?? {}
-      if (title) {
-        const dateSuffix = startDate || endDate ? ' (scheduled)' : ''
-        return { title: `${title}${dateSuffix}`, media }
-      }
-      const link =
-        linkType === 'tenant' ? `→ ${tenant ?? 'Business'}` : linkType === 'url' ? `→ ${url ?? 'URL'}` : 'No link'
-      const langSuffix = language === 'en' ? ' (EN)' : language === 'ar' ? ' (AR)' : ''
-      const dateSuffix = startDate || endDate ? ' (scheduled)' : ''
+      const { title, type, mediaAr, mediaLeg } = selection ?? {}
       return {
-        title: `${link}${langSuffix}${dateSuffix}`,
-        media,
+        title: title || 'Untitled Banner',
+        subtitle: type === 'text' ? 'Text Banner' : 'Image Banner',
+        media: type === 'image' ? mediaAr || mediaLeg : undefined,
       }
     },
   },

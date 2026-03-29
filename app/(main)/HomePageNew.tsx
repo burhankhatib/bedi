@@ -7,6 +7,8 @@ import { SiteHeader } from '@/components/global/SiteHeader'
 import { LocationGate } from '@/components/home/LocationGate'
 import { HeroBannerFallback } from '@/components/home/HeroBanner'
 import { CategoryIconsBar } from '@/components/home/CategoryIconsBar'
+import { QuickFiltersRow, HomePageFilters, DEFAULT_HOME_FILTERS } from '@/components/home/QuickFiltersRow'
+import { PastOrdersSection } from '@/components/home/PastOrdersSection'
 import { PublicFooter } from '@/components/saas/PublicFooter'
 import { PopularProductsSection } from '@/components/home/PopularProductsSection'
 import { HomePageAuthSections } from '@/components/home/HomePageAuthSections'
@@ -23,6 +25,7 @@ export function HomePageNew() {
   const isRtl = lang === 'ar'
   const [activeCategory, setActiveCategory] = useState<'restaurant' | 'stores'>('restaurant')
   const [showSubcategories, setShowSubcategories] = useState(false)
+  const [filters, setFilters] = useState<HomePageFilters>(DEFAULT_HOME_FILTERS)
   const m3Ease = [0.2, 0, 0, 1] as const
 
   return (
@@ -31,7 +34,7 @@ export function HomePageNew() {
       <LocationGate>
         <main className="mx-auto w-full max-w-none px-0 py-4 md:py-6">
           {/* 1. Business category (Restaurant / Store) OR sub-categories with back */}
-          <div className="w-full px-4 sm:px-6">
+          <div className="w-full px-4 sm:px-6 pb-2">
             <AnimatePresence mode="wait" initial={false}>
               {!showSubcategories ? (
                 <motion.section
@@ -42,22 +45,19 @@ export function HomePageNew() {
                   transition={{ duration: 0.28, ease: m3Ease }}
                   className="pt-1"
                 >
-                  <div className="grid grid-cols-2 gap-3 sm:max-w-md">
+                  <div className="grid grid-cols-2 gap-3 sm:max-w-md h-[120px]">
                     <button
                       type="button"
                       onClick={() => {
                         setActiveCategory('restaurant')
                         setShowSubcategories(true)
                       }}
-                      className="group rounded-2xl border border-slate-300/70 bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-brand-yellow/70 hover:shadow-md"
+                      className="group flex flex-col items-center justify-center rounded-2xl border border-slate-300/70 bg-white shadow-sm transition-all hover:border-brand-yellow/70 hover:shadow-md"
                     >
-                      <div className="flex items-center gap-2 text-slate-800">
-                        <UtensilsCrossed className="size-5 text-brand-black" />
-                        <span className="font-semibold">{t('Restaurant', 'مطعم')}</span>
+                      <div className="flex flex-col items-center gap-2 text-slate-800">
+                        <UtensilsCrossed className="size-6 text-brand-black" />
+                        <span className="font-semibold text-[15px]">{t('Restaurant', 'مطعم')}</span>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {t('Meals, cuisines and specialties', 'وجبات ومطابخ وتخصصات')}
-                      </p>
                     </button>
 
                     <button
@@ -66,15 +66,12 @@ export function HomePageNew() {
                         setActiveCategory('stores')
                         setShowSubcategories(true)
                       }}
-                      className="group rounded-2xl border border-slate-300/70 bg-white px-4 py-4 text-left shadow-sm transition-all hover:border-brand-yellow/70 hover:shadow-md"
+                      className="group flex flex-col items-center justify-center rounded-2xl border border-slate-300/70 bg-white shadow-sm transition-all hover:border-brand-yellow/70 hover:shadow-md"
                     >
-                      <div className="flex items-center gap-2 text-slate-800">
-                        <Store className="size-5 text-brand-black" />
-                        <span className="font-semibold">{t('Store', 'متجر')}</span>
+                      <div className="flex flex-col items-center gap-2 text-slate-800">
+                        <Store className="size-6 text-brand-black" />
+                        <span className="font-semibold text-[15px]">{t('Store', 'متجر')}</span>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {t('Grocery, pharmacy, butcher, gas, water', 'بقالة، صيدلية، ملحمة، غاز، ماء')}
-                      </p>
                     </button>
                   </div>
                 </motion.section>
@@ -100,27 +97,31 @@ export function HomePageNew() {
             </AnimatePresence>
           </div>
 
+          <QuickFiltersRow filters={filters} onChange={setFilters} />
+
           {/* 3. Hero — full viewport width, natural height */}
           <motion.section
             initial={{ opacity: 0, scale: 0.995 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4, delay: 0.06, ease: m3Ease }}
-            className="mt-4 w-full"
+            className="relative z-0 mt-6 w-full"
           >
             <Suspense fallback={<HeroBannerFallback />}>
               <HeroBanner />
             </Suspense>
           </motion.section>
 
-          {/* Scroll-driven banner — full bleed */}
-          <div className="relative left-1/2 mt-6 w-screen max-w-none -translate-x-1/2 px-0">
+          <PastOrdersSection />
+
+          {/* Scroll-driven banner — full bleed (Currently disabled for Native Redesign) */}
+          {/* <div className="relative left-1/2 mt-6 w-screen max-w-none -translate-x-1/2 px-0">
             <ScrollDrivenBanner />
-          </div>
+          </div> */}
 
           {/* Featured tenants — light surface */}
           <div className="relative left-1/2 w-screen max-w-none -translate-x-1/2 bg-white">
             <div className="mx-auto w-full max-w-none px-4 pb-10 pt-2 md:px-6 md:pb-12">
-              <FeaturedTenants category={activeCategory} />
+              <FeaturedTenants category={activeCategory} filters={filters} />
             </div>
           </div>
 
