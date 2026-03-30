@@ -20,13 +20,15 @@ function formatOnlineDuration(onlineSince: string | undefined, t: (en: string, a
   const start = new Date(onlineSince).getTime()
   const now = Date.now()
   const ms = Math.max(0, now - start)
-  const totalMinutes = Math.floor(ms / 60000)
-  const hours = Math.floor(totalMinutes / 60)
-  const minutes = totalMinutes % 60
-  const parts: string[] = []
-  if (hours > 0) parts.push(`${hours} ${t('h', 'س')}`)
-  parts.push(`${minutes} ${t('m', 'د')}`)
-  return parts.join(' ')
+  const totalSeconds = Math.floor(ms / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const pad = (n: number) => String(n).padStart(2, '0')
+  if (hours > 0) {
+    return `${hours}:${pad(minutes)}:${pad(seconds)}`
+  }
+  return `${pad(minutes)}:${pad(seconds)}`
 }
 
 const SKIP_APPLY_MS = 3500
@@ -135,7 +137,7 @@ export function DriverStatusProvider({ children }: { children: ReactNode }) {
     }
     const update = () => setDuration(formatOnlineDuration(onlineSince, t))
     update()
-    const id = setInterval(update, 60000)
+    const id = setInterval(update, 1000)
     return () => clearInterval(id)
   }, [isOnline, onlineSince, t])
 
@@ -160,6 +162,11 @@ export function DriverStatusProvider({ children }: { children: ReactNode }) {
         setIsOnline(data.isOnline)
         setOnlineSince(data.onlineSince ?? undefined)
         if (typeof data?.activeDeliveriesCount === 'number') setActiveDeliveriesCount(data.activeDeliveriesCount)
+        if (nextOnline && data.isOnline === true) {
+          // Hard refresh when going online to flush all stale state and re-subscribe cleanly
+          setTimeout(() => { window.location.reload() }, 400)
+          return
+        }
         setTimeout(() => {
           skipStatusApplyUntilRef.current = 0
           fetchStatus()

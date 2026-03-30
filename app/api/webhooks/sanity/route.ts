@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { pusherServer } from '@/lib/pusher'
 import { isValidSignature, SIGNATURE_HEADER_NAME } from '@sanity/webhook'
 import { client } from '@/sanity/lib/client'
@@ -6,6 +7,17 @@ import { token } from '@/sanity/lib/token'
 import { sendPushNotification, isPushConfigured } from '@/lib/push'
 import { sendFCMToToken, isFCMConfigured } from '@/lib/fcm'
 import { sendTenantAndStaffPush } from '@/lib/tenant-and-staff-push'
+
+/** Document types whose changes can affect the customer-facing menu pages. */
+const MENU_AFFECTING_TYPES = new Set([
+  'product',
+  'category',
+  'tenant',
+  'catalogProduct',
+  'masterCatalogProduct',
+  'restaurantInfo',
+  'aboutUs',
+])
 
 import { getAdminVerifiedPushAr } from '@/lib/driver-push-messages'
 
@@ -136,6 +148,15 @@ export async function POST(req: NextRequest) {
       if (siteId) {
         await pusherServer.trigger(`tenant-${siteId}`, 'menu-update', { type: _type })
       }
+    }
+
+    // Invalidate Next.js ISR cache for all business menu pages when any
+    // menu-affecting document changes — this includes Super Admin catalog
+    // image/description edits which were previously invisible until the
+    // 1-hour TTL expired.
+    if (MENU_AFFECTING_TYPES.has(_type)) {
+      revalidateTag('store-page', 'default')
+      revalidateTag('bedi-dev.store-page', 'default')
     }
 
     return NextResponse.json({ success: true })

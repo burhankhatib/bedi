@@ -76,7 +76,10 @@ export function MyOrdersClient({ initialOrders }: { initialOrders: MyOrderRow[] 
   const { t, lang } = useLanguage()
   const isRtl = lang === 'ar'
   const [orders, setOrders] = useState<MyOrderRow[]>(initialOrders)
-  const [tab, setTab] = useState<'active' | 'history'>('active')
+  const [tab, setTab] = useState<'active' | 'history'>(() => {
+    const hasActive = initialOrders.some((o) => o.status && ACTIVE_STATUSES.has(o.status))
+    return hasActive ? 'active' : 'history'
+  })
 
   useEffect(() => {
     setOrders(initialOrders)
@@ -359,7 +362,7 @@ function OrderCard({
           </div>
           {trackHref ? (
             <CustomerM3OutlinedLink href={trackHref} className="h-9 shrink-0 gap-1 px-3 text-xs">
-              {t('Track', 'تتبع')}
+              {isActive ? t('Track', 'تتبع') : t('Open', 'فتح')}
               <ChevronRight className="size-3.5 rtl:rotate-180" />
             </CustomerM3OutlinedLink>
           ) : null}

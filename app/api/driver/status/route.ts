@@ -176,6 +176,21 @@ export async function GET() {
     now - onlineSinceMs >= AUTO_OFFLINE_AFTER_MS
 
   if (shouldAutoOffline && token) {
+    // Do not auto-offline a driver who has an active delivery in progress
+    const activeDeliveriesBeforeOffline = await writeClient.fetch<number>(
+      `count(*[_type == "order" && orderType == "delivery" && assignedDriver._ref == $driverId && status in ["preparing", "waiting_for_delivery", "driver_on_the_way", "out-for-delivery"]])`,
+      { driverId: driver._id }
+    )
+    if (activeDeliveriesBeforeOffline > 0) {
+      return NextResponse.json({
+        isOnline: true,
+        isVerifiedByAdmin: driver.isVerifiedByAdmin ?? false,
+        lastSeenAt: driver.lastSeenAt,
+        onlineSince: driver.onlineSince,
+        activeDeliveriesCount: activeDeliveriesBeforeOffline,
+      })
+    }
+
     await writeClient
       .patch(driver._id)
       .set({ isOnline: false, lastSeenAt: new Date().toISOString() })

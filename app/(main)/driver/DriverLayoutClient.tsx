@@ -67,6 +67,7 @@ export function DriverLayoutClient({
 }) {
   const { t, lang } = useLanguage()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
   const pathname = usePathname()
   const router = useRouter()
   const navLabel = (item: (typeof NAV_ITEMS)[0]) => (lang === 'ar' ? item.labelAr : item.labelEn)
@@ -84,6 +85,10 @@ export function DriverLayoutClient({
       profileCheckAbortRef.current?.abort()
     }
   }, [])
+
+  useEffect(() => {
+    setPendingHref(null)
+  }, [pathname])
 
   useEffect(() => {
     if (!needsRedirect) return
@@ -242,6 +247,7 @@ export function DriverLayoutClient({
           {NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href
             const isDisabled = hasNoProfileYet && item.href !== '/driver/profile'
+            const isNavigatingHere = pendingHref === item.href && isPending
             
             return isDisabled ? (
               <div key={item.href} className="flex flex-col items-center justify-center w-16 gap-1 opacity-40">
@@ -249,17 +255,29 @@ export function DriverLayoutClient({
                 <span className="text-[10px] font-medium truncate w-full text-center">{navLabel(item)}</span>
               </div>
             ) : (
-              <Link
+              <button
                 key={item.href}
-                href={item.href}
-                className={`flex flex-col items-center justify-center w-16 gap-1 transition-colors ${
-                  isActive ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'
+                type="button"
+                onClick={() => {
+                  if (isActive || isNavigatingHere) return
+                  setPendingHref(item.href)
+                  startTransitionHook(() => { router.push(item.href) })
+                }}
+                className={`flex flex-col items-center justify-center w-16 gap-1 transition-colors touch-manipulation ${
+                  isActive ? 'text-emerald-400' : isNavigatingHere ? 'text-emerald-300' : 'text-slate-400 hover:text-slate-200'
                 }`}
-                prefetch={false}
               >
-                <item.icon className="size-5" />
+                <span className="relative inline-flex">
+                  <item.icon className="size-5" />
+                  {isNavigatingHere && (
+                    <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                    </span>
+                  )}
+                </span>
                 <span className="text-[10px] font-medium truncate w-full text-center">{navLabel(item)}</span>
-              </Link>
+              </button>
             )
           })}
           

@@ -95,6 +95,7 @@ export function SlideToConfirm({ orderId, variant, onConfirm, disabled }: Props)
           dragElastic={0}
           dragMomentum={false}
           onDragEnd={handleDragEnd}
+          onPointerUp={(e) => { try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {} }}
         >
           <Icon className={`text-white shrink-0 ${isCompact ? 'h-5 w-5' : 'h-8 w-8'}`} />
         </motion.div>

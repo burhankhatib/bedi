@@ -39,7 +39,10 @@ export async function GET(req: Request) {
 
   const cutoff = new Date(Date.now() - AUTO_OFFLINE_AFTER_MS).toISOString()
   const drivers = await writeClient.fetch<DriverRow[]>(
-    `*[_type == "driver" && isOnline == true && defined(onlineSince) && onlineSince <= $cutoff]{ _id, clerkUserId, nickname, fcmToken, "pushSubscription": pushSubscription }`,
+    `*[_type == "driver" && isOnline == true && defined(onlineSince) && onlineSince <= $cutoff]{
+      _id, clerkUserId, nickname, fcmToken, "pushSubscription": pushSubscription,
+      "activeDeliveries": count(*[_type == "order" && orderType == "delivery" && assignedDriver._ref == ^._id && status in ["preparing", "waiting_for_delivery", "driver_on_the_way", "out-for-delivery"]])
+    }[activeDeliveries == 0]`,
     { cutoff }
   )
   if (!drivers?.length) {

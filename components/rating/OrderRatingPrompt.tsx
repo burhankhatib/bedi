@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { RatingPromptModal } from './RatingPromptModal'
 import { RatingPrompt } from '@/lib/rating/types'
 import { useLanguage } from '@/components/LanguageContext'
@@ -13,7 +13,9 @@ export function OrderRatingPrompt({
   raterId, 
   businessDisplayName,
   driverDisplayName,
-  targetName // fallback for non-customer roles or simple single prompts
+  targetName, // fallback for non-customer roles or simple single prompts
+  autoOpen = false,
+  theme,
 }: { 
   orderId?: string
   raterRole: 'customer' | 'driver' | 'business'
@@ -21,6 +23,10 @@ export function OrderRatingPrompt({
   businessDisplayName?: string
   driverDisplayName?: string
   targetName?: string
+  /** When true, automatically opens the rating modal once prompts have loaded. */
+  autoOpen?: boolean
+  /** Passed through to RatingPromptModal for consistent light/dark styling. */
+  theme?: 'light' | 'dark'
 }) {
   const { t } = useLanguage()
   const [prompt, setPrompt] = useState<RatingPrompt | null>(null)
@@ -28,8 +34,16 @@ export function OrderRatingPrompt({
   const [showModal, setShowModal] = useState(false)
   const [prompts, setPrompts] = useState<RatingPrompt[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
+  const autoOpenedRef = useRef(false)
 
   const currentPrompt = prompts[currentIndex]
+
+  useEffect(() => {
+    if (autoOpen && !autoOpenedRef.current && prompts.length > 0 && !loading) {
+      autoOpenedRef.current = true
+      setShowModal(true)
+    }
+  }, [autoOpen, prompts, loading])
 
   const fetchPrompt = () => {
     const params = new URLSearchParams()
@@ -86,6 +100,7 @@ export function OrderRatingPrompt({
         targetRole={currentPrompt.targetRole as 'business' | 'driver' | 'customer'}
         stepCount={prompts.length}
         currentStep={currentIndex + 1}
+        theme={theme}
         onSuccess={() => {
           if (currentIndex < prompts.length - 1) {
             setCurrentIndex(prev => prev + 1)

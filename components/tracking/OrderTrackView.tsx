@@ -2129,7 +2129,7 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
         tipSending={tipSending}
       />
 
-      {isDelivery && (data.order.shopperFee !== undefined || hasPendingItemChangeConfirmation) && (
+      {isDelivery && data.order.shopperFee != null && (
         <div className="mt-5 px-4">
           <div className="rounded-[2rem] border border-indigo-200/70 bg-indigo-50 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-indigo-100/80">
@@ -2409,6 +2409,8 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
                   businessDisplayName={restaurantName}
                   driverDisplayName={data.driver?.name}
                   targetName={restaurantName}
+                  autoOpen
+                  theme="light"
                 />
               </div>
             )}
@@ -2652,7 +2654,7 @@ export function OrderTrackView({ slug, token, orderId, phone }: { slug: string; 
                 {t('Delivery fee is paid by the business.', 'رسوم التوصيل يدفعها المتجر.')}
               </div>
             )}
-            {isDelivery && data.order.shopperFee !== undefined && (
+            {isDelivery && data.order.shopperFee != null && (
               <div className="flex justify-between text-slate-600 text-sm">
                 <span>{t('Personal shopper', 'المتسوق الشخصي')}</span>
                 <span className="font-medium">

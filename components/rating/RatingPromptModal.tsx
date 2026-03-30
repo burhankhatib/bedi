@@ -21,6 +21,8 @@ interface RatingPromptModalProps {
   stepCount?: number
   currentStep?: number
   onSuccess?: () => void
+  /** Override the auto-derived dark/light theme. Pass 'light' for consistent customer-facing modals. */
+  theme?: 'light' | 'dark'
 }
 
 export function RatingPromptModal({
@@ -31,7 +33,8 @@ export function RatingPromptModal({
   targetRole,
   stepCount = 1,
   currentStep = 1,
-  onSuccess
+  onSuccess,
+  theme,
 }: RatingPromptModalProps) {
   const { t } = useLanguage()
   const [score, setScore] = useState(0)
@@ -48,7 +51,8 @@ export function RatingPromptModal({
     }
   }, [promptId, open])
 
-  const isDark = targetRole === 'customer' || targetRole === 'driver' // e.g. business/driver dashboards are usually dark
+  // Explicit `theme` prop wins; otherwise derive from target role (driver dashboards are dark)
+  const isDark = theme === 'dark' ? true : theme === 'light' ? false : (targetRole === 'customer' || targetRole === 'driver')
 
   const handleSubmit = async () => {
     if (score === 0) return

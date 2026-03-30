@@ -170,8 +170,12 @@ export function PushStatusCard({
               </span>
             )}
             {(status === 'connected' || status === 'stale') && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-700/60 bg-emerald-950/30 px-3 py-1 text-xs text-emerald-400">
-                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs ${
+                isLight
+                  ? 'border border-emerald-300 bg-emerald-100 text-emerald-800'
+                  : 'border border-emerald-700/60 bg-emerald-950/30 text-emerald-400'
+              }`}>
+                <span className={`size-1.5 rounded-full animate-pulse ${isLight ? 'bg-emerald-600' : 'bg-emerald-400'}`} />
                 {L.active}
               </span>
             )}
@@ -196,7 +200,11 @@ export function PushStatusCard({
                 size="sm"
                 disabled={isRefreshing || loading}
                 onClick={handleRefresh}
-                className="h-8 gap-1.5 rounded-full px-3 text-xs text-emerald-400 hover:bg-emerald-900/40 hover:text-emerald-300"
+                className={`h-8 gap-1.5 rounded-full px-3 text-xs ${
+                  isLight
+                    ? 'text-emerald-700 hover:bg-emerald-100 hover:text-emerald-900'
+                    : 'text-emerald-400 hover:bg-emerald-900/40 hover:text-emerald-300'
+                }`}
               >
                 <RefreshCw className={`size-3.5 ${isRefreshing || loading ? 'animate-spin' : ''}`} />
                 {isRefreshing || loading ? L.refreshing : L.refresh}

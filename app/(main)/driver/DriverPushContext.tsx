@@ -318,6 +318,7 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
           setHasPush(true)
           if (!isRefresh) {
             showToast('Push notifications enabled. You will get new order alerts.', 'تم تفعيل الإشعارات. ستستقبل تنبيهات الطلبات الجديدة.', 'success')
+            fetch('/api/driver/push-send-subscribed', { method: 'POST' }).catch(() => {})
           }
           return true
         }
@@ -356,6 +357,7 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
               setHasPush(true)
               if (!isRefresh) {
                 showToast('Push notifications enabled. You will get new order alerts.', 'تم تفعيل الإشعارات. ستستقبل تنبيهات الطلبات الجديدة.', 'success')
+                fetch('/api/driver/push-send-subscribed', { method: 'POST' }).catch(() => {})
               }
               return true
             }
@@ -411,6 +413,7 @@ export function DriverPushProvider({ children }: { children: ReactNode }) {
       setStoredPushOk(PUSH_CONTEXT_KEYS.driver())
       setHasPush(true)
       showToast('Push notifications enabled. You will get new order alerts.', 'تم تفعيل الإشعارات. ستستقبل تنبيهات الطلبات الجديدة.', 'success')
+      fetch('/api/driver/push-send-subscribed', { method: 'POST' }).catch(() => {})
       return true
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to enable'

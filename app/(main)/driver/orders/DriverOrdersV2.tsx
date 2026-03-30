@@ -592,6 +592,7 @@ function DriverOrdersV2Content() {
     ])
     acceptedAtRef.current.set(orderId, Date.now())
     suppressBediMapOpenUntilRef.current = Date.now() + BEDI_MAP_OPEN_GUARD_MS
+    setTimeout(() => { suppressBediMapOpenUntilRef.current = 0 }, BEDI_MAP_OPEN_GUARD_MS + 100)
     try {
       const res = await fetch(`/api/driver/orders/${orderId}/accept`, {
         method: 'POST',
@@ -631,6 +632,7 @@ function DriverOrdersV2Content() {
         'success',
       )
       suppressBediMapOpenUntilRef.current = Date.now() + BEDI_MAP_OPEN_GUARD_MS
+      setTimeout(() => { suppressBediMapOpenUntilRef.current = 0 }, BEDI_MAP_OPEN_GUARD_MS + 100)
       fetchOrders()
     } catch {
       showToast(
